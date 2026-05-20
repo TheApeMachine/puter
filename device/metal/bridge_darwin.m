@@ -106,6 +106,52 @@ static const char* metal_binary_float32_kernel_name(int operation) {
     }
 }
 
+
+id<MTLComputeCommandEncoder> metal_get_encoder(MetalContext* context, id<MTLCommandBuffer>* outCommandBuffer) {
+    if (context->isBatching) {
+        if (context->currentCommandBuffer == NULL) {
+            id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)context->queue;
+            id<MTLCommandBuffer> cb = [queue commandBuffer];
+            context->currentCommandBuffer = (__bridge_retained void*)cb;
+            context->currentEncoder = (__bridge_retained void*)[cb computeCommandEncoder];
+        }
+        *outCommandBuffer = (__bridge id<MTLCommandBuffer>)context->currentCommandBuffer;
+        return (__bridge id<MTLComputeCommandEncoder>)context->currentEncoder;
+    } else {
+        id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)context->queue;
+        id<MTLCommandBuffer> cb = [queue commandBuffer];
+        *outCommandBuffer = cb;
+        return [cb computeCommandEncoder];
+    }
+}
+
+void metal_end_encoder(MetalContext* context, id<MTLComputeCommandEncoder> encoder, id<MTLCommandBuffer> commandBuffer) {
+    if (!context->isBatching) {
+        [encoder endEncoding];
+        [commandBuffer commit];
+    }
+}
+
+void metal_begin_batch(MetalDeviceRef contextRef) {
+    MetalContext* context = (MetalContext*)contextRef;
+    context->isBatching = true;
+}
+
+void metal_end_batch(MetalDeviceRef contextRef) {
+    MetalContext* context = (MetalContext*)contextRef;
+    context->isBatching = false;
+    if (context->currentEncoder != NULL) {
+        id<MTLComputeCommandEncoder> enc = (__bridge_transfer id<MTLComputeCommandEncoder>)context->currentEncoder;
+        [enc endEncoding];
+        context->currentEncoder = NULL;
+    }
+    if (context->currentCommandBuffer != NULL) {
+        id<MTLCommandBuffer> cb = (__bridge_transfer id<MTLCommandBuffer>)context->currentCommandBuffer;
+        [cb commit];
+        context->currentCommandBuffer = NULL;
+    }
+}
+
 id<MTLComputePipelineState> metal_get_pipeline(
     MetalContext* context,
     const char* name,

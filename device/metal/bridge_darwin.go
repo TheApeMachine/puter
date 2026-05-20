@@ -4,7 +4,7 @@ package metal
 
 /*
 #cgo CFLAGS: -x objective-c -fobjc-arc
-#cgo LDFLAGS: -framework Metal -framework Foundation -framework CoreFoundation
+#cgo LDFLAGS: -framework Metal -framework Foundation -framework CoreFoundation -framework MetalPerformanceShaders
 
 #include <stdlib.h>
 #include <string.h>
@@ -900,4 +900,12 @@ func (target *metalTensor) Grad() (tensor.Tensor, error) {
 
 func (target *metalTensor) GradFn() tensor.GradFn {
 	return nil
+}
+
+func (bridge *metalBridge) beginBatch() {
+	C.metal_begin_batch(bridge.device)
+}
+
+func (bridge *metalBridge) endBatch() {
+	C.metal_end_batch(bridge.device)
 }

@@ -150,19 +150,8 @@ int metal_shape_dispatch(
         }
 
         id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)context->queue;
-        id<MTLCommandBuffer> commandBuffer = [queue commandBuffer];
-
-        if (commandBuffer == nil) {
-            metal_shape_status_set(status, -3, "commandBuffer returned nil");
-            return -3;
-        }
-
-        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
-
-        if (encoder == nil) {
-            metal_shape_status_set(status, -4, "computeCommandEncoder returned nil");
-            return -4;
-        }
+        id<MTLCommandBuffer> commandBuffer;
+        id<MTLComputeCommandEncoder> encoder = metal_get_encoder((MetalContext*)contextRef, &commandBuffer);
 
         [encoder setComputePipelineState:pipeline];
         encode(encoder);
@@ -177,11 +166,10 @@ int metal_shape_dispatch(
             dispatchThreads:MTLSizeMake(threadCount, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(threadWidth, 1, 1)
         ];
-        [encoder endEncoding];
         [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
             metal_shape_complete(completionToken, completedBuffer, nil);
         }];
-        [commandBuffer commit];
+        metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;
     }
@@ -223,19 +211,8 @@ int metal_shape_dispatch_validated(
         }
 
         id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)context->queue;
-        id<MTLCommandBuffer> commandBuffer = [queue commandBuffer];
-
-        if (commandBuffer == nil) {
-            metal_shape_status_set(status, -3, "commandBuffer returned nil");
-            return -3;
-        }
-
-        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
-
-        if (encoder == nil) {
-            metal_shape_status_set(status, -4, "computeCommandEncoder returned nil");
-            return -4;
-        }
+        id<MTLCommandBuffer> commandBuffer;
+        id<MTLComputeCommandEncoder> encoder = metal_get_encoder((MetalContext*)contextRef, &commandBuffer);
 
         [encoder setComputePipelineState:pipeline];
         encode(encoder, validationBuffer);
@@ -250,11 +227,10 @@ int metal_shape_dispatch_validated(
             dispatchThreads:MTLSizeMake(threadCount, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(threadWidth, 1, 1)
         ];
-        [encoder endEncoding];
         [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
             metal_shape_complete(completionToken, completedBuffer, validationBuffer);
         }];
-        [commandBuffer commit];
+        metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;
     }

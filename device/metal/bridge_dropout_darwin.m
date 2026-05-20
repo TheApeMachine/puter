@@ -171,11 +171,10 @@ int metal_dispatch_dropout(
             dispatchThreads:MTLSizeMake((NSUInteger)count, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(threadWidth, 1, 1)
         ];
-        [encoder endEncoding];
         [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
             metal_dropout_complete(completionToken, completedBuffer);
         }];
-        [commandBuffer commit];
+        metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;
     }

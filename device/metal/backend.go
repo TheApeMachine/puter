@@ -212,3 +212,12 @@ becoming Ready. Production code should call Tensor.Sync directly.
 func SyncBlocking(ctx context.Context, target tensor.Tensor) error {
 	return target.Sync(ctx)
 }
+
+
+func (backend *Backend) BeginBatch() {
+	backend.bridge.beginBatch()
+}
+
+func (backend *Backend) EndBatch() {
+	backend.bridge.endBatch()
+}

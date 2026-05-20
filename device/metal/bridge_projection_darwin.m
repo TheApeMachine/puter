@@ -133,19 +133,8 @@ static int metal_projection_dispatch_2d(
             return prepareCode;
         }
 
-        id<MTLCommandBuffer> commandBuffer = [queue commandBuffer];
-
-        if (commandBuffer == nil) {
-            metal_projection_status_set(status, -3, "commandBuffer returned nil");
-            return -3;
-        }
-
-        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
-
-        if (encoder == nil) {
-            metal_projection_status_set(status, -4, "computeCommandEncoder returned nil");
-            return -4;
-        }
+        id<MTLCommandBuffer> commandBuffer;
+        id<MTLComputeCommandEncoder> encoder = metal_get_encoder((MetalContext*)contextRef, &commandBuffer);
 
         [encoder setComputePipelineState:pipeline];
         encode(encoder);
@@ -153,11 +142,10 @@ static int metal_projection_dispatch_2d(
             dispatchThreadgroups:MTLSizeMake((cols + 15) / 16, (rows + 15) / 16, 1)
             threadsPerThreadgroup:MTLSizeMake(16, 16, 1)
         ];
-        [encoder endEncoding];
         [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
             metal_projection_complete(completionToken, completedBuffer);
         }];
-        [commandBuffer commit];
+        metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;
     }

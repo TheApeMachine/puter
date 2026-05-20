@@ -2,6 +2,7 @@
 
 #include <Foundation/Foundation.h>
 #include <Metal/Metal.h>
+#import <MetalPerformanceShaders/MetalPerformanceShaders.h>
 #include "_cgo_export.h"
 #include <stdio.h>
 
@@ -61,9 +62,8 @@ int metal_dispatch_unary_param(
             return status != NULL && status->code != 0 ? status->code : -7;
         }
 
-        id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)context->queue;
-        id<MTLCommandBuffer> commandBuffer = [queue commandBuffer];
-        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+        id<MTLCommandBuffer> commandBuffer;
+        id<MTLComputeCommandEncoder> encoder = metal_get_encoder((MetalContext*)contextRef, &commandBuffer);
 
         [encoder setComputePipelineState:pipeline];
         [encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
@@ -80,11 +80,10 @@ int metal_dispatch_unary_param(
         NSUInteger vectorCount = (NSUInteger)((count + 3) / 4);
         [encoder dispatchThreads:MTLSizeMake(vectorCount, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(threadWidth, 1, 1)];
-        [encoder endEncoding];
         [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
             metal_fused_complete(completionToken, completedBuffer);
         }];
-        [commandBuffer commit];
+        metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;
     }
@@ -129,9 +128,8 @@ int metal_dispatch_axpy(
             return status != NULL && status->code != 0 ? status->code : -7;
         }
 
-        id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)context->queue;
-        id<MTLCommandBuffer> commandBuffer = [queue commandBuffer];
-        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+        id<MTLCommandBuffer> commandBuffer;
+        id<MTLComputeCommandEncoder> encoder = metal_get_encoder((MetalContext*)contextRef, &commandBuffer);
 
         [encoder setComputePipelineState:pipeline];
         [encoder setBuffer:(__bridge id<MTLBuffer>)yRef offset:0 atIndex:0];
@@ -148,11 +146,10 @@ int metal_dispatch_axpy(
         NSUInteger vectorCount = (NSUInteger)((count + 3) / 4);
         [encoder dispatchThreads:MTLSizeMake(vectorCount, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(threadWidth, 1, 1)];
-        [encoder endEncoding];
         [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
             metal_fused_complete(completionToken, completedBuffer);
         }];
-        [commandBuffer commit];
+        metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;
     }
@@ -197,9 +194,8 @@ int metal_dispatch_dot(
             return status != NULL && status->code != 0 ? status->code : -7;
         }
 
-        id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)context->queue;
-        id<MTLCommandBuffer> commandBuffer = [queue commandBuffer];
-        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+        id<MTLCommandBuffer> commandBuffer;
+        id<MTLComputeCommandEncoder> encoder = metal_get_encoder((MetalContext*)contextRef, &commandBuffer);
 
         [encoder setComputePipelineState:pipeline];
         [encoder setBuffer:(__bridge id<MTLBuffer>)leftRef offset:0 atIndex:0];
@@ -213,11 +209,10 @@ int metal_dispatch_dot(
         
         [encoder dispatchThreads:MTLSizeMake(threadgroups * maxThreads, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(maxThreads, 1, 1)];
-        [encoder endEncoding];
         [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
             metal_fused_complete(completionToken, completedBuffer);
         }];
-        [commandBuffer commit];
+        metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;
     }
@@ -258,20 +253,18 @@ int metal_dispatch_cholesky(
             return status != NULL && status->code != 0 ? status->code : -7;
         }
 
-        id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)context->queue;
-        id<MTLCommandBuffer> commandBuffer = [queue commandBuffer];
-        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+        id<MTLCommandBuffer> commandBuffer;
+        id<MTLComputeCommandEncoder> encoder = metal_get_encoder((MetalContext*)contextRef, &commandBuffer);
 
         [encoder setComputePipelineState:pipeline];
         [encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
         [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:1];
         [encoder setBytes:&order length:sizeof(order) atIndex:2];
         [encoder dispatchThreads:MTLSizeMake(1, 1, 1) threadsPerThreadgroup:MTLSizeMake(1, 1, 1)];
-        [encoder endEncoding];
         [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
             metal_fused_complete(completionToken, completedBuffer);
         }];
-        [commandBuffer commit];
+        metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;
     }

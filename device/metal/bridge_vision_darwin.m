@@ -110,19 +110,8 @@ int metal_vision_dispatch(
             return prepareCode;
         }
 
-        id<MTLCommandBuffer> commandBuffer = [queue commandBuffer];
-
-        if (commandBuffer == nil) {
-            metal_vision_status_set(status, -3, "commandBuffer returned nil");
-            return -3;
-        }
-
-        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
-
-        if (encoder == nil) {
-            metal_vision_status_set(status, -4, "computeCommandEncoder returned nil");
-            return -4;
-        }
+        id<MTLCommandBuffer> commandBuffer;
+        id<MTLComputeCommandEncoder> encoder = metal_get_encoder((MetalContext*)contextRef, &commandBuffer);
 
         [encoder setComputePipelineState:pipeline];
         encode(encoder);

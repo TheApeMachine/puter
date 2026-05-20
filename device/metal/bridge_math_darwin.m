@@ -241,11 +241,10 @@ int metal_dispatch_inv_sqrt_dim_scale(
             dispatchThreads:MTLSizeMake((NSUInteger)count, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(threadWidth, 1, 1)
         ];
-        [encoder endEncoding];
         [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
             metal_math_complete(completionToken, completedBuffer, validationBuffer);
         }];
-        [commandBuffer commit];
+        metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;
     }
@@ -304,11 +303,10 @@ int metal_dispatch_logsumexp(
             dispatchThreadgroups:MTLSizeMake((NSUInteger)rows, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(metalMathThreadCountObjC, 1, 1)
         ];
-        [encoder endEncoding];
         [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
             metal_math_complete(completionToken, completedBuffer, nil);
         }];
-        [commandBuffer commit];
+        metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;
     }
@@ -376,11 +374,10 @@ int metal_dispatch_outer(
             dispatchThreads:MTLSizeMake((NSUInteger)count, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(threadWidth, 1, 1)
         ];
-        [encoder endEncoding];
         [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
             metal_math_complete(completionToken, completedBuffer, nil);
         }];
-        [commandBuffer commit];
+        metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;
     }

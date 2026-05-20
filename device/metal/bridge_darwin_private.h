@@ -11,7 +11,13 @@ typedef struct MetalContext {
     void* library;
     void* pipelineCache;
     void* pipelineLock;
+    bool isBatching;
+    void* currentCommandBuffer;
+    void* currentEncoder;
 } MetalContext;
+
+id<MTLComputeCommandEncoder> metal_get_encoder(MetalContext* context, id<MTLCommandBuffer>* outCommandBuffer);
+void metal_end_encoder(MetalContext* context, id<MTLComputeCommandEncoder> encoder, id<MTLCommandBuffer> commandBuffer);
 
 id<MTLComputePipelineState> metal_get_pipeline(
     MetalContext* context,
