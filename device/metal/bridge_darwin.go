@@ -39,6 +39,7 @@ type metalBridge struct {
 	pool       *metalBufferPool
 	resident   sync.Map
 	submission sync.RWMutex
+	batchMutex sync.Mutex
 	pending    sync.WaitGroup
 	closed     atomic.Bool
 }
@@ -911,9 +912,11 @@ func (target *metalTensor) GradFn() tensor.GradFn {
 }
 
 func (bridge *metalBridge) beginBatch() {
+	bridge.batchMutex.Lock()
 	C.metal_begin_batch(bridge.device)
 }
 
 func (bridge *metalBridge) endBatch() {
 	C.metal_end_batch(bridge.device)
+	bridge.batchMutex.Unlock()
 }
