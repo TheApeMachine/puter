@@ -498,7 +498,7 @@ static inline void rope_kernel(
     uint seqIndex = index / (halfDim * numHeads);
     uint inputIndex = (seqIndex * numHeads + headIndex) * headDim + pairIndex * 2;
     float exponent = -2.0f * float(pairIndex) / float(headDim);
-    float theta = float(seqIndex) * pow(10000.0f, exponent);
+    float theta = float(seqIndex) * pow(500000.0f, exponent);
     float cosTheta = cos(theta);
     float sinTheta = sin(theta);
     float even = Storage::load(input, inputIndex);

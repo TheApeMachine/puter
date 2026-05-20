@@ -55,19 +55,14 @@ int metal_dispatch_multi_head_attention(
             return pipelineCode;
         }
 
-        id<MTLCommandBuffer> commandBuffer = metal_attention_command_buffer(context, status);
-
-        if (commandBuffer == nil) {
-            return status != NULL && status->code != 0 ? status->code : -3;
-        }
-
-        id<MTLComputeCommandEncoder> encoder =
-            metal_attention_encoder(commandBuffer, pipeline, status);
+        id<MTLCommandBuffer> commandBuffer = nil;
+        id<MTLComputeCommandEncoder> encoder = metal_get_encoder(context, &commandBuffer);
 
         if (encoder == nil) {
             return status != NULL && status->code != 0 ? status->code : -4;
         }
 
+        [encoder setComputePipelineState:pipeline];
         [encoder setBuffer:(__bridge id<MTLBuffer>)queryRef offset:0 atIndex:0];
         [encoder setBuffer:(__bridge id<MTLBuffer>)keyRef offset:0 atIndex:1];
         [encoder setBuffer:(__bridge id<MTLBuffer>)valueRef offset:0 atIndex:2];
@@ -79,9 +74,14 @@ int metal_dispatch_multi_head_attention(
         [encoder setBytes:&headDim length:sizeof(headDim) atIndex:8];
         [encoder setBytes:&windowSize length:sizeof(windowSize) atIndex:9];
         [encoder setBytes:&causal length:sizeof(causal) atIndex:10];
+        NSUInteger maxThreads = [pipeline maxTotalThreadsPerThreadgroup];
+        NSUInteger threads = 256;
+        if (threads > maxThreads) {
+            threads = maxThreads;
+        }
         [encoder
             dispatchThreadgroups:MTLSizeMake(seqQ, numHeads, (headDim + 63) / 64)
-            threadsPerThreadgroup:MTLSizeMake(256, 1, 1)
+            threadsPerThreadgroup:MTLSizeMake(threads, 1, 1)
         ];
         [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
             metal_attention_complete(completionToken, completedBuffer);

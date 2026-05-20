@@ -12,6 +12,7 @@ import "C"
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/theapemachine/manifesto/tensor"
 )
@@ -176,35 +177,40 @@ func requireMetalMultiHeadAttentionDims(config *metalMultiHeadAttentionConfig) e
 	valueDims := config.value.shape.Dims()
 	outDims := config.out.shape.Dims()
 
-	if len(queryDims) != 2 || len(keyDims) != 2 || len(valueDims) != 2 || len(outDims) != 2 {
+	if len(queryDims) < 3 || len(keyDims) < 3 || len(valueDims) < 3 || len(outDims) < 3 {
+		fmt.Printf("requireMetalMultiHeadAttentionDims: rank mismatch: q=%v, k=%v, v=%v, out=%v\n", queryDims, keyDims, valueDims, outDims)
 		return tensor.ErrShapeMismatch
 	}
 
-	if queryDims[1]%int(config.numHeads) != 0 {
+	config.numHeads = uint32(queryDims[len(queryDims)-2])
+	config.kvHeads = uint32(keyDims[len(keyDims)-2])
+
+	seqQ := config.query.shape.Len() / (int(config.numHeads) * queryDims[len(queryDims)-1])
+	seqK := config.key.shape.Len() / (int(config.kvHeads) * keyDims[len(keyDims)-1])
+
+	headDim := queryDims[len(queryDims)-1]
+	if headDim <= 0 || keyDims[len(keyDims)-1] != headDim {
+		fmt.Printf("requireMetalMultiHeadAttentionDims: headDim mismatch: q=%v, k=%v\n", queryDims, keyDims)
 		return tensor.ErrShapeMismatch
 	}
 
-	headDim := queryDims[1] / int(config.numHeads)
-	if headDim <= 0 || keyDims[1] != int(config.kvHeads)*headDim {
+	if valueDims[len(valueDims)-2] != int(config.kvHeads) || valueDims[len(valueDims)-1] != headDim {
+		fmt.Printf("requireMetalMultiHeadAttentionDims: v mismatch: v=%v, kvHeads=%d, headDim=%d\n", valueDims, config.kvHeads, headDim)
 		return tensor.ErrShapeMismatch
 	}
 
-	if valueDims[0] != keyDims[0] || valueDims[1] != keyDims[1] {
-		return tensor.ErrShapeMismatch
-	}
-
-	if outDims[0] != queryDims[0] || outDims[1] != queryDims[1] {
+	if seqQ <= 0 || seqK <= 0 {
 		return tensor.ErrShapeMismatch
 	}
 
 	if err := requireTransformerUint32(
-		queryDims[0], keyDims[0], int(config.numHeads), int(config.kvHeads), headDim,
+		seqQ, seqK, int(config.numHeads), int(config.kvHeads), headDim,
 	); err != nil {
 		return err
 	}
 
-	config.seqQ = uint32(queryDims[0])
-	config.seqK = uint32(keyDims[0])
+	config.seqQ = uint32(seqQ)
+	config.seqK = uint32(seqK)
 	config.headDim = uint32(headDim)
 	return nil
 }
@@ -213,6 +219,7 @@ func (config *metalMultiHeadAttentionConfig) applyVariant() {
 	switch config.variant {
 	case metalMultiHeadAttentionVariantGrouped:
 		config.kvHeads = config.numHeads / 4
+		config.causal = 1
 	case metalMultiHeadAttentionVariantSliding:
 		config.causal = 1
 		config.windowSize = 128

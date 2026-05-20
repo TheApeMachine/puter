@@ -213,6 +213,7 @@ func metalNormDims(
 	out *metalTensor,
 ) (int, int, error) {
 	if !input.shape.Equal(out.shape) {
+		fmt.Printf("metalNormDims: shape mismatch: input=%v, out=%v\n", input.shape.Dims(), out.shape.Dims())
 		return 0, 0, tensor.ErrShapeMismatch
 	}
 
@@ -228,6 +229,7 @@ func metalNormDims(
 
 	scaleDims := scale.shape.Dims()
 	if len(scaleDims) != 1 || scaleDims[0] != cols {
+		fmt.Printf("metalNormDims: scale mismatch: scale=%v, cols=%d\n", scaleDims, cols)
 		return 0, 0, tensor.ErrShapeMismatch
 	}
 

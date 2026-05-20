@@ -12,6 +12,7 @@ import "C"
 
 import (
 	"errors"
+	"fmt"
 	"math"
 
 	"github.com/theapemachine/manifesto/dtype"
@@ -249,30 +250,38 @@ func requireMetalAttentionDims(config *metalAttentionConfig) error {
 	valueDims := config.value.shape.Dims()
 	outDims := config.out.shape.Dims()
 
-	if len(queryDims) != 2 || len(keyDims) != 2 || len(valueDims) != 2 || len(outDims) != 2 {
+	if len(queryDims) < 3 || len(keyDims) < 3 || len(valueDims) < 3 || len(outDims) < 3 {
+		fmt.Printf("requireMetalAttentionDims: rank mismatch: q=%v, k=%v, v=%v, out=%v\n", queryDims, keyDims, valueDims, outDims)
 		return tensor.ErrShapeMismatch
 	}
 
-	if keyDims[1] != queryDims[1] || valueDims[0] != keyDims[0] {
+	seqQ := config.query.shape.Len() / (queryDims[len(queryDims)-2] * queryDims[len(queryDims)-1])
+	seqK := config.key.shape.Len() / (keyDims[len(keyDims)-2] * keyDims[len(keyDims)-1])
+	depth := queryDims[len(queryDims)-2]
+	valueDim := valueDims[len(valueDims)-1]
+
+	if keyDims[len(keyDims)-1] != queryDims[len(queryDims)-1] {
+		fmt.Printf("requireMetalAttentionDims: headDim mismatch: q=%v, k=%v\n", queryDims, keyDims)
 		return tensor.ErrShapeMismatch
 	}
 
-	if outDims[0] != queryDims[0] || outDims[1] != valueDims[1] {
+	if outDims[len(outDims)-1] != valueDim {
+		fmt.Printf("requireMetalAttentionDims: outDim mismatch: out=%v, v=%v\n", outDims, valueDims)
 		return tensor.ErrShapeMismatch
 	}
 
-	if queryDims[1] <= 0 || keyDims[0] <= 0 || valueDims[1] <= 0 {
+	if depth <= 0 || seqK <= 0 || valueDim <= 0 {
 		return tensor.ErrShapeMismatch
 	}
 
-	if err := requireTransformerUint32(queryDims[0], keyDims[0], queryDims[1], valueDims[1]); err != nil {
+	if err := requireTransformerUint32(seqQ, seqK, depth, valueDim); err != nil {
 		return err
 	}
 
-	config.seqQ = uint32(queryDims[0])
-	config.seqK = uint32(keyDims[0])
-	config.depth = uint32(queryDims[1])
-	config.valueDim = uint32(valueDims[1])
+	config.seqQ = uint32(seqQ)
+	config.seqK = uint32(seqK)
+	config.depth = uint32(depth)
+	config.valueDim = uint32(valueDim)
 	return nil
 }
 
@@ -287,12 +296,17 @@ func newMetalAttentionScores(config metalAttentionConfig) (*metalTensor, error) 
 
 func metalRoPEDims(input *metalTensor, out *metalTensor) (int, int, int, int, error) {
 	dims := input.shape.Dims()
-	if len(dims) != 3 || !input.shape.Equal(out.shape) {
+	if len(dims) < 3 || !input.shape.Equal(out.shape) {
+		fmt.Printf("metalRoPEDims: shape mismatch: input=%v, out=%v\n", input.shape.Dims(), out.shape.Dims())
 		return 0, 0, 0, 0, tensor.ErrShapeMismatch
 	}
 
-	seqLen, numHeads, headDim := dims[0], dims[1], dims[2]
+	headDim := dims[len(dims)-1]
+	numHeads := dims[len(dims)-2]
+	seqLen := input.shape.Len() / (numHeads * headDim)
+
 	if headDim%2 != 0 {
+		fmt.Printf("metalRoPEDims: headDim not even: %d\n", headDim)
 		return 0, 0, 0, 0, tensor.ErrShapeMismatch
 	}
 

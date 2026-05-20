@@ -482,16 +482,17 @@ func metalLinearDims(config metalLinearConfig) (int, int, int, error) {
 	biasDims := config.bias.shape.Dims()
 	outDims := config.out.shape.Dims()
 
-	if len(inputDims) != 2 || len(weightDims) != 2 ||
-		len(biasDims) != 1 || len(outDims) != 2 {
+	if len(weightDims) != 2 || len(biasDims) != 1 {
 		fmt.Printf("metalLinearDims: len mismatch: input=%v, weight=%v, bias=%v, out=%v\n", inputDims, weightDims, biasDims, outDims)
 		return 0, 0, 0, tensor.ErrShapeMismatch
 	}
 
-	batch, inner, outDim := inputDims[0], inputDims[1], weightDims[0]
+	inner, outDim := inputDims[len(inputDims)-1], weightDims[0]
+	batch := config.input.shape.Len() / inner
+
 	if weightDims[1] != inner || biasDims[0] != outDim ||
-		outDims[0] != batch || outDims[1] != outDim {
-		fmt.Printf("metalLinearDims: dim mismatch: batch=%d, inner=%d, outDim=%d, weight[1]=%d, bias[0]=%d, out[0]=%d, out[1]=%d\n", batch, inner, outDim, weightDims[1], biasDims[0], outDims[0], outDims[1])
+		config.out.shape.Len() != batch*outDim || outDims[len(outDims)-1] != outDim {
+		fmt.Printf("metalLinearDims: dim mismatch: batch=%d, inner=%d, outDim=%d, weight[1]=%d, bias[0]=%d, out[0]=%d, out[1]=%d\n", batch, inner, outDim, weightDims[1], biasDims[0], outDims[0], outDims[len(outDims)-1])
 		return 0, 0, 0, tensor.ErrShapeMismatch
 	}
 
