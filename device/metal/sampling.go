@@ -51,6 +51,6 @@ func runMetalSamplingKernel(operation metalSamplingOp) func(...tensor.Tensor) er
 			return tensor.ErrShapeMismatch
 		}
 
-		return runMetalSampling(operation, args[0], args[1])
+		return runMetalSampling(operation, args[0], args[1], nil)
 	}
 }

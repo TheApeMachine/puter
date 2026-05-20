@@ -223,6 +223,115 @@ struct HardSwishOp {
     }
 };
 
+constant float metalCeluAlpha = 1.0f;
+constant float metalGeluTanhAlpha = 0.7978845608028654f;
+constant float metalGeluTanhBeta = 0.044715f;
+constant float metalQuickGeluScale = 1.702f;
+constant float metalHardTanhMin = -1.0f;
+constant float metalHardTanhMax = 1.0f;
+
+struct Log1pOp {
+    float4 operator()(float4 value) const { return precise::log(float4(1.0f) + value); }
+    float operator()(float value) const { return precise::log(1.0f + value); }
+};
+
+struct Expm1Op {
+    float4 operator()(float4 value) const { return precise::exp(value) - float4(1.0f); }
+    float operator()(float value) const { return precise::exp(value) - 1.0f; }
+};
+
+struct CeluOp {
+    float4 operator()(float4 value) const {
+        return select(metalCeluAlpha * (precise::exp(value / metalCeluAlpha) - float4(1.0f)), value, value > float4(0.0f));
+    }
+    float operator()(float value) const {
+        return value > 0.0f ? value : metalCeluAlpha * (precise::exp(value / metalCeluAlpha) - 1.0f);
+    }
+};
+
+struct SoftplusOp {
+    float4 operator()(float4 value) const {
+        return select(value, precise::log(float4(1.0f) + precise::exp(value)), value <= float4(20.0f));
+    }
+    float operator()(float value) const {
+        return value > 20.0f ? value : precise::log(1.0f + precise::exp(value));
+    }
+};
+
+struct MishOp {
+    float4 operator()(float4 value) const {
+        float4 softplus = select(value, precise::log(float4(1.0f) + precise::exp(value)), value <= float4(20.0f));
+        return value * precise::tanh(softplus);
+    }
+    float operator()(float value) const {
+        float softplus = value > 20.0f ? value : precise::log(1.0f + precise::exp(value));
+        return value * precise::tanh(softplus);
+    }
+};
+
+struct LogSigmoidOp {
+    float4 operator()(float4 value) const {
+        float4 softplus = select(-value, precise::log(float4(1.0f) + precise::exp(-value)), -value <= float4(20.0f));
+        return -softplus;
+    }
+    float operator()(float value) const {
+        float softplus = -value > 20.0f ? -value : precise::log(1.0f + precise::exp(-value));
+        return -softplus;
+    }
+};
+
+struct GeluTanhOp {
+    float4 operator()(float4 value) const {
+        float4 inner = metalGeluTanhAlpha * (value + metalGeluTanhBeta * value * value * value);
+        return float4(0.5f) * value * (float4(1.0f) + precise::tanh(inner));
+    }
+    float operator()(float value) const {
+        float inner = metalGeluTanhAlpha * (value + metalGeluTanhBeta * value * value * value);
+        return 0.5f * value * (1.0f + precise::tanh(inner));
+    }
+};
+
+struct HardTanhOp {
+    float4 operator()(float4 value) const {
+        return clamp(value, float4(metalHardTanhMin), float4(metalHardTanhMax));
+    }
+    float operator()(float value) const {
+        return clamp(value, metalHardTanhMin, metalHardTanhMax);
+    }
+};
+
+struct HardGeluOp {
+    float4 operator()(float4 value) const {
+        float4 inner = value + float4(3.0f);
+        inner = clamp(inner, float4(0.0f), float4(6.0f));
+        return value * (inner / float4(6.0f));
+    }
+    float operator()(float value) const {
+        float inner = value + 3.0f;
+        if (inner < 0.0f) {
+            inner = 0.0f;
+        }
+        if (inner > 6.0f) {
+            inner = 6.0f;
+        }
+        return value * (inner / 6.0f);
+    }
+};
+
+struct QuickGeluOp {
+    float4 operator()(float4 value) const {
+        return value / (float4(1.0f) + precise::exp(-metalQuickGeluScale * value));
+    }
+    float operator()(float value) const {
+        return value / (1.0f + precise::exp(-metalQuickGeluScale * value));
+    }
+};
+
+struct TanhShrinkOp {
+    float4 operator()(float4 value) const { return value - precise::tanh(value); }
+    float operator()(float value) const { return value - precise::tanh(value); }
+};
+
 #define EXTENDED_UNARY_FLOAT32_KERNEL(name, op) \
 kernel void name##_float32( \
     device const float4* inputVector [[buffer(0)]], \
@@ -269,7 +378,18 @@ dtype_macro(elu, ELUOp) \
 dtype_macro(selu, SELUOp) \
 dtype_macro(leaky_relu, LeakyReLUOp) \
 dtype_macro(hardsigmoid, HardSigmoidOp) \
-dtype_macro(hardswish, HardSwishOp)
+dtype_macro(hardswish, HardSwishOp) \
+dtype_macro(log1p, Log1pOp) \
+dtype_macro(expm1, Expm1Op) \
+dtype_macro(celu, CeluOp) \
+dtype_macro(softplus, SoftplusOp) \
+dtype_macro(mish, MishOp) \
+dtype_macro(log_sigmoid, LogSigmoidOp) \
+dtype_macro(gelu_tanh, GeluTanhOp) \
+dtype_macro(hardtanh, HardTanhOp) \
+dtype_macro(hard_gelu, HardGeluOp) \
+dtype_macro(quick_gelu, QuickGeluOp) \
+dtype_macro(tanh_shrink, TanhShrinkOp)
 
 EXTENDED_UNARY_KERNELS(EXTENDED_UNARY_FLOAT32_KERNEL)
 EXTENDED_UNARY_KERNELS(EXTENDED_UNARY_FLOAT16_KERNEL)

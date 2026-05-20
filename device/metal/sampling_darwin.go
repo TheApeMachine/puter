@@ -17,6 +17,7 @@ import (
 
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
+	"github.com/theapemachine/puter/device"
 	computekernels "github.com/theapemachine/puter/kernels"
 )
 
@@ -32,43 +33,55 @@ type metalSamplingConfig struct {
 	target       float32
 }
 
+func runMetalSamplingWithConfig(
+	operation metalSamplingOp,
+	logits tensor.Tensor,
+	out tensor.Tensor,
+	config device.SamplingConfig,
+) error {
+	configCopy := config
+
+	return runMetalSampling(operation, logits, out, &configCopy)
+}
+
 func runMetalSampling(
 	operation metalSamplingOp,
 	logits tensor.Tensor,
 	out tensor.Tensor,
+	config *device.SamplingConfig,
 ) error {
-	config, err := requireMetalSampling(operation, logits, out)
+	metalConfig, err := requireMetalSampling(operation, logits, out, config)
 	if err != nil {
 		return err
 	}
 
-	if config.count == 0 {
+	if metalConfig.count == 0 {
 		return nil
 	}
 
-	if err := config.allocateScratch(); err != nil {
+	if err := metalConfig.allocateScratch(); err != nil {
 		return err
 	}
 
-	token, err := config.beginCompletion()
+	token, err := metalConfig.beginCompletion()
 	if err != nil {
-		config.closeScratch()
+		metalConfig.closeScratch()
 		return err
 	}
-	config.closeScratch()
+	metalConfig.closeScratch()
 
 	status := C.MetalStatus{}
 	rc := C.metal_dispatch_sampling(
-		config.logits.bridge.device,
-		C.int(config.operation),
-		C.int(config.elementDType),
-		config.logits.buffer,
-		config.scoreBuffer(),
-		config.indexBuffer(),
-		config.out.buffer,
-		C.uint32_t(config.count),
-		C.uint32_t(config.paddedCount),
-		C.float(config.target),
+		metalConfig.logits.bridge.device,
+		C.int(metalConfig.operation),
+		C.int(metalConfig.elementDType),
+		metalConfig.logits.buffer,
+		metalConfig.scoreBuffer(),
+		metalConfig.indexBuffer(),
+		metalConfig.out.buffer,
+		C.uint32_t(metalConfig.count),
+		C.uint32_t(metalConfig.paddedCount),
+		C.float(metalConfig.target),
 		C.uint64_t(token),
 		&status,
 	)
@@ -80,6 +93,7 @@ func requireMetalSampling(
 	operation metalSamplingOp,
 	logits tensor.Tensor,
 	out tensor.Tensor,
+	config *device.SamplingConfig,
 ) (metalSamplingConfig, error) {
 	logitTensor, outTensor, err := requireMetalSamplingTensors(logits, out)
 	if err != nil {
@@ -96,10 +110,16 @@ func requireMetalSampling(
 		return metalSamplingConfig{}, err
 	}
 
+	target := metalSamplingDefaultTarget()
+
+	if config != nil && config.Seed != 0 {
+		target = metalSamplingTargetFromSeed(config.Seed)
+	}
+
 	return metalSamplingConfig{
 		logits: logitTensor, out: outTensor, elementDType: elementDType,
 		operation: operation, count: count, paddedCount: paddedCount,
-		target: metalSamplingDefaultTarget(),
+		target: target,
 	}, nil
 }
 
@@ -224,9 +244,14 @@ func finishMetalSamplingDispatch(token uint64, rc C.int, status C.MetalStatus) e
 
 func metalSamplingDefaultTarget() float32 {
 	config := computekernels.DefaultSamplingConfig()
+
+	return metalSamplingTargetFromSeed(config.Seed)
+}
+
+func metalSamplingTargetFromSeed(seed uint64) float32 {
 	source := rand.NewChaCha8([32]byte{
-		byte(config.Seed), byte(config.Seed >> 8), byte(config.Seed >> 16), byte(config.Seed >> 24),
-		byte(config.Seed >> 32), byte(config.Seed >> 40), byte(config.Seed >> 48), byte(config.Seed >> 56),
+		byte(seed), byte(seed >> 8), byte(seed >> 16), byte(seed >> 24),
+		byte(seed >> 32), byte(seed >> 40), byte(seed >> 48), byte(seed >> 56),
 	})
 
 	return rand.New(source).Float32()

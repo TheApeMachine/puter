@@ -75,6 +75,17 @@ static const char* metal_unary_operation_name(int operation) {
     case MetalUnaryFloat32LeakyReLU: return "leaky_relu";
     case MetalUnaryFloat32HardSigmoid: return "hardsigmoid";
     case MetalUnaryFloat32HardSwish: return "hardswish";
+    case MetalUnaryFloat32Log1p: return "log1p";
+    case MetalUnaryFloat32Expm1: return "expm1";
+    case MetalUnaryFloat32CELU: return "celu";
+    case MetalUnaryFloat32Softplus: return "softplus";
+    case MetalUnaryFloat32Mish: return "mish";
+    case MetalUnaryFloat32LogSigmoid: return "log_sigmoid";
+    case MetalUnaryFloat32GeluTanh: return "gelu_tanh";
+    case MetalUnaryFloat32HardTanh: return "hardtanh";
+    case MetalUnaryFloat32HardGelu: return "hard_gelu";
+    case MetalUnaryFloat32QuickGelu: return "quick_gelu";
+    case MetalUnaryFloat32TanhShrink: return "tanh_shrink";
     default: return NULL;
     }
 }

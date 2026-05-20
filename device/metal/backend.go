@@ -47,6 +47,7 @@ func NewBackend(ctx context.Context, pool *qpool.Q) (*Backend, error) {
 	bridge, err := openMetalBridge()
 
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 

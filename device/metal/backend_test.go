@@ -44,7 +44,7 @@ var binaryFloat32Cases = []binaryFloat32Case{
 
 func TestNewBackend(t *testing.T) {
 	convey.Convey("Given the Metal backend constructor", t, func() {
-		backend, err := NewBackend()
+		backend, err := NewBackend(context.Background(), nil)
 
 		if err != nil {
 			convey.So(errors.Is(err, tensor.ErrNeedsPlatformSetup), convey.ShouldBeTrue)
@@ -484,7 +484,7 @@ func TestSyncBlocking_NilTensor(t *testing.T) {
 
 func BenchmarkNewBackend(b *testing.B) {
 	for b.Loop() {
-		_, _ = NewBackend()
+		_, _ = NewBackend(context.Background(), nil)
 	}
 }
 
@@ -844,7 +844,7 @@ func assertFloat32BitwiseEqual(
 func newBackendForDeviceTest(testingObject testing.TB) *Backend {
 	testingObject.Helper()
 
-	backend, err := NewBackend()
+	backend, err := NewBackend(context.Background(), nil)
 	if errors.Is(err, tensor.ErrNeedsPlatformSetup) {
 		testingObject.Skipf("Metal device unavailable: %v", err)
 	}
@@ -859,7 +859,7 @@ func newBackendForDeviceTest(testingObject testing.TB) *Backend {
 func newBackendForBenchmark(benchmark *testing.B) *Backend {
 	benchmark.Helper()
 
-	backend, err := NewBackend()
+	backend, err := NewBackend(context.Background(), nil)
 	if errors.Is(err, tensor.ErrNeedsPlatformSetup) {
 		benchmark.Skipf("Metal device unavailable: %v", err)
 	}
@@ -883,7 +883,7 @@ func downloadFloat32ForTest(
 		testingObject.Fatalf("Download failed: %v", err)
 	}
 
-	values, err := dtypeconvert.BytesToFloat32(sourceDType, bytes)
+	values, err := convert.BytesToFloat32(sourceDType, bytes)
 	if err != nil {
 		testingObject.Fatalf("BytesToFloat32 failed: %v", err)
 	}

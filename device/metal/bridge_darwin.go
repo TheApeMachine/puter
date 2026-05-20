@@ -37,6 +37,7 @@ pipelines.
 type metalBridge struct {
 	device     C.MetalDeviceRef
 	pool       *metalBufferPool
+	resident   sync.Map
 	submission sync.Mutex
 	pending    sync.WaitGroup
 	closed     atomic.Bool
@@ -181,6 +182,7 @@ func (bridge *metalBridge) empty(
 	}
 	target.state.Store(uint32(tensor.StateReady))
 	target.readyClosed = true
+	bridge.registerResident(target)
 	runtime.SetFinalizer(target, (*metalTensor).finalize)
 
 	return target, nil
@@ -684,6 +686,7 @@ func (target *metalTensor) Close() error {
 	defer target.mutex.Unlock()
 
 	target.state.Store(uint32(tensor.StateClosed))
+	target.bridge.unregisterResident(target)
 	target.releaseClosedBufferLocked()
 
 	return nil

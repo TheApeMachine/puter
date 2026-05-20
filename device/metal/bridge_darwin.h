@@ -60,7 +60,61 @@ typedef enum MetalUnaryFloat32Op {
     MetalUnaryFloat32HardSigmoid = 20,
     MetalUnaryFloat32HardSwish = 21,
     MetalUnaryFloat32Gelu = 22,
+    MetalUnaryFloat32Log1p = 23,
+    MetalUnaryFloat32Expm1 = 24,
+    MetalUnaryFloat32CELU = 25,
+    MetalUnaryFloat32Softplus = 26,
+    MetalUnaryFloat32Mish = 27,
+    MetalUnaryFloat32LogSigmoid = 28,
+    MetalUnaryFloat32GeluTanh = 29,
+    MetalUnaryFloat32HardTanh = 30,
+    MetalUnaryFloat32HardGelu = 31,
+    MetalUnaryFloat32QuickGelu = 32,
+    MetalUnaryFloat32TanhShrink = 33,
 } MetalUnaryFloat32Op;
+
+int metal_dispatch_unary_param(
+    MetalDeviceRef contextRef,
+    const char* kernelName,
+    int elementDType,
+    MetalBufferRef inputRef,
+    MetalBufferRef outRef,
+    uint32_t count,
+    float param,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+
+int metal_dispatch_axpy(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef yRef,
+    MetalBufferRef xRef,
+    uint32_t count,
+    float alpha,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+
+int metal_dispatch_dot(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef leftRef,
+    MetalBufferRef rightRef,
+    MetalBufferRef outRef,
+    uint32_t count,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+
+int metal_dispatch_cholesky(
+    MetalDeviceRef contextRef,
+    MetalBufferRef inputRef,
+    MetalBufferRef outRef,
+    uint32_t order,
+    uint64_t completionToken,
+    MetalStatus* status
+);
 
 typedef enum MetalElementDType {
     MetalElementDTypeFloat32 = 0,

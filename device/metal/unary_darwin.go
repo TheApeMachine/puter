@@ -45,6 +45,17 @@ const (
 	metalUnaryFloat32HardSigmoid
 	metalUnaryFloat32HardSwish
 	metalUnaryFloat32Gelu
+	metalUnaryFloat32Log1p
+	metalUnaryFloat32Expm1
+	metalUnaryFloat32CELU
+	metalUnaryFloat32Softplus
+	metalUnaryFloat32Mish
+	metalUnaryFloat32LogSigmoid
+	metalUnaryFloat32GeluTanh
+	metalUnaryFloat32HardTanh
+	metalUnaryFloat32HardGelu
+	metalUnaryFloat32QuickGelu
+	metalUnaryFloat32TanhShrink
 )
 
 func runMetalUnaryFloat32(

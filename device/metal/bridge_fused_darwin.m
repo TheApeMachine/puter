@@ -1,0 +1,273 @@
+#include "bridge_darwin_private.h"
+
+#include <Foundation/Foundation.h>
+#include <Metal/Metal.h>
+#include "_cgo_export.h"
+#include <stdio.h>
+
+static void metal_fused_complete(uint64_t completionToken, id<MTLCommandBuffer> completedBuffer) {
+    @autoreleasepool {
+        if ([completedBuffer status] == MTLCommandBufferStatusCompleted) {
+            metalCommandCompleted(completionToken, 0, "");
+            return;
+        }
+
+        NSError* error = [completedBuffer error];
+        NSString* message = @"Metal fused command buffer failed";
+
+        if (error != nil) {
+            message = [NSString stringWithFormat:@"%@: %@", message, [error localizedDescription]];
+        }
+
+        metalCommandCompleted(completionToken, -5, (char*)[message UTF8String]);
+    }
+}
+
+int metal_dispatch_unary_param(
+    MetalDeviceRef contextRef,
+    const char* kernelName,
+    int elementDType,
+    MetalBufferRef inputRef,
+    MetalBufferRef outRef,
+    uint32_t count,
+    float param,
+    uint64_t completionToken,
+    MetalStatus* status
+) {
+    @autoreleasepool {
+        if (status != NULL) {
+            status->code = 0;
+            status->message[0] = '\0';
+        }
+
+        if (count == 0 || kernelName == NULL) {
+            return 0;
+        }
+
+        MetalContext* context = (MetalContext*)contextRef;
+
+        if (context == NULL || context->queue == NULL || inputRef == NULL || outRef == NULL) {
+            if (status != NULL) {
+                status->code = -2;
+                snprintf(status->message, METAL_STATUS_MESSAGE_BYTES, "invalid Metal unary param dispatch");
+            }
+
+            return -2;
+        }
+
+        id<MTLComputePipelineState> pipeline = metal_get_pipeline(context, kernelName, status);
+
+        if (pipeline == nil) {
+            return status != NULL && status->code != 0 ? status->code : -7;
+        }
+
+        id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)context->queue;
+        id<MTLCommandBuffer> commandBuffer = [queue commandBuffer];
+        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+
+        [encoder setComputePipelineState:pipeline];
+        [encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
+        [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:1];
+        [encoder setBytes:&count length:sizeof(count) atIndex:2];
+        [encoder setBytes:&param length:sizeof(param) atIndex:3];
+
+        NSUInteger threadWidth = [pipeline threadExecutionWidth];
+
+        if (threadWidth == 0) {
+            threadWidth = 1;
+        }
+
+        NSUInteger vectorCount = (NSUInteger)((count + 3) / 4);
+        [encoder dispatchThreads:MTLSizeMake(vectorCount, 1, 1)
+            threadsPerThreadgroup:MTLSizeMake(threadWidth, 1, 1)];
+        [encoder endEncoding];
+        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
+            metal_fused_complete(completionToken, completedBuffer);
+        }];
+        [commandBuffer commit];
+
+        return 0;
+    }
+}
+
+int metal_dispatch_axpy(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef yRef,
+    MetalBufferRef xRef,
+    uint32_t count,
+    float alpha,
+    uint64_t completionToken,
+    MetalStatus* status
+) {
+    (void)elementDType;
+
+    @autoreleasepool {
+        if (status != NULL) {
+            status->code = 0;
+            status->message[0] = '\0';
+        }
+
+        if (count == 0) {
+            return 0;
+        }
+
+        MetalContext* context = (MetalContext*)contextRef;
+
+        if (context == NULL || context->queue == NULL || yRef == NULL || xRef == NULL) {
+            if (status != NULL) {
+                status->code = -2;
+                snprintf(status->message, METAL_STATUS_MESSAGE_BYTES, "invalid Metal axpy dispatch");
+            }
+
+            return -2;
+        }
+
+        id<MTLComputePipelineState> pipeline = metal_get_pipeline(context, "axpy_float32", status);
+
+        if (pipeline == nil) {
+            return status != NULL && status->code != 0 ? status->code : -7;
+        }
+
+        id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)context->queue;
+        id<MTLCommandBuffer> commandBuffer = [queue commandBuffer];
+        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+
+        [encoder setComputePipelineState:pipeline];
+        [encoder setBuffer:(__bridge id<MTLBuffer>)yRef offset:0 atIndex:0];
+        [encoder setBuffer:(__bridge id<MTLBuffer>)xRef offset:0 atIndex:1];
+        [encoder setBytes:&count length:sizeof(count) atIndex:2];
+        [encoder setBytes:&alpha length:sizeof(alpha) atIndex:3];
+
+        NSUInteger threadWidth = [pipeline threadExecutionWidth];
+
+        if (threadWidth == 0) {
+            threadWidth = 1;
+        }
+
+        NSUInteger vectorCount = (NSUInteger)((count + 3) / 4);
+        [encoder dispatchThreads:MTLSizeMake(vectorCount, 1, 1)
+            threadsPerThreadgroup:MTLSizeMake(threadWidth, 1, 1)];
+        [encoder endEncoding];
+        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
+            metal_fused_complete(completionToken, completedBuffer);
+        }];
+        [commandBuffer commit];
+
+        return 0;
+    }
+}
+
+int metal_dispatch_dot(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef leftRef,
+    MetalBufferRef rightRef,
+    MetalBufferRef outRef,
+    uint32_t count,
+    uint64_t completionToken,
+    MetalStatus* status
+) {
+    (void)elementDType;
+
+    @autoreleasepool {
+        if (status != NULL) {
+            status->code = 0;
+            status->message[0] = '\0';
+        }
+
+        if (count == 0) {
+            return 0;
+        }
+
+        MetalContext* context = (MetalContext*)contextRef;
+
+        if (context == NULL || context->queue == NULL || leftRef == NULL || rightRef == NULL || outRef == NULL) {
+            if (status != NULL) {
+                status->code = -2;
+                snprintf(status->message, METAL_STATUS_MESSAGE_BYTES, "invalid Metal dot dispatch");
+            }
+
+            return -2;
+        }
+
+        id<MTLComputePipelineState> pipeline = metal_get_pipeline(context, "dot_float32", status);
+
+        if (pipeline == nil) {
+            return status != NULL && status->code != 0 ? status->code : -7;
+        }
+
+        id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)context->queue;
+        id<MTLCommandBuffer> commandBuffer = [queue commandBuffer];
+        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+
+        [encoder setComputePipelineState:pipeline];
+        [encoder setBuffer:(__bridge id<MTLBuffer>)leftRef offset:0 atIndex:0];
+        [encoder setBuffer:(__bridge id<MTLBuffer>)rightRef offset:0 atIndex:1];
+        [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:2];
+        [encoder setBytes:&count length:sizeof(count) atIndex:3];
+        [encoder dispatchThreads:MTLSizeMake(256, 1, 1)
+            threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
+        [encoder endEncoding];
+        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
+            metal_fused_complete(completionToken, completedBuffer);
+        }];
+        [commandBuffer commit];
+
+        return 0;
+    }
+}
+
+int metal_dispatch_cholesky(
+    MetalDeviceRef contextRef,
+    MetalBufferRef inputRef,
+    MetalBufferRef outRef,
+    uint32_t order,
+    uint64_t completionToken,
+    MetalStatus* status
+) {
+    @autoreleasepool {
+        if (status != NULL) {
+            status->code = 0;
+            status->message[0] = '\0';
+        }
+
+        if (order == 0) {
+            return 0;
+        }
+
+        MetalContext* context = (MetalContext*)contextRef;
+
+        if (context == NULL || context->queue == NULL || inputRef == NULL || outRef == NULL) {
+            if (status != NULL) {
+                status->code = -2;
+                snprintf(status->message, METAL_STATUS_MESSAGE_BYTES, "invalid Metal cholesky dispatch");
+            }
+
+            return -2;
+        }
+
+        id<MTLComputePipelineState> pipeline = metal_get_pipeline(context, "cholesky_float32", status);
+
+        if (pipeline == nil) {
+            return status != NULL && status->code != 0 ? status->code : -7;
+        }
+
+        id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)context->queue;
+        id<MTLCommandBuffer> commandBuffer = [queue commandBuffer];
+        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+
+        [encoder setComputePipelineState:pipeline];
+        [encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
+        [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:1];
+        [encoder setBytes:&order length:sizeof(order) atIndex:2];
+        [encoder dispatchThreads:MTLSizeMake(1, 1, 1) threadsPerThreadgroup:MTLSizeMake(1, 1, 1)];
+        [encoder endEncoding];
+        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
+            metal_fused_complete(completionToken, completedBuffer);
+        }];
+        [commandBuffer commit];
+
+        return 0;
+    }
+}
