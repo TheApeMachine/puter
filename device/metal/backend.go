@@ -19,6 +19,7 @@ import (
 
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
+	"github.com/theapemachine/qpool"
 )
 
 /*
@@ -28,6 +29,10 @@ returns ErrNeedsPlatformSetup for any operation that requires the
 device.
 */
 type Backend struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+	err    error
+	pool   *qpool.Q
 	closed atomic.Bool
 	bridge *metalBridge
 }
@@ -36,14 +41,21 @@ type Backend struct {
 NewBackend constructs a Metal backend. Returns ErrNeedsPlatformSetup
 if the build is not darwin+cgo or the Metal device cannot be opened.
 */
-func NewBackend() (*Backend, error) {
+func NewBackend(ctx context.Context, pool *qpool.Q) (*Backend, error) {
+	ctx, cancel := context.WithCancel(ctx)
+
 	bridge, err := openMetalBridge()
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &Backend{bridge: bridge}, nil
+	return &Backend{
+		ctx:    ctx,
+		cancel: cancel,
+		pool:   pool,
+		bridge: bridge,
+	}, nil
 }
 
 /*

@@ -9,7 +9,7 @@ import (
 
 	"github.com/smartystreets/goconvey/convey"
 	"github.com/theapemachine/manifesto/dtype"
-	dtypeconvert "github.com/theapemachine/manifesto/dtype/convert"
+	"github.com/theapemachine/manifesto/dtype/convert"
 	"github.com/theapemachine/manifesto/tensor"
 	"github.com/theapemachine/puter/kernels"
 )
@@ -147,7 +147,7 @@ func TestBackend_UploadDownloadFloat32(t *testing.T) {
 		convey.So(err, convey.ShouldBeNil)
 
 		values := []float32{1, -2, 3.5, 4.25}
-		uploaded, err := backend.Upload(shape, dtype.Float32, dtypeconvert.Float32ToBytes(values))
+		uploaded, err := backend.Upload(shape, dtype.Float32, convert.Float32ToBytes(values))
 		convey.So(err, convey.ShouldBeNil)
 		defer func() {
 			convey.So(uploaded.Close(), convey.ShouldBeNil)
@@ -157,7 +157,7 @@ func TestBackend_UploadDownloadFloat32(t *testing.T) {
 		convey.So(err, convey.ShouldBeNil)
 		convey.So(sourceDType, convey.ShouldEqual, dtype.Float32)
 
-		actual, err := dtypeconvert.BytesToFloat32(sourceDType, bytes)
+		actual, err := convert.BytesToFloat32(sourceDType, bytes)
 		convey.So(err, convey.ShouldBeNil)
 		convey.So(actual, convey.ShouldResemble, values)
 	})
@@ -176,7 +176,7 @@ func TestBackend_UploadAsyncFloat32(t *testing.T) {
 		convey.So(err, convey.ShouldBeNil)
 
 		values, _, _ := addFloat32ParityValues(shape.Len())
-		uploaded, err := backend.UploadAsync(shape, dtype.Float32, dtypeconvert.Float32ToBytes(values))
+		uploaded, err := backend.UploadAsync(shape, dtype.Float32, convert.Float32ToBytes(values))
 		convey.So(err, convey.ShouldBeNil)
 		defer func() {
 			convey.So(uploaded.Close(), convey.ShouldBeNil)
@@ -268,13 +268,13 @@ func testBackendBinaryFloat32(t *testing.T, testCase binaryFloat32Case) {
 					testCase.name,
 				)
 
-				left, err := backend.Upload(shape, dtype.Float32, dtypeconvert.Float32ToBytes(leftValues))
+				left, err := backend.Upload(shape, dtype.Float32, convert.Float32ToBytes(leftValues))
 				convey.So(err, convey.ShouldBeNil)
 				defer func() {
 					convey.So(left.Close(), convey.ShouldBeNil)
 				}()
 
-				right, err := backend.Upload(shape, dtype.Float32, dtypeconvert.Float32ToBytes(rightValues))
+				right, err := backend.Upload(shape, dtype.Float32, convert.Float32ToBytes(rightValues))
 				convey.So(err, convey.ShouldBeNil)
 				defer func() {
 					convey.So(right.Close(), convey.ShouldBeNil)
@@ -307,10 +307,10 @@ func TestBackend_AddFloat32_CloseInputsBeforeDownload(t *testing.T) {
 		convey.So(err, convey.ShouldBeNil)
 
 		leftValues, rightValues, expectedValues := binaryFloat32ParityValues(shape.Len(), "add")
-		left, err := backend.Upload(shape, dtype.Float32, dtypeconvert.Float32ToBytes(leftValues))
+		left, err := backend.Upload(shape, dtype.Float32, convert.Float32ToBytes(leftValues))
 		convey.So(err, convey.ShouldBeNil)
 
-		right, err := backend.Upload(shape, dtype.Float32, dtypeconvert.Float32ToBytes(rightValues))
+		right, err := backend.Upload(shape, dtype.Float32, convert.Float32ToBytes(rightValues))
 		convey.So(err, convey.ShouldBeNil)
 
 		out, err := backend.AddFloat32(context.Background(), left, right)
@@ -338,13 +338,13 @@ func TestBackend_AddFloat32_CloseOutputBeforeCompletion(t *testing.T) {
 		convey.So(err, convey.ShouldBeNil)
 
 		leftValues, rightValues, _ := binaryFloat32ParityValues(shape.Len(), "add")
-		left, err := backend.Upload(shape, dtype.Float32, dtypeconvert.Float32ToBytes(leftValues))
+		left, err := backend.Upload(shape, dtype.Float32, convert.Float32ToBytes(leftValues))
 		convey.So(err, convey.ShouldBeNil)
 		defer func() {
 			convey.So(left.Close(), convey.ShouldBeNil)
 		}()
 
-		right, err := backend.Upload(shape, dtype.Float32, dtypeconvert.Float32ToBytes(rightValues))
+		right, err := backend.Upload(shape, dtype.Float32, convert.Float32ToBytes(rightValues))
 		convey.So(err, convey.ShouldBeNil)
 		defer func() {
 			convey.So(right.Close(), convey.ShouldBeNil)
@@ -372,7 +372,7 @@ func TestMetalBufferPool_AlignedBuckets(t *testing.T) {
 		first, err := backend.Upload(
 			firstShape,
 			dtype.Float32,
-			dtypeconvert.Float32ToBytes([]float32{1}),
+			convert.Float32ToBytes([]float32{1}),
 		)
 		convey.So(err, convey.ShouldBeNil)
 		convey.So(first.Close(), convey.ShouldBeNil)
@@ -383,7 +383,7 @@ func TestMetalBufferPool_AlignedBuckets(t *testing.T) {
 		second, err := backend.Upload(
 			secondShape,
 			dtype.Float32,
-			dtypeconvert.Float32ToBytes([]float32{1, 2, 3, 4, 5, 6, 7}),
+			convert.Float32ToBytes([]float32{1, 2, 3, 4, 5, 6, 7}),
 		)
 		convey.So(err, convey.ShouldBeNil)
 		convey.So(second.Close(), convey.ShouldBeNil)
@@ -426,7 +426,7 @@ func TestKernelRegistry_MetalBinaryFloat32(t *testing.T) {
 				left, err := backend.Upload(
 					shape,
 					dtype.Float32,
-					dtypeconvert.Float32ToBytes(leftValues),
+					convert.Float32ToBytes(leftValues),
 				)
 				convey.So(err, convey.ShouldBeNil)
 				defer func() {
@@ -436,7 +436,7 @@ func TestKernelRegistry_MetalBinaryFloat32(t *testing.T) {
 				right, err := backend.Upload(
 					shape,
 					dtype.Float32,
-					dtypeconvert.Float32ToBytes(rightValues),
+					convert.Float32ToBytes(rightValues),
 				)
 				convey.So(err, convey.ShouldBeNil)
 				defer func() {
@@ -639,12 +639,12 @@ func uploadBinaryFloat32BenchmarkInputs(
 
 	leftValues, rightValues, _ := binaryFloat32ParityValues(elementCount, name)
 
-	left, err := backend.Upload(shape, dtype.Float32, dtypeconvert.Float32ToBytes(leftValues))
+	left, err := backend.Upload(shape, dtype.Float32, convert.Float32ToBytes(leftValues))
 	if err != nil {
 		testingObject.Fatal(err)
 	}
 
-	right, err := backend.Upload(shape, dtype.Float32, dtypeconvert.Float32ToBytes(rightValues))
+	right, err := backend.Upload(shape, dtype.Float32, convert.Float32ToBytes(rightValues))
 	if err != nil {
 		_ = left.Close()
 		testingObject.Fatal(err)

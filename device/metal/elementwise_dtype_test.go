@@ -7,6 +7,7 @@ import (
 
 	"github.com/smartystreets/goconvey/convey"
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/manifesto/dtype/convert"
 	dtypeconvert "github.com/theapemachine/manifesto/dtype/convert"
 	"github.com/theapemachine/manifesto/tensor"
 	"github.com/theapemachine/puter/kernels"
@@ -239,7 +240,7 @@ func encodeFloat32ValuesAsDType(values []float32, storageDType dtype.DType) []by
 }
 
 func decodeDTypeBytesToFloat32(bytes []byte, storageDType dtype.DType) []float32 {
-	values, err := dtypeconvert.BytesToFloat32(storageDType, bytes)
+	values, err := convert.BytesToFloat32(storageDType, bytes)
 	if err != nil {
 		panic(err)
 	}
