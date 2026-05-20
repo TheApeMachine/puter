@@ -262,14 +262,16 @@ func requireEmbeddingTensorTypes(
 
 func metalEmbeddingLookupDims(config metalEmbeddingConfig) (int, int, int, error) {
 	tableDims := config.table.shape.Dims()
-	outDims := config.out.shape.Dims()
 
-	if len(tableDims) != 2 || len(outDims) != 2 || len(config.indices.shape.Dims()) != 1 {
+	if len(tableDims) != 2 || len(config.indices.shape.Dims()) == 0 {
 		return 0, 0, 0, tensor.ErrShapeMismatch
 	}
 
 	vocab, hidden, indexCount := tableDims[0], tableDims[1], config.indices.shape.Len()
-	if outDims[0] != indexCount || outDims[1] != hidden {
+	
+	// outDims can be 2D [indexCount, hidden] or 3D [batch, seq_len, hidden]
+	// As long as the total elements match indexCount * hidden, it's fine.
+	if config.out.shape.Len() != indexCount * hidden {
 		return 0, 0, 0, tensor.ErrShapeMismatch
 	}
 
