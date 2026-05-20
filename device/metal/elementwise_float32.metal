@@ -8,25 +8,26 @@ static inline void binary_float32(
     device const float4* rightVector,
     device float4* outVector,
     constant uint& count,
-    uint index [[thread_position_in_grid]],
+    uint index,
+    uint stride,
     BinaryOp op
 ) {
-    uint base = index * 4;
-
-    if (base + 3 < count) {
-        outVector[index] = op(leftVector[index], rightVector[index]);
-        return;
+    uint vectorCount = count / 4;
+    for (uint i = index; i < vectorCount; i += stride) {
+        outVector[i] = op(leftVector[i], rightVector[i]);
     }
 
-    device const float* left = reinterpret_cast<device const float*>(leftVector);
-    device const float* right = reinterpret_cast<device const float*>(rightVector);
-    device float* out = reinterpret_cast<device float*>(outVector);
-
-    for (uint offset = 0; offset < 4; offset++) {
-        uint scalarIndex = base + offset;
-
-        if (scalarIndex < count) {
-            out[scalarIndex] = op(left[scalarIndex], right[scalarIndex]);
+    if (index == 0) {
+        uint remainder = count % 4;
+        if (remainder > 0) {
+            device const float* left = reinterpret_cast<device const float*>(leftVector);
+            device const float* right = reinterpret_cast<device const float*>(rightVector);
+            device float* out = reinterpret_cast<device float*>(outVector);
+            
+            for (uint offset = 0; offset < remainder; offset++) {
+                uint scalarIndex = vectorCount * 4 + offset;
+                out[scalarIndex] = op(left[scalarIndex], right[scalarIndex]);
+            }
         }
     }
 }
@@ -36,24 +37,25 @@ static inline void unary_float32(
     device const float4* inputVector,
     device float4* outVector,
     constant uint& count,
-    uint index [[thread_position_in_grid]],
+    uint index,
+    uint stride,
     UnaryOp op
 ) {
-    uint base = index * 4;
-
-    if (base + 3 < count) {
-        outVector[index] = op(inputVector[index]);
-        return;
+    uint vectorCount = count / 4;
+    for (uint i = index; i < vectorCount; i += stride) {
+        outVector[i] = op(inputVector[i]);
     }
 
-    device const float* input = reinterpret_cast<device const float*>(inputVector);
-    device float* out = reinterpret_cast<device float*>(outVector);
-
-    for (uint offset = 0; offset < 4; offset++) {
-        uint scalarIndex = base + offset;
-
-        if (scalarIndex < count) {
-            out[scalarIndex] = op(input[scalarIndex]);
+    if (index == 0) {
+        uint remainder = count % 4;
+        if (remainder > 0) {
+            device const float* input = reinterpret_cast<device const float*>(inputVector);
+            device float* out = reinterpret_cast<device float*>(outVector);
+            
+            for (uint offset = 0; offset < remainder; offset++) {
+                uint scalarIndex = vectorCount * 4 + offset;
+                out[scalarIndex] = op(input[scalarIndex]);
+            }
         }
     }
 }
@@ -205,9 +207,10 @@ kernel void add_float32(
     device const float4* rightVector [[buffer(1)]],
     device float4* outVector [[buffer(2)]],
     constant uint& count [[buffer(3)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    binary_float32(leftVector, rightVector, outVector, count, index, AddFloat32{});
+    binary_float32(leftVector, rightVector, outVector, count, index, stride, AddFloat32{});
 }
 
 kernel void sub_float32(
@@ -215,9 +218,10 @@ kernel void sub_float32(
     device const float4* rightVector [[buffer(1)]],
     device float4* outVector [[buffer(2)]],
     constant uint& count [[buffer(3)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    binary_float32(leftVector, rightVector, outVector, count, index, SubFloat32{});
+    binary_float32(leftVector, rightVector, outVector, count, index, stride, SubFloat32{});
 }
 
 kernel void mul_float32(
@@ -225,9 +229,10 @@ kernel void mul_float32(
     device const float4* rightVector [[buffer(1)]],
     device float4* outVector [[buffer(2)]],
     constant uint& count [[buffer(3)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    binary_float32(leftVector, rightVector, outVector, count, index, MulFloat32{});
+    binary_float32(leftVector, rightVector, outVector, count, index, stride, MulFloat32{});
 }
 
 kernel void div_float32(
@@ -235,9 +240,10 @@ kernel void div_float32(
     device const float4* rightVector [[buffer(1)]],
     device float4* outVector [[buffer(2)]],
     constant uint& count [[buffer(3)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    binary_float32(leftVector, rightVector, outVector, count, index, DivFloat32{});
+    binary_float32(leftVector, rightVector, outVector, count, index, stride, DivFloat32{});
 }
 
 kernel void max_float32(
@@ -245,9 +251,10 @@ kernel void max_float32(
     device const float4* rightVector [[buffer(1)]],
     device float4* outVector [[buffer(2)]],
     constant uint& count [[buffer(3)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    binary_float32(leftVector, rightVector, outVector, count, index, MaxFloat32{});
+    binary_float32(leftVector, rightVector, outVector, count, index, stride, MaxFloat32{});
 }
 
 kernel void min_float32(
@@ -255,9 +262,10 @@ kernel void min_float32(
     device const float4* rightVector [[buffer(1)]],
     device float4* outVector [[buffer(2)]],
     constant uint& count [[buffer(3)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    binary_float32(leftVector, rightVector, outVector, count, index, MinFloat32{});
+    binary_float32(leftVector, rightVector, outVector, count, index, stride, MinFloat32{});
 }
 
 kernel void eq_float32(
@@ -265,9 +273,10 @@ kernel void eq_float32(
     device const float4* rightVector [[buffer(1)]],
     device float4* outVector [[buffer(2)]],
     constant uint& count [[buffer(3)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    binary_float32(leftVector, rightVector, outVector, count, index, EqFloat32{});
+    binary_float32(leftVector, rightVector, outVector, count, index, stride, EqFloat32{});
 }
 
 kernel void ne_float32(
@@ -275,9 +284,10 @@ kernel void ne_float32(
     device const float4* rightVector [[buffer(1)]],
     device float4* outVector [[buffer(2)]],
     constant uint& count [[buffer(3)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    binary_float32(leftVector, rightVector, outVector, count, index, NeFloat32{});
+    binary_float32(leftVector, rightVector, outVector, count, index, stride, NeFloat32{});
 }
 
 kernel void lt_float32(
@@ -285,9 +295,10 @@ kernel void lt_float32(
     device const float4* rightVector [[buffer(1)]],
     device float4* outVector [[buffer(2)]],
     constant uint& count [[buffer(3)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    binary_float32(leftVector, rightVector, outVector, count, index, LtFloat32{});
+    binary_float32(leftVector, rightVector, outVector, count, index, stride, LtFloat32{});
 }
 
 kernel void le_float32(
@@ -295,9 +306,10 @@ kernel void le_float32(
     device const float4* rightVector [[buffer(1)]],
     device float4* outVector [[buffer(2)]],
     constant uint& count [[buffer(3)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    binary_float32(leftVector, rightVector, outVector, count, index, LeFloat32{});
+    binary_float32(leftVector, rightVector, outVector, count, index, stride, LeFloat32{});
 }
 
 kernel void gt_float32(
@@ -305,9 +317,10 @@ kernel void gt_float32(
     device const float4* rightVector [[buffer(1)]],
     device float4* outVector [[buffer(2)]],
     constant uint& count [[buffer(3)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    binary_float32(leftVector, rightVector, outVector, count, index, GtFloat32{});
+    binary_float32(leftVector, rightVector, outVector, count, index, stride, GtFloat32{});
 }
 
 kernel void ge_float32(
@@ -315,9 +328,10 @@ kernel void ge_float32(
     device const float4* rightVector [[buffer(1)]],
     device float4* outVector [[buffer(2)]],
     constant uint& count [[buffer(3)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    binary_float32(leftVector, rightVector, outVector, count, index, GeFloat32{});
+    binary_float32(leftVector, rightVector, outVector, count, index, stride, GeFloat32{});
 }
 
 kernel void pow_float32(
@@ -325,9 +339,10 @@ kernel void pow_float32(
     device const float4* rightVector [[buffer(1)]],
     device float4* outVector [[buffer(2)]],
     constant uint& count [[buffer(3)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    binary_float32(leftVector, rightVector, outVector, count, index, PowFloat32{});
+    binary_float32(leftVector, rightVector, outVector, count, index, stride, PowFloat32{});
 }
 
 kernel void atan2_float32(
@@ -335,9 +350,10 @@ kernel void atan2_float32(
     device const float4* rightVector [[buffer(1)]],
     device float4* outVector [[buffer(2)]],
     constant uint& count [[buffer(3)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    binary_float32(leftVector, rightVector, outVector, count, index, Atan2Float32{});
+    binary_float32(leftVector, rightVector, outVector, count, index, stride, Atan2Float32{});
 }
 
 kernel void mod_float32(
@@ -345,70 +361,78 @@ kernel void mod_float32(
     device const float4* rightVector [[buffer(1)]],
     device float4* outVector [[buffer(2)]],
     constant uint& count [[buffer(3)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    binary_float32(leftVector, rightVector, outVector, count, index, ModFloat32{});
+    binary_float32(leftVector, rightVector, outVector, count, index, stride, ModFloat32{});
 }
 
 kernel void relu_float32(
     device const float4* inputVector [[buffer(0)]],
     device float4* outVector [[buffer(1)]],
     constant uint& count [[buffer(2)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    unary_float32(inputVector, outVector, count, index, ReluFloat32{});
+    unary_float32(inputVector, outVector, count, index, stride, ReluFloat32{});
 }
 
 kernel void abs_float32(
     device const float4* inputVector [[buffer(0)]],
     device float4* outVector [[buffer(1)]],
     constant uint& count [[buffer(2)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    unary_float32(inputVector, outVector, count, index, AbsFloat32{});
+    unary_float32(inputVector, outVector, count, index, stride, AbsFloat32{});
 }
 
 kernel void neg_float32(
     device const float4* inputVector [[buffer(0)]],
     device float4* outVector [[buffer(1)]],
     constant uint& count [[buffer(2)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    unary_float32(inputVector, outVector, count, index, NegFloat32{});
+    unary_float32(inputVector, outVector, count, index, stride, NegFloat32{});
 }
 
 kernel void square_float32(
     device const float4* inputVector [[buffer(0)]],
     device float4* outVector [[buffer(1)]],
     constant uint& count [[buffer(2)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    unary_float32(inputVector, outVector, count, index, SquareFloat32{});
+    unary_float32(inputVector, outVector, count, index, stride, SquareFloat32{});
 }
 
 kernel void recip_float32(
     device const float4* inputVector [[buffer(0)]],
     device float4* outVector [[buffer(1)]],
     constant uint& count [[buffer(2)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    unary_float32(inputVector, outVector, count, index, RecipFloat32{});
+    unary_float32(inputVector, outVector, count, index, stride, RecipFloat32{});
 }
 
 kernel void sqrt_float32(
     device const float4* inputVector [[buffer(0)]],
     device float4* outVector [[buffer(1)]],
     constant uint& count [[buffer(2)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    unary_float32(inputVector, outVector, count, index, SqrtFloat32{});
+    unary_float32(inputVector, outVector, count, index, stride, SqrtFloat32{});
 }
 
 kernel void sign_float32(
     device const float4* inputVector [[buffer(0)]],
     device float4* outVector [[buffer(1)]],
     constant uint& count [[buffer(2)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    unary_float32(inputVector, outVector, count, index, SignFloat32{});
+    unary_float32(inputVector, outVector, count, index, stride, SignFloat32{});
 }

@@ -7,22 +7,22 @@ kernel void axpy_float32(
     device const float* x [[buffer(1)]],
     constant uint& count [[buffer(2)]],
     constant float& alpha [[buffer(3)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
 ) {
-    uint base = index * 4;
+    uint vectorCount = count / 4;
+    device float4* yVector = reinterpret_cast<device float4*>(y);
+    device const float4* xVector = reinterpret_cast<device const float4*>(x);
 
-    if (base + 3 < count) {
-        device float4* yVector = reinterpret_cast<device float4*>(y);
-        device const float4* xVector = reinterpret_cast<device const float4*>(x);
-        yVector[index] += alpha * xVector[index];
-        return;
+    for (uint i = index; i < vectorCount; i += stride) {
+        yVector[i] += float(alpha) * xVector[i];
     }
 
-    for (uint offset = 0; offset < 4; offset++) {
-        uint scalarIndex = base + offset;
-
-        if (scalarIndex < count) {
-            y[scalarIndex] += alpha * x[scalarIndex];
+    if (index == 0) {
+        uint remainder = count % 4;
+        for (uint offset = 0; offset < remainder; offset++) {
+            uint scalarIndex = vectorCount * 4 + offset;
+            y[scalarIndex] += float(alpha) * x[scalarIndex];
         }
     }
 }
@@ -30,31 +30,21 @@ kernel void axpy_float32(
 kernel void dot_float32(
     device const float* left [[buffer(0)]],
     device const float* right [[buffer(1)]],
-    device float* out [[buffer(2)]],
+    device atomic_float* out [[buffer(2)]],
     constant uint& count [[buffer(3)]],
-    uint index [[thread_position_in_grid]]
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]],
+    uint simd_lane_id [[thread_index_in_simdgroup]]
 ) {
-    threadgroup float reduction[256];
-
     float partial = 0.0f;
-    uint stride = 256;
 
     for (uint offset = index; offset < count; offset += stride) {
         partial += left[offset] * right[offset];
     }
 
-    reduction[index] = partial;
-    threadgroup_barrier(mem_flags::mem_threadgroup);
+    float simd_partial = simd_sum(partial);
 
-    for (uint width = stride / 2; width > 0; width >>= 1) {
-        if (index < width) {
-            reduction[index] += reduction[index + width];
-        }
-
-        threadgroup_barrier(mem_flags::mem_threadgroup);
-    }
-
-    if (index == 0) {
-        out[0] = reduction[0];
+    if (simd_lane_id == 0) {
+        atomic_fetch_add_explicit(out, simd_partial, memory_order_relaxed);
     }
 }

@@ -139,7 +139,7 @@ func (backend *Backend) dotProduct(
 ) float32 {
 	_ = count
 	tensors := backend.tensorsAtPanic(left, right)
-	out := backend.emptyScalar(format)
+	out := backend.uploadFloat32Scalar(0.0, format)
 
 	devicePanic(runMetalDot(tensors[0], tensors[1], out))
 

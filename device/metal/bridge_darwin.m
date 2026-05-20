@@ -122,14 +122,12 @@ id<MTLComputePipelineState> metal_get_pipeline(
 
     id<MTLDevice> device = (__bridge id<MTLDevice>)context->device;
     id<MTLLibrary> library = (__bridge id<MTLLibrary>)context->library;
-    NSMutableDictionary* pipelineCache =
-        (__bridge NSMutableDictionary*)context->pipelineCache;
+    NSCache* pipelineCache =
+        (__bridge NSCache*)context->pipelineCache;
     NSLock* pipelineLock = (__bridge NSLock*)context->pipelineLock;
     NSString* functionName = [NSString stringWithUTF8String:name];
 
-    [pipelineLock lock];
     id<MTLComputePipelineState> cachedPipeline = [pipelineCache objectForKey:functionName];
-    [pipelineLock unlock];
 
     if (cachedPipeline != nil) {
         return cachedPipeline;
@@ -151,16 +149,7 @@ id<MTLComputePipelineState> metal_get_pipeline(
         return nil;
     }
 
-    [pipelineLock lock];
-    cachedPipeline = [pipelineCache objectForKey:functionName];
-
-    if (cachedPipeline != nil) {
-        [pipelineLock unlock];
-        return cachedPipeline;
-    }
-
     [pipelineCache setObject:pipeline forKey:functionName];
-    [pipelineLock unlock];
 
     return pipeline;
 }
@@ -222,7 +211,7 @@ MetalDeviceRef metal_open_default_device(
         context->device = (__bridge_retained void*)device;
         context->queue = (__bridge_retained void*)queue;
         context->library = (__bridge_retained void*)library;
-        context->pipelineCache = (__bridge_retained void*)[NSMutableDictionary dictionary];
+        context->pipelineCache = (__bridge_retained void*)[[NSCache alloc] init];
         context->pipelineLock = (__bridge_retained void*)[[NSLock alloc] init];
 
         if (context->pipelineCache == NULL || context->pipelineLock == NULL) {

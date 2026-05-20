@@ -206,8 +206,13 @@ int metal_dispatch_dot(
         [encoder setBuffer:(__bridge id<MTLBuffer>)rightRef offset:0 atIndex:1];
         [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:2];
         [encoder setBytes:&count length:sizeof(count) atIndex:3];
-        [encoder dispatchThreads:MTLSizeMake(256, 1, 1)
-            threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
+
+        NSUInteger maxThreads = pipeline.maxTotalThreadsPerThreadgroup;
+        NSUInteger threadgroups = (count + maxThreads - 1) / maxThreads;
+        if (threadgroups > 1024) { threadgroups = 1024; } // Cap threadgroups to avoid excessive atomic contention
+        
+        [encoder dispatchThreads:MTLSizeMake(threadgroups * maxThreads, 1, 1)
+            threadsPerThreadgroup:MTLSizeMake(maxThreads, 1, 1)];
         [encoder endEncoding];
         [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
             metal_fused_complete(completionToken, completedBuffer);

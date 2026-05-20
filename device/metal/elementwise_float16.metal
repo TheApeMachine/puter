@@ -8,25 +8,26 @@ static inline void binary_float16(
     device const half4* rightVector,
     device half4* outVector,
     constant uint& count,
-    uint index [[thread_position_in_grid]],
+    uint index,
+    uint stride,
     BinaryOp op
 ) {
-    uint base = index * 4;
-
-    if (base + 3 < count) {
-        outVector[index] = op(leftVector[index], rightVector[index]);
-        return;
+    uint vectorCount = count / 4;
+    for (uint i = index; i < vectorCount; i += stride) {
+        outVector[i] = op(leftVector[i], rightVector[i]);
     }
 
-    device const half* left = reinterpret_cast<device const half*>(leftVector);
-    device const half* right = reinterpret_cast<device const half*>(rightVector);
-    device half* out = reinterpret_cast<device half*>(outVector);
-
-    for (uint offset = 0; offset < 4; offset++) {
-        uint scalarIndex = base + offset;
-
-        if (scalarIndex < count) {
-            out[scalarIndex] = op(left[scalarIndex], right[scalarIndex]);
+    if (index == 0) {
+        uint remainder = count % 4;
+        if (remainder > 0) {
+            device const half* left = reinterpret_cast<device const half*>(leftVector);
+            device const half* right = reinterpret_cast<device const half*>(rightVector);
+            device half* out = reinterpret_cast<device half*>(outVector);
+            
+            for (uint offset = 0; offset < remainder; offset++) {
+                uint scalarIndex = vectorCount * 4 + offset;
+                out[scalarIndex] = op(left[scalarIndex], right[scalarIndex]);
+            }
         }
     }
 }
@@ -36,24 +37,25 @@ static inline void unary_float16(
     device const half4* inputVector,
     device half4* outVector,
     constant uint& count,
-    uint index [[thread_position_in_grid]],
+    uint index,
+    uint stride,
     UnaryOp op
 ) {
-    uint base = index * 4;
-
-    if (base + 3 < count) {
-        outVector[index] = op(inputVector[index]);
-        return;
+    uint vectorCount = count / 4;
+    for (uint i = index; i < vectorCount; i += stride) {
+        outVector[i] = op(inputVector[i]);
     }
 
-    device const half* input = reinterpret_cast<device const half*>(inputVector);
-    device half* out = reinterpret_cast<device half*>(outVector);
-
-    for (uint offset = 0; offset < 4; offset++) {
-        uint scalarIndex = base + offset;
-
-        if (scalarIndex < count) {
-            out[scalarIndex] = op(input[scalarIndex]);
+    if (index == 0) {
+        uint remainder = count % 4;
+        if (remainder > 0) {
+            device const half* input = reinterpret_cast<device const half*>(inputVector);
+            device half* out = reinterpret_cast<device half*>(outVector);
+            
+            for (uint offset = 0; offset < remainder; offset++) {
+                uint scalarIndex = vectorCount * 4 + offset;
+                out[scalarIndex] = op(input[scalarIndex]);
+            }
         }
     }
 }
@@ -215,9 +217,10 @@ kernel void name##_float16( \
     device const half4* rightVector [[buffer(1)]], \
     device half4* outVector [[buffer(2)]], \
     constant uint& count [[buffer(3)]], \
-    uint index [[thread_position_in_grid]] \
+    uint index [[thread_position_in_grid]], \
+    uint stride [[threads_per_grid]] \
 ) { \
-    binary_float16(leftVector, rightVector, outVector, count, index, op{}); \
+    binary_float16(leftVector, rightVector, outVector, count, index, stride, op{}); \
 }
 
 #define UNARY_FLOAT16_KERNEL(name, op) \
@@ -225,9 +228,10 @@ kernel void name##_float16( \
     device const half4* inputVector [[buffer(0)]], \
     device half4* outVector [[buffer(1)]], \
     constant uint& count [[buffer(2)]], \
-    uint index [[thread_position_in_grid]] \
+    uint index [[thread_position_in_grid]], \
+    uint stride [[threads_per_grid]] \
 ) { \
-    unary_float16(inputVector, outVector, count, index, op{}); \
+    unary_float16(inputVector, outVector, count, index, stride, op{}); \
 }
 
 BINARY_FLOAT16_KERNEL(add, AddFloat16)

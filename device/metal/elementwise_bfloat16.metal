@@ -34,31 +34,26 @@ static inline void binary_bfloat16(
     device const ushort4* rightVector,
     device ushort4* outVector,
     constant uint& count,
-    uint index [[thread_position_in_grid]],
+    uint index,
+    uint stride,
     BinaryOp op
 ) {
-    uint base = index * 4;
-
-    if (base + 3 < count) {
-        outVector[index] = float4_to_bf16(op(
-            bf16_to_float4(leftVector[index]),
-            bf16_to_float4(rightVector[index])
-        ));
-        return;
+    uint vectorCount = count / 4;
+    for (uint i = index; i < vectorCount; i += stride) {
+        outVector[i] = float4_to_bf16(op(bf16_to_float4(leftVector[i]), bf16_to_float4(rightVector[i])));
     }
 
-    device const ushort* left = reinterpret_cast<device const ushort*>(leftVector);
-    device const ushort* right = reinterpret_cast<device const ushort*>(rightVector);
-    device ushort* out = reinterpret_cast<device ushort*>(outVector);
-
-    for (uint offset = 0; offset < 4; offset++) {
-        uint scalarIndex = base + offset;
-
-        if (scalarIndex < count) {
-            out[scalarIndex] = float_to_bf16(op(
-                bf16_to_float(left[scalarIndex]),
-                bf16_to_float(right[scalarIndex])
-            ));
+    if (index == 0) {
+        uint remainder = count % 4;
+        if (remainder > 0) {
+            device const ushort* left = reinterpret_cast<device const ushort*>(leftVector);
+            device const ushort* right = reinterpret_cast<device const ushort*>(rightVector);
+            device ushort* out = reinterpret_cast<device ushort*>(outVector);
+            
+            for (uint offset = 0; offset < remainder; offset++) {
+                uint scalarIndex = vectorCount * 4 + offset;
+                out[scalarIndex] = float_to_bf16(op(bf16_to_float(left[scalarIndex]), bf16_to_float(right[scalarIndex])));
+            }
         }
     }
 }
@@ -68,24 +63,25 @@ static inline void unary_bfloat16(
     device const ushort4* inputVector,
     device ushort4* outVector,
     constant uint& count,
-    uint index [[thread_position_in_grid]],
+    uint index,
+    uint stride,
     UnaryOp op
 ) {
-    uint base = index * 4;
-
-    if (base + 3 < count) {
-        outVector[index] = float4_to_bf16(op(bf16_to_float4(inputVector[index])));
-        return;
+    uint vectorCount = count / 4;
+    for (uint i = index; i < vectorCount; i += stride) {
+        outVector[i] = float4_to_bf16(op(bf16_to_float4(inputVector[i])));
     }
 
-    device const ushort* input = reinterpret_cast<device const ushort*>(inputVector);
-    device ushort* out = reinterpret_cast<device ushort*>(outVector);
-
-    for (uint offset = 0; offset < 4; offset++) {
-        uint scalarIndex = base + offset;
-
-        if (scalarIndex < count) {
-            out[scalarIndex] = float_to_bf16(op(bf16_to_float(input[scalarIndex])));
+    if (index == 0) {
+        uint remainder = count % 4;
+        if (remainder > 0) {
+            device const ushort* input = reinterpret_cast<device const ushort*>(inputVector);
+            device ushort* out = reinterpret_cast<device ushort*>(outVector);
+            
+            for (uint offset = 0; offset < remainder; offset++) {
+                uint scalarIndex = vectorCount * 4 + offset;
+                out[scalarIndex] = float_to_bf16(op(bf16_to_float(input[scalarIndex])));
+            }
         }
     }
 }
@@ -238,9 +234,10 @@ kernel void name##_bfloat16( \
     device const ushort4* rightVector [[buffer(1)]], \
     device ushort4* outVector [[buffer(2)]], \
     constant uint& count [[buffer(3)]], \
-    uint index [[thread_position_in_grid]] \
+    uint index [[thread_position_in_grid]], \
+    uint stride [[threads_per_grid]] \
 ) { \
-    binary_bfloat16(leftVector, rightVector, outVector, count, index, op{}); \
+    binary_bfloat16(leftVector, rightVector, outVector, count, index, stride, op{}); \
 }
 
 #define UNARY_BFLOAT16_KERNEL(name, op) \
@@ -248,9 +245,10 @@ kernel void name##_bfloat16( \
     device const ushort4* inputVector [[buffer(0)]], \
     device ushort4* outVector [[buffer(1)]], \
     constant uint& count [[buffer(2)]], \
-    uint index [[thread_position_in_grid]] \
+    uint index [[thread_position_in_grid]], \
+    uint stride [[threads_per_grid]] \
 ) { \
-    unary_bfloat16(inputVector, outVector, count, index, op{}); \
+    unary_bfloat16(inputVector, outVector, count, index, stride, op{}); \
 }
 
 BINARY_BFLOAT16_KERNEL(add, AddBFloat16)
