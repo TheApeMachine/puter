@@ -247,24 +247,29 @@ int metal_dispatch_cholesky(
             return -2;
         }
 
-        id<MTLComputePipelineState> pipeline = metal_get_pipeline(context, "cholesky_float32", status);
-
-        if (pipeline == nil) {
-            return status != NULL && status->code != 0 ? status->code : -7;
-        }
-
         id<MTLCommandBuffer> commandBuffer;
         id<MTLComputeCommandEncoder> encoder = metal_get_encoder((MetalContext*)contextRef, &commandBuffer);
+        
+        // MPSMatrixDecompositionCholesky requires the command buffer, not the encoder.
+        // We must end the current encoder before calling MPS.
+        if (encoder != nil) {
+            [encoder endEncoding];
+        }
 
-        [encoder setComputePipelineState:pipeline];
-        [encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
-        [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:1];
-        [encoder setBytes:&order length:sizeof(order) atIndex:2];
-        [encoder dispatchThreads:MTLSizeMake(1, 1, 1) threadsPerThreadgroup:MTLSizeMake(1, 1, 1)];
+        MPSMatrixDescriptor* desc = [MPSMatrixDescriptor matrixDescriptorWithRows:order columns:order rowBytes:order * sizeof(float) dataType:MPSDataTypeFloat32];
+        MPSMatrix* inputMatrix = [[MPSMatrix alloc] initWithBuffer:(__bridge id<MTLBuffer>)inputRef descriptor:desc];
+        MPSMatrix* outMatrix = [[MPSMatrix alloc] initWithBuffer:(__bridge id<MTLBuffer>)outRef descriptor:desc];
+
+        MPSMatrixDecompositionCholesky* cholesky = [[MPSMatrixDecompositionCholesky alloc] initWithDevice:(__bridge id<MTLDevice>)context->device lower:YES order:order];
+
+        [cholesky encodeToCommandBuffer:commandBuffer sourceMatrix:inputMatrix resultMatrix:outMatrix status:nil];
+
         [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
             metal_fused_complete(completionToken, completedBuffer);
         }];
-        metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
+        
+        // We pass nil for encoder since we already ended it
+        metal_end_encoder((MetalContext*)contextRef, nil, commandBuffer);
 
         return 0;
     }

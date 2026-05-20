@@ -38,7 +38,7 @@ type metalBridge struct {
 	device     C.MetalDeviceRef
 	pool       *metalBufferPool
 	resident   sync.Map
-	submission sync.Mutex
+	submission sync.RWMutex
 	pending    sync.WaitGroup
 	closed     atomic.Bool
 }
@@ -268,8 +268,8 @@ func (bridge *metalBridge) releaseBuffer(buffer C.MetalBufferRef, bytes int) {
 }
 
 func (bridge *metalBridge) beginAsyncUpload(target *metalTensor) error {
-	bridge.submission.Lock()
-	defer bridge.submission.Unlock()
+	bridge.submission.RLock()
+	defer bridge.submission.RUnlock()
 
 	if bridge.closed.Load() {
 		return tensor.ErrBackendClosed
@@ -478,10 +478,14 @@ func (pool *metalBufferPool) ReleaseAll() {
 
 var metalCompletions = newMetalCompletionRegistry()
 
-type metalCompletionRegistry struct {
+type metalCompletionShard struct {
 	mutex   sync.Mutex
-	next    uint64
 	targets map[uint64]metalCompletion
+}
+
+type metalCompletionRegistry struct {
+	next   uint64
+	shards [64]*metalCompletionShard
 }
 
 type metalCompletion struct {
@@ -491,9 +495,13 @@ type metalCompletion struct {
 }
 
 func newMetalCompletionRegistry() *metalCompletionRegistry {
-	return &metalCompletionRegistry{
-		targets: make(map[uint64]metalCompletion),
+	registry := &metalCompletionRegistry{}
+	for i := 0; i < 64; i++ {
+		registry.shards[i] = &metalCompletionShard{
+			targets: make(map[uint64]metalCompletion),
+		}
 	}
+	return registry
 }
 
 func (registry *metalCompletionRegistry) Begin(
@@ -512,8 +520,8 @@ func (registry *metalCompletionRegistry) BeginMany(
 	}
 
 	bridge := targets[0].bridge
-	bridge.submission.Lock()
-	defer bridge.submission.Unlock()
+	bridge.submission.RLock()
+	defer bridge.submission.RUnlock()
 
 	if bridge.closed.Load() {
 		return 0, tensor.ErrBackendClosed
@@ -551,20 +559,19 @@ func (registry *metalCompletionRegistry) BeginMany(
 
 	bridge.pending.Add(1)
 
-	registry.mutex.Lock()
-	defer registry.mutex.Unlock()
-
-	registry.next++
-	if registry.next == 0 {
-		registry.next++
+	token := atomic.AddUint64(&registry.next, 1)
+	if token == 0 {
+		token = atomic.AddUint64(&registry.next, 1)
 	}
 
-	token := registry.next
-	registry.targets[token] = metalCompletion{
+	shard := registry.shards[token%64]
+	shard.mutex.Lock()
+	shard.targets[token] = metalCompletion{
 		bridge:  bridge,
 		targets: append([]*metalTensor(nil), targets...),
 		uses:    uses,
 	}
+	shard.mutex.Unlock()
 
 	return token, nil
 }
@@ -605,11 +612,12 @@ func (registry *metalCompletionRegistry) Fail(token uint64, err error) {
 }
 
 func (registry *metalCompletionRegistry) take(token uint64) metalCompletion {
-	registry.mutex.Lock()
-	defer registry.mutex.Unlock()
+	shard := registry.shards[token%64]
+	shard.mutex.Lock()
+	defer shard.mutex.Unlock()
 
-	completion := registry.targets[token]
-	delete(registry.targets, token)
+	completion := shard.targets[token]
+	delete(shard.targets, token)
 
 	return completion
 }
