@@ -26,6 +26,55 @@ func TestKernelRegistry_MetalNorm3DDTypes(testingObject *testing.T) {
 	}
 }
 
+func TestMetalGroupNormNCHW(testingObject *testing.T) {
+	backend := newBackendForDeviceTest(testingObject)
+	defer func() {
+		if err := backend.Close(); err != nil {
+			testingObject.Fatalf("Close failed: %v", err)
+		}
+	}()
+
+	convey.Convey("Given Metal Float32 NCHW groupnorm tensors", testingObject, func() {
+		batch, channels, height, width := 2, 64, 4, 16
+		spatial := height * width
+		fixture := norm3DFixtureForTest(batch, channels, spatial, dtype.Float32)
+		flatShape := mustShapeForTest(testingObject, []int{batch, channels, spatial})
+		inputShape := mustShapeForTest(testingObject, []int{batch, channels, height, width})
+		paramShape := mustShapeForTest(testingObject, []int{channels})
+		flatInput := uploadDTypeTensorForTest(
+			testingObject, backend, flatShape, dtype.Float32, fixture.inputBytes,
+		)
+		input := uploadDTypeTensorForTest(
+			testingObject, backend, inputShape, dtype.Float32, fixture.inputBytes,
+		)
+		scale := uploadDTypeTensorForTest(
+			testingObject, backend, paramShape, dtype.Float32, fixture.scaleBytes,
+		)
+		bias := uploadDTypeTensorForTest(
+			testingObject, backend, paramShape, dtype.Float32, fixture.biasBytes,
+		)
+		flatOutput := emptyTensorForTest(testingObject, backend, flatShape, dtype.Float32)
+		out := emptyTensorForTest(testingObject, backend, inputShape, dtype.Float32)
+
+		defer closeBenchmarkTensors(flatInput, input, scale, bias, flatOutput, out)
+
+		convey.Convey("It should flatten trailing spatial dimensions", func() {
+			kernel := lookupNorm3DKernel(testingObject, "groupnorm", dtype.Float32)
+			flatErr := kernel.Run(flatInput, scale, bias, flatOutput)
+			err := kernel.Run(input, scale, bias, out)
+
+			convey.So(flatErr, convey.ShouldBeNil)
+			convey.So(err, convey.ShouldBeNil)
+			_, flatBytes, flatDownloadErr := backend.Download(flatOutput)
+			_, bytes, downloadErr := backend.Download(out)
+
+			convey.So(flatDownloadErr, convey.ShouldBeNil)
+			convey.So(downloadErr, convey.ShouldBeNil)
+			convey.So(bytes, convey.ShouldResemble, flatBytes)
+		})
+	})
+}
+
 func testMetalNorm3DDType(
 	testingObject *testing.T,
 	backend *Backend,

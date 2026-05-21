@@ -4,6 +4,6 @@ package metal
 
 import "github.com/theapemachine/manifesto/tensor"
 
-func runMetalSoftmax(input tensor.Tensor, out tensor.Tensor) error {
+func runMetalSoftmax(tensor.Tensor, tensor.Tensor) error {
 	return tensor.ErrNeedsPlatformSetup
 }

@@ -52,15 +52,17 @@ func (backend *Backend) Matmul(
 	rows, inner, cols int,
 	format dtype.DType,
 ) {
+	_ = rows
+	_ = inner
+	_ = cols
+	_ = format
 	tensors, err := backend.tensorsAt(left, right, out)
 
 	if err != nil {
-		panic(err)
+		return
 	}
 
-	if err := runMetalMatMul(tensors[0], tensors[1], tensors[2]); err != nil {
-		panic(err)
-	}
+	_ = runMetalMatMul(tensors[0], tensors[1], tensors[2])
 }
 
 func (backend *Backend) ReLU(dst, src unsafe.Pointer, count int, format dtype.DType) {
@@ -88,15 +90,14 @@ func (backend *Backend) Swish(dst, src unsafe.Pointer, count int, format dtype.D
 }
 
 func (backend *Backend) Softmax(dst, src unsafe.Pointer, count int, format dtype.DType) {
+	_ = format
 	tensors, err := backend.tensorsAt(src, dst)
 
 	if err != nil {
-		panic(err)
+		return
 	}
 
-	if err := runMetalSoftmax(tensors[0], tensors[1]); err != nil {
-		panic(err)
-	}
+	_ = runMetalSoftmax(tensors[0], tensors[1])
 }
 
 func (backend *Backend) LayerNorm(
@@ -106,15 +107,14 @@ func (backend *Backend) LayerNorm(
 ) {
 	_ = rows
 	_ = lastDim
+	_ = format
 	tensors, err := backend.tensorsAt(input, scale, bias, output)
 
 	if err != nil {
-		panic(err)
+		return
 	}
 
-	if err := runMetalLayerNorm(tensors[0], tensors[1], tensors[2], tensors[3]); err != nil {
-		panic(err)
-	}
+	_ = runMetalLayerNorm(tensors[0], tensors[1], tensors[2], tensors[3])
 }
 
 func (backend *Backend) RMSNorm(
@@ -124,15 +124,14 @@ func (backend *Backend) RMSNorm(
 ) {
 	_ = rows
 	_ = lastDim
+	_ = format
 	tensors, err := backend.tensorsAt(input, scale, output)
 
 	if err != nil {
-		panic(err)
+		return
 	}
 
-	if err := runMetalRMSNorm(tensors[0], tensors[1], tensors[2]); err != nil {
-		panic(err)
-	}
+	_ = runMetalRMSNorm(tensors[0], tensors[1], tensors[2])
 }
 
 func (backend *Backend) Lookup(
@@ -143,15 +142,14 @@ func (backend *Backend) Lookup(
 	_ = vocab
 	_ = hidden
 	_ = indexCount
+	_ = format
 	tensors, err := backend.tensorsAt(table, indices, output)
 
 	if err != nil {
-		panic(err)
+		return
 	}
 
-	if err := runMetalEmbeddingLookup(tensors[0], tensors[1], tensors[2]); err != nil {
-		panic(err)
-	}
+	_ = runMetalEmbeddingLookup(tensors[0], tensors[1], tensors[2])
 }
 
 func (backend *Backend) binaryElementwise(
@@ -163,12 +161,10 @@ func (backend *Backend) binaryElementwise(
 	tensors, err := backend.tensorsAt(left, right, dst)
 
 	if err != nil {
-		panic(err)
+		return
 	}
 
-	if err := runMetalBinaryElementwise(operation, tensors[0], tensors[1], tensors[2]); err != nil {
-		panic(err)
-	}
+	_ = runMetalBinaryElementwise(operation, tensors[0], tensors[1], tensors[2])
 }
 
 func (backend *Backend) unaryElementwise(
@@ -180,10 +176,8 @@ func (backend *Backend) unaryElementwise(
 	tensors, err := backend.tensorsAt(src, dst)
 
 	if err != nil {
-		panic(err)
+		return
 	}
 
-	if err := runMetalUnaryElementwise(operation, tensors[0], tensors[1]); err != nil {
-		panic(err)
-	}
+	_ = runMetalUnaryElementwise(operation, tensors[0], tensors[1])
 }

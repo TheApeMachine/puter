@@ -1,3 +1,5 @@
+//go:build darwin && cgo
+
 package metal
 
 import (
@@ -26,7 +28,7 @@ func (target *metalTensor) residentPointer() unsafe.Pointer {
 		return nil
 	}
 
-	return metalBufferContents(uintptr(target.buffer))
+	return metalBufferContents(unsafe.Pointer(target.buffer))
 }
 
 func (bridge *metalBridge) registerResident(target *metalTensor) {

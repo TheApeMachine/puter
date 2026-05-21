@@ -14,8 +14,6 @@ func BenchmarkKernel_RunAdaptiveMaxPool2DDTypes(benchmark *testing.B) {
 	outputWidth := parityElementCounts[len(parityElementCounts)-1]
 
 	for _, storageDType := range metalVisionDTypes {
-		storageDType := storageDType
-
 		benchmark.Run(storageDType.Name(), func(benchmark *testing.B) {
 			inputBytes, _ := adaptiveMaxPool2DDTypeBytes(outputWidth, storageDType)
 			input, out := adaptiveMaxPool2DTensorsForTest(

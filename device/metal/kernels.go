@@ -166,7 +166,7 @@ func (backend *Backend) ModFloat32(
 }
 
 func registerBinaryFloat32Kernel(name string, operation metalBinaryFloat32Operation) {
-	registerBinaryKernel(name, dtype.Float32, runBinaryFloat32(operation))
+	registerBinaryKernel(name, dtype.Float32, runBinaryElementwise(operation))
 }
 
 func registerBinaryFloat16Kernels() {
@@ -249,16 +249,6 @@ func (backend *Backend) binaryFloat32(
 	}
 
 	return out, nil
-}
-
-func runBinaryFloat32(operation metalBinaryFloat32Operation) func(...tensor.Tensor) error {
-	return func(args ...tensor.Tensor) error {
-		if len(args) != 3 {
-			return tensor.ErrShapeMismatch
-		}
-
-		return runMetalBinaryFloat32(operation, args[0], args[1], args[2])
-	}
 }
 
 func runBinaryElementwise(operation metalBinaryFloat32Operation) func(...tensor.Tensor) error {

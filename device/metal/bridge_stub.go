@@ -3,8 +3,11 @@
 package metal
 
 import (
+	"sync"
+
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
+	"github.com/theapemachine/puter/device"
 )
 
 /*
@@ -12,7 +15,20 @@ metalBridge stub for non-darwin or no-cgo builds. Every method
 returns ErrNeedsPlatformSetup so callers compile but the device is
 clearly unavailable. The darwin+cgo bridge lives in bridge_darwin.go.
 */
-type metalBridge struct{}
+type metalBridge struct {
+	pool *metalBufferPool
+}
+
+type metalBufferPool struct {
+	mutex  sync.Mutex
+	buffer map[int][]struct{}
+}
+
+const (
+	metalHawkesMarkovThreadCountGo = 256
+	metalLossThreadCountGo         = 256
+	metalDefaultGroupNormGroups    = 32
+)
 
 func openMetalBridge() (*metalBridge, error) {
 	return nil, tensor.ErrNeedsPlatformSetup
@@ -22,18 +38,30 @@ func (bridge *metalBridge) recommendedMaxWorkingSet() int64 {
 	return 0
 }
 
+func (bridge *metalBridge) beginBatch() {}
+
+func (bridge *metalBridge) endBatch() {}
+
+func metalHawkesMarkovPartialCount(elementCount int) int {
+	return (elementCount + metalHawkesMarkovThreadCountGo - 1) / metalHawkesMarkovThreadCountGo
+}
+
+func metalLossPartialCount(elementCount int) int {
+	return (elementCount + metalLossThreadCountGo - 1) / metalLossThreadCountGo
+}
+
 func (bridge *metalBridge) upload(
-	shape tensor.Shape,
-	sourceDType dtype.DType,
-	bytesIn []byte,
+	tensor.Shape,
+	dtype.DType,
+	[]byte,
 ) (tensor.Tensor, error) {
 	return nil, tensor.ErrNeedsPlatformSetup
 }
 
 func (bridge *metalBridge) uploadAsync(
-	shape tensor.Shape,
-	sourceDType dtype.DType,
-	bytesIn []byte,
+	tensor.Shape,
+	dtype.DType,
+	[]byte,
 ) (tensor.Tensor, error) {
 	return nil, tensor.ErrNeedsPlatformSetup
 }
@@ -48,7 +76,7 @@ func (bridge *metalBridge) empty(
 	return nil, tensor.ErrNeedsPlatformSetup
 }
 
-func (bridge *metalBridge) download(input tensor.Tensor) (dtype.DType, []byte, error) {
+func (bridge *metalBridge) download(tensor.Tensor) (dtype.DType, []byte, error) {
 	return dtype.Invalid, nil, tensor.ErrNeedsPlatformSetup
 }
 
@@ -625,10 +653,16 @@ func runMetalOuter(left tensor.Tensor, right tensor.Tensor, out tensor.Tensor) e
 	return tensor.ErrNeedsPlatformSetup
 }
 
-func runMetalSampling(operation metalSamplingOp, logits tensor.Tensor, out tensor.Tensor) error {
+func runMetalSampling(
+	operation metalSamplingOp,
+	logits tensor.Tensor,
+	out tensor.Tensor,
+	config *device.SamplingConfig,
+) error {
 	_ = operation
 	_ = logits
 	_ = out
+	_ = config
 
 	return tensor.ErrNeedsPlatformSetup
 }

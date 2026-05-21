@@ -11,10 +11,24 @@ package metal
 */
 import "C"
 
-import "unsafe"
+import (
+	"unsafe"
 
-func metalBufferContents(buffer uintptr) unsafe.Pointer {
-	if buffer == 0 {
+	"github.com/theapemachine/manifesto/tensor"
+)
+
+func metalTensorContents(value tensor.Tensor) unsafe.Pointer {
+	target, ok := value.(*metalTensor)
+
+	if !ok || target == nil {
+		return nil
+	}
+
+	return metalBufferContents(unsafe.Pointer(target.buffer))
+}
+
+func metalBufferContents(buffer unsafe.Pointer) unsafe.Pointer {
+	if buffer == nil {
 		return nil
 	}
 

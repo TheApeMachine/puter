@@ -2,10 +2,14 @@
 
 package metal
 
-import "unsafe"
+import (
+	"unsafe"
 
-func metalBufferContents(buffer uintptr) unsafe.Pointer {
-	_ = buffer
+	"github.com/theapemachine/manifesto/tensor"
+)
+
+func metalTensorContents(value tensor.Tensor) unsafe.Pointer {
+	_ = value
 
 	return nil
 }

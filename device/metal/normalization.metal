@@ -222,6 +222,49 @@ static inline void rmsnorm_rows(
 }
 
 template <typename Storage, typename Scalar>
+static inline void adaptive_rmsnorm_rows(
+    device const Scalar* input,
+    device const Scalar* modulation,
+    device Scalar* out,
+    threadgroup float* reduction,
+    constant uint& cols,
+    uint row,
+    uint threadIndex
+) {
+    uint rowOffset = row * cols;
+    float localSquareSum = 0.0f;
+    float localCompensation = 0.0f;
+
+    for (uint col = threadIndex; col < cols; col += normalizationThreadCount) {
+        float value = Storage::load(input, rowOffset + col);
+        float square = value * value - localCompensation;
+        float nextSum = localSquareSum + square;
+        localCompensation = (nextSum - localSquareSum) - square;
+        localSquareSum = nextSum;
+    }
+
+    reduction[threadIndex] = localSquareSum;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    for (uint stride = normalizationThreadCount / 2; stride > 0; stride >>= 1) {
+        if (threadIndex < stride) {
+            reduction[threadIndex] += reduction[threadIndex + stride];
+        }
+
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+
+    float invRMS = 1.0f / sqrt(reduction[0] / float(cols) + rmsNormEpsilonMetal);
+
+    for (uint col = threadIndex; col < cols; col += normalizationThreadCount) {
+        float normalized = Storage::load(input, rowOffset + col) * invRMS;
+        float scale = Storage::load(modulation, col);
+        float shift = Storage::load(modulation, cols + col);
+        Storage::store(out, rowOffset + col, normalized * (1.0f + scale) + shift);
+    }
+}
+
+template <typename Storage, typename Scalar>
 static inline void groupnorm_rows(
     device const Scalar* input,
     device const Scalar* scale,
@@ -366,6 +409,19 @@ kernel void name( \
     rmsnorm_rows<storage, scalar>(input, scale, out, reduction, cols, row, threadIndex); \
 }
 
+#define ADAPTIVE_RMSNORM_KERNEL(name, storage, scalar) \
+kernel void name( \
+    device const scalar* input [[buffer(0)]], \
+    device const scalar* modulation [[buffer(1)]], \
+    device scalar* out [[buffer(2)]], \
+    constant uint& cols [[buffer(3)]], \
+    uint row [[threadgroup_position_in_grid]], \
+    uint threadIndex [[thread_position_in_threadgroup]] \
+) { \
+    threadgroup float reduction[256]; \
+    adaptive_rmsnorm_rows<storage, scalar>(input, modulation, out, reduction, cols, row, threadIndex); \
+}
+
 #define GROUPNORM_KERNEL(name, storage, scalar) \
 kernel void name( \
     device const scalar* input [[buffer(0)]], \
@@ -467,6 +523,10 @@ LAYERNORM_KERNEL(layernorm_bfloat16, BFloat16NormStorage, ushort)
 RMSNORM_KERNEL(rmsnorm_float32, Float32NormStorage, float)
 RMSNORM_KERNEL(rmsnorm_float16, Float16NormStorage, half)
 RMSNORM_KERNEL(rmsnorm_bfloat16, BFloat16NormStorage, ushort)
+
+ADAPTIVE_RMSNORM_KERNEL(adaptive_rmsnorm_float32, Float32NormStorage, float)
+ADAPTIVE_RMSNORM_KERNEL(adaptive_rmsnorm_float16, Float16NormStorage, half)
+ADAPTIVE_RMSNORM_KERNEL(adaptive_rmsnorm_bfloat16, BFloat16NormStorage, ushort)
 
 kernel void groupnorm_float32(
     device const float* input [[buffer(0)]],

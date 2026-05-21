@@ -237,7 +237,7 @@ func requireMetalAffineNorm3D(
 
 func (config *metalNorm3DConfig) withDims() error {
 	dims := config.input.shape.Dims()
-	if len(dims) != 3 {
+	if len(dims) < 3 {
 		return tensor.ErrShapeMismatch
 	}
 
@@ -249,7 +249,13 @@ func (config *metalNorm3DConfig) withDims() error {
 
 	config.batch = uint32(dims[0])
 	config.channels = uint32(dims[1])
-	config.spatial = uint32(dims[2])
+
+	spatial := 1
+	for _, value := range dims[2:] {
+		spatial *= value
+	}
+
+	config.spatial = uint32(spatial)
 	return nil
 }
 

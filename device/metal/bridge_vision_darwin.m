@@ -126,7 +126,6 @@ int metal_vision_dispatch(
             dispatchThreads:MTLSizeMake(threadCount, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(threadWidth, 1, 1)
         ];
-        [encoder endEncoding];
         [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
             @autoreleasepool {
                 if ([completedBuffer status] == MTLCommandBufferStatusCompleted) {
@@ -144,7 +143,7 @@ int metal_vision_dispatch(
                 metalCommandCompleted(completionToken, -5, (char*)[message UTF8String]);
             }
         }];
-        [commandBuffer commit];
+        metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;
     }

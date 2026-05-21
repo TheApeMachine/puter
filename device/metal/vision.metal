@@ -111,17 +111,35 @@ static inline void conv2d_kernel(
     uint outChannel = (index / (outWidth * outHeight)) % outChannels;
     uint batchIndex = index / (outWidth * outHeight * outChannels);
     float accumulator = Storage::load(bias, outChannel);
+    uint totalPadHeight = outHeight + kernelHeight > inHeight + 1 ?
+        outHeight + kernelHeight - inHeight - 1 : 0;
+    uint totalPadWidth = outWidth + kernelWidth > inWidth + 1 ?
+        outWidth + kernelWidth - inWidth - 1 : 0;
+    uint padTop = totalPadHeight / 2;
+    uint padLeft = totalPadWidth / 2;
 
     for (uint inChannel = 0; inChannel < inChannels; inChannel++) {
         for (uint kernelRow = 0; kernelRow < kernelHeight; kernelRow++) {
-            uint inRow = outRow + kernelRow;
+            uint paddedRow = outRow + kernelRow;
+
+            if (paddedRow < padTop) {
+                continue;
+            }
+
+            uint inRow = paddedRow - padTop;
 
             if (inRow >= inHeight) {
                 continue;
             }
 
             for (uint kernelCol = 0; kernelCol < kernelWidth; kernelCol++) {
-                uint inCol = outCol + kernelCol;
+                uint paddedCol = outCol + kernelCol;
+
+                if (paddedCol < padLeft) {
+                    continue;
+                }
+
+                uint inCol = paddedCol - padLeft;
 
                 if (inCol >= inWidth) {
                     continue;

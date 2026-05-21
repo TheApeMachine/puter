@@ -328,102 +328,17 @@ int metal_dispatch_binary_float32(
     uint64_t completionToken,
     MetalStatus* status
 ) {
-    @autoreleasepool {
-        metal_status_clear(status);
-
-        if (count == 0) {
-            return 0;
-        }
-
-        MetalContext* context = (MetalContext*)contextRef;
-
-        if (context == NULL || context->queue == NULL) {
-            metal_status_set(status, -1, "invalid Metal context");
-            return -1;
-        }
-
-        const char* kernelName = metal_binary_float32_kernel_name(operation);
-
-        if (kernelName == NULL) {
-            metal_status_set(status, -6, "unknown binary float32 operation");
-            return -6;
-        }
-
-        if (leftRef == NULL || rightRef == NULL || outRef == NULL) {
-            metal_status_set(status, -2, "nil Metal buffer");
-            return -2;
-        }
-
-        id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)context->queue;
-        id<MTLComputePipelineState> pipeline = metal_get_pipeline(context, kernelName, status);
-
-        if (pipeline == nil) {
-            return status != NULL && status->code != 0 ? status->code : -7;
-        }
-
-        id<MTLBuffer> left = (__bridge id<MTLBuffer>)leftRef;
-        id<MTLBuffer> right = (__bridge id<MTLBuffer>)rightRef;
-        id<MTLBuffer> out = (__bridge id<MTLBuffer>)outRef;
-
-        id<MTLCommandBuffer> commandBuffer = [queue commandBuffer];
-
-        if (commandBuffer == nil) {
-            metal_status_set(status, -3, "commandBuffer returned nil");
-            return -3;
-        }
-
-        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
-
-        if (encoder == nil) {
-            metal_status_set(status, -4, "computeCommandEncoder returned nil");
-            return -4;
-        }
-
-        [encoder setComputePipelineState:pipeline];
-        [encoder setBuffer:left offset:0 atIndex:0];
-        [encoder setBuffer:right offset:0 atIndex:1];
-        [encoder setBuffer:out offset:0 atIndex:2];
-        [encoder setBytes:&count length:sizeof(count) atIndex:3];
-
-        NSUInteger threadWidth = [pipeline threadExecutionWidth];
-
-        if (threadWidth == 0) {
-            threadWidth = 1;
-        }
-
-        NSUInteger vectorCount = (NSUInteger)((count + 3) / 4);
-        MTLSize gridSize = MTLSizeMake(vectorCount, 1, 1);
-        MTLSize threadgroupSize = MTLSizeMake(threadWidth, 1, 1);
-
-        [encoder dispatchThreads:gridSize threadsPerThreadgroup:threadgroupSize];
-        [encoder endEncoding];
-
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            @autoreleasepool {
-                if ([completedBuffer status] == MTLCommandBufferStatusCompleted) {
-                    metalCommandCompleted(completionToken, 0, "");
-                    return;
-                }
-
-                NSError* error = [completedBuffer error];
-                NSString* message = @"Metal command buffer failed";
-
-                if (error != nil) {
-                    message = [NSString
-                        stringWithFormat:@"%@: %@",
-                        message,
-                        [error localizedDescription]
-                    ];
-                }
-
-                metalCommandCompleted(completionToken, -5, (char*)[message UTF8String]);
-            }
-        }];
-
-        [commandBuffer commit];
-
-        return 0;
-    }
+    return metal_dispatch_binary_elementwise(
+        contextRef,
+        operation,
+        MetalElementDTypeFloat32,
+        leftRef,
+        rightRef,
+        outRef,
+        count,
+        completionToken,
+        status
+    );
 }
 
 void metal_device_release(MetalDeviceRef contextRef) {

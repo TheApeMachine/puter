@@ -108,6 +108,55 @@ func runMetalRMSNorm(input tensor.Tensor, scale tensor.Tensor, out tensor.Tensor
 	return nil
 }
 
+func (backend *Backend) AdaptiveRMSNorm(
+	input tensor.Tensor,
+	modulation tensor.Tensor,
+	out tensor.Tensor,
+) error {
+	return runMetalAdaptiveRMSNorm(input, modulation, out)
+}
+
+func runMetalAdaptiveRMSNorm(
+	input tensor.Tensor,
+	modulation tensor.Tensor,
+	out tensor.Tensor,
+) error {
+	config, err := requireMetalAdaptiveNorm(input, modulation, out)
+	if err != nil {
+		return err
+	}
+
+	if config.out.shape.Len() == 0 {
+		return nil
+	}
+
+	token, err := metalCompletions.Begin(config.out, config.input, config.scale)
+	if err != nil {
+		return err
+	}
+
+	status := C.MetalStatus{}
+	rc := C.metal_dispatch_adaptive_rmsnorm(
+		config.input.bridge.device,
+		C.int(config.elementDType),
+		config.input.buffer,
+		config.scale.buffer,
+		config.out.buffer,
+		C.uint32_t(config.rows),
+		C.uint32_t(config.cols),
+		C.uint64_t(token),
+		&status,
+	)
+
+	if rc != 0 {
+		err := fmt.Errorf("metal adaptive rmsnorm: %s", metalStatus("dispatch", status))
+		metalCompletions.Fail(token, err)
+		return err
+	}
+
+	return nil
+}
+
 func requireMetalNorm(
 	input tensor.Tensor,
 	scale tensor.Tensor,
@@ -125,6 +174,32 @@ func requireMetalNorm(
 	}
 
 	if err := requireMetalNormBias(config.bias, cols); err != nil {
+		return metalNormConfig{}, err
+	}
+
+	elementDType, err := metalElementDTypeFor(config.input.dtype)
+	if err != nil {
+		return metalNormConfig{}, err
+	}
+
+	config.rows = uint32(rows)
+	config.cols = uint32(cols)
+	config.elementDType = elementDType
+	return config, nil
+}
+
+func requireMetalAdaptiveNorm(
+	input tensor.Tensor,
+	modulation tensor.Tensor,
+	out tensor.Tensor,
+) (metalNormConfig, error) {
+	config, err := metalNormTensors(input, modulation, nil, out)
+	if err != nil {
+		return metalNormConfig{}, err
+	}
+
+	rows, cols, err := metalAdaptiveNormDims(config.input, config.scale, config.out)
+	if err != nil {
 		return metalNormConfig{}, err
 	}
 
@@ -230,6 +305,38 @@ func metalNormDims(
 	scaleDims := scale.shape.Dims()
 	if len(scaleDims) != 1 || scaleDims[0] != cols {
 		fmt.Printf("metalNormDims: scale mismatch: scale=%v, cols=%d\n", scaleDims, cols)
+		return 0, 0, tensor.ErrShapeMismatch
+	}
+
+	rows := input.shape.Len() / cols
+	if rows > math.MaxUint32 || cols > math.MaxUint32 {
+		return 0, 0, tensor.ErrShapeMismatch
+	}
+
+	return rows, cols, nil
+}
+
+func metalAdaptiveNormDims(
+	input *metalTensor,
+	modulation *metalTensor,
+	out *metalTensor,
+) (int, int, error) {
+	if !input.shape.Equal(out.shape) {
+		return 0, 0, tensor.ErrShapeMismatch
+	}
+
+	dims := input.shape.Dims()
+	if len(dims) < 2 {
+		return 0, 0, tensor.ErrShapeMismatch
+	}
+
+	cols := dims[len(dims)-1]
+	if cols == 0 {
+		return 0, 0, nil
+	}
+
+	modulationDims := modulation.shape.Dims()
+	if len(modulationDims) != 2 || modulationDims[0] != dims[0] || modulationDims[1] != cols*2 {
 		return 0, 0, tensor.ErrShapeMismatch
 	}
 

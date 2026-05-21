@@ -370,6 +370,17 @@ int metal_dispatch_rmsnorm(
     uint64_t completionToken,
     MetalStatus* status
 );
+int metal_dispatch_adaptive_rmsnorm(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef inputRef,
+    MetalBufferRef modulationRef,
+    MetalBufferRef outRef,
+    uint32_t rows,
+    uint32_t cols,
+    uint64_t completionToken,
+    MetalStatus* status
+);
 int metal_dispatch_groupnorm(
     MetalDeviceRef contextRef,
     int elementDType,

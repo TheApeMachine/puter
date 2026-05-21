@@ -23,17 +23,17 @@ func (backend *Backend) NewZeroed(shape tensor.Shape, asType dtype.DType) (tenso
 		return nil, err
 	}
 
-	if target.bytes == 0 {
+	if target.Bytes() == 0 {
 		return target, nil
 	}
 
-	contents := metalBufferContents(uintptr(target.buffer))
+	contents := metalTensorContents(target)
 
 	if contents == nil {
 		return nil, tensor.ErrNeedsPlatformSetup
 	}
 
-	metalMemset(contents, 0, target.bytes)
+	metalMemset(contents, 0, target.Bytes())
 
 	return target, nil
 }

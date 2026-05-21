@@ -1,3 +1,5 @@
+//go:build darwin && cgo
+
 package metal
 
 func pospopCount8Generic(counts *[8]int, buf []uint8) {

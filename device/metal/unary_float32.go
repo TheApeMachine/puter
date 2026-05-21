@@ -70,7 +70,7 @@ func (backend *Backend) SignFloat32(
 }
 
 func registerUnaryFloat32Kernel(name string, operation metalUnaryFloat32Operation) {
-	registerUnaryKernel(name, dtype.Float32, runUnaryFloat32(operation))
+	registerUnaryKernel(name, dtype.Float32, runUnaryElementwise(operation))
 }
 
 func registerUnaryFloat16Kernels() {
@@ -140,16 +140,6 @@ func (backend *Backend) unaryFloat32(
 	}
 
 	return out, nil
-}
-
-func runUnaryFloat32(operation metalUnaryFloat32Operation) func(...tensor.Tensor) error {
-	return func(args ...tensor.Tensor) error {
-		if len(args) != 2 {
-			return tensor.ErrShapeMismatch
-		}
-
-		return runMetalUnaryFloat32(operation, args[0], args[1])
-	}
 }
 
 func runUnaryElementwise(operation metalUnaryFloat32Operation) func(...tensor.Tensor) error {

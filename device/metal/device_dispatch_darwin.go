@@ -49,17 +49,6 @@ func (backend *Backend) unaryElementwisePanic(
 	devicePanic(runMetalUnaryElementwise(operation, tensors[0], tensors[1]))
 }
 
-func (backend *Backend) binaryElementwisePanic(
-	dst, left, right unsafe.Pointer,
-	format dtype.DType,
-	operation metalBinaryFloat32Operation,
-) {
-	_ = format
-	tensors := backend.tensorsAtPanic(left, right, dst)
-
-	devicePanic(runMetalBinaryElementwise(operation, tensors[0], tensors[1], tensors[2]))
-}
-
 func (backend *Backend) emptyScalar(format dtype.DType) *metalTensor {
 	shape, err := tensor.NewShape([]int{1})
 
@@ -146,14 +135,6 @@ func (backend *Backend) dotProduct(
 	return backend.readFloat32Scalar(out.residentPointer())
 }
 
-func (backend *Backend) tempVectorLike(reference *metalTensor) *metalTensor {
-	target, err := backend.bridge.empty(reference.shape, reference.dtype)
-
-	devicePanic(err)
-
-	return target
-}
-
 func (backend *Backend) gluInvoke(
 	dst, gate, up unsafe.Pointer,
 	run func(tensor.Tensor, tensor.Tensor, tensor.Tensor) error,
@@ -171,9 +152,13 @@ func (backend *Backend) gluPackedInvoke(
 ) {
 	_ = format
 	packedTensor := backend.tensorAtPanic(packed)
-	halfShape, err := tensor.NewShape([]int{batch, halfCount})
+	dstTensor := backend.tensorAtPanic(dst)
 
-	devicePanic(err)
+	if dstTensor.shape.Len() != batch*halfCount {
+		devicePanic(tensor.ErrShapeMismatch)
+	}
+
+	halfShape := dstTensor.shape
 
 	gate, err := backend.bridge.empty(halfShape, packedTensor.dtype)
 
@@ -184,7 +169,7 @@ func (backend *Backend) gluPackedInvoke(
 	devicePanic(err)
 
 	devicePanic(runMetalSplit2(packedTensor, gate, up))
-	backend.gluInvoke(dst, gate.residentPointer(), up.residentPointer(), run)
+	devicePanic(run(gate, up, dstTensor))
 
 	_ = gate.Close()
 	_ = up.Close()
