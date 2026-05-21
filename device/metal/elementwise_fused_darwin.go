@@ -88,7 +88,7 @@ func runMetalAxpy(y tensor.Tensor, x tensor.Tensor, alpha float32) error {
 		return err
 	}
 
-	if yTensor.dtype != dtype.Float32 || xTensor.dtype != dtype.Float32 {
+	if yTensor.dtype != xTensor.dtype {
 		return tensor.ErrDTypeMismatch
 	}
 
@@ -100,6 +100,12 @@ func runMetalAxpy(y tensor.Tensor, x tensor.Tensor, alpha float32) error {
 		return nil
 	}
 
+	elementDType, err := metalElementDTypeFor(yTensor.dtype)
+
+	if err != nil {
+		return err
+	}
+
 	token, err := metalCompletions.Begin(yTensor, xTensor)
 
 	if err != nil {
@@ -109,7 +115,7 @@ func runMetalAxpy(y tensor.Tensor, x tensor.Tensor, alpha float32) error {
 	status := C.MetalStatus{}
 	rc := C.metal_dispatch_axpy(
 		yTensor.bridge.device,
-		C.int(metalElementDTypeFloat32),
+		C.int(elementDType),
 		yTensor.buffer,
 		xTensor.buffer,
 		C.uint32_t(yTensor.shape.Len()),

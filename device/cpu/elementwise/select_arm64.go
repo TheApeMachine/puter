@@ -408,6 +408,86 @@ func ReluFloat16Native(dst, src []dtype.F16) {
 	ReluFloat16NEONAsm((*uint16)(&dst[0]), (*uint16)(&src[0]), len(dst))
 }
 
+func AddF16NEON(dst, left, right *uint16, count int) {
+	AddFloat16NEONAsm(dst, left, right, count)
+}
+
+func SubF16NEON(dst, left, right *uint16, count int) {
+	SubFloat16NEONAsm(dst, left, right, count)
+}
+
+func MulF16NEON(dst, left, right *uint16, count int) {
+	MulFloat16NEONAsm(dst, left, right, count)
+}
+
+func DivF16NEON(dst, left, right *uint16, count int) {
+	DivFloat16NEONAsm(dst, left, right, count)
+}
+
+func MaxF16NEON(dst, left, right *uint16, count int) {
+	MaxFloat16NEONAsm(dst, left, right, count)
+}
+
+func MinF16NEON(dst, left, right *uint16, count int) {
+	MinFloat16NEONAsm(dst, left, right, count)
+}
+
+func AbsF16NEON(dst, src *uint16, count int) {
+	AbsFloat16NEONAsm(dst, src, count)
+}
+
+func NegF16NEON(dst, src *uint16, count int) {
+	NegFloat16NEONAsm(dst, src, count)
+}
+
+func SqrtF16NEON(dst, src *uint16, count int) {
+	SqrtFloat16NEONAsm(dst, src, count)
+}
+
+func ReluF16NEON(dst, src *uint16, count int) {
+	ReluFloat16NEONAsm(dst, src, count)
+}
+
+func AddBF16NEON(dst, left, right *uint16, count int) {
+	AddBFloat16NEONAsm(dst, left, right, count)
+}
+
+func SubBF16NEON(dst, left, right *uint16, count int) {
+	SubBFloat16NEONAsm(dst, left, right, count)
+}
+
+func MulBF16NEON(dst, left, right *uint16, count int) {
+	MulBFloat16NEONAsm(dst, left, right, count)
+}
+
+func DivBF16NEON(dst, left, right *uint16, count int) {
+	DivBFloat16NEONAsm(dst, left, right, count)
+}
+
+func MaxBF16NEON(dst, left, right *uint16, count int) {
+	MaxBFloat16NEONAsm(dst, left, right, count)
+}
+
+func MinBF16NEON(dst, left, right *uint16, count int) {
+	MinBFloat16NEONAsm(dst, left, right, count)
+}
+
+func AbsBF16NEON(dst, src *uint16, count int) {
+	AbsBFloat16NEONAsm(dst, src, count)
+}
+
+func NegBF16NEON(dst, src *uint16, count int) {
+	NegBFloat16NEONAsm(dst, src, count)
+}
+
+func SqrtBF16NEON(dst, src *uint16, count int) {
+	SqrtBFloat16NEONAsm(dst, src, count)
+}
+
+func ReluBF16NEON(dst, src *uint16, count int) {
+	ReluBFloat16NEONAsm(dst, src, count)
+}
+
 var (
 	addF32Funcs = []f32BinaryKernelImpl{
 		{AddF32NEON, "neon", true},
@@ -456,5 +536,91 @@ var (
 	addF64Funcs = []f64BinaryKernelImpl{
 		{AddF64NEON, "neon", true},
 		{AddF64Generic, "generic", true},
+	}
+	addF16Funcs = []uint16BinaryKernelImpl{
+		{AddF16NEON, "neon", true},
+		{AddF16Generic, "generic", true},
+	}
+	subF16Funcs = []uint16BinaryKernelImpl{
+		{SubF16NEON, "neon", true},
+		{SubF16Generic, "generic", true},
+	}
+	mulF16Funcs = []uint16BinaryKernelImpl{
+		{MulF16NEON, "neon", true},
+		{MulF16Generic, "generic", true},
+	}
+	divF16Funcs = []uint16BinaryKernelImpl{
+		{DivF16NEON, "neon", true},
+		{DivF16Generic, "generic", true},
+	}
+	maxF16Funcs = []uint16BinaryKernelImpl{
+		{MaxF16NEON, "neon", true},
+		{MaxF16Generic, "generic", true},
+	}
+	minF16Funcs = []uint16BinaryKernelImpl{
+		{MinF16NEON, "neon", true},
+		{MinF16Generic, "generic", true},
+	}
+	absF16Funcs = []uint16UnaryKernelImpl{
+		{AbsF16NEON, "neon", true},
+		{AbsF16Generic, "generic", true},
+	}
+	negF16Funcs = []uint16UnaryKernelImpl{
+		{NegF16NEON, "neon", true},
+		{NegF16Generic, "generic", true},
+	}
+	sqrtF16Funcs = []uint16UnaryKernelImpl{
+		{SqrtF16NEON, "neon", true},
+		{SqrtF16Generic, "generic", true},
+	}
+	reluF16Funcs = []uint16UnaryKernelImpl{
+		{ReluF16NEON, "neon", true},
+		{ReluF16Generic, "generic", true},
+	}
+	axpyF16Funcs = []uint16AxpyKernelImpl{
+		{AxpyF16Generic, "generic", true},
+	}
+	addBF16Funcs = []uint16BinaryKernelImpl{
+		{AddBF16NEON, "neon", true},
+		{AddBF16Generic, "generic", true},
+	}
+	subBF16Funcs = []uint16BinaryKernelImpl{
+		{SubBF16NEON, "neon", true},
+		{SubBF16Generic, "generic", true},
+	}
+	mulBF16Funcs = []uint16BinaryKernelImpl{
+		{MulBF16NEON, "neon", true},
+		{MulBF16Generic, "generic", true},
+	}
+	divBF16Funcs = []uint16BinaryKernelImpl{
+		{DivBF16NEON, "neon", true},
+		{DivBF16Generic, "generic", true},
+	}
+	maxBF16Funcs = []uint16BinaryKernelImpl{
+		{MaxBF16NEON, "neon", true},
+		{MaxBF16Generic, "generic", true},
+	}
+	minBF16Funcs = []uint16BinaryKernelImpl{
+		{MinBF16NEON, "neon", true},
+		{MinBF16Generic, "generic", true},
+	}
+	absBF16Funcs = []uint16UnaryKernelImpl{
+		{AbsBF16NEON, "neon", true},
+		{AbsBF16Generic, "generic", true},
+	}
+	negBF16Funcs = []uint16UnaryKernelImpl{
+		{NegBF16NEON, "neon", true},
+		{NegBF16Generic, "generic", true},
+	}
+	sqrtBF16Funcs = []uint16UnaryKernelImpl{
+		{SqrtBF16NEON, "neon", true},
+		{SqrtBF16Generic, "generic", true},
+	}
+	reluBF16Funcs = []uint16UnaryKernelImpl{
+		{ReluBF16NEON, "neon", true},
+		{ReluBF16Generic, "generic", true},
+	}
+	axpyBF16Funcs = []uint16AxpyKernelImpl{
+		{AxpyBF16Generic, "generic", true},
 	}
 )

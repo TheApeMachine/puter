@@ -9,18 +9,40 @@ import (
 )
 
 var (
-	addF32Funcs  = []f32BinaryKernelImpl{{AddF32Generic, "generic", true}}
-	subF32Funcs  = []f32BinaryKernelImpl{{SubF32Generic, "generic", true}}
-	mulF32Funcs  = []f32BinaryKernelImpl{{MulF32Generic, "generic", true}}
-	divF32Funcs  = []f32BinaryKernelImpl{{DivF32Generic, "generic", true}}
-	maxF32Funcs  = []f32BinaryKernelImpl{{MaxF32Generic, "generic", true}}
-	minF32Funcs  = []f32BinaryKernelImpl{{MinF32Generic, "generic", true}}
-	absF32Funcs  = []f32UnaryKernelImpl{{AbsF32Generic, "generic", true}}
-	negF32Funcs  = []f32UnaryKernelImpl{{NegF32Generic, "generic", true}}
-	sqrtF32Funcs = []f32UnaryKernelImpl{{SqrtF32Generic, "generic", true}}
-	reluF32Funcs = []f32UnaryKernelImpl{{ReluF32Generic, "generic", true}}
-	axpyF32Funcs = []f32AxpyKernelImpl{{AxpyF32Generic, "generic", true}}
-	addF64Funcs  = []f64BinaryKernelImpl{{AddF64Generic, "generic", true}}
+	addF32Funcs   = []f32BinaryKernelImpl{{AddF32Generic, "generic", true}}
+	subF32Funcs   = []f32BinaryKernelImpl{{SubF32Generic, "generic", true}}
+	mulF32Funcs   = []f32BinaryKernelImpl{{MulF32Generic, "generic", true}}
+	divF32Funcs   = []f32BinaryKernelImpl{{DivF32Generic, "generic", true}}
+	maxF32Funcs   = []f32BinaryKernelImpl{{MaxF32Generic, "generic", true}}
+	minF32Funcs   = []f32BinaryKernelImpl{{MinF32Generic, "generic", true}}
+	absF32Funcs   = []f32UnaryKernelImpl{{AbsF32Generic, "generic", true}}
+	negF32Funcs   = []f32UnaryKernelImpl{{NegF32Generic, "generic", true}}
+	sqrtF32Funcs  = []f32UnaryKernelImpl{{SqrtF32Generic, "generic", true}}
+	reluF32Funcs  = []f32UnaryKernelImpl{{ReluF32Generic, "generic", true}}
+	axpyF32Funcs  = []f32AxpyKernelImpl{{AxpyF32Generic, "generic", true}}
+	addF64Funcs   = []f64BinaryKernelImpl{{AddF64Generic, "generic", true}}
+	addF16Funcs   = []uint16BinaryKernelImpl{{AddF16Generic, "generic", true}}
+	subF16Funcs   = []uint16BinaryKernelImpl{{SubF16Generic, "generic", true}}
+	mulF16Funcs   = []uint16BinaryKernelImpl{{MulF16Generic, "generic", true}}
+	divF16Funcs   = []uint16BinaryKernelImpl{{DivF16Generic, "generic", true}}
+	maxF16Funcs   = []uint16BinaryKernelImpl{{MaxF16Generic, "generic", true}}
+	minF16Funcs   = []uint16BinaryKernelImpl{{MinF16Generic, "generic", true}}
+	absF16Funcs   = []uint16UnaryKernelImpl{{AbsF16Generic, "generic", true}}
+	negF16Funcs   = []uint16UnaryKernelImpl{{NegF16Generic, "generic", true}}
+	sqrtF16Funcs  = []uint16UnaryKernelImpl{{SqrtF16Generic, "generic", true}}
+	reluF16Funcs  = []uint16UnaryKernelImpl{{ReluF16Generic, "generic", true}}
+	axpyF16Funcs  = []uint16AxpyKernelImpl{{AxpyF16Generic, "generic", true}}
+	addBF16Funcs  = []uint16BinaryKernelImpl{{AddBF16Generic, "generic", true}}
+	subBF16Funcs  = []uint16BinaryKernelImpl{{SubBF16Generic, "generic", true}}
+	mulBF16Funcs  = []uint16BinaryKernelImpl{{MulBF16Generic, "generic", true}}
+	divBF16Funcs  = []uint16BinaryKernelImpl{{DivBF16Generic, "generic", true}}
+	maxBF16Funcs  = []uint16BinaryKernelImpl{{MaxBF16Generic, "generic", true}}
+	minBF16Funcs  = []uint16BinaryKernelImpl{{MinBF16Generic, "generic", true}}
+	absBF16Funcs  = []uint16UnaryKernelImpl{{AbsBF16Generic, "generic", true}}
+	negBF16Funcs  = []uint16UnaryKernelImpl{{NegBF16Generic, "generic", true}}
+	sqrtBF16Funcs = []uint16UnaryKernelImpl{{SqrtBF16Generic, "generic", true}}
+	reluBF16Funcs = []uint16UnaryKernelImpl{{ReluBF16Generic, "generic", true}}
+	axpyBF16Funcs = []uint16AxpyKernelImpl{{AxpyBF16Generic, "generic", true}}
 )
 
 func AddFloat32Native(dst, left, right []float32) {

@@ -13,13 +13,18 @@ func dispatchScalarUnary(
 	format dtype.DType,
 	apply func(float32) float32,
 ) {
-	dispatchUnary(
-		dst, src, count, format,
-		func(dst, src unsafe.Pointer, count int) {
-			runUnaryScalarF32(dst, src, count, apply)
-		},
-		apply,
-	)
+	if count == 0 {
+		return
+	}
+
+	switch format {
+	case dtype.Float32:
+		runUnaryScalarF32(dst, src, count, apply)
+	case dtype.Float16:
+		runUnaryScalarF16(dst, src, count, apply)
+	case dtype.BFloat16:
+		runUnaryScalarBF16(dst, src, count, apply)
+	}
 }
 
 func Square(dst, src unsafe.Pointer, count int, format dtype.DType) {

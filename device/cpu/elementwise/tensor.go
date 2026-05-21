@@ -1,6 +1,28 @@
 package elementwise
 
-import "github.com/theapemachine/manifesto/tensor"
+import (
+	"fmt"
+
+	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/manifesto/tensor"
+)
+
+func RunRelu(args ...tensor.Tensor) error {
+	if len(args) != 2 {
+		return tensor.ErrShapeMismatch
+	}
+
+	switch args[1].DType() {
+	case dtype.Float32:
+		return runReluFloat32(args...)
+	case dtype.Float16:
+		return runReluFloat16(args...)
+	case dtype.BFloat16:
+		return runReluBFloat16(args...)
+	default:
+		return fmt.Errorf("elementwise: unsupported relu dtype %s", args[1].DType())
+	}
+}
 
 func RunAbsFloat32(args ...tensor.Tensor) error {
 	return runAbsFloat32(args...)

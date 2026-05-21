@@ -99,6 +99,59 @@ func TestKernelRegistry_MetalUnaryElementwiseDTypes(t *testing.T) {
 	}
 }
 
+func TestBackend_AxpyBFloat16(testingObject *testing.T) {
+	backend := newBackendForDeviceTest(testingObject)
+	defer func() {
+		if err := backend.Close(); err != nil {
+			testingObject.Fatalf("Close failed: %v", err)
+		}
+	}()
+
+	convey.Convey("Given BF16 Metal tensors for Axpy", testingObject, func() {
+		shape, err := tensor.NewShape([]int{7})
+		convey.So(err, convey.ShouldBeNil)
+
+		yValues := []float32{1, 2, 3, 4, 5, 6, 7}
+		xValues := []float32{8, 7, 6, 5, 4, 3, 2}
+		alpha := float32(-0.25)
+
+		y := uploadDTypeTensorForTest(
+			testingObject, backend, shape, dtype.BFloat16,
+			encodeFloat32ValuesAsDType(yValues, dtype.BFloat16),
+		)
+		defer func() {
+			convey.So(y.Close(), convey.ShouldBeNil)
+		}()
+
+		x := uploadDTypeTensorForTest(
+			testingObject, backend, shape, dtype.BFloat16,
+			encodeFloat32ValuesAsDType(xValues, dtype.BFloat16),
+		)
+		defer func() {
+			convey.So(x.Close(), convey.ShouldBeNil)
+		}()
+
+		expectedValues := make([]float32, len(yValues))
+
+		for index := range expectedValues {
+			expectedValues[index] = yValues[index] + alpha*xValues[index]
+		}
+
+		convey.Convey("It should update y in-place without dtype promotion", func() {
+			backend.Axpy(Resident(y), Resident(x), len(yValues), alpha, dtype.BFloat16)
+
+			assertDTypeBytesForTest(
+				testingObject,
+				backend,
+				y,
+				dtype.BFloat16,
+				encodeFloat32ValuesAsDType(expectedValues, dtype.BFloat16),
+				1,
+			)
+		})
+	})
+}
+
 func testKernelRegistryMetalUnaryElementwiseDType(
 	t *testing.T,
 	backend *Backend,

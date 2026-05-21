@@ -5,6 +5,6 @@
 // matching pkg/backend/device/cpu/activation. Float32 kernels follow
 // the pick-at-init model: select_{arm64,amd64,generic}.go register
 // ISA candidates; f32_kernels.go binds the picked implementation.
-// Float16 and bfloat16 f32-backed paths widen in compute.go, execute
-// the f32 kernel, then narrow on write-back.
+// Float16 and bfloat16 paths route through pick-at-init uint16 kernels:
+// NEON on arm64, dtype-correct generic elsewhere.
 package elementwise

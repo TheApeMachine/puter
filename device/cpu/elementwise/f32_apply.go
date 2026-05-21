@@ -80,3 +80,23 @@ func runUnaryScalarF32(
 		dstView[index] = apply(value)
 	}
 }
+
+func runUnaryScalarF16(
+	dst, src unsafe.Pointer,
+	count int,
+	apply func(float32) float32,
+) {
+	for index := 0; index < count; index++ {
+		storeF16(dst, index, apply(loadF16(src, index)))
+	}
+}
+
+func runUnaryScalarBF16(
+	dst, src unsafe.Pointer,
+	count int,
+	apply func(float32) float32,
+) {
+	for index := 0; index < count; index++ {
+		storeBF16(dst, index, apply(loadBF16(src, index)))
+	}
+}

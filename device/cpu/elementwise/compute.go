@@ -47,6 +47,8 @@ func dispatchBinary(
 	count int,
 	format dtype.DType,
 	f32 func(dst, left, right unsafe.Pointer, count int),
+	f16 func(dst, left, right unsafe.Pointer, count int),
+	bf16 func(dst, left, right unsafe.Pointer, count int),
 	apply func(leftValue, rightValue float32) float32,
 ) {
 	if count == 0 {
@@ -63,13 +65,9 @@ func dispatchBinary(
 			storeF64(dst, index, applyFloat64Binary(leftValue, rightValue, apply))
 		}
 	case dtype.Float16:
-		for index := 0; index < count; index++ {
-			storeF16(dst, index, apply(loadF16(left, index), loadF16(right, index)))
-		}
+		f16(dst, left, right, count)
 	case dtype.BFloat16:
-		for index := 0; index < count; index++ {
-			storeBF16(dst, index, apply(loadBF16(left, index), loadBF16(right, index)))
-		}
+		bf16(dst, left, right, count)
 	}
 }
 
@@ -78,7 +76,8 @@ func dispatchUnary(
 	count int,
 	format dtype.DType,
 	f32 func(dst, src unsafe.Pointer, count int),
-	apply func(value float32) float32,
+	f16 func(dst, src unsafe.Pointer, count int),
+	bf16 func(dst, src unsafe.Pointer, count int),
 ) {
 	if count == 0 {
 		return
@@ -88,13 +87,9 @@ func dispatchUnary(
 	case dtype.Float32:
 		f32(dst, src, count)
 	case dtype.Float16:
-		for index := 0; index < count; index++ {
-			storeF16(dst, index, apply(loadF16(src, index)))
-		}
+		f16(dst, src, count)
 	case dtype.BFloat16:
-		for index := 0; index < count; index++ {
-			storeBF16(dst, index, apply(loadBF16(src, index)))
-		}
+		bf16(dst, src, count)
 	}
 }
 
@@ -104,6 +99,8 @@ func dispatchAxpy(
 	alpha float32,
 	format dtype.DType,
 	f32 func(y, x unsafe.Pointer, count int, alpha float32),
+	f16 func(y, x unsafe.Pointer, count int, alpha float32),
+	bf16 func(y, x unsafe.Pointer, count int, alpha float32),
 ) {
 	if count == 0 {
 		return
@@ -113,14 +110,8 @@ func dispatchAxpy(
 	case dtype.Float32:
 		f32(y, x, count, alpha)
 	case dtype.Float16:
-		for index := 0; index < count; index++ {
-			value := loadF16(y, index) + alpha*loadF16(x, index)
-			storeF16(y, index, value)
-		}
+		f16(y, x, count, alpha)
 	case dtype.BFloat16:
-		for index := 0; index < count; index++ {
-			value := loadBF16(y, index) + alpha*loadBF16(x, index)
-			storeBF16(y, index, value)
-		}
+		bf16(y, x, count, alpha)
 	}
 }

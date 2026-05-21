@@ -24,6 +24,14 @@ static void metal_fused_complete(uint64_t completionToken, id<MTLCommandBuffer> 
     }
 }
 
+static const char* metal_fused_dtype_suffix(int elementDType) {
+    switch (elementDType) {
+    case MetalElementDTypeFloat32: return "float32";
+    case MetalElementDTypeBFloat16: return "bfloat16";
+    default: return NULL;
+    }
+}
+
 int metal_dispatch_unary_param(
     MetalDeviceRef contextRef,
     const char* kernelName,
@@ -99,8 +107,6 @@ int metal_dispatch_axpy(
     uint64_t completionToken,
     MetalStatus* status
 ) {
-    (void)elementDType;
-
     @autoreleasepool {
         if (status != NULL) {
             status->code = 0;
@@ -122,7 +128,30 @@ int metal_dispatch_axpy(
             return -2;
         }
 
-        id<MTLComputePipelineState> pipeline = metal_get_pipeline(context, "axpy_float32", status);
+        const char* dtypeSuffix = metal_fused_dtype_suffix(elementDType);
+
+        if (dtypeSuffix == NULL) {
+            if (status != NULL) {
+                status->code = -6;
+                snprintf(status->message, METAL_STATUS_MESSAGE_BYTES, "unsupported Metal axpy dtype");
+            }
+
+            return -6;
+        }
+
+        char axpyKernelName[64];
+        int written = snprintf(axpyKernelName, sizeof(axpyKernelName), "axpy_%s", dtypeSuffix);
+
+        if (written <= 0 || (size_t)written >= sizeof(axpyKernelName)) {
+            if (status != NULL) {
+                status->code = -6;
+                snprintf(status->message, METAL_STATUS_MESSAGE_BYTES, "Metal axpy kernel name overflow");
+            }
+
+            return -6;
+        }
+
+        id<MTLComputePipelineState> pipeline = metal_get_pipeline(context, axpyKernelName, status);
 
         if (pipeline == nil) {
             return status != NULL && status->code != 0 ? status->code : -7;

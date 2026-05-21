@@ -1,19 +1,10 @@
-.PHONY: build dump metal cuda
+.PHONY: test bench
 
-DUMP ?= caramba.txt
+# qpool uses go:linkname for ScheduleFast goroutine parking.
+LDFLAGS := -ldflags='-checklinkname=0'
 
-dump:
-	python3 "$(CURDIR)/scripts/dump-repo.py" "$(DUMP)"
+test:
+	go test $(LDFLAGS) ./...
 
-metal:
-	cd pkg/backend/device/metal && go generate
-
-cuda:
-	@if command -v nvcc >/dev/null 2>&1; then \
-		go generate -tags cuda ./pkg/backend/device/cuda; \
-	else \
-		echo "Skipping CUDA generation: nvcc not found (run make cuda on a CUDA host)"; \
-	fi
-
-build: metal cuda
-	go build .
+bench:
+	go test $(LDFLAGS) -bench=. ./...
