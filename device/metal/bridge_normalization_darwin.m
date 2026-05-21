@@ -264,6 +264,156 @@ int metal_dispatch_adaptive_rmsnorm(
     );
 }
 
+int metal_dispatch_modulated_layernorm(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef inputRef,
+    MetalBufferRef modulationRef,
+    MetalBufferRef outRef,
+    uint32_t rows,
+    uint32_t cols,
+    uint32_t rowsPerBatch,
+    uint32_t modulationCols,
+    uint32_t modulationSet,
+    uint64_t completionToken,
+    MetalStatus* status
+) {
+    if (inputRef == NULL || modulationRef == NULL || outRef == NULL) {
+        metal_norm_status_set(status, -2, "nil Metal buffer");
+        return -2;
+    }
+
+    char kernelName[128];
+    int nameCode = metal_norm_kernel_name(
+        kernelName,
+        sizeof(kernelName),
+        "modulated_layernorm",
+        elementDType,
+        status
+    );
+
+    if (nameCode != 0) {
+        return nameCode;
+    }
+
+    return metal_norm_dispatch(
+        contextRef,
+        kernelName,
+        rows,
+        completionToken,
+        status,
+        ^(id<MTLComputeCommandEncoder> encoder) {
+            [encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)modulationRef offset:0 atIndex:1];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:2];
+            [encoder setBytes:&cols length:sizeof(cols) atIndex:3];
+            [encoder setBytes:&rowsPerBatch length:sizeof(rowsPerBatch) atIndex:4];
+            [encoder setBytes:&modulationCols length:sizeof(modulationCols) atIndex:5];
+            [encoder setBytes:&modulationSet length:sizeof(modulationSet) atIndex:6];
+        }
+    );
+}
+
+int metal_dispatch_gated_residual(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef residualRef,
+    MetalBufferRef branchRef,
+    MetalBufferRef modulationRef,
+    MetalBufferRef outRef,
+    uint32_t total,
+    uint32_t cols,
+    uint32_t rowsPerBatch,
+    uint32_t modulationCols,
+    uint32_t modulationSet,
+    uint64_t completionToken,
+    MetalStatus* status
+) {
+    if (residualRef == NULL || branchRef == NULL || modulationRef == NULL || outRef == NULL) {
+        metal_norm_status_set(status, -2, "nil Metal buffer");
+        return -2;
+    }
+
+    char kernelName[128];
+    int nameCode = metal_norm_kernel_name(
+        kernelName,
+        sizeof(kernelName),
+        "gated_residual",
+        elementDType,
+        status
+    );
+
+    if (nameCode != 0) {
+        return nameCode;
+    }
+
+    return metal_norm_dispatch(
+        contextRef,
+        kernelName,
+        total / cols,
+        completionToken,
+        status,
+        ^(id<MTLComputeCommandEncoder> encoder) {
+            [encoder setBuffer:(__bridge id<MTLBuffer>)residualRef offset:0 atIndex:0];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)branchRef offset:0 atIndex:1];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)modulationRef offset:0 atIndex:2];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:3];
+            [encoder setBytes:&cols length:sizeof(cols) atIndex:4];
+            [encoder setBytes:&rowsPerBatch length:sizeof(rowsPerBatch) atIndex:5];
+            [encoder setBytes:&modulationCols length:sizeof(modulationCols) atIndex:6];
+            [encoder setBytes:&modulationSet length:sizeof(modulationSet) atIndex:7];
+        }
+    );
+}
+
+int metal_dispatch_batchnorm_denorm(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef inputRef,
+    MetalBufferRef meanRef,
+    MetalBufferRef varianceRef,
+    MetalBufferRef outRef,
+    uint32_t rows,
+    uint32_t channels,
+    uint32_t spatial,
+    uint64_t completionToken,
+    MetalStatus* status
+) {
+    if (inputRef == NULL || meanRef == NULL || varianceRef == NULL || outRef == NULL) {
+        metal_norm_status_set(status, -2, "nil Metal buffer");
+        return -2;
+    }
+
+    char kernelName[128];
+    int nameCode = metal_norm_kernel_name(
+        kernelName,
+        sizeof(kernelName),
+        "batchnorm_denorm",
+        elementDType,
+        status
+    );
+
+    if (nameCode != 0) {
+        return nameCode;
+    }
+
+    return metal_norm_dispatch(
+        contextRef,
+        kernelName,
+        rows,
+        completionToken,
+        status,
+        ^(id<MTLComputeCommandEncoder> encoder) {
+            [encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)meanRef offset:0 atIndex:1];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)varianceRef offset:0 atIndex:2];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:3];
+            [encoder setBytes:&channels length:sizeof(channels) atIndex:4];
+            [encoder setBytes:&spatial length:sizeof(spatial) atIndex:5];
+        }
+    );
+}
+
 int metal_dispatch_groupnorm(
     MetalDeviceRef contextRef,
     int elementDType,

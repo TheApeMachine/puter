@@ -139,6 +139,10 @@ func runMetalFlashAttention(
 }
 
 func runMetalRoPE(input tensor.Tensor, out tensor.Tensor) error {
+	return runMetalRoPEWithTheta(input, out, 10000)
+}
+
+func runMetalRoPEWithTheta(input tensor.Tensor, out tensor.Tensor, theta float32) error {
 	config, err := requireMetalRoPE(input, out)
 	if err != nil {
 		return err
@@ -163,11 +167,67 @@ func runMetalRoPE(input tensor.Tensor, out tensor.Tensor) error {
 		C.uint32_t(config.numHeads),
 		C.uint32_t(config.headDim),
 		C.uint32_t(config.pairCount),
+		C.float(theta),
 		C.uint64_t(token),
 		&status,
 	)
 
 	return finishMetalTransformerDispatch("rope", token, rc, status)
+}
+
+func runMetalFlux2RoPE(
+	input tensor.Tensor,
+	out tensor.Tensor,
+	latentSeqLen int,
+	latentSide int,
+	theta float32,
+) error {
+	config, err := requireMetalRoPE(input, out)
+	if err != nil {
+		return err
+	}
+
+	if config.pairCount == 0 {
+		return nil
+	}
+
+	token, err := metalCompletions.Begin(config.out, config.input)
+	if err != nil {
+		return err
+	}
+
+	status := C.MetalStatus{}
+	rc := C.metal_dispatch_flux2_rope(
+		config.input.bridge.device,
+		C.int(config.elementDType),
+		config.input.buffer,
+		config.out.buffer,
+		C.uint32_t(config.seqLen),
+		C.uint32_t(config.numHeads),
+		C.uint32_t(config.headDim),
+		C.uint32_t(config.pairCount),
+		C.uint32_t(latentSeqLen),
+		C.uint32_t(latentSide),
+		C.float(theta),
+		C.uint64_t(token),
+		&status,
+	)
+
+	return finishMetalTransformerDispatch("flux2_rope", token, rc, status)
+}
+
+func (backend *Backend) Flux2RoPE(
+	input tensor.Tensor,
+	out tensor.Tensor,
+	latentSeqLen int,
+	latentSide int,
+	theta float32,
+) error {
+	return runMetalFlux2RoPE(input, out, latentSeqLen, latentSide, theta)
+}
+
+func (backend *Backend) RoPEWithTheta(input tensor.Tensor, out tensor.Tensor, theta float32) error {
+	return runMetalRoPEWithTheta(input, out, theta)
 }
 
 func requireMetalAttention(

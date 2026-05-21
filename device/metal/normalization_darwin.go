@@ -19,13 +19,15 @@ import (
 )
 
 type metalNormConfig struct {
-	input        *metalTensor
-	scale        *metalTensor
-	bias         *metalTensor
-	out          *metalTensor
-	elementDType metalElementDType
-	rows         uint32
-	cols         uint32
+	input          *metalTensor
+	scale          *metalTensor
+	bias           *metalTensor
+	out            *metalTensor
+	elementDType   metalElementDType
+	rows           uint32
+	cols           uint32
+	rowsPerBatch   uint32
+	modulationCols uint32
 }
 
 func runMetalLayerNorm(
@@ -157,6 +159,168 @@ func runMetalAdaptiveRMSNorm(
 	return nil
 }
 
+func runMetalModulatedLayerNorm(
+	input tensor.Tensor,
+	modulation tensor.Tensor,
+	out tensor.Tensor,
+	modulationSet int,
+) error {
+	config, err := requireMetalModulatedNorm(input, modulation, out)
+	if err != nil {
+		return err
+	}
+
+	if config.out.shape.Len() == 0 {
+		return nil
+	}
+
+	token, err := metalCompletions.Begin(config.out, config.input, config.scale)
+	if err != nil {
+		return err
+	}
+
+	status := C.MetalStatus{}
+	rc := C.metal_dispatch_modulated_layernorm(
+		config.input.bridge.device,
+		C.int(config.elementDType),
+		config.input.buffer,
+		config.scale.buffer,
+		config.out.buffer,
+		C.uint32_t(config.rows),
+		C.uint32_t(config.cols),
+		C.uint32_t(config.rowsPerBatch),
+		C.uint32_t(config.modulationCols),
+		C.uint32_t(modulationSet),
+		C.uint64_t(token),
+		&status,
+	)
+
+	if rc != 0 {
+		err := fmt.Errorf("metal modulated layernorm: %s", metalStatus("dispatch", status))
+		metalCompletions.Fail(token, err)
+		return err
+	}
+
+	return nil
+}
+
+func (backend *Backend) ModulatedLayerNorm(
+	input tensor.Tensor,
+	modulation tensor.Tensor,
+	out tensor.Tensor,
+	modulationSet int,
+) error {
+	return runMetalModulatedLayerNorm(input, modulation, out, modulationSet)
+}
+
+func runMetalGatedResidual(
+	residual tensor.Tensor,
+	branch tensor.Tensor,
+	modulation tensor.Tensor,
+	out tensor.Tensor,
+	modulationSet int,
+) error {
+	config, branchTensor, err := requireMetalGatedResidual(residual, branch, modulation, out)
+	if err != nil {
+		return err
+	}
+
+	if config.out.shape.Len() == 0 {
+		return nil
+	}
+
+	token, err := metalCompletions.Begin(config.out, config.input, branchTensor, config.scale)
+	if err != nil {
+		return err
+	}
+
+	status := C.MetalStatus{}
+	rc := C.metal_dispatch_gated_residual(
+		config.input.bridge.device,
+		C.int(config.elementDType),
+		config.input.buffer,
+		branchTensor.buffer,
+		config.scale.buffer,
+		config.out.buffer,
+		C.uint32_t(config.input.shape.Len()),
+		C.uint32_t(config.cols),
+		C.uint32_t(config.rowsPerBatch),
+		C.uint32_t(config.modulationCols),
+		C.uint32_t(modulationSet),
+		C.uint64_t(token),
+		&status,
+	)
+
+	if rc != 0 {
+		err := fmt.Errorf("metal gated residual: %s", metalStatus("dispatch", status))
+		metalCompletions.Fail(token, err)
+		return err
+	}
+
+	return nil
+}
+
+func (backend *Backend) GatedResidual(
+	residual tensor.Tensor,
+	branch tensor.Tensor,
+	modulation tensor.Tensor,
+	out tensor.Tensor,
+	modulationSet int,
+) error {
+	return runMetalGatedResidual(residual, branch, modulation, out, modulationSet)
+}
+
+func (backend *Backend) BatchNormDenorm(
+	input tensor.Tensor,
+	mean tensor.Tensor,
+	variance tensor.Tensor,
+	out tensor.Tensor,
+) error {
+	inputTensor, meanTensor, varianceTensor, outTensor, rows, channels, spatial, err :=
+		requireMetalBatchNormDenorm(input, mean, variance, out)
+	if err != nil {
+		return err
+	}
+
+	if outTensor.shape.Len() == 0 {
+		return nil
+	}
+
+	token, err := metalCompletions.Begin(outTensor, inputTensor, meanTensor, varianceTensor)
+	if err != nil {
+		return err
+	}
+
+	elementDType, err := metalElementDTypeFor(inputTensor.dtype)
+	if err != nil {
+		metalCompletions.Fail(token, err)
+		return err
+	}
+
+	status := C.MetalStatus{}
+	rc := C.metal_dispatch_batchnorm_denorm(
+		inputTensor.bridge.device,
+		C.int(elementDType),
+		inputTensor.buffer,
+		meanTensor.buffer,
+		varianceTensor.buffer,
+		outTensor.buffer,
+		C.uint32_t(rows),
+		C.uint32_t(channels),
+		C.uint32_t(spatial),
+		C.uint64_t(token),
+		&status,
+	)
+
+	if rc != 0 {
+		err := fmt.Errorf("metal batchnorm denorm: %s", metalStatus("dispatch", status))
+		metalCompletions.Fail(token, err)
+		return err
+	}
+
+	return nil
+}
+
 func requireMetalNorm(
 	input tensor.Tensor,
 	scale tensor.Tensor,
@@ -212,6 +376,124 @@ func requireMetalAdaptiveNorm(
 	config.cols = uint32(cols)
 	config.elementDType = elementDType
 	return config, nil
+}
+
+func requireMetalModulatedNorm(
+	input tensor.Tensor,
+	modulation tensor.Tensor,
+	out tensor.Tensor,
+) (metalNormConfig, error) {
+	config, err := metalNormTensors(input, modulation, nil, out)
+	if err != nil {
+		return metalNormConfig{}, err
+	}
+
+	rows, cols, rowsPerBatch, modulationCols, err := metalModulatedNormDims(
+		config.input, config.scale, config.out,
+	)
+	if err != nil {
+		return metalNormConfig{}, err
+	}
+
+	elementDType, err := metalElementDTypeFor(config.input.dtype)
+	if err != nil {
+		return metalNormConfig{}, err
+	}
+
+	config.rows = uint32(rows)
+	config.cols = uint32(cols)
+	config.rowsPerBatch = uint32(rowsPerBatch)
+	config.modulationCols = uint32(modulationCols)
+	config.elementDType = elementDType
+	return config, nil
+}
+
+func requireMetalGatedResidual(
+	residual tensor.Tensor,
+	branch tensor.Tensor,
+	modulation tensor.Tensor,
+	out tensor.Tensor,
+) (metalNormConfig, *metalTensor, error) {
+	config, err := requireMetalModulatedNorm(residual, modulation, out)
+	if err != nil {
+		return metalNormConfig{}, nil, err
+	}
+
+	branchTensor, err := requireMetalTensor(branch)
+	if err != nil {
+		return metalNormConfig{}, nil, err
+	}
+
+	if !branchTensor.shape.Equal(config.input.shape) || branchTensor.dtype != config.input.dtype {
+		return metalNormConfig{}, nil, tensor.ErrShapeMismatch
+	}
+
+	if branchTensor.bridge != config.input.bridge {
+		return metalNormConfig{}, nil, errors.New("metal normalization: tensors belong to different Metal backends")
+	}
+
+	return config, branchTensor, nil
+}
+
+func requireMetalBatchNormDenorm(
+	input tensor.Tensor,
+	mean tensor.Tensor,
+	variance tensor.Tensor,
+	out tensor.Tensor,
+) (*metalTensor, *metalTensor, *metalTensor, *metalTensor, int, int, int, error) {
+	inputTensor, err := requireMetalTensor(input)
+	if err != nil {
+		return nil, nil, nil, nil, 0, 0, 0, err
+	}
+
+	meanTensor, err := requireMetalTensor(mean)
+	if err != nil {
+		return nil, nil, nil, nil, 0, 0, 0, err
+	}
+
+	varianceTensor, err := requireMetalTensor(variance)
+	if err != nil {
+		return nil, nil, nil, nil, 0, 0, 0, err
+	}
+
+	outTensor, err := requireMetalTensor(out)
+	if err != nil {
+		return nil, nil, nil, nil, 0, 0, 0, err
+	}
+
+	if inputTensor.bridge != meanTensor.bridge || inputTensor.bridge != varianceTensor.bridge ||
+		inputTensor.bridge != outTensor.bridge {
+		return nil, nil, nil, nil, 0, 0, 0, errors.New("metal normalization: tensors belong to different Metal backends")
+	}
+
+	if inputTensor.dtype != meanTensor.dtype || inputTensor.dtype != varianceTensor.dtype ||
+		inputTensor.dtype != outTensor.dtype {
+		return nil, nil, nil, nil, 0, 0, 0, tensor.ErrDTypeMismatch
+	}
+
+	if !inputTensor.shape.Equal(outTensor.shape) {
+		return nil, nil, nil, nil, 0, 0, 0, tensor.ErrShapeMismatch
+	}
+
+	dims := inputTensor.shape.Dims()
+	if len(dims) != 4 {
+		return nil, nil, nil, nil, 0, 0, 0, tensor.ErrShapeMismatch
+	}
+
+	channels := dims[1]
+	spatial := dims[2] * dims[3]
+	rows := dims[0] * channels
+
+	if !meanTensor.shape.Equal(vectorShape(channels)) || !varianceTensor.shape.Equal(vectorShape(channels)) {
+		return nil, nil, nil, nil, 0, 0, 0, tensor.ErrShapeMismatch
+	}
+
+	return inputTensor, meanTensor, varianceTensor, outTensor, rows, channels, spatial, nil
+}
+
+func vectorShape(length int) tensor.Shape {
+	shape, _ := tensor.NewShape([]int{length})
+	return shape
 }
 
 func metalNormTensors(
@@ -346,6 +628,43 @@ func metalAdaptiveNormDims(
 	}
 
 	return rows, cols, nil
+}
+
+func metalModulatedNormDims(
+	input *metalTensor,
+	modulation *metalTensor,
+	out *metalTensor,
+) (int, int, int, int, error) {
+	if !input.shape.Equal(out.shape) {
+		return 0, 0, 0, 0, tensor.ErrShapeMismatch
+	}
+
+	dims := input.shape.Dims()
+	if len(dims) < 2 {
+		return 0, 0, 0, 0, tensor.ErrShapeMismatch
+	}
+
+	cols := dims[len(dims)-1]
+	if cols == 0 {
+		return 0, 0, 0, 0, nil
+	}
+
+	modulationDims := modulation.shape.Dims()
+	if len(modulationDims) != 2 || modulationDims[0] != dims[0] || modulationDims[1]%cols != 0 {
+		return 0, 0, 0, 0, tensor.ErrShapeMismatch
+	}
+
+	if modulationDims[1] != cols*3 && modulationDims[1] != cols*6 {
+		return 0, 0, 0, 0, tensor.ErrShapeMismatch
+	}
+
+	rows := input.shape.Len() / cols
+	rowsPerBatch := rows / dims[0]
+	if rows > math.MaxUint32 || cols > math.MaxUint32 || rowsPerBatch > math.MaxUint32 {
+		return 0, 0, 0, 0, tensor.ErrShapeMismatch
+	}
+
+	return rows, cols, rowsPerBatch, modulationDims[1], nil
 }
 
 func requireMetalNormBias(bias *metalTensor, cols int) error {

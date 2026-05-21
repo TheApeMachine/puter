@@ -265,6 +265,103 @@ static inline void adaptive_rmsnorm_rows(
 }
 
 template <typename Storage, typename Scalar>
+static inline void modulated_layernorm_rows(
+    device const Scalar* input,
+    device const Scalar* modulation,
+    device Scalar* out,
+    threadgroup float* reduction,
+    constant uint& cols,
+    constant uint& rowsPerBatch,
+    constant uint& modulationCols,
+    constant uint& modulationSet,
+    uint row,
+    uint threadIndex
+) {
+    uint rowOffset = row * cols;
+    uint batch = row / rowsPerBatch;
+    uint modulationOffset = batch * modulationCols + modulationSet * cols * 3;
+    float mean = reduce_sum<Storage, Scalar>(input, reduction, rowOffset, cols, threadIndex) /
+        float(cols);
+    float localVariance = 0.0f;
+    float localCompensation = 0.0f;
+
+    for (uint col = threadIndex; col < cols; col += normalizationThreadCount) {
+        float delta = Storage::load(input, rowOffset + col) - mean;
+        float value = delta * delta - localCompensation;
+        float nextVariance = localVariance + value;
+        localCompensation = (nextVariance - localVariance) - value;
+        localVariance = nextVariance;
+    }
+
+    reduction[threadIndex] = localVariance;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    for (uint stride = normalizationThreadCount / 2; stride > 0; stride >>= 1) {
+        if (threadIndex < stride) {
+            reduction[threadIndex] += reduction[threadIndex + stride];
+        }
+
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+
+    float invStdDev = 1.0f / sqrt(reduction[0] / float(cols) + layerNormEpsilonMetal);
+
+    for (uint col = threadIndex; col < cols; col += normalizationThreadCount) {
+        float normalized = (Storage::load(input, rowOffset + col) - mean) * invStdDev;
+        float shift = Storage::load(modulation, modulationOffset + col);
+        float scale = Storage::load(modulation, modulationOffset + cols + col);
+        Storage::store(out, rowOffset + col, normalized * (1.0f + scale) + shift);
+    }
+}
+
+template <typename Storage, typename Scalar>
+static inline void gated_residual_values(
+    device const Scalar* residual,
+    device const Scalar* branch,
+    device const Scalar* modulation,
+    device Scalar* out,
+    constant uint& cols,
+    constant uint& rowsPerBatch,
+    constant uint& modulationCols,
+    constant uint& modulationSet,
+    uint row,
+    uint threadIndex
+) {
+    uint batch = row / rowsPerBatch;
+    uint modulationOffset = batch * modulationCols + modulationSet * cols * 3 + cols * 2;
+    uint rowOffset = row * cols;
+
+    for (uint col = threadIndex; col < cols; col += normalizationThreadCount) {
+        uint index = rowOffset + col;
+        float gate = Storage::load(modulation, modulationOffset + col);
+        float value = Storage::load(residual, index) + gate * Storage::load(branch, index);
+        Storage::store(out, index, value);
+    }
+}
+
+template <typename Storage, typename Scalar>
+static inline void batchnorm_denorm_values(
+    device const Scalar* input,
+    device const Scalar* mean,
+    device const Scalar* variance,
+    device Scalar* out,
+    constant uint& channels,
+    constant uint& spatial,
+    uint row,
+    uint threadIndex
+) {
+    uint channel = row % channels;
+    float channelMean = Storage::load(mean, channel);
+    float channelStdDev = sqrt(Storage::load(variance, channel) + layerNormEpsilonMetal);
+    uint offset = row * spatial;
+
+    for (uint index = threadIndex; index < spatial; index += normalizationThreadCount) {
+        float value = Storage::load(input, offset + index);
+        Storage::store(out, offset + index, value * channelStdDev + channelMean);
+    }
+}
+
+template <typename Storage, typename Scalar>
 static inline void groupnorm_rows(
     device const Scalar* input,
     device const Scalar* scale,
@@ -422,6 +519,56 @@ kernel void name( \
     adaptive_rmsnorm_rows<storage, scalar>(input, modulation, out, reduction, cols, row, threadIndex); \
 }
 
+#define MODULATED_LAYERNORM_KERNEL(name, storage, scalar) \
+kernel void name( \
+    device const scalar* input [[buffer(0)]], \
+    device const scalar* modulation [[buffer(1)]], \
+    device scalar* out [[buffer(2)]], \
+    constant uint& cols [[buffer(3)]], \
+    constant uint& rowsPerBatch [[buffer(4)]], \
+    constant uint& modulationCols [[buffer(5)]], \
+    constant uint& modulationSet [[buffer(6)]], \
+    uint row [[threadgroup_position_in_grid]], \
+    uint threadIndex [[thread_position_in_threadgroup]] \
+) { \
+    threadgroup float reduction[256]; \
+    modulated_layernorm_rows<storage, scalar>( \
+        input, modulation, out, reduction, cols, rowsPerBatch, modulationCols, modulationSet, row, threadIndex \
+    ); \
+}
+
+#define GATED_RESIDUAL_KERNEL(name, storage, scalar) \
+kernel void name( \
+    device const scalar* residual [[buffer(0)]], \
+    device const scalar* branch [[buffer(1)]], \
+    device const scalar* modulation [[buffer(2)]], \
+    device scalar* out [[buffer(3)]], \
+    constant uint& cols [[buffer(4)]], \
+    constant uint& rowsPerBatch [[buffer(5)]], \
+    constant uint& modulationCols [[buffer(6)]], \
+    constant uint& modulationSet [[buffer(7)]], \
+    uint row [[threadgroup_position_in_grid]], \
+    uint threadIndex [[thread_position_in_threadgroup]] \
+) { \
+    gated_residual_values<storage, scalar>( \
+        residual, branch, modulation, out, cols, rowsPerBatch, modulationCols, modulationSet, row, threadIndex \
+    ); \
+}
+
+#define BATCHNORM_DENORM_KERNEL(name, storage, scalar) \
+kernel void name( \
+    device const scalar* input [[buffer(0)]], \
+    device const scalar* mean [[buffer(1)]], \
+    device const scalar* variance [[buffer(2)]], \
+    device scalar* out [[buffer(3)]], \
+    constant uint& channels [[buffer(4)]], \
+    constant uint& spatial [[buffer(5)]], \
+    uint row [[threadgroup_position_in_grid]], \
+    uint threadIndex [[thread_position_in_threadgroup]] \
+) { \
+    batchnorm_denorm_values<storage, scalar>(input, mean, variance, out, channels, spatial, row, threadIndex); \
+}
+
 #define GROUPNORM_KERNEL(name, storage, scalar) \
 kernel void name( \
     device const scalar* input [[buffer(0)]], \
@@ -527,6 +674,18 @@ RMSNORM_KERNEL(rmsnorm_bfloat16, BFloat16NormStorage, ushort)
 ADAPTIVE_RMSNORM_KERNEL(adaptive_rmsnorm_float32, Float32NormStorage, float)
 ADAPTIVE_RMSNORM_KERNEL(adaptive_rmsnorm_float16, Float16NormStorage, half)
 ADAPTIVE_RMSNORM_KERNEL(adaptive_rmsnorm_bfloat16, BFloat16NormStorage, ushort)
+
+MODULATED_LAYERNORM_KERNEL(modulated_layernorm_float32, Float32NormStorage, float)
+MODULATED_LAYERNORM_KERNEL(modulated_layernorm_float16, Float16NormStorage, half)
+MODULATED_LAYERNORM_KERNEL(modulated_layernorm_bfloat16, BFloat16NormStorage, ushort)
+
+GATED_RESIDUAL_KERNEL(gated_residual_float32, Float32NormStorage, float)
+GATED_RESIDUAL_KERNEL(gated_residual_float16, Float16NormStorage, half)
+GATED_RESIDUAL_KERNEL(gated_residual_bfloat16, BFloat16NormStorage, ushort)
+
+BATCHNORM_DENORM_KERNEL(batchnorm_denorm_float32, Float32NormStorage, float)
+BATCHNORM_DENORM_KERNEL(batchnorm_denorm_float16, Float16NormStorage, half)
+BATCHNORM_DENORM_KERNEL(batchnorm_denorm_bfloat16, BFloat16NormStorage, ushort)
 
 kernel void groupnorm_float32(
     device const float* input [[buffer(0)]],

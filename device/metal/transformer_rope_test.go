@@ -61,6 +61,132 @@ func runRoPEParityCase(
 	assertRoPEBytesForTest(testingObject, backend, out, storageDType, fixture)
 }
 
+func TestMetalFlux2RoPE(t *testing.T) {
+	backend := newBackendForDeviceTest(t)
+	defer func() {
+		if err := backend.Close(); err != nil {
+			t.Fatalf("Close failed: %v", err)
+		}
+	}()
+
+	convey.Convey("Given text and latent tokens with FLUX2 4D RoPE IDs", t, func() {
+		seqLen, numHeads, headDim := 6, 1, 128
+		latentSeqLen, latentSide := 4, 2
+		fixture := flux2RoPEFixtureForTest(seqLen, numHeads, headDim, latentSeqLen, latentSide)
+		input, out := ropeTensorsForTest(
+			t, backend, seqLen, numHeads, headDim, dtype.Float32, fixture,
+		)
+		defer closeBenchmarkTensors(input, out)
+
+		convey.Convey("It should match HF axis-wise text and latent positions", func() {
+			err := runMetalFlux2RoPE(input, out, latentSeqLen, latentSide, 2000)
+
+			convey.So(err, convey.ShouldBeNil)
+			assertRoPEBytesForTest(t, backend, out, dtype.Float32, fixture)
+		})
+	})
+}
+
+func flux2RoPEFixtureForTest(
+	seqLen int,
+	numHeads int,
+	headDim int,
+	latentSeqLen int,
+	latentSide int,
+) ropeFixture {
+	inputBytes := encodeProjectionValuesAsDType(
+		ropeInputValues(seqLen*numHeads*headDim), dtype.Float32,
+	)
+	inputStored := decodeDTypeBytesToFloat32(inputBytes, dtype.Float32)
+	expected := flux2RoPEExpectedValues(inputStored, seqLen, numHeads, headDim, latentSeqLen, latentSide)
+
+	return ropeFixture{
+		inputBytes:      inputBytes,
+		expectedBytes:   encodeProjectionValuesAsDType(expected, dtype.Float32),
+		expectedFloat32: expected,
+	}
+}
+
+func flux2RoPEExpectedValues(
+	input []float32,
+	seqLen int,
+	numHeads int,
+	headDim int,
+	latentSeqLen int,
+	latentSide int,
+) []float32 {
+	out := make([]float32, len(input))
+	halfDim := headDim / 2
+
+	for seqIndex := range seqLen {
+		for headIndex := range numHeads {
+			for pairIndex := range halfDim {
+				flux2RoPEExpectedPair(
+					input, out, seqIndex, headIndex, pairIndex,
+					numHeads, headDim, latentSeqLen, latentSide,
+				)
+			}
+		}
+	}
+
+	return out
+}
+
+func flux2RoPEExpectedPair(
+	input []float32,
+	out []float32,
+	seqIndex int,
+	headIndex int,
+	pairIndex int,
+	numHeads int,
+	headDim int,
+	latentSeqLen int,
+	latentSide int,
+) {
+	inputIndex := (seqIndex*numHeads+headIndex)*headDim + pairIndex*2
+	axisPairCount := headDim / 8
+	axisIndex := pairIndex / axisPairCount
+	localPair := pairIndex - axisIndex*axisPairCount
+	textLen := seqLenFromValues(input, numHeads, headDim) - latentSeqLen
+	position := flux2RoPEPosition(seqIndex, textLen, latentSide, axisIndex)
+	axisDim := axisPairCount * 2
+	exponent := -2 * float64(localPair) / float64(axisDim)
+	theta := float64(position) * math.Pow(2000, exponent)
+	cosTheta := float32(math.Cos(theta))
+	sinTheta := float32(math.Sin(theta))
+	even := input[inputIndex]
+	odd := input[inputIndex+1]
+
+	out[inputIndex] = even*cosTheta - odd*sinTheta
+	out[inputIndex+1] = even*sinTheta + odd*cosTheta
+}
+
+func flux2RoPEPosition(seqIndex int, textLen int, latentSide int, axisIndex int) int {
+	if seqIndex < textLen {
+		if axisIndex == 3 {
+			return seqIndex
+		}
+
+		return 0
+	}
+
+	imageIndex := seqIndex - textLen
+
+	if axisIndex == 1 {
+		return imageIndex / latentSide
+	}
+
+	if axisIndex == 2 {
+		return imageIndex % latentSide
+	}
+
+	return 0
+}
+
+func seqLenFromValues(values []float32, numHeads int, headDim int) int {
+	return len(values) / (numHeads * headDim)
+}
+
 func ropeHeadDimForTest(headDimCase int) int {
 	if headDimCase <= 1 {
 		return 2

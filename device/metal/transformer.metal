@@ -486,6 +486,7 @@ static inline void rope_kernel(
     constant uint& numHeads,
     constant uint& headDim,
     constant uint& pairCount,
+    constant float& ropeTheta,
     uint index
 ) {
     if (index >= pairCount) {
@@ -498,9 +499,63 @@ static inline void rope_kernel(
     uint seqIndex = index / (halfDim * numHeads);
     uint inputIndex = (seqIndex * numHeads + headIndex) * headDim + pairIndex * 2;
     float exponent = -2.0f * float(pairIndex) / float(headDim);
-    float theta = float(seqIndex) * pow(500000.0f, exponent);
+    float theta = float(seqIndex) * pow(ropeTheta, exponent);
     float cosTheta = cos(theta);
     float sinTheta = sin(theta);
+    float even = Storage::load(input, inputIndex);
+    float odd = Storage::load(input, inputIndex + 1);
+
+    Storage::store(out, inputIndex, even * cosTheta - odd * sinTheta);
+    Storage::store(out, inputIndex + 1, even * sinTheta + odd * cosTheta);
+}
+
+template <typename Storage, typename Scalar>
+static inline void flux2_rope_kernel(
+    device const Scalar* input,
+    device Scalar* out,
+    constant uint& seqLen,
+    constant uint& numHeads,
+    constant uint& headDim,
+    constant uint& pairCount,
+    constant uint& latentSeqLen,
+    constant uint& latentSide,
+    constant float& theta,
+    uint index
+) {
+    if (index >= pairCount) {
+        return;
+    }
+
+    uint halfDim = headDim / 2;
+    uint pairIndex = index % halfDim;
+    uint headIndex = (index / halfDim) % numHeads;
+    uint seqIndex = index / (halfDim * numHeads);
+    uint inputIndex = (seqIndex * numHeads + headIndex) * headDim + pairIndex * 2;
+    uint textLen = seqLen > latentSeqLen ? seqLen - latentSeqLen : 0;
+    uint axisPairCount = halfDim / 4;
+    uint axisIndex = axisPairCount == 0 ? 0 : pairIndex / axisPairCount;
+    uint localPair = axisPairCount == 0 ? pairIndex : pairIndex - axisIndex * axisPairCount;
+    uint position = 0;
+
+    if (seqIndex < textLen) {
+        if (axisIndex == 3) {
+            position = seqIndex;
+        }
+    } else {
+        uint imageIndex = seqIndex - textLen;
+
+        if (axisIndex == 1) {
+            position = imageIndex / latentSide;
+        } else if (axisIndex == 2) {
+            position = imageIndex % latentSide;
+        }
+    }
+
+    float axisDim = float(axisPairCount * 2);
+    float exponent = axisDim == 0.0f ? 0.0f : -2.0f * float(localPair) / axisDim;
+    float angle = float(position) * pow(theta, exponent);
+    float cosTheta = cos(angle);
+    float sinTheta = sin(angle);
     float even = Storage::load(input, inputIndex);
     float odd = Storage::load(input, inputIndex + 1);
 
@@ -664,9 +719,28 @@ kernel void name( \
     constant uint& numHeads [[buffer(3)]], \
     constant uint& headDim [[buffer(4)]], \
     constant uint& pairCount [[buffer(5)]], \
+    constant float& ropeTheta [[buffer(6)]], \
     uint index [[thread_position_in_grid]] \
 ) { \
-    rope_kernel<storage, scalar>(input, out, seqLen, numHeads, headDim, pairCount, index); \
+    rope_kernel<storage, scalar>(input, out, seqLen, numHeads, headDim, pairCount, ropeTheta, index); \
+}
+
+#define FLUX2_ROPE_KERNEL(name, storage, scalar) \
+kernel void name( \
+    device const scalar* input [[buffer(0)]], \
+    device scalar* out [[buffer(1)]], \
+    constant uint& seqLen [[buffer(2)]], \
+    constant uint& numHeads [[buffer(3)]], \
+    constant uint& headDim [[buffer(4)]], \
+    constant uint& pairCount [[buffer(5)]], \
+    constant uint& latentSeqLen [[buffer(6)]], \
+    constant uint& latentSide [[buffer(7)]], \
+    constant float& theta [[buffer(8)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    flux2_rope_kernel<storage, scalar>( \
+        input, out, seqLen, numHeads, headDim, pairCount, latentSeqLen, latentSide, theta, index \
+    ); \
 }
 
 EMBEDDING_LOOKUP_KERNEL(embedding_lookup_float32, Float32TransformerStorage, float)
@@ -726,3 +800,7 @@ MULTI_HEAD_ATTENTION_KERNEL(sliding_window_attention_bfloat16, BFloat16Transform
 ROPE_KERNEL(rope_float32, Float32TransformerStorage, float)
 ROPE_KERNEL(rope_float16, Float16TransformerStorage, half)
 ROPE_KERNEL(rope_bfloat16, BFloat16TransformerStorage, ushort)
+
+FLUX2_ROPE_KERNEL(flux2_rope_float32, Float32TransformerStorage, float)
+FLUX2_ROPE_KERNEL(flux2_rope_float16, Float16TransformerStorage, half)
+FLUX2_ROPE_KERNEL(flux2_rope_bfloat16, BFloat16TransformerStorage, ushort)
