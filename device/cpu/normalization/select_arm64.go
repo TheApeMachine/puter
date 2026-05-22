@@ -1,14 +1,14 @@
-//go:build !arm64 && !amd64
+//go:build arm64
 
 package normalization
 
 func NormSquaredDiffSumNative(row []float32, mean float32) float32 {
-	return NormSquaredDiffSumGeneric(row, mean)
+	return normSquaredDiffSumF32NEON(row, mean)
 }
 
 func NormApplyConstScaleBiasNative(
 	outRow, row []float32,
 	mean, invStdDev, scale, bias float32,
 ) {
-	NormApplyConstScaleBiasGeneric(outRow, row, mean, invStdDev, scale, bias)
+	normApplyConstScaleBiasF32NEON(outRow, row, mean, invStdDev, scale, bias)
 }
