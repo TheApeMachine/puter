@@ -280,6 +280,22 @@ func runMetalLinear(
 	return tensor.ErrNeedsPlatformSetup
 }
 
+func runMetalTimestep(
+	timesteps tensor.Tensor,
+	maxPeriod tensor.Tensor,
+	downscale tensor.Tensor,
+	flip tensor.Tensor,
+	out tensor.Tensor,
+) error {
+	_ = timesteps
+	_ = maxPeriod
+	_ = downscale
+	_ = flip
+	_ = out
+
+	return tensor.ErrNeedsPlatformSetup
+}
+
 func runMetalFusedQKV(
 	input tensor.Tensor,
 	weight tensor.Tensor,

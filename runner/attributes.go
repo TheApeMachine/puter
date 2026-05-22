@@ -3,6 +3,8 @@ package runner
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
+	"strconv"
 
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/ir"
@@ -22,11 +24,100 @@ func appendKernelAttributes(
 	switch kernel {
 	case "view_as_heads":
 		return appendInt32AttributeBeforeOutput(memory, node, "num_heads", args)
+	case "timestep":
+		return appendTimestepAttributes(memory, node, args)
 	case "page_write", "page_gather":
 		return appendInt32AttributeBeforeOutput(memory, node, "page_size", args)
 	default:
 		return args, nil
 	}
+}
+
+func nodeFloat32Attribute(node *ir.Node, key string, fallback float32) float32 {
+	attribute := node.Attribute(key)
+
+	if attribute.Kind == ir.AttributeFloat {
+		parsed, err := strconv.ParseFloat(attribute.Value, 32)
+		if err == nil {
+			return float32(parsed)
+		}
+	}
+
+	if metadata := node.Metadata(); metadata != nil {
+		if raw, ok := metadata[key]; ok {
+			return float32FromAny(raw, fallback)
+		}
+	}
+
+	return fallback
+}
+
+func nodeBoolAttribute(node *ir.Node, key string, fallback bool) bool {
+	attribute := node.Attribute(key)
+
+	if attribute.Kind == ir.AttributeBool {
+		return attribute.Value == "true"
+	}
+
+	if metadata := node.Metadata(); metadata != nil {
+		if raw, ok := metadata[key]; ok {
+			if typed, ok := raw.(bool); ok {
+				return typed
+			}
+		}
+	}
+
+	return fallback
+}
+
+func float32FromAny(value any, fallback float32) float32 {
+	switch typed := value.(type) {
+	case float32:
+		return typed
+	case float64:
+		return float32(typed)
+	case int:
+		return float32(typed)
+	case int64:
+		return float32(typed)
+	default:
+		return fallback
+	}
+}
+
+func appendTimestepAttributes(
+	memory tensor.Backend,
+	node *ir.Node,
+	args []tensor.Tensor,
+) ([]tensor.Tensor, error) {
+	maxPeriod := nodeFloat32Attribute(node, "max_period", 10000)
+	downscale := nodeFloat32Attribute(node, "downscale_freq_shift", 0)
+	flip := nodeBoolAttribute(node, "flip_sin_to_cos", false)
+
+	maxPeriodTensor, err := uploadFloat32Scalar(memory, maxPeriod)
+	if err != nil {
+		return nil, err
+	}
+
+	downscaleTensor, err := uploadFloat32Scalar(memory, downscale)
+	if err != nil {
+		return nil, err
+	}
+
+	flipValue := 0
+	if flip {
+		flipValue = 1
+	}
+
+	flipTensor, err := uploadInt32Scalar(memory, flipValue)
+	if err != nil {
+		return nil, err
+	}
+
+	output := args[len(args)-1]
+	inputs := args[:len(args)-1]
+
+	return append(append(inputs, maxPeriodTensor, downscaleTensor, flipTensor), output), nil
 }
 
 func appendInt32AttributeBeforeOutput(
@@ -64,4 +155,17 @@ func uploadInt32Scalar(memory tensor.Backend, value int) (tensor.Tensor, error) 
 	binary.LittleEndian.PutUint32(buffer, uint32(value))
 
 	return memory.Upload(shape, dtype.Int32, buffer)
+}
+
+func uploadFloat32Scalar(memory tensor.Backend, value float32) (tensor.Tensor, error) {
+	shape, err := tensor.NewShape([]int{1})
+
+	if err != nil {
+		return nil, err
+	}
+
+	buffer := make([]byte, 4)
+	binary.LittleEndian.PutUint32(buffer, math.Float32bits(value))
+
+	return memory.Upload(shape, dtype.Float32, buffer)
 }

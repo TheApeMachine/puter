@@ -228,6 +228,15 @@ func (backend *Backend) ModulatedLayerNorm(
 	return runMetalModulatedLayerNorm(input, modulation, out, modulationSet)
 }
 
+func RunModulatedLayerNorm(
+	input tensor.Tensor,
+	modulation tensor.Tensor,
+	out tensor.Tensor,
+	modulationSet int,
+) error {
+	return runMetalModulatedLayerNorm(input, modulation, out, modulationSet)
+}
+
 func runMetalGatedResidual(
 	residual tensor.Tensor,
 	branch tensor.Tensor,
@@ -276,6 +285,16 @@ func runMetalGatedResidual(
 }
 
 func (backend *Backend) GatedResidual(
+	residual tensor.Tensor,
+	branch tensor.Tensor,
+	modulation tensor.Tensor,
+	out tensor.Tensor,
+	modulationSet int,
+) error {
+	return runMetalGatedResidual(residual, branch, modulation, out, modulationSet)
+}
+
+func RunGatedResidual(
 	residual tensor.Tensor,
 	branch tensor.Tensor,
 	modulation tensor.Tensor,
@@ -651,12 +670,21 @@ func metalModulatedNormDims(
 	out *metalTensor,
 ) (int, int, int, int, error) {
 	if !input.shape.Equal(out.shape) {
-		return 0, 0, 0, 0, tensor.ErrShapeMismatch
+		return 0, 0, 0, 0, fmt.Errorf(
+			"metal modulated norm: input shape %v != out shape %v: %w",
+			input.shape.Dims(),
+			out.shape.Dims(),
+			tensor.ErrShapeMismatch,
+		)
 	}
 
 	dims := input.shape.Dims()
 	if len(dims) < 2 {
-		return 0, 0, 0, 0, tensor.ErrShapeMismatch
+		return 0, 0, 0, 0, fmt.Errorf(
+			"metal modulated norm: input rank %d: %w",
+			len(dims),
+			tensor.ErrShapeMismatch,
+		)
 	}
 
 	cols := dims[len(dims)-1]
@@ -666,11 +694,22 @@ func metalModulatedNormDims(
 
 	modulationDims := modulation.shape.Dims()
 	if len(modulationDims) != 2 || modulationDims[0] != dims[0] || modulationDims[1]%cols != 0 {
-		return 0, 0, 0, 0, tensor.ErrShapeMismatch
+		return 0, 0, 0, 0, fmt.Errorf(
+			"metal modulated norm: input shape %v modulation shape %v cols %d: %w",
+			dims,
+			modulationDims,
+			cols,
+			tensor.ErrShapeMismatch,
+		)
 	}
 
 	if modulationDims[1] != cols*3 && modulationDims[1] != cols*6 {
-		return 0, 0, 0, 0, tensor.ErrShapeMismatch
+		return 0, 0, 0, 0, fmt.Errorf(
+			"metal modulated norm: modulation cols %d incompatible with hidden cols %d: %w",
+			modulationDims[1],
+			cols,
+			tensor.ErrShapeMismatch,
+		)
 	}
 
 	rows := input.shape.Len() / cols

@@ -1459,6 +1459,19 @@ int metal_dispatch_swiglu_packed(
     uint64_t completionToken,
     MetalStatus* status
 );
+int metal_dispatch_timestep_embedding(
+    MetalDeviceRef contextRef,
+    MetalBufferRef timestepsRef,
+    MetalBufferRef maxPeriodRef,
+    MetalBufferRef downscaleRef,
+    MetalBufferRef flipRef,
+    MetalBufferRef outRef,
+    int elementDType,
+    uint32_t count,
+    uint32_t dim,
+    uint64_t completionToken,
+    MetalStatus* status
+);
 int metal_dispatch_geglu(
     MetalDeviceRef contextRef,
     int elementDType,

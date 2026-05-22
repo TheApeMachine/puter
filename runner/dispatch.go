@@ -78,6 +78,10 @@ func dispatchNode(
 		err = dispatchRoPE(node, args)
 	} else if kernel == "rmsnorm" {
 		err = dispatchRMSNorm(node, args)
+	} else if kernel == "modulated_layernorm" {
+		err = dispatchModulatedLayerNorm(node, args)
+	} else if kernel == "gated_residual" {
+		err = dispatchGatedResidual(node, args)
 	} else {
 		err = dispatchRegisteredKernel(kernel, location, args)
 	}

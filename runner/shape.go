@@ -26,6 +26,8 @@ func outputShapeForNode(
 			weights,
 			bindings,
 		)
+	case "timestep":
+		return timestepOutputShape(node, tensorWorkspace)
 	case "linear":
 		return linearOutputShape(node, tensorWorkspace)
 	case "view_as_heads":
@@ -40,7 +42,7 @@ func outputShapeForNode(
 		return concatOutputShape(node, tensorWorkspace)
 	case "swiglu":
 		return swiGLUOutputShape(node, tensorWorkspace)
-	case "rmsnorm", "layernorm", "rope",
+	case "rmsnorm", "layernorm", "modulated_layernorm", "gated_residual", "rope",
 		"relu", "gelu", "tanh", "sigmoid", "swish", "selu", "leaky_relu",
 		"slice", "transpose",
 		"reshape", "dropout", "softmax":
@@ -48,6 +50,31 @@ func outputShapeForNode(
 	default:
 		return node.Shape(), nil
 	}
+}
+
+func timestepOutputShape(
+	node *ir.Node,
+	tensorWorkspace *workspace,
+) (tensor.Shape, error) {
+	inputShape, err := primaryFloatInputShape(node, tensorWorkspace)
+
+	if err != nil {
+		return tensor.Shape{}, err
+	}
+
+	dim, err := nodeIntAttribute(node, "dim")
+
+	if err != nil {
+		return tensor.Shape{}, err
+	}
+
+	inputDims := inputShape.Dims()
+
+	if len(inputDims) == 0 {
+		return tensor.Shape{}, fmt.Errorf("runner: timestep node %q has empty input shape", node.ID())
+	}
+
+	return tensor.NewShape([]int{inputShape.Len(), dim})
 }
 
 func swiGLUOutputShape(

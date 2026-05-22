@@ -198,6 +198,46 @@ func TestPackedSwiGLUOutputShapeForNode(testingObject *testing.T) {
 	})
 }
 
+func TestModulatedLayerNormOutputShapeForNode(testingObject *testing.T) {
+	convey.Convey("Given a modulated layernorm node with runtime input shape", testingObject, func() {
+		inputShape, err := tensor.NewShape([]int{1, 4096, 3072})
+		convey.So(err, convey.ShouldBeNil)
+
+		staleShape, err := tensor.NewShape([]int{1, 1, 3072})
+		convey.So(err, convey.ShouldBeNil)
+
+		modulationShape, err := tensor.NewShape([]int{1, 18432})
+		convey.So(err, convey.ShouldBeNil)
+
+		inputNode := manifestComputeNode("h_0", "input", ir.OpInput, inputShape)
+		modulationNode := manifestComputeNode("mod", "input", ir.OpInput, modulationShape)
+		normNode := manifestComputeNode("norm", "math.modulated_layernorm", ir.OpFused, staleShape)
+		normNode.AddInput(inputNode)
+		normNode.AddInput(modulationNode)
+		setFloat32ValueType(inputNode)
+		setFloat32ValueType(modulationNode)
+		setFloat32ValueType(normNode)
+
+		input, err := tensor.NewZeroed(inputShape, dtype.Float32)
+		convey.So(err, convey.ShouldBeNil)
+
+		modulation, err := tensor.NewZeroed(modulationShape, dtype.Float32)
+		convey.So(err, convey.ShouldBeNil)
+
+		tensorWorkspace := newWorkspace()
+		defer tensorWorkspace.Close()
+		tensorWorkspace.Store("h_0", input)
+		tensorWorkspace.Store("mod", modulation)
+
+		convey.Convey("It should use the actual primary input shape", func() {
+			shape, err := outputShapeForNode(normNode, "modulated_layernorm", tensorWorkspace, "", nil, newManifestBindings(nil))
+
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(shape.Dims(), convey.ShouldResemble, []int{1, 4096, 3072})
+		})
+	})
+}
+
 func TestRunnerWeightCache(testingObject *testing.T) {
 	convey.Convey("Given a runner and a compute backend", testingObject, func() {
 		devicePool, err := pool.New(context.Background(), nil)
