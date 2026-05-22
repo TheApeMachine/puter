@@ -37,8 +37,8 @@ var binaryFloat32Cases = []binaryFloat32Case{
 	{name: "le", operation: metalBinaryFloat32Le, apply: (*Backend).LeFloat32},
 	{name: "gt", operation: metalBinaryFloat32Gt, apply: (*Backend).GtFloat32},
 	{name: "ge", operation: metalBinaryFloat32Ge, apply: (*Backend).GeFloat32},
-	{name: "pow", operation: metalBinaryFloat32Pow, apply: (*Backend).PowFloat32, maxULP: 4, dtypeULP: 2},
-	{name: "atan2", operation: metalBinaryFloat32Atan2, apply: (*Backend).Atan2Float32, maxULP: 8, dtypeULP: 2},
+	{name: "pow", operation: metalBinaryFloat32Pow, apply: (*Backend).PowFloat32, maxULP: 1, dtypeULP: 1},
+	{name: "atan2", operation: metalBinaryFloat32Atan2, apply: (*Backend).Atan2Float32, maxULP: 1, dtypeULP: 1},
 	{name: "mod", operation: metalBinaryFloat32Mod, apply: (*Backend).ModFloat32},
 }
 

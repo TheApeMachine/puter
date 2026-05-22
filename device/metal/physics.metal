@@ -175,9 +175,9 @@ static inline void quantum_potential_kernel(
     }
 
     float dx = physics_spacing<Storage, Scalar>(spacing);
-    float sqrtRho = sqrt(rho);
-    float sqrtLeft = sqrt(max(1.0e-12f, Storage::load(density, index - 1u)));
-    float sqrtRight = sqrt(max(1.0e-12f, Storage::load(density, index + 1u)));
+    float sqrtRho = precise::sqrt(rho);
+    float sqrtLeft = precise::sqrt(max(1.0e-12f, Storage::load(density, index - 1u)));
+    float sqrtRight = precise::sqrt(max(1.0e-12f, Storage::load(density, index + 1u)));
     float laplacian = (sqrtRight - 2.0f * sqrtRho + sqrtLeft) / (dx * dx);
     Storage::store(out, index, -0.5f * laplacian / sqrtRho);
 }

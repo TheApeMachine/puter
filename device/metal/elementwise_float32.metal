@@ -139,13 +139,13 @@ struct GeFloat32 {
 };
 
 struct PowFloat32 {
-    float4 operator()(float4 left, float4 right) const { return pow(left, right); }
-    float operator()(float left, float right) const { return pow(left, right); }
+    float4 operator()(float4 left, float4 right) const { return precise::pow(left, right); }
+    float operator()(float left, float right) const { return precise::pow(left, right); }
 };
 
 struct Atan2Float32 {
-    float4 operator()(float4 left, float4 right) const { return atan2(left, right); }
-    float operator()(float left, float right) const { return atan2(left, right); }
+    float4 operator()(float4 left, float4 right) const { return precise::atan2(left, right); }
+    float operator()(float left, float right) const { return precise::atan2(left, right); }
 };
 
 struct ModFloat32 {

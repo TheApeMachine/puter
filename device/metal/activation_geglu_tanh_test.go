@@ -10,7 +10,7 @@ import (
 	"github.com/theapemachine/puter/kernels"
 )
 
-const geGLUTanhMaxULP uint32 = 2
+const geGLUTanhMaxULP uint32 = 1
 
 func TestKernelRegistry_MetalGeGLUTanhDTypes(testingObject *testing.T) {
 	backend := newBackendForDeviceTest(testingObject)

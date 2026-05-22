@@ -658,7 +658,7 @@ kernel void layernorm_float32(
         }
 
         stats[0] = mean;
-        stats[1] = 1.0f / precise::sqrt(variance / float(cols) + layerNormEpsilonMetal);
+        stats[1] = 1.0f / sqrt(variance / float(cols) + layerNormEpsilonMetal);
     }
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
@@ -730,7 +730,7 @@ kernel void groupnorm_float32(
         }
 
         stats[0] = mean;
-        stats[1] = 1.0f / precise::sqrt(variance / float(groupSize) + layerNormEpsilonMetal);
+        stats[1] = 1.0f / sqrt(variance / float(groupSize) + layerNormEpsilonMetal);
     }
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
@@ -778,7 +778,7 @@ kernel void instancenorm_float32(
         }
 
         stats[0] = mean;
-        stats[1] = 1.0f / precise::sqrt(variance / float(spatial) + layerNormEpsilonMetal);
+        stats[1] = 1.0f / sqrt(variance / float(spatial) + layerNormEpsilonMetal);
     }
 
     threadgroup_barrier(mem_flags::mem_threadgroup);

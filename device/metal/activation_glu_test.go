@@ -10,7 +10,7 @@ import (
 	"github.com/theapemachine/puter/kernels"
 )
 
-const gluMaxULP uint32 = 2
+const gluMaxULP uint32 = 1
 
 func TestKernelRegistry_MetalGLUDTypes(testingObject *testing.T) {
 	backend := newBackendForDeviceTest(testingObject)

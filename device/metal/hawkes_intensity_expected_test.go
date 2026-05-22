@@ -6,7 +6,7 @@ import (
 	cpuhawkes "github.com/theapemachine/puter/device/cpu/hawkes"
 )
 
-const hawkesIntensityMaxULP uint32 = 4
+const hawkesIntensityMaxULP uint32 = 3
 
 type hawkesIntensityFixture struct {
 	eventBytes    []byte

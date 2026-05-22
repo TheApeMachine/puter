@@ -278,16 +278,17 @@ func quantumPotentialExpected(density []float32, spacing float32) []float32 {
 	}
 
 	for index := 1; index < len(density)-1; index++ {
-		rho := float64(density[index])
+		rho := density[index]
 		if rho <= 1.0e-12 {
 			continue
 		}
 
-		sqrtRho := math.Sqrt(rho)
-		sqrtLeft := math.Sqrt(math.Max(1.0e-12, float64(density[index-1])))
-		sqrtRight := math.Sqrt(math.Max(1.0e-12, float64(density[index+1])))
-		laplacian := (sqrtRight - 2*sqrtRho + sqrtLeft) / float64(spacing*spacing)
-		out[index] = float32(-0.5 * laplacian / sqrtRho)
+		dx := spacing
+		sqrtRho := float32(math.Sqrt(float64(rho)))
+		sqrtLeft := float32(math.Sqrt(float64(math.Max(1.0e-12, float64(density[index-1])))))
+		sqrtRight := float32(math.Sqrt(float64(math.Max(1.0e-12, float64(density[index+1])))))
+		laplacian := (sqrtRight - 2*sqrtRho + sqrtLeft) / (dx * dx)
+		out[index] = -0.5 * laplacian / sqrtRho
 	}
 
 	return out

@@ -6,7 +6,7 @@ import (
 	cpuhawkes "github.com/theapemachine/puter/device/cpu/hawkes"
 )
 
-const hawkesLogLikelihoodMaxULP uint32 = 4
+const hawkesLogLikelihoodMaxULP uint32 = 1
 
 type hawkesLogLikelihoodFixture struct {
 	eventBytes     []byte

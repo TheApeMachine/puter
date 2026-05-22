@@ -10,7 +10,7 @@ import (
 	"github.com/theapemachine/puter/kernels"
 )
 
-const segluMaxULP uint32 = 2
+const segluMaxULP uint32 = 1
 
 func TestKernelRegistry_MetalSeGLUDTypes(testingObject *testing.T) {
 	backend := newBackendForDeviceTest(testingObject)

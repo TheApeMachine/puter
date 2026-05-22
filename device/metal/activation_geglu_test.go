@@ -10,7 +10,7 @@ import (
 	"github.com/theapemachine/puter/kernels"
 )
 
-const geGLUMaxULP uint32 = 2
+const geGLUMaxULP uint32 = 1
 
 func TestKernelRegistry_MetalGeGLUDTypes(testingObject *testing.T) {
 	backend := newBackendForDeviceTest(testingObject)

@@ -246,7 +246,7 @@ func physicsMaxULP(name string, storageDType dtype.DType) uint32 {
 
 	switch name {
 	case "quantum_potential":
-		return 96
+		return 1
 	case "fft1d", "ifft1d":
 		return 1
 	default:
