@@ -217,9 +217,7 @@ func applyNorm3DExpectedRow(
 ) {
 	for index, value := range input {
 		centered := value - mean
-		out[index] = float32(
-			math.FMA(float64(centered*invStdDev), float64(scale), float64(bias)),
-		)
+		out[index] = normMetalFMAFloat32(centered*invStdDev, scale, bias)
 	}
 }
 

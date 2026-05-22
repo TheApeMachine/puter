@@ -3,7 +3,6 @@ package metal
 import (
 	"github.com/theapemachine/manifesto/dtype"
 	dtypeconvert "github.com/theapemachine/manifesto/dtype/convert"
-	cpuhawkes "github.com/theapemachine/puter/device/cpu/hawkes"
 )
 
 const hawkesIntensityMaxULP uint32 = 3
@@ -43,8 +42,7 @@ func hawkesIntensityDTypeBytes(elementCount int, storageDType dtype.DType) hawke
 	mu, alpha, beta := float32(0.1), float32(0.5), float32(1.0)
 
 	if storageDType == dtype.Float32 {
-		expected := make([]float32, elementCount)
-		cpuhawkes.HawkesIntensityScalar(events, queries, expected, mu, alpha, beta)
+		expected := hawkesIntensityMetalReference(events, queries, mu, alpha, beta)
 
 		return hawkesIntensityFixture{
 			eventBytes:    dtypeconvert.Float32ToBytes(events),
@@ -68,9 +66,8 @@ func hawkesIntensityDTypeBytes(elementCount int, storageDType dtype.DType) hawke
 	storedAlpha := decodeDTypeBytesToFloat32(alphaBytes, storageDType)[0]
 	storedBeta := decodeDTypeBytesToFloat32(betaBytes, storageDType)[0]
 
-	expected := make([]float32, elementCount)
-	cpuhawkes.HawkesIntensityScalar(
-		storedEvents, storedQueries, expected, storedMu, storedAlpha, storedBeta,
+	expected := hawkesIntensityMetalReference(
+		storedEvents, storedQueries, storedMu, storedAlpha, storedBeta,
 	)
 
 	return hawkesIntensityFixture{

@@ -45,7 +45,7 @@ static inline float4 metal_fast_exp32_float4(float4 value) {
 
 static inline float4 swiglu_float4(float4 gate, float4 up) {
     float4 silu = gate / (float4(1.0f) + metal_fast_exp32_float4(-gate));
-    return silu * up;
+    return fma(silu, up, float4(0.0f));
 }
 
 static inline float swiglu_bf16_to_float(ushort value) {

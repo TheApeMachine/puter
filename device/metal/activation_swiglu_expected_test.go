@@ -3,7 +3,7 @@ package metal
 import (
 	"github.com/theapemachine/manifesto/dtype"
 	dtypeconvert "github.com/theapemachine/manifesto/dtype/convert"
-	cpuactivation "github.com/theapemachine/puter/device/cpu/activation"
+	cpumath "github.com/theapemachine/puter/device/cpu/math"
 )
 
 type swiGLUFixture struct {
@@ -15,8 +15,7 @@ type swiGLUFixture struct {
 func swiGLUFixtureForTest(elementCount int, storageDType dtype.DType) swiGLUFixture {
 	gateValues := swiGLUGateValuesForTest(elementCount)
 	upValues := swiGLUUpValuesForTest(elementCount)
-	destination := make([]float32, elementCount)
-	cpuactivation.SwiGLUTensorsF32Generic(&destination[0], &gateValues[0], &upValues[0], elementCount)
+	destination := swiGLUExpectedFloat32ForTest(gateValues, upValues)
 
 	if storageDType == dtype.Float32 {
 		return swiGLUFixture{
@@ -31,8 +30,7 @@ func swiGLUFixtureForTest(elementCount int, storageDType dtype.DType) swiGLUFixt
 
 	storedGate := decodeDTypeBytesToFloat32(gateBytes, storageDType)
 	storedUp := decodeDTypeBytesToFloat32(upBytes, storageDType)
-	roundTrip := make([]float32, elementCount)
-	cpuactivation.SwiGLUTensorsF32Generic(&roundTrip[0], &storedGate[0], &storedUp[0], elementCount)
+	roundTrip := swiGLUExpectedFloat32ForTest(storedGate, storedUp)
 
 	return swiGLUFixture{
 		gateBytes:     gateBytes,
@@ -59,4 +57,15 @@ func swiGLUUpValuesForTest(elementCount int) []float32 {
 	}
 
 	return values
+}
+
+func swiGLUExpectedFloat32ForTest(gateValues []float32, upValues []float32) []float32 {
+	destination := make([]float32, len(gateValues))
+
+	for index := range gateValues {
+		silu := cpumath.FastSilu32(gateValues[index])
+		destination[index] = normMetalFMAFloat32(silu, upValues[index], 0)
+	}
+
+	return destination
 }
