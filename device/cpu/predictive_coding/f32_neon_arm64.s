@@ -155,8 +155,9 @@ pc_ur_row:
 	CBZ  R9, pc_ur_done
 
 	FMOVS (R10), F0
-	FMULS F15, F0, F0
-	VDUP V0.S[0], V0.S4
+	FCVTSD F15, F16
+	FCVTSD F0, F0
+	FMULD F0, F16, F16
 	MOVD R11, R0
 	MOVD R13, R1
 	MOVD R8, R2
@@ -165,13 +166,46 @@ pc_ur_loop4:
 	CMP  $4, R2
 	BLT  pc_ur_scalar
 
-	VLD1 (R0), [V1.S4]
-	VLD1 (R1), [V2.S4]
-	VFMUL_S4(0, 1, 1)
-	VFADD_S4(1, 2, 2)
-	VST1 [V2.S4], (R1)
-	ADD  $16, R0
-	ADD  $16, R1
+	FMOVS (R0), F1
+	FCVTSD F1, F1
+	FMULD F16, F1, F1
+	FCVTDS F1, F1
+	FMOVS (R1), F2
+	FADDS F1, F2, F2
+	FMOVS F2, (R1)
+	ADD  $4, R0
+	ADD  $4, R1
+
+	FMOVS (R0), F1
+	FCVTSD F1, F1
+	FMULD F16, F1, F1
+	FCVTDS F1, F1
+	FMOVS (R1), F2
+	FADDS F1, F2, F2
+	FMOVS F2, (R1)
+	ADD  $4, R0
+	ADD  $4, R1
+
+	FMOVS (R0), F1
+	FCVTSD F1, F1
+	FMULD F16, F1, F1
+	FCVTDS F1, F1
+	FMOVS (R1), F2
+	FADDS F1, F2, F2
+	FMOVS F2, (R1)
+	ADD  $4, R0
+	ADD  $4, R1
+
+	FMOVS (R0), F1
+	FCVTSD F1, F1
+	FMULD F16, F1, F1
+	FCVTDS F1, F1
+	FMOVS (R1), F2
+	FADDS F1, F2, F2
+	FMOVS F2, (R1)
+	ADD  $4, R0
+	ADD  $4, R1
+
 	SUB  $4, R2
 	B    pc_ur_loop4
 
@@ -180,8 +214,10 @@ pc_ur_scalar:
 
 pc_ur_scalar_loop:
 	FMOVS (R0), F1
+	FCVTSD F1, F1
+	FMULD F16, F1, F1
+	FCVTDS F1, F1
 	FMOVS (R1), F2
-	FMULS F0, F1, F1
 	FADDS F1, F2, F2
 	FMOVS F2, (R1)
 	ADD  $4, R0
@@ -245,8 +281,9 @@ pc_uw_row:
 	CBZ  R9, pc_uw_done
 
 	FMOVS (R10), F0
-	FMULS F15, F0, F0
-	VDUP V0.S[0], V0.S4
+	FCVTSD F15, F16
+	FCVTSD F0, F0
+	FMULD F0, F16, F16
 	MOVD R11, R0
 	MOVD R12, R1
 	MOVD R13, R2
@@ -256,14 +293,50 @@ pc_uw_loop4:
 	CMP  $4, R3
 	BLT  pc_uw_scalar
 
-	VLD1 (R1), [V1.S4]
-	VLD1 (R2), [V4.S4]
-	VFMUL_S4(0, 1, 1)
-	VFADD_S4(1, 4, 4)
-	VST1 [V4.S4], (R2)
-	ADD  $16, R0
-	ADD  $16, R1
-	ADD  $16, R2
+	FMOVS (R1), F1
+	FCVTSD F1, F1
+	FMULD F16, F1, F1
+	FCVTDS F1, F1
+	FMOVS (R2), F4
+	FADDS F1, F4, F4
+	FMOVS F4, (R2)
+	ADD  $4, R0
+	ADD  $4, R1
+	ADD  $4, R2
+
+	FMOVS (R1), F1
+	FCVTSD F1, F1
+	FMULD F16, F1, F1
+	FCVTDS F1, F1
+	FMOVS (R2), F4
+	FADDS F1, F4, F4
+	FMOVS F4, (R2)
+	ADD  $4, R0
+	ADD  $4, R1
+	ADD  $4, R2
+
+	FMOVS (R1), F1
+	FCVTSD F1, F1
+	FMULD F16, F1, F1
+	FCVTDS F1, F1
+	FMOVS (R2), F4
+	FADDS F1, F4, F4
+	FMOVS F4, (R2)
+	ADD  $4, R0
+	ADD  $4, R1
+	ADD  $4, R2
+
+	FMOVS (R1), F1
+	FCVTSD F1, F1
+	FMULD F16, F1, F1
+	FCVTDS F1, F1
+	FMOVS (R2), F4
+	FADDS F1, F4, F4
+	FMOVS F4, (R2)
+	ADD  $4, R0
+	ADD  $4, R1
+	ADD  $4, R2
+
 	SUB  $4, R3
 	B    pc_uw_loop4
 
@@ -272,8 +345,10 @@ pc_uw_scalar:
 
 pc_uw_scalar_loop:
 	FMOVS (R1), F1
+	FCVTSD F1, F1
+	FMULD F16, F1, F1
+	FCVTDS F1, F1
 	FMOVS (R2), F4
-	FMULS F0, F1, F1
 	FADDS F1, F4, F4
 	FMOVS F4, (R2)
 	ADD  $4, R0

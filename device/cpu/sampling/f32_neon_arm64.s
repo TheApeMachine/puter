@@ -166,7 +166,7 @@ sam_greedy_zero:
 	RET
 
 // func SamplingSoftmaxRowFloat32NEONAsm(logits, out *float32, temperature float32, count int)
-TEXT ·SamplingSoftmaxRowFloat32NEONAsm(SB), NOSPLIT, $16-28
+TEXT ·SamplingSoftmaxRowFloat32NEONAsm(SB), NOSPLIT, $0-36
 	MOVD logits+0(FP), R0
 	MOVD out+8(FP), R1
 	FMOVS temperature+16(FP), F10
@@ -217,16 +217,27 @@ sam_softmax_max_done:
 
 	MOVD $samExpC<>(SB), R3
 	FMOVS 0(R3), F16
+	VDUP V16.S[0], V16.S4
 	FMOVS 4(R3), F17
+	VDUP V17.S[0], V17.S4
 	FMOVS 8(R3), F18
+	VDUP V18.S[0], V18.S4
 	FMOVS 12(R3), F19
+	VDUP V19.S[0], V19.S4
 	FMOVS 16(R3), F20
+	VDUP V20.S[0], V20.S4
 	FMOVS 20(R3), F21
+	VDUP V21.S[0], V21.S4
 	FMOVS 24(R3), F22
+	VDUP V22.S[0], V22.S4
 	FMOVS 28(R3), F23
+	VDUP V23.S[0], V23.S4
 	FMOVS 32(R3), F24
+	VDUP V24.S[0], V24.S4
 	FMOVS 36(R3), F25
+	VDUP V25.S[0], V25.S4
 	FMOVS 40(R3), F26
+	VDUP V26.S[0], V26.S4
 	VFCVTZS_S4(18, 27)
 	FMOVS samSoftmaxClamp<>(SB), F30
 	VDUP V30.S[0], V30.S4

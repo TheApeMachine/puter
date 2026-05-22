@@ -3,25 +3,74 @@
 #include "textflag.h"
 
 #define VAND_B16(m, n, d) WORD $(0x4E201C00 | ((m) << 16) | ((n) << 5) | (d))
-#define VBIC_B16(m, n, d) WORD $(0x6E601C00 | ((m) << 16) | ((n) << 5) | (d))
-#define VORR_B16(m, n, d) WORD $(0x6EA01C00 | ((m) << 16) | ((n) << 5) | (d))
+#define VBIC_B16(m, n, d) WORD $(0x4E601C00 | ((m) << 16) | ((n) << 5) | (d))
+#define VORR_B16(m, n, d) WORD $(0x4EA01C00 | ((m) << 16) | ((n) << 5) | (d))
+#define VBSL_B16(m, n, d) WORD $(0x6E601C00 | ((m) << 16) | ((n) << 5) | (d))
 
-DATA shapeMask4Table<>+0(SB)/16, $0x0, $0x0, $0x0, $0x0
-DATA shapeMask4Table<>+16(SB)/16, $0xffffffff, $0x0, $0x0, $0x0
-DATA shapeMask4Table<>+32(SB)/16, $0x0, $0xffffffff, $0x0, $0x0
-DATA shapeMask4Table<>+48(SB)/16, $0xffffffff, $0xffffffff, $0x0, $0x0
-DATA shapeMask4Table<>+64(SB)/16, $0x0, $0x0, $0xffffffff, $0x0
-DATA shapeMask4Table<>+80(SB)/16, $0xffffffff, $0x0, $0xffffffff, $0x0
-DATA shapeMask4Table<>+96(SB)/16, $0x0, $0xffffffff, $0xffffffff, $0x0
-DATA shapeMask4Table<>+112(SB)/16, $0xffffffff, $0xffffffff, $0xffffffff, $0x0
-DATA shapeMask4Table<>+128(SB)/16, $0x0, $0x0, $0x0, $0xffffffff
-DATA shapeMask4Table<>+144(SB)/16, $0xffffffff, $0x0, $0x0, $0xffffffff
-DATA shapeMask4Table<>+160(SB)/16, $0x0, $0xffffffff, $0x0, $0xffffffff
-DATA shapeMask4Table<>+176(SB)/16, $0xffffffff, $0xffffffff, $0x0, $0xffffffff
-DATA shapeMask4Table<>+192(SB)/16, $0x0, $0x0, $0xffffffff, $0xffffffff
-DATA shapeMask4Table<>+208(SB)/16, $0xffffffff, $0x0, $0xffffffff, $0xffffffff
-DATA shapeMask4Table<>+224(SB)/16, $0x0, $0xffffffff, $0xffffffff, $0xffffffff
-DATA shapeMask4Table<>+240(SB)/16, $0xffffffff, $0xffffffff, $0xffffffff, $0xffffffff
+DATA shapeMask4Table<>+0(SB)/4, $0
+DATA shapeMask4Table<>+4(SB)/4, $0
+DATA shapeMask4Table<>+8(SB)/4, $0
+DATA shapeMask4Table<>+12(SB)/4, $0
+DATA shapeMask4Table<>+16(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+20(SB)/4, $0
+DATA shapeMask4Table<>+24(SB)/4, $0
+DATA shapeMask4Table<>+28(SB)/4, $0
+DATA shapeMask4Table<>+32(SB)/4, $0
+DATA shapeMask4Table<>+36(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+40(SB)/4, $0
+DATA shapeMask4Table<>+44(SB)/4, $0
+DATA shapeMask4Table<>+48(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+52(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+56(SB)/4, $0
+DATA shapeMask4Table<>+60(SB)/4, $0
+DATA shapeMask4Table<>+64(SB)/4, $0
+DATA shapeMask4Table<>+68(SB)/4, $0
+DATA shapeMask4Table<>+72(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+76(SB)/4, $0
+DATA shapeMask4Table<>+80(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+84(SB)/4, $0
+DATA shapeMask4Table<>+88(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+92(SB)/4, $0
+DATA shapeMask4Table<>+96(SB)/4, $0
+DATA shapeMask4Table<>+100(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+104(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+108(SB)/4, $0
+DATA shapeMask4Table<>+112(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+116(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+120(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+124(SB)/4, $0
+DATA shapeMask4Table<>+128(SB)/4, $0
+DATA shapeMask4Table<>+132(SB)/4, $0
+DATA shapeMask4Table<>+136(SB)/4, $0
+DATA shapeMask4Table<>+140(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+144(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+148(SB)/4, $0
+DATA shapeMask4Table<>+152(SB)/4, $0
+DATA shapeMask4Table<>+156(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+160(SB)/4, $0
+DATA shapeMask4Table<>+164(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+168(SB)/4, $0
+DATA shapeMask4Table<>+172(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+176(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+180(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+184(SB)/4, $0
+DATA shapeMask4Table<>+188(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+192(SB)/4, $0
+DATA shapeMask4Table<>+196(SB)/4, $0
+DATA shapeMask4Table<>+200(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+204(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+208(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+212(SB)/4, $0
+DATA shapeMask4Table<>+216(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+220(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+224(SB)/4, $0
+DATA shapeMask4Table<>+228(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+232(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+236(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+240(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+244(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+248(SB)/4, $0xffffffff
+DATA shapeMask4Table<>+252(SB)/4, $0xffffffff
 GLOBL shapeMask4Table<>(SB), RODATA|NOPTR, $256
 
 // func CopyContiguousFloat32NEONAsm(dst, src *float32, count int)
@@ -103,10 +152,8 @@ shape_where_use:
 
 	VLD1 (R1), [V0.S4]
 	VLD1 (R2), [V1.S4]
-	VAND_B16(13, 0, 4)
-	VBIC_B16(13, 1, 5)
-	VORR_B16(5, 4, 0)
-	VST1 [V0.S4], (R0)
+	VBSL_B16(1, 0, 13)
+	VST1 [V13.S4], (R0)
 
 	ADD  $16, R0
 	ADD  $16, R1
@@ -188,10 +235,8 @@ shape_mfill_use:
 	SHAPE_MASK4_R10_R11
 
 	VLD1 (R1), [V0.S4]
-	VAND_B16(13, 31, 4)
-	VBIC_B16(13, 0, 5)
-	VORR_B16(5, 4, 0)
-	VST1 [V0.S4], (R0)
+	VBSL_B16(0, 31, 13)
+	VST1 [V13.S4], (R0)
 
 	ADD  $16, R0
 	ADD  $16, R1

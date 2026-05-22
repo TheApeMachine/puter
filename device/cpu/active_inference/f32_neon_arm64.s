@@ -38,14 +38,22 @@ GLOBL aiOneBits<>(SB), RODATA|NOPTR, $4
 
 #define AI_LOAD_LOG_CONSTS \
     MOVD $aiLogC<>(SB), R3 ;\
-    FMOVS 0(R3), F16 ;\
-    FMOVS 4(R3), F17 ;\
-    FMOVS 8(R3), F18 ;\
-    FMOVS 12(R3), F19 ;\
-    FMOVS 16(R3), F20 ;\
-    FMOVS 20(R3), F21 ;\
-    FMOVS 24(R3), F22 ;\
-    FMOVS 28(R3), F23 ;\
+    FMOVS 0(R3), F8 ;\
+    VDUP V8.S[0], V8.S4 ;\
+    FMOVS 4(R3), F9 ;\
+    VDUP V9.S[0], V9.S4 ;\
+    FMOVS 8(R3), F10 ;\
+    VDUP V10.S[0], V10.S4 ;\
+    FMOVS 12(R3), F11 ;\
+    VDUP V11.S[0], V11.S4 ;\
+    FMOVS 16(R3), F12 ;\
+    VDUP V12.S[0], V12.S4 ;\
+    FMOVS 20(R3), F13 ;\
+    VDUP V13.S[0], V13.S4 ;\
+    FMOVS 24(R3), F14 ;\
+    VDUP V14.S[0], V14.S4 ;\
+    FMOVS 28(R3), F15 ;\
+    VDUP V15.S[0], V15.S4 ;\
     MOVD $0x007FFFFF, R6 ;\
     VMOV R6, V24.S[0] ;\
     VDUP V24.S[0], V24.S4 ;\
@@ -62,19 +70,31 @@ GLOBL aiOneBits<>(SB), RODATA|NOPTR, $4
     VAND_B16(24, in, 2) ;\
     VORR_B16(25, 2, 2) ;\
     VSCVTF_S4(1, 1) ;\
-    VFSUB_S4(17, 2, 3) ;\
-    VFADD_S4(17, 2, 4) ;\
+    VFSUB_S4(9, 2, 3) ;\
+    VFADD_S4(9, 2, 4) ;\
     VFDIV_S4(4, 3, 5) ;\
     VFMUL_S4(5, 5, 6) ;\
-    VMOV_B16(18, 7) ;\
-    VMOV_B16(19, 8) ; VFMLA_S4(6, 7, 8) ;\
-    VMOV_B16(20, 7) ; VFMLA_S4(6, 8, 7) ;\
-    VMOV_B16(21, 8) ; VFMLA_S4(6, 7, 8) ;\
-    VMOV_B16(22, 7) ; VFMLA_S4(6, 8, 7) ;\
-    VMOV_B16(17, 8) ; VFMLA_S4(6, 7, 8) ;\
+    VMOV_B16(10, 7) ;\
+    VMOV_B16(11, 8) ; VFMLA_S4(6, 7, 8) ;\
+    VMOV_B16(12, 7) ; VFMLA_S4(6, 8, 7) ;\
+    VMOV_B16(13, 8) ; VFMLA_S4(6, 7, 8) ;\
+    VMOV_B16(14, 7) ; VFMLA_S4(6, 8, 7) ;\
+    VMOV_B16(9, 8) ; VFMLA_S4(6, 7, 8) ;\
     VFMUL_S4(5, 8, 8) ;\
-    VFMUL_S4(23, 8, 8) ;\
-    VFMLA_S4(16, 1, out)
+    VFMUL_S4(15, 8, 8) ;\
+    VFMLA_S4(8, 1, out)
+
+#define AI_F32X4_TO_F64_ADD_CE(src) \
+    FCVTL_2D(src, 8) ;\
+    FCVTL2_2D(src, 9) ;\
+    FADDD F8, F20, F20 ;\
+    FADDD F9, F20, F20
+
+#define AI_F32X4_TO_F64_ADD_KL(src) \
+    FCVTL_2D(src, 8) ;\
+    FCVTL2_2D(src, 9) ;\
+    FADDD F8, F21, F21 ;\
+    FADDD F9, F21, F21
 
 #define AI_F32X4_TO_F64_ADD(src, acc) \
     FCVTL_2D(src, 8) ;\
@@ -207,11 +227,11 @@ TEXT ·FreeEnergyFloat32NEONAsm(SB), NOSPLIT, $0-32
 	MOVD prior+16(FP), R2
 	MOVD count+24(FP), R3
 
-	VEOR V16.B16, V16.B16, V16.B16
-	VEOR V17.B16, V17.B16, V17.B16
 	FMOVS aiEps<>(SB), F30
 	VDUP V30.S[0], V30.S4
 	AI_LOAD_LOG_CONSTS
+	FMOVD $0, F20
+	FMOVD $0, F21
 	CBZ  R3, ai_fe_store
 
 ai_fe_loop4:
@@ -235,11 +255,11 @@ ai_fe_loop4:
 	VEOR V9.B16, V9.B16, V9.B16
 	VFSUB_S4(6, 9, 10)
 	VFMUL_S4(4, 10, 10)
-	AI_F32X4_TO_F64_ADD(10, 16)
+	AI_F32X4_TO_F64_ADD_CE(10)
 
 	VFSUB_S4(8, 7, 11)
 	VFMUL_S4(4, 11, 11)
-	AI_F32X4_TO_F64_ADD(11, 17)
+	AI_F32X4_TO_F64_ADD_KL(11)
 
 	ADD  $16, R0
 	ADD  $16, R1
@@ -264,17 +284,17 @@ ai_fe_tail_loop:
 	VDUP V2.S[0], V2.S4
 	AI_NEON_LOG(2, 8)
 	FMOVS F6, F10
-	FMOVS $-1.0, F14
-	FMULS F14, F10, F10
+	FMOVS $-1.0, F12
+	FMULS F12, F10, F10
 	FMULS F1, F10, F10
 	FCVTSD F10, F10
-	FADDD F10, F16, F16
+	FADDD F10, F20, F20
 	FMOVS F7, F11
 	FMOVS F8, F12
 	FSUBS F12, F11, F11
 	FMULS F1, F11, F11
 	FCVTSD F11, F11
-	FADDD F11, F17, F17
+	FADDD F11, F21, F21
 	ADD  $4, R0
 	ADD  $4, R1
 	ADD  $4, R2
@@ -282,9 +302,8 @@ ai_fe_tail_loop:
 	CBNZ R3, ai_fe_tail_loop
 
 ai_fe_store:
-	VFADD_D2(17, 16, 16)
-	FADDP_D(16, 0)
-	FCVTDS F0, F0
+	FADDD F21, F20
+	FCVTDS F20, F0
 	FMOVS F0, ret+32(FP)
 	RET
 
@@ -299,11 +318,11 @@ TEXT ·ExpectedFreeEnergyFloat32NEONAsm(SB), NOSPLIT, $0-40
 	MOVD obsCount+24(FP), R3
 	MOVD stateCount+32(FP), R4
 
-	VEOR V16.B16, V16.B16, V16.B16
-	VEOR V17.B16, V17.B16, V17.B16
 	FMOVS aiEps<>(SB), F30
 	VDUP V30.S[0], V30.S4
 	AI_LOAD_LOG_CONSTS
+	FMOVD $0, F20
+	FMOVD $0, F21
 
 ai_efe_obs_loop4:
 	CMP  $4, R3
@@ -321,7 +340,7 @@ ai_efe_obs_loop4:
 
 	VFSUB_S4(7, 6, 10)
 	VFMUL_S4(3, 10, 10)
-	AI_F32X4_TO_F64_ADD(10, 16)
+	AI_F32X4_TO_F64_ADD_CE(10)
 
 	ADD  $16, R0
 	ADD  $16, R1
@@ -344,15 +363,14 @@ ai_efe_state_loop4:
 	VEOR V9.B16, V9.B16, V9.B16
 	VFSUB_S4(6, 9, 10)
 	VFMUL_S4(3, 10, 10)
-	AI_F32X4_TO_F64_ADD(10, 17)
+	AI_F32X4_TO_F64_ADD_KL(10)
 
 	ADD  $16, R2
 	SUB  $4, R4
 	B    ai_efe_state_loop4
 
 ai_efe_store:
-	VFADD_D2(17, 16, 16)
-	FADDP_D(16, 0)
-	FCVTDS F0, F0
+	FADDD F21, F20
+	FCVTDS F20, F0
 	FMOVS F0, ret+36(FP)
 	RET
