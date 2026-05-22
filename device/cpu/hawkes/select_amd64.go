@@ -8,6 +8,113 @@ import (
 	"golang.org/x/sys/cpu"
 )
 
+func hawkesExpSumNative(exponents []float32, count int) float32 {
+	if count <= 0 {
+		return 0
+	}
+
+	if cpu.X86.HasAVX512F {
+		asmCount := count &^ 15
+
+		if asmCount > 0 {
+			sum := HawkesExpSumFloat32AVX512Asm(&exponents[0], asmCount)
+			for index := asmCount; index < count; index++ {
+				sum += hawkesExpScalar(exponents[index])
+			}
+
+			return sum
+		}
+	}
+
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		asmCount := count &^ 7
+
+		if asmCount > 0 {
+			sum := HawkesExpSumFloat32AVX2Asm(&exponents[0], asmCount)
+			for index := asmCount; index < count; index++ {
+				sum += hawkesExpScalar(exponents[index])
+			}
+
+			return sum
+		}
+	}
+
+	if cpu.X86.HasSSE2 {
+		asmCount := count &^ 3
+
+		if asmCount > 0 {
+			sum := HawkesExpSumFloat32SSE2Asm(&exponents[0], asmCount)
+			for index := asmCount; index < count; index++ {
+				sum += hawkesExpScalar(exponents[index])
+			}
+
+			return sum
+		}
+	}
+
+	sum := float32(0)
+
+	for index := 0; index < count; index++ {
+		sum += hawkesExpScalar(exponents[index])
+	}
+
+	return sum
+}
+
+func hawkesScaledExpStoreNative(
+	exponents []float32,
+	alpha float32,
+	out []float32,
+	count int,
+) {
+	if count <= 0 {
+		return
+	}
+
+	if cpu.X86.HasAVX512F {
+		asmCount := count &^ 15
+
+		if asmCount > 0 {
+			HawkesScaledExpStoreFloat32AVX512Asm(&exponents[0], alpha, &out[0], asmCount)
+			for index := asmCount; index < count; index++ {
+				out[index] = alpha * hawkesExpScalar(exponents[index])
+			}
+
+			return
+		}
+	}
+
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		asmCount := count &^ 7
+
+		if asmCount > 0 {
+			HawkesScaledExpStoreFloat32AVX2Asm(&exponents[0], alpha, &out[0], asmCount)
+			for index := asmCount; index < count; index++ {
+				out[index] = alpha * hawkesExpScalar(exponents[index])
+			}
+
+			return
+		}
+	}
+
+	if cpu.X86.HasSSE2 {
+		asmCount := count &^ 3
+
+		if asmCount > 0 {
+			HawkesScaledExpStoreFloat32SSE2Asm(&exponents[0], alpha, &out[0], asmCount)
+			for index := asmCount; index < count; index++ {
+				out[index] = alpha * hawkesExpScalar(exponents[index])
+			}
+
+			return
+		}
+	}
+
+	for index := 0; index < count; index++ {
+		out[index] = alpha * hawkesExpScalar(exponents[index])
+	}
+}
+
 func HawkesIntensityNative(
 	eventTimes, queryTimes, out []float32,
 	mu, alpha, beta float32,
@@ -42,23 +149,7 @@ func hawkesExcitationAtNative(
 		return 0
 	}
 
-	asmCount := 0
-
-	if cpu.X86.HasAVX512F {
-		asmCount = validCount &^ 15
-	}
-
-	sum := float32(0)
-
-	if asmCount > 0 {
-		sum = HawkesExpSumFloat32AVX512Asm(&scratch[0], asmCount)
-	}
-
-	for index := asmCount; index < validCount; index++ {
-		sum += hawkesExpScalar(scratch[index])
-	}
-
-	return alpha * sum
+	return alpha * hawkesExpSumNative(scratch[:validCount], validCount)
 }
 
 func HawkesKernelMatrixNative(
@@ -84,21 +175,7 @@ func HawkesKernelMatrixNative(
 			scratch[colIndex] = -beta * (eventTimes[rowIndex] - eventTimes[colIndex])
 		}
 
-		asmPrefix := 0
-
-		if cpu.X86.HasAVX512F {
-			asmPrefix = rowIndex &^ 15
-		}
-
-		if asmPrefix > 0 {
-			HawkesScaledExpStoreFloat32AVX512Asm(
-				&scratch[0], alpha, &out[rowStart], asmPrefix,
-			)
-		}
-
-		for colIndex := asmPrefix; colIndex < rowIndex; colIndex++ {
-			out[rowStart+colIndex] = alpha * hawkesExpScalar(scratch[colIndex])
-		}
+		hawkesScaledExpStoreNative(scratch[:rowIndex], alpha, out[rowStart:rowStart+rowIndex], rowIndex)
 	}
 }
 
@@ -125,23 +202,7 @@ func HawkesLogLikelihoodNative(
 		intensity := mu
 
 		if validCount > 0 {
-			asmCount := 0
-
-			if cpu.X86.HasAVX512F {
-				asmCount = validCount &^ 15
-			}
-
-			sum := float32(0)
-
-			if asmCount > 0 {
-				sum = HawkesExpSumFloat32AVX512Asm(&scratch[0], asmCount)
-			}
-
-			for index := asmCount; index < validCount; index++ {
-				sum += hawkesExpScalar(scratch[index])
-			}
-
-			intensity += alpha * sum
+			intensity += alpha * hawkesExpSumNative(scratch[:validCount], validCount)
 		}
 
 		sumLog += math.Log(math.Max(1e-12, float64(intensity)))

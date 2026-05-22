@@ -1,0 +1,257 @@
+#include "textflag.h"
+
+DATA hawkesSse2ExpC<>+0(SB)/4, $1.4426950408889634
+DATA hawkesSse2ExpC<>+4(SB)/4, $0.6931471805599453
+DATA hawkesSse2ExpC<>+12(SB)/4, $0.00019841270
+DATA hawkesSse2ExpC<>+16(SB)/4, $0.0013888889
+DATA hawkesSse2ExpC<>+20(SB)/4, $0.008333334
+DATA hawkesSse2ExpC<>+24(SB)/4, $0.041666667
+DATA hawkesSse2ExpC<>+28(SB)/4, $0.16666667
+DATA hawkesSse2ExpC<>+32(SB)/4, $0.5
+DATA hawkesSse2ExpC<>+36(SB)/4, $1.0
+DATA hawkesSse2ExpC<>+40(SB)/4, $1.0
+GLOBL hawkesSse2ExpC<>(SB), RODATA|NOPTR, $44
+
+DATA hawkesSse2ExpBias127<>+0(SB)/4, $127
+GLOBL hawkesSse2ExpBias127<>(SB), RODATA|NOPTR, $4
+
+// func HawkesExpSumFloat32SSE2Asm(exponents *float32, count int) float32
+TEXT ·HawkesExpSumFloat32SSE2Asm(SB), NOSPLIT, $48-20
+	MOVQ exponents+0(FP), SI
+	MOVQ count+8(FP), CX
+	TESTQ CX, CX
+	JZ   hawkes_sse2_sum_zero
+
+	MOVQ $hawkesSse2ExpC<>(SB), AX
+	MOVSS (AX), X8
+	SHUFPS $0, X8, X8
+	MOVSS 4(AX), X9
+	SHUFPS $0, X9, X9
+	MOVSS 12(AX), X11
+	SHUFPS $0, X11, X11
+	MOVSS 16(AX), X12
+	SHUFPS $0, X12, X12
+	MOVSS 20(AX), X13
+	SHUFPS $0, X13, X13
+	MOVSS 24(AX), X14
+	SHUFPS $0, X14, X14
+	MOVSS 28(AX), X15
+	SHUFPS $0, X15, X15
+	MOVSS 32(AX), X0
+	SHUFPS $0, X0, X0
+	MOVAPS X0, 0(SP)
+	MOVSS 36(AX), X0
+	SHUFPS $0, X0, X0
+	MOVAPS X0, 16(SP)
+	XORPS X5, X5
+
+hawkes_sse2_sum_w4:
+	CMPQ CX, $4
+	JL   hawkes_sse2_sum_tail
+
+	MOVUPS (SI), X0
+	MULPS X8, X0
+	MOVAPS X0, X1
+	ROUNDPS $8, X1, X1
+	MULPS X1, X9
+	MOVAPS X9, X2
+	SUBPS X2, X0
+	MOVAPS X11, X7
+	MULPS X0, X12
+	ADDPS X12, X7
+	MULPS X0, X13
+	ADDPS X13, X7
+	MULPS X0, X14
+	ADDPS X14, X7
+	MULPS X0, X15
+	ADDPS X15, X7
+	MOVAPS 0(SP), X4
+	MULPS X0, X4
+	ADDPS X4, X7
+	MOVAPS 16(SP), X4
+	MULPS X0, X4
+	ADDPS X4, X7
+	VCVTPS2DQ X1, X1
+	MOVD hawkesSse2ExpBias127<>(SB), X3
+	PSHUFD $0, X3, X3
+	VPADDD X3, X1, X1
+	VPSLLD $23, X1, X1
+	PADDD X1, X7
+	ADDPS X7, X5
+
+	ADDQ $16, SI
+	SUBQ $4, CX
+	JMP  hawkes_sse2_sum_w4
+
+hawkes_sse2_sum_tail:
+	TESTQ CX, CX
+	JZ   hawkes_sse2_sum_reduce
+
+hawkes_sse2_sum_scalar:
+	MOVSS (SI), X0
+	MULSS X8, X0
+	MOVAPS X0, X1
+	ROUNDSS $8, X1, X1
+	MULSS X1, X9
+	MOVAPS X9, X2
+	SUBSS X2, X0
+	MOVSS X11, X7
+	MULSS X0, X12
+	ADDSS X12, X7
+	MULSS X0, X13
+	ADDSS X13, X7
+	MULSS X0, X14
+	ADDSS X14, X7
+	MULSS X0, X15
+	ADDSS X15, X7
+	MOVSS 0(SP), X3
+	MULSS X0, X3
+	ADDSS X3, X7
+	MOVSS 16(SP), X3
+	MULSS X0, X3
+	ADDSS X3, X7
+	XORPS X2, X2
+	MOVSS X1, X2
+	CVTPS2PL X2, X2
+	MOVD hawkesSse2ExpBias127<>(SB), X3
+	PSHUFD $0, X3, X3
+	PADDL X3, X2
+	PSLLL $23, X2
+	PADDL X2, X7
+	ADDSS X7, X5
+	ADDQ  $4, SI
+	DECQ  CX
+	JNZ   hawkes_sse2_sum_scalar
+
+hawkes_sse2_sum_reduce:
+	MOVAPS X5, X0
+	SHUFPS $0xEE, X0, X0
+	ADDPS X0, X5
+	MOVAPS X5, X0
+	SHUFPS $0x01, X0, X0
+	ADDPS X0, X5
+	MOVSS X5, ret+16(FP)
+	RET
+
+hawkes_sse2_sum_zero:
+	XORPS X0, X0
+	MOVSS X0, ret+16(FP)
+	RET
+
+// func HawkesScaledExpStoreFloat32SSE2Asm(exponents *float32, alpha float32, out *float32, count int)
+TEXT ·HawkesScaledExpStoreFloat32SSE2Asm(SB), NOSPLIT, $48-32
+	MOVQ exponents+0(FP), SI
+	MOVQ out+16(FP), DI
+	MOVQ count+24(FP), CX
+	TESTQ CX, CX
+	JZ   hawkes_sse2_store_done
+
+	MOVSS alpha+8(FP), X6
+	SHUFPS $0, X6, X6
+
+	MOVQ $hawkesSse2ExpC<>(SB), AX
+	MOVSS (AX), X8
+	SHUFPS $0, X8, X8
+	MOVSS 4(AX), X9
+	SHUFPS $0, X9, X9
+	MOVSS 12(AX), X11
+	SHUFPS $0, X11, X11
+	MOVSS 16(AX), X12
+	SHUFPS $0, X12, X12
+	MOVSS 20(AX), X13
+	SHUFPS $0, X13, X13
+	MOVSS 24(AX), X14
+	SHUFPS $0, X14, X14
+	MOVSS 28(AX), X15
+	SHUFPS $0, X15, X15
+	MOVSS 32(AX), X0
+	SHUFPS $0, X0, X0
+	MOVAPS X0, 0(SP)
+	MOVSS 36(AX), X0
+	SHUFPS $0, X0, X0
+	MOVAPS X0, 16(SP)
+
+hawkes_sse2_store_w4:
+	CMPQ CX, $4
+	JL   hawkes_sse2_store_tail
+
+	MOVUPS (SI), X0
+	MULPS X8, X0
+	MOVAPS X0, X1
+	ROUNDPS $8, X1, X1
+	MULPS X1, X9
+	MOVAPS X9, X2
+	SUBPS X2, X0
+	MOVAPS X11, X7
+	MULPS X0, X12
+	ADDPS X12, X7
+	MULPS X0, X13
+	ADDPS X13, X7
+	MULPS X0, X14
+	ADDPS X14, X7
+	MULPS X0, X15
+	ADDPS X15, X7
+	MOVAPS 0(SP), X4
+	MULPS X0, X4
+	ADDPS X4, X7
+	MOVAPS 16(SP), X4
+	MULPS X0, X4
+	ADDPS X4, X7
+	VCVTPS2DQ X1, X1
+	MOVD hawkesSse2ExpBias127<>(SB), X3
+	PSHUFD $0, X3, X3
+	VPADDD X3, X1, X1
+	VPSLLD $23, X1, X1
+	PADDD X1, X7
+	MULPS X6, X7
+	MOVUPS X7, (DI)
+
+	ADDQ $16, SI
+	ADDQ $16, DI
+	SUBQ $4, CX
+	JMP  hawkes_sse2_store_w4
+
+hawkes_sse2_store_tail:
+	TESTQ CX, CX
+	JZ   hawkes_sse2_store_done
+
+hawkes_sse2_store_scalar:
+	MOVSS (SI), X0
+	MULSS X8, X0
+	MOVAPS X0, X1
+	ROUNDSS $8, X1, X1
+	MULSS X1, X9
+	MOVAPS X9, X2
+	SUBSS X2, X0
+	MOVSS X11, X7
+	MULSS X0, X12
+	ADDSS X12, X7
+	MULSS X0, X13
+	ADDSS X13, X7
+	MULSS X0, X14
+	ADDSS X14, X7
+	MULSS X0, X15
+	ADDSS X15, X7
+	MOVSS 0(SP), X3
+	MULSS X0, X3
+	ADDSS X3, X7
+	MOVSS 16(SP), X3
+	MULSS X0, X3
+	ADDSS X3, X7
+	XORPS X2, X2
+	MOVSS X1, X2
+	CVTPS2PL X2, X2
+	MOVD hawkesSse2ExpBias127<>(SB), X3
+	PSHUFD $0, X3, X3
+	PADDL X3, X2
+	PSLLL $23, X2
+	PADDL X2, X7
+	MULSS X6, X7
+	MOVSS X7, (DI)
+	ADDQ  $4, SI
+	ADDQ  $4, DI
+	DECQ  CX
+	JNZ   hawkes_sse2_store_scalar
+
+hawkes_sse2_store_done:
+	RET

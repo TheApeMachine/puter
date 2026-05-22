@@ -1,22 +1,19 @@
 #include "textflag.h"
 
-// func ConvPatchDotFloat32AVX512Asm(weight, patch *float32, length int) float32
-//
-// Patch dot for conv2d/conv3d: sum(float64(weight[i])*float64(patch[i])) narrowed
-// to float32. Hot loops widen f32 quads to f64 before multiply-accumulate.
-TEXT ·ConvPatchDotFloat32AVX512Asm(SB), NOSPLIT, $0-28
+// func ConvPatchDotFloat32AVX2Asm(weight, patch *float32, length int) float32
+TEXT ·ConvPatchDotFloat32AVX2Asm(SB), NOSPLIT, $0-28
 	MOVQ weight+0(FP), SI
 	MOVQ patch+8(FP), DI
 	MOVQ length+16(FP), CX
 
 	TESTQ CX, CX
-	JZ   cpd_avx512_zero
+	JZ   cpd_avx2_zero
 
 	VXORPD Y0, Y0, Y0
 
-cpd_avx512_w8:
+cpd_avx2_w8:
 	CMPQ CX, $8
-	JL   cpd_avx512_w4
+	JL   cpd_avx2_w4
 
 	VMOVUPS (SI), Y1
 	VMOVUPS (DI), Y2
@@ -34,41 +31,47 @@ cpd_avx512_w8:
 	ADDQ $32, SI
 	ADDQ $32, DI
 	SUBQ $8, CX
-	JMP  cpd_avx512_w8
+	JMP  cpd_avx2_w8
 
-cpd_avx512_w4:
+cpd_avx2_w4:
 	CMPQ CX, $4
-	JL   cpd_avx512_w4_tail
+	JL   cpd_avx2_tail
 
 	VMOVUPS (SI), X1
 	VMOVUPS (DI), X2
 	VCVTPS2PD X1, Y5
 	VCVTPS2PD X2, Y6
 	VFMADD231PD Y0, Y6, Y5
+	MOVAPS X1, X3
+	SHUFPS $0xEE, X1, X3
+	MOVAPS X2, X4
+	SHUFPS $0xEE, X2, X4
+	VCVTPS2PD X3, Y5
+	VCVTPS2PD X4, Y6
+	VFMADD231PD Y0, Y6, Y5
 
 	ADDQ $16, SI
 	ADDQ $16, DI
 	SUBQ $4, CX
-	JMP  cpd_avx512_w4
+	JMP  cpd_avx2_w4
 
-cpd_avx512_w4_tail:
+cpd_avx2_tail:
 	TESTQ CX, CX
-	JZ   cpd_avx512_reduce
+	JZ   cpd_avx2_reduce
 
-	MOVQ  CX, DX
-	MOVQ  $1, AX
-	SHLQ  CL, AX
-	DECQ  AX
-	KMOVQ AX, K7
-	VMOVDQU32 (SI), K7, Y1
-	VMOVDQU32 (DI), K7, Y2
-	VEXTRACTF128 $0, Y1, X3
-	VEXTRACTF128 $0, Y2, X4
-	VCVTPS2PD X3, Y5
-	VCVTPS2PD X4, Y6
-	VFMADD231PD Y6, Y5, K7, Y0
+cpd_avx2_scalar:
+	MOVSS (SI), X1
+	MOVSS (DI), X2
+	CVTSS2SD X1, X1
+	CVTSS2SD X2, X2
+	MULSD X2, X1
+	ADDSD X1, X0
+	ADDQ  $4, SI
+	ADDQ  $4, DI
+	DECQ  CX
+	JNZ  cpd_avx2_scalar
 
-cpd_avx512_reduce:
+cpd_avx2_reduce:
 	VHADDPD Y1, Y0, Y0
 	VHADDPD Y1, Y1, Y1
 	VEXTRACTF128 $0, Y1, X0
@@ -76,7 +79,7 @@ cpd_avx512_reduce:
 	MOVSS X0, ret+24(FP)
 	RET
 
-cpd_avx512_zero:
+cpd_avx2_zero:
 	XORPS X0, X0
 	MOVSS X0, ret+24(FP)
 	RET

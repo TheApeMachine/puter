@@ -20,6 +20,20 @@ func PredictionFloat32Native(
 		return
 	}
 
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		PCPredictionF32AVX2(
+			&weights[0], &representation[0], &output[0], outDim, inDim,
+		)
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		PCPredictionF32SSE2(
+			&weights[0], &representation[0], &output[0], outDim, inDim,
+		)
+		return
+	}
+
 	PredictionFloat32Scalar(weights, representation, output, outDim, inDim)
 }
 
@@ -30,6 +44,20 @@ func PredictionErrorFloat32Native(observed, predicted, output []float32) {
 
 	if cpu.X86.HasAVX512F {
 		PCPredictionErrorF32AVX512(
+			&observed[0], &predicted[0], &output[0], len(observed),
+		)
+		return
+	}
+
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		PCPredictionErrorF32AVX2(
+			&observed[0], &predicted[0], &output[0], len(observed),
+		)
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		PCPredictionErrorF32SSE2(
 			&observed[0], &predicted[0], &output[0], len(observed),
 		)
 		return
@@ -56,6 +84,22 @@ func UpdateRepresentationFloat32Native(
 		return
 	}
 
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		PCUpdateRepresentationF32AVX2(
+			&weights[0], &representation[0], &predictionError[0], &output[0],
+			learningRate, outDim, inDim,
+		)
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		PCUpdateRepresentationF32SSE2(
+			&weights[0], &representation[0], &predictionError[0], &output[0],
+			learningRate, outDim, inDim,
+		)
+		return
+	}
+
 	UpdateRepresentationFloat32Scalar(
 		weights, representation, predictionError, output,
 		learningRate, outDim, inDim,
@@ -74,6 +118,22 @@ func UpdateWeightsFloat32Native(
 
 	if cpu.X86.HasAVX512F {
 		PCUpdateWeightsF32AVX512(
+			&weights[0], &representation[0], &predictionError[0], &output[0],
+			learningRate, outDim, inDim,
+		)
+		return
+	}
+
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		PCUpdateWeightsF32AVX2(
+			&weights[0], &representation[0], &predictionError[0], &output[0],
+			learningRate, outDim, inDim,
+		)
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		PCUpdateWeightsF32SSE2(
 			&weights[0], &representation[0], &predictionError[0], &output[0],
 			learningRate, outDim, inDim,
 		)

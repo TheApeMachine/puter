@@ -32,8 +32,8 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 		Convey("It should match expected AVX2 and SSE2 registration counts", func() {
 			counts := summarize(matrix)
 
-			So(counts[ISAPathAVX2], ShouldEqual, 27)
-			So(counts[ISAPathSSE2], ShouldEqual, 29)
+			So(counts[ISAPathAVX2], ShouldEqual, 30)
+			So(counts[ISAPathSSE2], ShouldEqual, 31)
 		})
 
 		Convey("It should match expected NEON registration counts", func() {
@@ -46,8 +46,8 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 			avx2Domains := domainNamesWith(matrix, ISAPathAVX2)
 
 			So(avx2Domains, ShouldResemble, []string{
-				"activation", "attention", "causal", "checkpoint", "dequant", "dot", "dropout", "elementwise", "embedding", "interpretability", "layernorm", "losses", "masking", "math",
-				"matmul", "model_editing", "normalization", "optimizer", "physics", "pospop", "quant", "reduction", "rope", "sampling", "shape", "tokenizer", "vsa",
+				"activation", "attention", "causal", "checkpoint", "dequant", "dot", "dropout", "elementwise", "embedding", "hawkes", "interpretability", "layernorm", "losses", "masking", "math",
+				"matmul", "model_editing", "normalization", "optimizer", "physics", "pool", "pospop", "predictive_coding", "quant", "reduction", "rope", "sampling", "shape", "tokenizer", "vsa",
 			})
 		})
 
@@ -55,8 +55,8 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 			sse2Domains := domainNamesWith(matrix, ISAPathSSE2)
 
 			So(sse2Domains, ShouldResemble, []string{
-				"activation", "attention", "causal", "checkpoint", "convolution", "dequant", "dot", "dropout", "elementwise", "embedding", "interpretability", "layernorm", "losses",
-				"masking", "math", "matmul", "model_editing", "normalization", "optimizer", "physics", "pool", "pospop", "quant", "reduction", "rope", "sampling", "shape", "tokenizer", "vsa",
+				"activation", "attention", "causal", "checkpoint", "convolution", "dequant", "dot", "dropout", "elementwise", "embedding", "hawkes", "interpretability", "layernorm", "losses",
+				"masking", "math", "matmul", "model_editing", "normalization", "optimizer", "physics", "pool", "pospop", "predictive_coding", "quant", "reduction", "rope", "sampling", "shape", "tokenizer", "vsa",
 			})
 		})
 
@@ -116,7 +116,7 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 			So(row.Scalar, ShouldEqual, ISARegistered)
 			So(row.AVX512, ShouldEqual, ISARegistered)
 			So(row.NEON, ShouldEqual, ISARegistered)
-			So(row.AVX2, ShouldEqual, ISANotRegistered)
+			So(row.AVX2, ShouldEqual, ISARegistered)
 			So(row.SSE2, ShouldEqual, ISARegistered)
 		})
 
@@ -286,8 +286,8 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 			So(row.Scalar, ShouldEqual, ISARegistered)
 			So(row.AVX512, ShouldEqual, ISARegistered)
 			So(row.NEON, ShouldEqual, ISARegistered)
-			So(row.AVX2, ShouldEqual, ISANotRegistered)
-			So(row.SSE2, ShouldEqual, ISANotRegistered)
+			So(row.AVX2, ShouldEqual, ISARegistered)
+			So(row.SSE2, ShouldEqual, ISARegistered)
 		})
 
 		Convey("It should register AVX-512 on active_inference", func() {
@@ -306,8 +306,8 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 			So(row.Scalar, ShouldEqual, ISARegistered)
 			So(row.AVX512, ShouldEqual, ISARegistered)
 			So(row.NEON, ShouldEqual, ISANotRegistered)
-			So(row.AVX2, ShouldEqual, ISANotRegistered)
-			So(row.SSE2, ShouldEqual, ISANotRegistered)
+			So(row.AVX2, ShouldEqual, ISARegistered)
+			So(row.SSE2, ShouldEqual, ISARegistered)
 		})
 
 		Convey("It should register AVX-512 and NEON on vsa", func() {

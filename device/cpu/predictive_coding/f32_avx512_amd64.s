@@ -76,10 +76,7 @@ TEXT ·PCPredictionFloat32AVX512Asm(SB), NOSPLIT, $0-36
 	MOVQ representation+8(FP), R12
 	MOVQ output+16(FP), DI
 	MOVQ outDim+24(FP), R9
-	MOVQ inDim+32(FP), R10
-
-	MOVQ R10, R13
-	SHLQ $2, R13
+	MOVQ inDim+32(FP), R8
 
 pc_pred_row:
 	TESTQ R9, R9
@@ -87,7 +84,7 @@ pc_pred_row:
 
 	MOVQ R11, SI
 	MOVQ R12, DX
-	MOVQ R10, CX
+	MOVQ R8, CX
 
 	VXORPD Y0, Y0, Y0
 
@@ -95,8 +92,8 @@ pc_pred_dot_w8:
 	CMPQ CX, $8
 	JL   pc_pred_dot_w4
 
-	VMOVUPS Y1, (SI)
-	VMOVUPS Y2, (DX)
+	VMOVUPS (SI), Y1
+	VMOVUPS (DX), Y2
 	VEXTRACTF128 $0, Y1, X3
 	VEXTRACTF128 $0, Y2, X4
 	VCVTPS2PD X3, Y5
@@ -117,8 +114,8 @@ pc_pred_dot_w4:
 	CMPQ CX, $4
 	JL   pc_pred_dot_w4_tail
 
-	VMOVUPS X1, (SI)
-	VMOVUPS X2, (DX)
+	VMOVUPS (SI), X1
+	VMOVUPS (DX), X2
 	VCVTPS2PD X1, Y5
 	VCVTPS2PD X2, Y6
 	VFMADD231PD Y0, Y6, Y5
@@ -154,7 +151,9 @@ pc_pred_dot_reduce:
 	MOVSS X0, (DI)
 
 	ADDQ $4, DI
-	ADDQ R13, R11
+	MOVQ R8, AX
+	SHLQ $2, AX
+	ADDQ AX, R11
 	DECQ R9
 	JMP  pc_pred_row
 
@@ -162,18 +161,18 @@ pc_pred_done:
 	RET
 
 // func PCUpdateRepresentationFloat32AVX512Asm(weights, representation, predictionError, output *float32, learningRate float32, outDim, inDim int)
-TEXT ·PCUpdateRepresentationFloat32AVX512Asm(SB), NOSPLIT, $0-48
+TEXT ·PCUpdateRepresentationFloat32AVX512Asm(SB), NOSPLIT, $0-56
 	MOVQ weights+0(FP), R11
 	MOVQ representation+8(FP), R12
-	MOVQ predictionError+16(FP), R13
+	MOVQ predictionError+16(FP), R10
 	MOVQ output+24(FP), DI
 	MOVSS learningRate+32(FP), X15
-	MOVQ outDim+36(FP), R9
-	MOVQ inDim+40(FP), R14
+	MOVQ outDim+40(FP), R9
+	MOVQ inDim+48(FP), R8
 
 	MOVQ R12, SI
 	MOVQ DI, BX
-	MOVQ R14, CX
+	MOVQ R8, CX
 
 pc_ur_copy_w16:
 	CMPQ CX, $16
@@ -227,20 +226,17 @@ pc_ur_copy_w4_tail:
 	VMOVDQU32 Y0, K7, (BX)
 
 pc_ur_rows:
-	MOVQ R14, R15
-	SHLQ $2, R15
-
 pc_ur_row:
 	TESTQ R9, R9
 	JZ   pc_ur_done
 
-	MOVSS (R13), X0
+	MOVSS (R10), X0
 	VMULSS X15, X0, X0
 	VBROADCASTSS X0, Z0
 
 	MOVQ R11, SI
 	MOVQ DI, BX
-	MOVQ R14, CX
+	MOVQ R8, CX
 
 pc_ur_w16:
 	CMPQ CX, $16
@@ -304,8 +300,10 @@ pc_ur_w4_tail:
 	VMOVDQU32 Y2, K7, (BX)
 
 pc_ur_next_row:
-	ADDQ $4, R13
-	ADDQ R15, R11
+	ADDQ $4, R10
+	MOVQ R8, AX
+	SHLQ $2, AX
+	ADDQ AX, R11
 	DECQ R9
 	JMP  pc_ur_row
 
@@ -313,19 +311,19 @@ pc_ur_done:
 	RET
 
 // func PCUpdateWeightsFloat32AVX512Asm(weights, representation, predictionError, output *float32, learningRate float32, outDim, inDim int)
-TEXT ·PCUpdateWeightsFloat32AVX512Asm(SB), NOSPLIT, $0-48
+TEXT ·PCUpdateWeightsFloat32AVX512Asm(SB), NOSPLIT, $0-56
 	MOVQ weights+0(FP), R11
 	MOVQ representation+8(FP), R12
-	MOVQ predictionError+16(FP), R13
+	MOVQ predictionError+16(FP), R10
 	MOVQ output+24(FP), DI
 	MOVSS learningRate+32(FP), X15
-	MOVQ outDim+36(FP), R9
-	MOVQ inDim+40(FP), R14
+	MOVQ outDim+40(FP), R9
+	MOVQ inDim+48(FP), R8
 
 	MOVQ R11, SI
 	MOVQ DI, BX
 	MOVQ R9, CX
-	IMULQ R14, CX
+	IMULQ R8, CX
 
 pc_uw_copy_w16:
 	CMPQ CX, $16
@@ -379,21 +377,18 @@ pc_uw_copy_w4_tail:
 	VMOVDQU32 Y0, K7, (BX)
 
 pc_uw_rows:
-	MOVQ R14, R15
-	SHLQ $2, R15
-
 pc_uw_row:
 	TESTQ R9, R9
 	JZ   pc_uw_done
 
-	MOVSS (R13), X0
+	MOVSS (R10), X0
 	VMULSS X15, X0, X0
 	VBROADCASTSS X0, Z0
 
 	MOVQ R11, SI
 	MOVQ R12, DX
 	MOVQ DI, BX
-	MOVQ R14, CX
+	MOVQ R8, CX
 
 pc_uw_w16:
 	CMPQ CX, $16
@@ -457,9 +452,11 @@ pc_uw_w4_tail:
 	VMOVDQU32 Y2, K7, (BX)
 
 pc_uw_next_row:
-	ADDQ $4, R13
-	ADDQ R15, R11
-	ADDQ R15, DI
+	ADDQ $4, R10
+	MOVQ R8, AX
+	SHLQ $2, AX
+	ADDQ AX, R11
+	ADDQ AX, DI
 	DECQ R9
 	JMP  pc_uw_row
 

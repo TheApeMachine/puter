@@ -28,6 +28,14 @@ func convPatchDotF32Native(weight, patch *float32, length int) float32 {
 		return ConvPatchDotF32AVX512(weight, patch, length)
 	}
 
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		return ConvPatchDotF32AVX2(weight, patch, length)
+	}
+
+	if cpu.X86.HasSSE2 {
+		return ConvPatchDotF32SSE2(weight, patch, length)
+	}
+
 	weightSlice := unsafe.Slice(weight, length)
 	patchSlice := unsafe.Slice(patch, length)
 
