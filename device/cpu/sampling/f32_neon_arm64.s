@@ -5,6 +5,7 @@
 #define VFADD_S4(m, n, d)  WORD $(0x4E20D400 | ((m) << 16) | ((n) << 5) | (d))
 #define VFSUB_S4(m, n, d)  WORD $(0x4EA0D400 | ((m) << 16) | ((n) << 5) | (d))
 #define VFMUL_S4(m, n, d)  WORD $(0x6E20DC00 | ((m) << 16) | ((n) << 5) | (d))
+#define VFDIV_S4(m, n, d)  WORD $(0x6E20FC00 | ((m) << 16) | ((n) << 5) | (d))
 #define VFMLA_S4(m, n, d)  WORD $(0x4E20CC00 | ((m) << 16) | ((n) << 5) | (d))
 #define VFRINTN_S4(n, d)   WORD $(0x4E218800 | ((n) << 5) | (d))
 #define VFCVTZS_S4(n, d)   WORD $(0x4EA1B800 | ((n) << 5) | (d))
@@ -102,39 +103,35 @@ sam_greedy_find_loop4:
 	VFCMEQ_S4(16, 0, 1)
 	MOVD RSP, R9
 	VST1 [V1.S4], (R9)
-	LDR  W2, (R9)
-	CBNZ W2, sam_greedy_found_lane0
-	LDR  W2, 4(R9)
-	CBNZ W2, sam_greedy_found_lane1
-	LDR  W2, 8(R9)
-	CBNZ W2, sam_greedy_found_lane2
-	LDR  W2, 12(R9)
-	CBNZ W2, sam_greedy_found_lane3
+	MOVW (R9), R2
+	CBNZ R2, sam_greedy_found_lane0
+	MOVW 4(R9), R2
+	CBNZ R2, sam_greedy_found_lane1
+	MOVW 8(R9), R2
+	CBNZ R2, sam_greedy_found_lane2
+	MOVW 12(R9), R2
+	CBNZ R2, sam_greedy_found_lane3
 	ADD  $4, R8
 	SUB  $4, R1
 	B    sam_greedy_find_loop4
 
 sam_greedy_found_lane0:
-	MOVD R8, R0
-	MOVD R0, ret+16(FP)
+	MOVW R8, ret+16(FP)
 	RET
 
 sam_greedy_found_lane1:
 	ADD  $1, R8
-	MOVD R8, R0
-	MOVD R0, ret+16(FP)
+	MOVW R8, ret+16(FP)
 	RET
 
 sam_greedy_found_lane2:
 	ADD  $2, R8
-	MOVD R8, R0
-	MOVD R0, ret+16(FP)
+	MOVW R8, ret+16(FP)
 	RET
 
 sam_greedy_found_lane3:
 	ADD  $3, R8
-	MOVD R8, R0
-	MOVD R0, ret+16(FP)
+	MOVW R8, ret+16(FP)
 	RET
 
 sam_greedy_find_scalar:
@@ -144,8 +141,7 @@ sam_greedy_find_scalar_loop:
 	FMOVS (R0), F0
 	FCMPS F0, F16
 	BNE  sam_greedy_find_next
-	MOVD R8, R0
-	MOVD R0, ret+16(FP)
+	MOVW R8, ret+16(FP)
 	RET
 
 sam_greedy_find_next:
@@ -157,17 +153,15 @@ sam_greedy_find_next:
 sam_greedy_fail:
 	MOVD count+8(FP), R0
 	SUB  $1, R0
-	MOVD R0, ret+16(FP)
+	MOVW R0, ret+16(FP)
 	RET
 
 sam_greedy_one:
-	MOVD $0, R0
-	MOVD R0, ret+16(FP)
+	MOVW $0, ret+16(FP)
 	RET
 
 sam_greedy_zero:
-	MOVD $0, R0
-	MOVD R0, ret+16(FP)
+	MOVW $0, ret+16(FP)
 	RET
 
 // func SamplingSoftmaxRowFloat32NEONAsm(logits, out *float32, temperature float32, count int)
@@ -178,7 +172,8 @@ TEXT ·SamplingSoftmaxRowFloat32NEONAsm(SB), NOSPLIT, $16-28
 	MOVD count+24(FP), R2
 	CBZ  R2, sam_softmax_done
 
-	FCMPES F10, #0.0
+	FMOVS $0.0, F11
+	FCMPS F10, F11
 	BNE  sam_softmax_temp_ok
 	FMOVS samOneF32<>(SB), F10
 
@@ -214,6 +209,8 @@ sam_softmax_max_done:
 	MOVD logits+0(FP), R0
 	MOVD out+8(FP), R1
 	MOVD count+24(FP), R2
+	FMOVS F16, F28
+	VDUP V28.S[0], V28.S4
 
 	MOVD $samExpC<>(SB), R3
 	FMOVS 0(R3), F16
@@ -237,7 +234,7 @@ sam_softmax_exp_loop4:
 	BLT  sam_softmax_exp_scalar
 
 	VLD1.P 16(R0), [V0.S4]
-	VFSUB_S4(16, 0, 0)
+	VFSUB_S4(28, 0, 0)
 	VFDIV_S4(10, 0, 0)
 	VFMAX_S4(30, 0, 0)
 	SAM_EXP_V0_TO_V6
@@ -254,7 +251,7 @@ sam_softmax_exp_scalar:
 
 sam_softmax_exp_scalar_loop:
 	FMOVS (R0), F0
-	FSUBS F16, F0, F0
+	FSUBS F28, F0, F0
 	FDIVS F10, F0, F0
 	FMAXS F30, F0, F0
 	VDUP V0.S[0], V0.S4
@@ -267,7 +264,8 @@ sam_softmax_exp_scalar_loop:
 	CBNZ R2, sam_softmax_exp_scalar_loop
 
 sam_softmax_normalize:
-	FCMPES F31, #0.0
+	FMOVS $0.0, F11
+	FCMPS F31, F11
 	BEQ  sam_softmax_done
 
 	FMOVS samOneF32<>(SB), F8

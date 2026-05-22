@@ -197,7 +197,7 @@ alibi_col:
 	VFMUL_S4(31, 10, 10)
 	VFSUB_S4(10, 0, 1)
 	VBSL_B16(8, 1, 0)
-	VST1 [V0.S4], (R2)
+	VST1 [V8.S4], (R2)
 
 	ADD  $16, R0
 	ADD  $16, R2

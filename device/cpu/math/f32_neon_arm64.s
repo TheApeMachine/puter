@@ -5,8 +5,8 @@
 #define VFADD_S4(m, n, d)  WORD $(0x4E20D400 | ((m) << 16) | ((n) << 5) | (d))
 #define VFSUB_S4(m, n, d)  WORD $(0x4EA0D400 | ((m) << 16) | ((n) << 5) | (d))
 #define VFMUL_S4(m, n, d)  WORD $(0x6E20DC00 | ((m) << 16) | ((n) << 5) | (d))
-#define VFMLA_S4(m, n, d)  WORD $(0x4E20CC00 | ((m) << 16) | ((n) << 5) | (d))
 #define VFDIV_S4(m, n, d)  WORD $(0x6E20FC00 | ((m) << 16) | ((n) << 5) | (d))
+#define VFMLA_S4(m, n, d)  WORD $(0x4E20CC00 | ((m) << 16) | ((n) << 5) | (d))
 #define VFRINTN_S4(n, d)   WORD $(0x4E218800 | ((n) << 5) | (d))
 #define VFCVTZS_S4(n, d)   WORD $(0x4EA1B800 | ((n) << 5) | (d))
 #define VADD_S4(m, n, d)   WORD $(0x4EA08400 | ((m) << 16) | ((n) << 5) | (d))
@@ -120,6 +120,8 @@ math_lse_max_scalar_loop:
 math_lse_max_done:
 	MOVD row+0(FP), R0
 	MOVD cols+8(FP), R1
+	FMOVS F16, F28
+	VDUP V28.S[0], V28.S4
 
 	MOVD $mathExpC<>(SB), R3
 	FMOVS 0(R3), F16
@@ -145,7 +147,7 @@ math_lse_exp_loop4:
 	BLT  math_lse_exp_scalar
 
 	VLD1.P 16(R0), [V0.S4]
-	VFSUB_S4(16, 0, 0)
+	VFSUB_S4(28, 0, 0)
 	VFDIV_S4(29, 0, 0)
 	VFMAX_S4(30, 0, 0)
 	MATH_EXP_V0_TO_V6
@@ -161,7 +163,7 @@ math_lse_exp_scalar:
 
 math_lse_exp_scalar_loop:
 	FMOVS (R0), F0
-	FSUBS F16, F0, F0
+	FSUBS F28, F0, F0
 	FDIVS F29, F0, F0
 	FMAXS F30, F0, F0
 	VDUP V0.S[0], V0.S4
@@ -174,7 +176,7 @@ math_lse_exp_scalar_loop:
 math_lse_store:
 	MOVD maximum+16(FP), R2
 	MOVD expSum+24(FP), R3
-	FMOVS F16, (R2)
+	FMOVS F28, (R2)
 	FMOVS F31, (R3)
 	RET
 

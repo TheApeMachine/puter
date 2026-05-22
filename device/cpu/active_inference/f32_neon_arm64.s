@@ -6,6 +6,7 @@
 #define VFSUB_S4(m, n, d)   WORD $(0x4EA0D400 | ((m) << 16) | ((n) << 5) | (d))
 #define VFMUL_S4(m, n, d)   WORD $(0x6E20DC00 | ((m) << 16) | ((n) << 5) | (d))
 #define VFMLA_S4(m, n, d)   WORD $(0x4E20CC00 | ((m) << 16) | ((n) << 5) | (d))
+#define VFDIV_S4(m, n, d)   WORD $(0x6E20FC00 | ((m) << 16) | ((n) << 5) | (d))
 #define VFMLA_D2(m, n, d)   WORD $(0x4E60CC00 | ((m) << 16) | ((n) << 5) | (d))
 #define FCVTL_2D(n, d)      WORD $(0x0E617800 | ((n) << 5) | (d))
 #define FCVTL2_2D(n, d)     WORD $(0x4E617800 | ((n) << 5) | (d))
@@ -78,7 +79,8 @@ GLOBL aiOneBits<>(SB), RODATA|NOPTR, $4
 #define AI_F32X4_TO_F64_ADD(src, acc) \
     FCVTL_2D(src, 8) ;\
     FCVTL2_2D(src, 9) ;\
-    VFADD_D2(8, acc, acc)
+    VFADD_D2(8, acc, acc) ;\
+    VFADD_D2(9, acc, acc)
 
 // func PrecisionWeightFloat32NEONAsm(errors, precision, output *float32, count int)
 TEXT ·PrecisionWeightFloat32NEONAsm(SB), NOSPLIT, $0-32
@@ -162,7 +164,8 @@ ai_bu_tail_loop:
 
 ai_bu_reduce:
 	FADDP_D(16, 0)
-	FCMPED F0, #0.0
+	FMOVS $0.0, F11
+	FCMPS F0, F11
 	BEQ  ai_bu_done
 
 	FMOVS aiOneBits<>(SB), F3
@@ -261,12 +264,13 @@ ai_fe_tail_loop:
 	VDUP V2.S[0], V2.S4
 	AI_NEON_LOG(2, 8)
 	FMOVS F6, F10
-	FMOVS F7, F11
-	FMOVS F8, F12
-	FNEGS F10, F10
+	FMOVS $-1.0, F14
+	FMULS F14, F10, F10
 	FMULS F1, F10, F10
 	FCVTSD F10, F10
 	FADDD F10, F16, F16
+	FMOVS F7, F11
+	FMOVS F8, F12
 	FSUBS F12, F11, F11
 	FMULS F1, F11, F11
 	FCVTSD F11, F11

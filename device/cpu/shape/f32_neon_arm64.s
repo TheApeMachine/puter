@@ -96,7 +96,7 @@ shape_where_use:
 	VLD1 (R1), [V0.S4]
 	VLD1 (R2), [V1.S4]
 	VBSL  V8.B16, V0.B16, V1.B16
-	VST1 [V0.S4], (R0)
+	VST1 [V8.S4], (R0)
 
 	ADD  $16, R0
 	ADD  $16, R1
@@ -142,7 +142,7 @@ shape_mfill_use:
 
 	VLD1 (R1), [V0.S4]
 	VBSL  V8.B16, V31.B16, V0.B16
-	VST1 [V0.S4], (R0)
+	VST1 [V8.S4], (R0)
 
 	ADD  $16, R0
 	ADD  $16, R1
