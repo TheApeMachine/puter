@@ -36,6 +36,9 @@ GLOBL aiLogC<>(SB), RODATA|NOPTR, $32
 DATA aiOneBits<>+0(SB)/4, $0x3F800000
 GLOBL aiOneBits<>(SB), RODATA|NOPTR, $4
 
+DATA aiMantMask<>+0(SB)/4, $0x007FFFFF
+GLOBL aiMantMask<>(SB), RODATA|NOPTR, $4
+
 #define AI_LOAD_LOG_CONSTS \
     MOVD $aiLogC<>(SB), R3 ;\
     FMOVS 0(R3), F8 ;\
@@ -54,11 +57,9 @@ GLOBL aiOneBits<>(SB), RODATA|NOPTR, $4
     VDUP V14.S[0], V14.S4 ;\
     FMOVS 28(R3), F15 ;\
     VDUP V15.S[0], V15.S4 ;\
-    MOVD $0x007FFFFF, R6 ;\
-    VMOV R6, V24.S[0] ;\
+    FMOVS aiMantMask<>(SB), F24 ;\
     VDUP V24.S[0], V24.S4 ;\
-    MOVD $0x3F800000, R6 ;\
-    VMOV R6, V25.S[0] ;\
+    FMOVS aiOneBits<>(SB), F25 ;\
     VDUP V25.S[0], V25.S4 ;\
     MOVD $127, R6 ;\
     VMOV R6, V26.S[0] ;\
@@ -141,6 +142,12 @@ ai_pw_scalar_loop:
 ai_pw_done:
 	RET
 
+#define AI_F32X4_TO_F64_ADD_F14(src) \
+    FCVTL_2D(src, 8) ;\
+    FCVTL2_2D(src, 9) ;\
+    FADDD F8, F14, F14 ;\
+    FADDD F9, F14, F14
+
 // func BeliefUpdateFloat32NEONAsm(likelihood, prior, output *float32, count int)
 TEXT ·BeliefUpdateFloat32NEONAsm(SB), NOSPLIT, $0-32
 	MOVD likelihood+0(FP), R0
@@ -149,7 +156,7 @@ TEXT ·BeliefUpdateFloat32NEONAsm(SB), NOSPLIT, $0-32
 	MOVD count+24(FP), R3
 	CBZ  R3, ai_bu_done
 
-	VEOR V16.B16, V16.B16, V16.B16
+	FMOVD $0, F14
 
 ai_bu_loop4:
 	CMP  $4, R3
@@ -159,7 +166,7 @@ ai_bu_loop4:
 	VLD1 (R1), [V1.S4]
 	VFMUL_S4(1, 0, 0)
 	VST1 [V0.S4], (R2)
-	AI_F32X4_TO_F64_ADD(0, 16)
+	AI_F32X4_TO_F64_ADD_F14(0)
 	ADD  $16, R0
 	ADD  $16, R1
 	ADD  $16, R2
@@ -175,7 +182,7 @@ ai_bu_tail_loop:
 	FMULS F1, F0, F0
 	FMOVS F0, (R2)
 	FCVTSD F0, F0
-	FADDD F0, F16, F16
+	FADDD F0, F14, F14
 	ADD  $4, R0
 	ADD  $4, R1
 	ADD  $4, R2
@@ -183,13 +190,13 @@ ai_bu_tail_loop:
 	CBNZ R3, ai_bu_tail_loop
 
 ai_bu_reduce:
-	FADDP_D(16, 0)
-	FMOVS $0.0, F11
-	FCMPS F0, F11
+	FMOVD $0, F15
+	FCMPD F14, F15
 	BEQ  ai_bu_done
 
-	FMOVS aiOneBits<>(SB), F3
-	FDIVS F0, F3, F3
+	FMOVD $1.0, F3
+	FDIVD F14, F3, F3
+	FCVTDS F3, F3
 	VDUP V3.S[0], V3.S4
 
 	MOVD output+16(FP), R2
@@ -221,10 +228,10 @@ ai_bu_done:
 	RET
 
 // func FreeEnergyFloat32NEONAsm(likelihood, posterior, prior *float32, count int) float32
-TEXT ·FreeEnergyFloat32NEONAsm(SB), NOSPLIT, $0-32
-	MOVD likelihood+0(FP), R0
-	MOVD posterior+8(FP), R1
-	MOVD prior+16(FP), R2
+TEXT ·FreeEnergyFloat32NEONAsm(SB), NOSPLIT, $0-40
+	MOVD likelihood+0(FP), R10
+	MOVD posterior+8(FP), R11
+	MOVD prior+16(FP), R12
 	MOVD count+24(FP), R3
 
 	FMOVS aiEps<>(SB), F30
@@ -238,18 +245,18 @@ ai_fe_loop4:
 	CMP  $4, R3
 	BLT  ai_fe_tail
 
-	VLD1 (R0), [V3.S4]
-	VLD1 (R1), [V4.S4]
-	VLD1 (R2), [V5.S4]
+	VLD1 (R10), [V3.S4]
+	VLD1 (R11), [V4.S4]
+	VLD1 (R12), [V5.S4]
 	VMAX_S4(30, 3, 3)
 	VMAX_S4(30, 4, 4)
 	VMAX_S4(30, 5, 5)
 
-	VMOV V3.B16, V0.B16
+	VMOV_B16(3, 0)
 	AI_NEON_LOG(0, 6)
-	VMOV V4.B16, V0.B16
+	VMOV_B16(4, 0)
 	AI_NEON_LOG(0, 7)
-	VMOV V5.B16, V0.B16
+	VMOV_B16(5, 0)
 	AI_NEON_LOG(0, 8)
 
 	VEOR V9.B16, V9.B16, V9.B16
@@ -261,9 +268,9 @@ ai_fe_loop4:
 	VFMUL_S4(4, 11, 11)
 	AI_F32X4_TO_F64_ADD_KL(11)
 
-	ADD  $16, R0
-	ADD  $16, R1
-	ADD  $16, R2
+	ADD  $16, R10
+	ADD  $16, R11
+	ADD  $16, R12
 	SUB  $4, R3
 	B    ai_fe_loop4
 
@@ -271,9 +278,9 @@ ai_fe_tail:
 	CBZ  R3, ai_fe_store
 
 ai_fe_tail_loop:
-	FMOVS (R0), F0
-	FMOVS (R1), F1
-	FMOVS (R2), F2
+	FMOVS (R10), F0
+	FMOVS (R11), F1
+	FMOVS (R12), F2
 	FMAXS F30, F0, F0
 	FMAXS F30, F1, F1
 	FMAXS F30, F2, F2
@@ -295,9 +302,9 @@ ai_fe_tail_loop:
 	FMULS F1, F11, F11
 	FCVTSD F11, F11
 	FADDD F11, F21, F21
-	ADD  $4, R0
-	ADD  $4, R1
-	ADD  $4, R2
+	ADD  $4, R10
+	ADD  $4, R11
+	ADD  $4, R12
 	SUB  $1, R3
 	CBNZ R3, ai_fe_tail_loop
 
@@ -311,7 +318,7 @@ ai_fe_store:
 //     predictedObs, preferredObs, predictedState *float32,
 //     obsCount, stateCount int,
 // ) float32
-TEXT ·ExpectedFreeEnergyFloat32NEONAsm(SB), NOSPLIT, $0-40
+TEXT ·ExpectedFreeEnergyFloat32NEONAsm(SB), NOSPLIT, $0-48
 	MOVD predictedObs+0(FP), R0
 	MOVD preferredObs+8(FP), R1
 	MOVD predictedState+16(FP), R2
@@ -333,9 +340,9 @@ ai_efe_obs_loop4:
 	VMAX_S4(30, 3, 3)
 	VMAX_S4(30, 4, 4)
 
-	VMOV V3.B16, V0.B16
+	VMOV_B16(3, 0)
 	AI_NEON_LOG(0, 6)
-	VMOV V4.B16, V0.B16
+	VMOV_B16(4, 0)
 	AI_NEON_LOG(0, 7)
 
 	VFSUB_S4(7, 6, 10)
@@ -357,7 +364,7 @@ ai_efe_state_loop4:
 
 	VLD1 (R2), [V3.S4]
 	VMAX_S4(30, 3, 3)
-	VMOV V3.B16, V0.B16
+	VMOV_B16(3, 0)
 	AI_NEON_LOG(0, 6)
 
 	VEOR V9.B16, V9.B16, V9.B16
@@ -372,5 +379,5 @@ ai_efe_state_loop4:
 ai_efe_store:
 	FADDD F21, F20
 	FCVTDS F20, F0
-	FMOVS F0, ret+36(FP)
+	FMOVS F0, ret+40(FP)
 	RET

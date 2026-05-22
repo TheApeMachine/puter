@@ -9,6 +9,9 @@ func ApplyMaskFloat32NEONAsm(input, mask, output *float32, count int)
 func CausalMaskFloat32NEONAsm(output *float32, seqQ, seqK int)
 
 //go:noescape
+func CausalMaskArgProbeAsm(output *float32, seqQ, seqK int)
+
+//go:noescape
 func ALiBiBiasFloat32NEONAsm(scores, slope, output *float32, seqQ, seqK int)
 
 func ApplyMaskF32NEON(input, mask, output *float32, count int) {

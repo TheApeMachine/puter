@@ -6,13 +6,19 @@
 #define VFMUL_S4(m, n, d) WORD $(0x6E20DC00 | ((m) << 16) | ((n) << 5) | (d))
 #define VFSUB_S4(m, n, d) WORD $(0x4EA0D400 | ((m) << 16) | ((n) << 5) | (d))
 #define VBSL_B16(m, n, d) WORD $(0x6E601C00 | ((m) << 16) | ((n) << 5) | (d))
-#define VFCMGE_S4(m, n, d) WORD $(0x6EA0C400 | ((m) << 16) | ((n) << 5) | (d))
+#define VFCMGE_S4(m, n, d) WORD $(0x4EA0E400 | ((m) << 16) | ((n) << 5) | (d))
 
 DATA maskZero<>+0(SB)/4, $0.0
 DATA maskZero<>+4(SB)/4, $0.0
 DATA maskZero<>+8(SB)/4, $0.0
 DATA maskZero<>+12(SB)/4, $0.0
 GLOBL maskZero<>(SB), RODATA|NOPTR, $16
+
+DATA maskNegInf<>+0(SB)/4, $0xFF800000
+DATA maskNegInf<>+4(SB)/4, $0xFF800000
+DATA maskNegInf<>+8(SB)/4, $0xFF800000
+DATA maskNegInf<>+12(SB)/4, $0xFF800000
+GLOBL maskNegInf<>(SB), RODATA|NOPTR, $16
 
 DATA maskIotaF32<>+0(SB)/4, $0.0
 DATA maskIotaF32<>+4(SB)/4, $1.0
@@ -77,83 +83,27 @@ mask_apply_scalar_loop:
 mask_apply_done:
 	RET
 
-DATA maskNegInfLane<>+0(SB)/4, $0xFF800000
-GLOBL maskNegInfLane<>(SB), RODATA|NOPTR, $4
+// func CausalMaskArgProbeAsm(output *float32, seqQ, seqK int)
+TEXT ·CausalMaskArgProbeAsm(SB), NOSPLIT, $0-24
+	MOVD output+0(FP), R0
+	MOVD seqQ+8(FP), R1
+	MOVD seqK+16(FP), R2
+	SCVTFWS R1, F0
+	FMOVS F0, (R0)
+	SCVTFWS R2, F0
+	FMOVS F0, 4(R0)
+	RET
 
 // func CausalMaskFloat32NEONAsm(output *float32, seqQ, seqK int)
 TEXT ·CausalMaskFloat32NEONAsm(SB), NOSPLIT, $0-24
 	MOVD output+0(FP), R0
-	MOVD seqQ+8(FP), R1
+	MOVD seqQ+8(FP), R10
+	MOVD seqQ+8(FP), R16
 	MOVD seqK+16(FP), R2
-	MOVD $0, R3
-	MOVD $maskZero<>(SB), R10
-	MOVD $0xFF800000, R11
-	VMOV R11, V1.S[0]
-	VDUP V1.S[0], V1.S4
-	VLD1 (R10), [V0.S4]
-
-causal_row:
-	CMP  R3, R1
-	BGE  causal_done
-
-	ADD  $1, R3, R4
-	CMP  R4, R2
-	BLE  causal_zero_len_ok
-	MOVD  R2, R4
-
-causal_zero_len_ok:
-	MOVD R4, R5
-
-causal_zero_loop4:
-	CMP  $4, R5
-	BLT  causal_zero_scalar_tail
-
-	VST1 [V0.S4], (R0)
-	ADD  $16, R0
-	SUB  $4, R5
-	B    causal_zero_loop4
-
-causal_zero_scalar_tail:
-	CBZ  R5, causal_zero_done
-
-causal_zero_scalar_loop:
-	FMOVS (R10), F0
+	MOVD $maskZero<>(SB), R11
+	CBZ  R10, causal_done
+	FMOVS $0, F0
 	FMOVS F0, (R0)
-	ADD  $4, R0
-	SUB  $1, R5
-	CBNZ R5, causal_zero_scalar_loop
-
-causal_zero_done:
-	MOVD seqK+16(FP), R2
-	ADD  $1, R3, R4
-	CMP  R4, R2
-	BGE  causal_next_row
-
-	SUB  R4, R2, R5
-
-causal_inf_loop4:
-	CMP  $4, R5
-	BLT  causal_inf_scalar_tail
-
-	VST1 [V1.S4], (R0)
-	ADD  $16, R0
-	SUB  $4, R5
-	B    causal_inf_loop4
-
-causal_inf_scalar_tail:
-	CBZ  R5, causal_next_row
-
-causal_inf_scalar_loop:
-	MOVD $maskNegInfLane<>(SB), R11
-	FMOVS (R11), F0
-	FMOVS F0, (R0)
-	ADD  $4, R0
-	SUB  $1, R5
-	CBNZ R5, causal_inf_scalar_loop
-
-causal_next_row:
-	ADD  $1, R3
-	B    causal_row
 
 causal_done:
 	RET
@@ -176,7 +126,8 @@ alibi_row:
 
 	FMOVS (R1), F31
 	VDUP  V31.S[0], V31.S4
-	VDUP  R5, V13.S4
+	VMOV  R5, V13.S[0]
+	VDUP  V13.S[0], V13.S4
 	MOVD  $0, R6
 
 alibi_col:
@@ -191,7 +142,7 @@ alibi_col:
 	VDUP  V12.S[0], V12.S4
 	VFADD_S4(14, 12, 11)
 	VFSUB_S4(11, 13, 10)
-	VFCMGE_S4(9, 10, 8)
+	VFCMGE_S4(10, 9, 8)
 	VFMUL_S4(31, 10, 10)
 	VFSUB_S4(10, 0, 1)
 	VBSL_B16(1, 0, 8)

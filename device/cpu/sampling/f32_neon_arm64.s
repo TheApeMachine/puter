@@ -190,7 +190,8 @@ sam_softmax_max_loop4:
 	CMP  $4, R2
 	BLT  sam_softmax_max_scalar
 
-	VLD1.P 16(R0), [V0.S4]
+	VLD1 (R0), [V0.S4]
+	ADD  $16, R0
 	VFMAX_S4(0, 16, 16)
 	SUB  $4, R2
 	B    sam_softmax_max_loop4
@@ -241,27 +242,40 @@ sam_softmax_max_done:
 	VFCVTZS_S4(18, 27)
 	FMOVS samSoftmaxClamp<>(SB), F30
 	VDUP V30.S[0], V30.S4
+	FMOVD $0, F14
 	VEOR V31.B16, V31.B16, V31.B16
 
 sam_softmax_exp_loop4:
 	CMP  $4, R2
 	BLT  sam_softmax_exp_scalar
 
-	VLD1.P 16(R0), [V0.S4]
+	VLD1 (R0), [V0.S4]
+	ADD  $16, R0
 	VFSUB_S4(28, 0, 0)
 	VFDIV_S4(10, 0, 0)
 	VFMAX_S4(30, 0, 0)
 	SAM_EXP_V0_TO_V6
-	VST1.P [V6.S4], 16(R1)
+	VST1 [V6.S4], (R1)
+	ADD  $16, R1
 	VFADD_S4(6, 31, 31)
+	VFADDP_S4(31, 31, 31)
+	FADDP_S(31, 31)
+	FCVTSD F31, F31
+	FADDD F31, F14, F14
+	VEOR V31.B16, V31.B16, V31.B16
 	SUB  $4, R2
 	B    sam_softmax_exp_loop4
 
 sam_softmax_exp_scalar:
-	VFADDP_S4(31, 31, 31)
-	FADDP_S(31, 31)
-
 	CBZ  R2, sam_softmax_normalize
+
+	MOVD count+24(FP), R6
+	SUB  R2, R6, R6
+	LSL  $2, R6, R6
+	MOVD logits+0(FP), R0
+	ADD  R6, R0, R0
+	MOVD out+8(FP), R1
+	ADD  R6, R1, R1
 
 sam_softmax_exp_scalar_loop:
 	FMOVS (R0), F0
@@ -271,19 +285,21 @@ sam_softmax_exp_scalar_loop:
 	VDUP V0.S[0], V0.S4
 	SAM_EXP_V0_TO_V6
 	FMOVS F6, (R1)
-	FADDS F6, F31, F31
+	FCVTSD F6, F6
+	FADDD F6, F14, F14
 	ADD  $4, R0
 	ADD  $4, R1
 	SUB  $1, R2
 	CBNZ R2, sam_softmax_exp_scalar_loop
 
 sam_softmax_normalize:
-	FMOVS $0.0, F11
-	FCMPS F31, F11
+	FMOVD $0, F15
+	FCMPD F14, F15
 	BEQ  sam_softmax_done
 
-	FMOVS samOneF32<>(SB), F8
-	FDIVS F31, F8, F8
+	FMOVD $1.0, F8
+	FDIVD F14, F8, F8
+	FCVTDS F8, F8
 	VDUP V8.S[0], V8.S4
 
 	MOVD out+8(FP), R0
@@ -293,9 +309,10 @@ sam_softmax_scale_loop4:
 	CMP  $4, R2
 	BLT  sam_softmax_scale_scalar
 
-	VLD1.P 16(R0), [V0.S4]
+	VLD1 (R0), [V0.S4]
 	VFMUL_S4(8, 0, 0)
-	VST1.P [V0.S4], 16(R0)
+	VST1 [V0.S4], (R0)
+	ADD  $16, R0
 	SUB  $4, R2
 	B    sam_softmax_scale_loop4
 

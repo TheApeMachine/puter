@@ -260,7 +260,7 @@ Used by: elementwise unary/binary, matmul, reduction, dropout, vision conv/pool,
 
 | Domain       | Notes                                                                                          |
 |--------------|------------------------------------------------------------------------------------------------|
-| **physics**  | GPU stencils for triad; **FFT/IFFT** tests allow **maxULP 4096** — unacceptable for production |
+| **physics**  | GPU stencils for triad; **FFT/IFFT** parity **1 ULP** (power-of-2), **2 ULP** (naive DFT, N=7) |
 | **causal**   | Many ops dispatch; Cholesky/IV heavy — verify triad                                            |
 | **hawkes**   | GPU kernels; tests use widened ULP                                                             |
 | **research** | Active inference + predictive coding on GPU                                                    |
@@ -296,7 +296,7 @@ Used by: elementwise unary/binary, matmul, reduction, dropout, vision conv/pool,
 
 | Issue                | Location                                                         | Required fix                                                |
 |----------------------|------------------------------------------------------------------|-------------------------------------------------------------|
-| **Wide ULP bands**   | `physics_test.go` (`fft1d` **4096**, `quantum_potential` **96**) | Fix shaders; tighten to ≤1 ULP                              |
+| **Wide ULP bands**   | `physics_test.go` (`fft1d` power-of-2 **1 ULP**, non-POT **2 ULP**; `quantum_potential` **96**) | Tighten quantum_potential; naive DFT libm alignment optional |
 | **Hawkes tests**     | `hawkes_*_test.go`, expected tests                               | Reduce to ≤1 ULP                                            |
 | **GLU tests**        | `*glu*_test.go` often **maxULP 2**                               | Tighten after kernel fix                                    |
 | **Binary registry**  | `backend_test.go` pow **4**, atan2 **8** ULP                     | Fix `elementwise_float*.metal` math                         |
@@ -335,8 +335,9 @@ For each op×dtype closure:
 ## 9. Verification commands
 
 ```bash
-# Metal package tests (requires darwin + Metal GPU)
-go test ./device/metal/... -count=1
+# Metal package tests (requires darwin + Metal GPU; qpool linkname — see Makefile)
+make test
+# or: go test -ldflags='-checklinkname=0' ./device/metal/... -count=1
 
 # Dtype-focused elementwise
 go test ./device/metal/... -run 'DType|Float16|BFloat16' -count=1

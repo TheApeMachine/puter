@@ -214,8 +214,22 @@ func assertPhysicsOutput(
 	expectedFloat32 []float32,
 	name string,
 ) {
+	assertPhysicsOutputWithULP(
+		testingObject, backend, out, storageDType,
+		expectedBytes, expectedFloat32, physicsMaxULP(name, storageDType),
+	)
+}
+
+func assertPhysicsOutputWithULP(
+	testingObject testing.TB,
+	backend *Backend,
+	out tensor.Tensor,
+	storageDType dtype.DType,
+	expectedBytes []byte,
+	expectedFloat32 []float32,
+	maxULP uint32,
+) {
 	testingObject.Helper()
-	maxULP := physicsMaxULP(name, storageDType)
 
 	if storageDType != dtype.Float32 {
 		assertDTypeBytesForTest(testingObject, backend, out, storageDType, expectedBytes, maxULP)
@@ -234,7 +248,7 @@ func physicsMaxULP(name string, storageDType dtype.DType) uint32 {
 	case "quantum_potential":
 		return 96
 	case "fft1d", "ifft1d":
-		return 4096
+		return 1
 	default:
 		return 8
 	}
