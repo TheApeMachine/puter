@@ -147,6 +147,15 @@ func runMetalRoPEConfigured(
 	out tensor.Tensor,
 	ropeConfig RoPEConfig,
 ) error {
+	return runMetalRoPEWithPosition(input, nil, out, ropeConfig)
+}
+
+func runMetalRoPEWithPosition(
+	input tensor.Tensor,
+	position tensor.Tensor,
+	out tensor.Tensor,
+	ropeConfig RoPEConfig,
+) error {
 	config, err := requireMetalRoPE(input, out)
 	if err != nil {
 		return err
@@ -173,6 +182,24 @@ func runMetalRoPEConfigured(
 		originalContext = ropeConfig.OriginalContext
 	}
 
+	halfMode := uint32(0)
+
+	if ropeConfig.Mode == "half" {
+		halfMode = 1
+	}
+
+	positionOffset := ropeConfig.PositionOffset
+
+	if position != nil {
+		positionValue, err := metalInt32Scalar(position, config.input.bridge)
+
+		if err != nil {
+			return err
+		}
+
+		positionOffset = uint32(positionValue)
+	}
+
 	token, err := metalCompletions.Begin(config.out, config.input)
 	if err != nil {
 		return err
@@ -193,6 +220,8 @@ func runMetalRoPEConfigured(
 		C.float(lowFreqFactor),
 		C.float(highFreqFactor),
 		C.uint32_t(originalContext),
+		C.uint32_t(halfMode),
+		C.uint32_t(positionOffset),
 		C.uint64_t(token),
 		&status,
 	)

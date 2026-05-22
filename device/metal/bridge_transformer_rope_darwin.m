@@ -17,6 +17,8 @@ int metal_dispatch_rope(
     float lowFreqFactor,
     float highFreqFactor,
     uint32_t originalContext,
+    uint32_t halfMode,
+    uint32_t positionOffset,
     uint64_t completionToken,
     MetalStatus* status
 ) {
@@ -49,6 +51,8 @@ int metal_dispatch_rope(
             [encoder setBytes:&lowFreqFactor length:sizeof(lowFreqFactor) atIndex:8];
             [encoder setBytes:&highFreqFactor length:sizeof(highFreqFactor) atIndex:9];
             [encoder setBytes:&originalContext length:sizeof(originalContext) atIndex:10];
+            [encoder setBytes:&halfMode length:sizeof(halfMode) atIndex:11];
+            [encoder setBytes:&positionOffset length:sizeof(positionOffset) atIndex:12];
         }
     );
 }

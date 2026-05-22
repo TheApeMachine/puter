@@ -8,6 +8,7 @@ import (
 	"github.com/theapemachine/manifesto/tensor"
 	"github.com/theapemachine/puter/device/cpu/elementwise"
 	"github.com/theapemachine/puter/device/cpu/matmul"
+	"github.com/theapemachine/puter/device/cpu/shape"
 	"github.com/theapemachine/puter/kernels"
 )
 
@@ -305,6 +306,10 @@ func dispatchHostKernel(kernel string, args []tensor.Tensor) error {
 		return elementwise.RunAdd(args...)
 	case "mul":
 		return elementwise.RunMul(args...)
+	case "page_write":
+		return shape.RunPageWrite(args...)
+	case "page_gather":
+		return shape.RunPageGather(args...)
 	default:
 		return fmt.Errorf("host kernel %q is not implemented", kernel)
 	}

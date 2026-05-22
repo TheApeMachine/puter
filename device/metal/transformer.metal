@@ -456,6 +456,8 @@ static inline void rope_kernel(
     constant float& lowFreqFactor,
     constant float& highFreqFactor,
     constant uint& originalContext,
+    constant uint& halfMode,
+    constant uint& positionOffset,
     uint index
 ) {
     if (index >= pairCount) {
@@ -466,7 +468,9 @@ static inline void rope_kernel(
     uint pairIndex = index % halfDim;
     uint headIndex = (index / halfDim) % numHeads;
     uint seqIndex = index / (halfDim * numHeads);
-    uint inputIndex = (seqIndex * numHeads + headIndex) * headDim + pairIndex * 2;
+    uint headOffset = (seqIndex * numHeads + headIndex) * headDim;
+    uint evenIndex = halfMode != 0 ? headOffset + pairIndex : headOffset + pairIndex * 2;
+    uint oddIndex = halfMode != 0 ? headOffset + halfDim + pairIndex : evenIndex + 1;
     float exponent = -2.0f * float(pairIndex) / float(headDim);
     float invFreq = pow(ropeTheta, exponent);
 
@@ -476,14 +480,14 @@ static inline void rope_kernel(
         );
     }
 
-    float angle = float(seqIndex) * invFreq;
-    float cosTheta = cos(angle);
-    float sinTheta = sin(angle);
-    float even = Storage::load(input, inputIndex);
-    float odd = Storage::load(input, inputIndex + 1);
+    float angle = float(positionOffset + seqIndex) * invFreq;
+    float cosTheta = precise::cos(angle);
+    float sinTheta = precise::sin(angle);
+    float even = Storage::load(input, evenIndex);
+    float odd = Storage::load(input, oddIndex);
 
-    Storage::store(out, inputIndex, even * cosTheta - odd * sinTheta);
-    Storage::store(out, inputIndex + 1, even * sinTheta + odd * cosTheta);
+    Storage::store(out, evenIndex, even * cosTheta - odd * sinTheta);
+    Storage::store(out, oddIndex, even * sinTheta + odd * cosTheta);
 }
 
 template <typename Storage, typename Scalar>
@@ -531,8 +535,8 @@ static inline void flux2_rope_kernel(
     float axisDim = float(axisPairCount * 2);
     float exponent = axisDim == 0.0f ? 0.0f : -2.0f * float(localPair) / axisDim;
     float angle = float(position) * pow(theta, exponent);
-    float cosTheta = cos(angle);
-    float sinTheta = sin(angle);
+    float cosTheta = precise::cos(angle);
+    float sinTheta = precise::sin(angle);
     float even = Storage::load(input, inputIndex);
     float odd = Storage::load(input, inputIndex + 1);
 
@@ -668,11 +672,13 @@ kernel void name( \
     constant float& lowFreqFactor [[buffer(8)]], \
     constant float& highFreqFactor [[buffer(9)]], \
     constant uint& originalContext [[buffer(10)]], \
+    constant uint& halfMode [[buffer(11)]], \
+    constant uint& positionOffset [[buffer(12)]], \
     uint index [[thread_position_in_grid]] \
 ) { \
     rope_kernel<storage, scalar>( \
         input, out, seqLen, numHeads, headDim, pairCount, ropeTheta, \
-        ropeFactor, lowFreqFactor, highFreqFactor, originalContext, index \
+        ropeFactor, lowFreqFactor, highFreqFactor, originalContext, halfMode, positionOffset, index \
     ); \
 }
 

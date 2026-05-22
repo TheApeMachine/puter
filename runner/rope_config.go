@@ -16,6 +16,10 @@ func ropeConfigFromNode(node *ir.Node) metal.RoPEConfig {
 		config.Type = ropeType
 	}
 
+	if mode, ok := nodeOptionalStringAttribute(node, "mode"); ok {
+		config.Mode = mode
+	}
+
 	if factor, ok := nodeOptionalFloatAttribute(node, "rope_factor"); ok {
 		config.Factor = float32(factor)
 	}

@@ -28,12 +28,47 @@ func registerMetalShapeKernels(storageDType dtype.DType) {
 	registerMetalUnaryShapeKernel("split_heads", storageDType, runMetalSplitHeads)
 	registerMetalUnaryShapeKernel("reshape", storageDType, runMetalReshape)
 	registerMetalSliceKernel(storageDType)
+	registerMetalPageStateKernels(storageDType)
 	registerMetalTransposeKernel(storageDType)
 	registerMetalUnaryShapeKernel("transpose2d", storageDType, runMetalTranspose2D)
 	registerMetalUnaryShapeKernel("upsample_nearest2d", storageDType, runMetalUpsampleNearest2D)
 	registerMetalBinaryShapeKernel("concat", storageDType, runMetalConcat)
 	registerMetalSplit2Kernel(storageDType)
 	registerMetalViewAsHeadsKernel(storageDType)
+}
+
+func registerMetalPageStateKernels(storageDType dtype.DType) {
+	kernels.Default.Register(kernels.Kernel{
+		Name: "page_write",
+		Signature: kernels.Signature{
+			Layout: tensor.LayoutDense,
+			Inputs: []dtype.DType{
+				storageDType,
+				storageDType,
+				dtype.Int32,
+				dtype.Int32,
+				dtype.Int32,
+			},
+			Outputs: []dtype.DType{storageDType},
+		},
+		Locations: []tensor.Location{tensor.Metal},
+		Run:       runPageWriteShape(runMetalPageWrite),
+	})
+
+	kernels.Default.Register(kernels.Kernel{
+		Name: "page_gather",
+		Signature: kernels.Signature{
+			Layout: tensor.LayoutDense,
+			Inputs: []dtype.DType{
+				storageDType,
+				dtype.Int32,
+				dtype.Int32,
+			},
+			Outputs: []dtype.DType{storageDType},
+		},
+		Locations: []tensor.Location{tensor.Metal},
+		Run:       runPageGatherShape(runMetalPageGather),
+	})
 }
 
 func registerMetalGatherKernel(storageDType dtype.DType) {
@@ -242,6 +277,37 @@ func runSliceShape(
 		}
 
 		return run(args[0], args[1], args[2], args[3], args[4])
+	}
+}
+
+func runPageWriteShape(
+	run func(
+		tensor.Tensor,
+		tensor.Tensor,
+		tensor.Tensor,
+		tensor.Tensor,
+		tensor.Tensor,
+		tensor.Tensor,
+	) error,
+) func(...tensor.Tensor) error {
+	return func(args ...tensor.Tensor) error {
+		if len(args) != 6 {
+			return tensor.ErrShapeMismatch
+		}
+
+		return run(args[0], args[1], args[2], args[3], args[4], args[5])
+	}
+}
+
+func runPageGatherShape(
+	run func(tensor.Tensor, tensor.Tensor, tensor.Tensor, tensor.Tensor) error,
+) func(...tensor.Tensor) error {
+	return func(args ...tensor.Tensor) error {
+		if len(args) != 4 {
+			return tensor.ErrShapeMismatch
+		}
+
+		return run(args[0], args[1], args[2], args[3])
 	}
 }
 

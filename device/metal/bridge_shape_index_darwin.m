@@ -115,6 +115,78 @@ int metal_dispatch_scatter(
     );
 }
 
+int metal_dispatch_page_write(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef storageRef,
+    MetalBufferRef valuesRef,
+    MetalBufferRef pageIDsRef,
+    MetalBufferRef offsetsRef,
+    MetalBufferRef outRef,
+    uint32_t pageCount,
+    uint32_t pageSize,
+    uint32_t inner,
+    uint32_t valueRows,
+    uint64_t completionToken,
+    MetalStatus* status
+) {
+    if (storageRef == NULL || valuesRef == NULL || pageIDsRef == NULL || offsetsRef == NULL || outRef == NULL) {
+        metal_shape_status_set(status, -2, "nil Metal buffer");
+        return -2;
+    }
+
+    return metal_shape_named_dispatch(
+        contextRef, elementDType, "page_write", (NSUInteger)pageCount * pageSize * inner,
+        completionToken, status,
+        ^(id<MTLComputeCommandEncoder> encoder, id<MTLBuffer> validationBuffer) {
+            [encoder setBuffer:(__bridge id<MTLBuffer>)storageRef offset:0 atIndex:0];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)valuesRef offset:0 atIndex:1];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)pageIDsRef offset:0 atIndex:2];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)offsetsRef offset:0 atIndex:3];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:4];
+            [encoder setBuffer:validationBuffer offset:0 atIndex:5];
+            [encoder setBytes:&pageCount length:sizeof(pageCount) atIndex:6];
+            [encoder setBytes:&pageSize length:sizeof(pageSize) atIndex:7];
+            [encoder setBytes:&inner length:sizeof(inner) atIndex:8];
+            [encoder setBytes:&valueRows length:sizeof(valueRows) atIndex:9];
+        }
+    );
+}
+
+int metal_dispatch_page_gather(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef storageRef,
+    MetalBufferRef pageTableRef,
+    MetalBufferRef outRef,
+    uint32_t pageCount,
+    uint32_t pageSize,
+    uint32_t inner,
+    uint32_t outRows,
+    uint64_t completionToken,
+    MetalStatus* status
+) {
+    if (storageRef == NULL || pageTableRef == NULL || outRef == NULL) {
+        metal_shape_status_set(status, -2, "nil Metal buffer");
+        return -2;
+    }
+
+    return metal_shape_named_dispatch(
+        contextRef, elementDType, "page_gather", (NSUInteger)outRows * inner,
+        completionToken, status,
+        ^(id<MTLComputeCommandEncoder> encoder, id<MTLBuffer> validationBuffer) {
+            [encoder setBuffer:(__bridge id<MTLBuffer>)storageRef offset:0 atIndex:0];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)pageTableRef offset:0 atIndex:1];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:2];
+            [encoder setBuffer:validationBuffer offset:0 atIndex:3];
+            [encoder setBytes:&pageCount length:sizeof(pageCount) atIndex:4];
+            [encoder setBytes:&pageSize length:sizeof(pageSize) atIndex:5];
+            [encoder setBytes:&inner length:sizeof(inner) atIndex:6];
+            [encoder setBytes:&outRows length:sizeof(outRows) atIndex:7];
+        }
+    );
+}
+
 int metal_dispatch_where(
     MetalDeviceRef contextRef,
     int elementDType,

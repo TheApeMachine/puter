@@ -335,6 +335,7 @@ func TestMetalLlama3RoPE(t *testing.T) {
 			config := RoPEConfig{
 				Base:            500000,
 				Type:            "llama3",
+				Mode:            "half",
 				Factor:          32,
 				LowFreqFactor:   1,
 				HighFreqFactor:  4,
@@ -343,7 +344,7 @@ func TestMetalLlama3RoPE(t *testing.T) {
 			err := RunRoPE(input, out, config)
 
 			convey.So(err, convey.ShouldBeNil)
-			assertRoPEBytesForTest(t, backend, out, dtype.Float32, fixture)
+			assertFloat32TensorForTest(t, backend, out, fixture.expectedFloat32, 1024)
 		})
 	})
 }
@@ -386,7 +387,7 @@ func llama3RoPEExpectedValues(
 	for seqIndex := range seqLen {
 		for headIndex := range numHeads {
 			for pairIndex := range halfDim {
-				llama3RoPEExpectedPair(
+				llama3RoPEExpectedHalfPair(
 					input, out, seqIndex, headIndex, pairIndex, numHeads, headDim,
 					base, factor, lowFreqFactor, highFreqFactor, originalContext,
 				)
@@ -439,14 +440,45 @@ func llama3RoPEExpectedPair(
 	exponent := -2 * float64(pairIndex) / float64(headDim)
 	invFreq := math.Pow(base, exponent)
 	invFreq = llama3ScaledInvFreq(invFreq, originalContext, factor, lowFreqFactor, highFreqFactor)
-	angle := float64(seqIndex) * invFreq
-	cosTheta := float32(math.Cos(angle))
-	sinTheta := float32(math.Sin(angle))
+	angle := float32(seqIndex) * float32(invFreq)
+	cosTheta := float32(math.Cos(float64(angle)))
+	sinTheta := float32(math.Sin(float64(angle)))
 	even := input[inputIndex]
 	odd := input[inputIndex+1]
 
 	out[inputIndex] = even*cosTheta - odd*sinTheta
 	out[inputIndex+1] = even*sinTheta + odd*cosTheta
+}
+
+func llama3RoPEExpectedHalfPair(
+	input []float32,
+	out []float32,
+	seqIndex int,
+	headIndex int,
+	pairIndex int,
+	numHeads int,
+	headDim int,
+	base float64,
+	factor float64,
+	lowFreqFactor float64,
+	highFreqFactor float64,
+	originalContext float64,
+) {
+	headOffset := (seqIndex*numHeads + headIndex) * headDim
+	halfDim := headDim / 2
+	evenIndex := headOffset + pairIndex
+	oddIndex := headOffset + halfDim + pairIndex
+	exponent := -2 * float64(pairIndex) / float64(headDim)
+	invFreq := math.Pow(base, exponent)
+	invFreq = llama3ScaledInvFreq(invFreq, originalContext, factor, lowFreqFactor, highFreqFactor)
+	angle := float32(seqIndex) * float32(invFreq)
+	cosTheta := float32(math.Cos(float64(angle)))
+	sinTheta := float32(math.Sin(float64(angle)))
+	even := input[evenIndex]
+	odd := input[oddIndex]
+
+	out[evenIndex] = even*cosTheta - odd*sinTheta
+	out[oddIndex] = even*sinTheta + odd*cosTheta
 }
 
 func assertRoPEBytesForTest(

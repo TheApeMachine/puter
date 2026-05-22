@@ -37,7 +37,7 @@ func TestLlamaHelloForwardTopLogits(testingObject *testing.T) {
 		)
 		convey.So(err, convey.ShouldBeNil)
 
-		prompt, err := metadata.ApplyChatTemplate("hello")
+		prompt, err := metadata.ApplyChatTemplate("Hello")
 		convey.So(err, convey.ShouldBeNil)
 
 		tokenIDs, err := artifact.Tokenizer.Encode(prompt)
@@ -79,12 +79,13 @@ func TestLlamaHelloForwardTopLogits(testingObject *testing.T) {
 
 			firstText, err := artifact.Tokenizer.Decode([]int{top[0].index}, false)
 			convey.So(err, convey.ShouldBeNil)
-			convey.So(firstText, convey.ShouldNotBeBlank)
+			convey.So(firstText, convey.ShouldEqual, "How")
 		})
 
 		convey.Convey("Greedy decode steps should stay coherent", func() {
 			sequence := append([]int(nil), tokenIDs...)
 			graphRunner := New(devicePool)
+			pieces := make([]string, 0, 3)
 
 			for step := 0; step < 3; step++ {
 				stepResult, stepErr := graphRunner.CallGraph(context.Background(), runtime.GraphCallRequest{
@@ -105,9 +106,11 @@ func TestLlamaHelloForwardTopLogits(testingObject *testing.T) {
 				nextText, decodeErr := artifact.Tokenizer.Decode([]int{nextToken}, false)
 				convey.So(decodeErr, convey.ShouldBeNil)
 
-				testingObject.Logf("decode step %d token %d (%q)", step, nextToken, nextText)
+				pieces = append(pieces, nextText)
 				sequence = append(sequence, nextToken)
 			}
+
+			convey.So(pieces, convey.ShouldResemble, []string{"How", " can", " I"})
 		})
 	})
 }

@@ -17,5 +17,9 @@ func dispatchRoPE(node *ir.Node, args []tensor.Tensor) error {
 
 	config := ropeConfigFromNode(node)
 
+	if len(args) == 3 {
+		return metal.RunRoPEWithPosition(args[0], args[1], args[2], config)
+	}
+
 	return metal.RunRoPE(args[0], args[len(args)-1], config)
 }

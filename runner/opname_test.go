@@ -43,6 +43,10 @@ func TestKernelName(testingObject *testing.T) {
 			"train.loss.cross_entropy":     "cross_entropy",
 			"stencil.laplacian":            "laplacian",
 			"model.graft":                  "weight_graft_add",
+			"state.page_write":             "page_write",
+			"state.page_gather":            "page_gather",
+			"state.page_alloc":             "page_alloc",
+			"state.page_table_append":      "page_table_append",
 		}
 
 		for operationID, expectedKernel := range cases {

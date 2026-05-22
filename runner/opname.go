@@ -73,6 +73,10 @@ var manifestKernelNames = map[string]string{
 	"model.graft":              "weight_graft_add",
 	"model.freeze":             "weight_freeze_mask",
 	"model.lora":               "lora_apply",
+	"state.page_write":         "page_write",
+	"state.page_gather":        "page_gather",
+	"state.page_alloc":         "page_alloc",
+	"state.page_table_append":  "page_table_append",
 }
 
 type manifestCategoryRule struct {

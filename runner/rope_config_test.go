@@ -15,6 +15,7 @@ func TestRopeConfigFromNode(t *testing.T) {
 
 		node := manifestComputeNode("rope_q_0", "positional.rope", ir.OpFused, shape)
 		node.SetAttribute("base", ir.IntAttribute(500000))
+		node.SetAttribute("mode", ir.StringAttribute("half"))
 		node.SetAttribute("rope_type", ir.StringAttribute("llama3"))
 		node.SetAttribute("rope_factor", ir.FloatAttribute(32))
 		node.SetAttribute("rope_low_freq_factor", ir.FloatAttribute(1))
@@ -25,6 +26,7 @@ func TestRopeConfigFromNode(t *testing.T) {
 
 		convey.Convey("It should preserve base and llama3 scaling fields", func() {
 			convey.So(config.Base, convey.ShouldEqual, float32(500000))
+			convey.So(config.Mode, convey.ShouldEqual, "half")
 			convey.So(config.Type, convey.ShouldEqual, "llama3")
 			convey.So(config.Factor, convey.ShouldEqual, float32(32))
 			convey.So(config.LowFreqFactor, convey.ShouldEqual, float32(1))

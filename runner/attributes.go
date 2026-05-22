@@ -22,6 +22,8 @@ func appendKernelAttributes(
 	switch kernel {
 	case "view_as_heads":
 		return appendInt32AttributeBeforeOutput(memory, node, "num_heads", args)
+	case "page_write", "page_gather":
+		return appendInt32AttributeBeforeOutput(memory, node, "page_size", args)
 	default:
 		return args, nil
 	}

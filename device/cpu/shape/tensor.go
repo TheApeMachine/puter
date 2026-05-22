@@ -45,3 +45,11 @@ func RunViewAsHeads(args ...tensor.Tensor) error {
 func RunSlice(args ...tensor.Tensor) error {
 	return runSlice(args...)
 }
+
+func RunPageWrite(args ...tensor.Tensor) error {
+	return runPageWrite(args...)
+}
+
+func RunPageGather(args ...tensor.Tensor) error {
+	return runPageGather(args...)
+}

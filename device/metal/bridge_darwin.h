@@ -278,6 +278,34 @@ int metal_dispatch_scatter(
     uint64_t completionToken,
     MetalStatus* status
 );
+int metal_dispatch_page_write(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef storageRef,
+    MetalBufferRef valuesRef,
+    MetalBufferRef pageIDsRef,
+    MetalBufferRef offsetsRef,
+    MetalBufferRef outRef,
+    uint32_t pageCount,
+    uint32_t pageSize,
+    uint32_t inner,
+    uint32_t valueRows,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+int metal_dispatch_page_gather(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef storageRef,
+    MetalBufferRef pageTableRef,
+    MetalBufferRef outRef,
+    uint32_t pageCount,
+    uint32_t pageSize,
+    uint32_t inner,
+    uint32_t outRows,
+    uint64_t completionToken,
+    MetalStatus* status
+);
 int metal_dispatch_where(
     MetalDeviceRef contextRef,
     int elementDType,
@@ -611,6 +639,8 @@ int metal_dispatch_rope(
     float lowFreqFactor,
     float highFreqFactor,
     uint32_t originalContext,
+    uint32_t halfMode,
+    uint32_t positionOffset,
     uint64_t completionToken,
     MetalStatus* status
 );

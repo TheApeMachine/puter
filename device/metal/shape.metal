@@ -93,6 +93,83 @@ static inline void scatter_kernel(
     out[index] = value;
 }
 
+template <typename Storage>
+static inline void page_write_kernel(
+    device const Storage* storage,
+    device const Storage* values,
+    device const int* pageIDs,
+    device const int* offsets,
+    device Storage* out,
+    device atomic_uint* errorFlag,
+    constant uint& pageCount,
+    constant uint& pageSize,
+    constant uint& inner,
+    constant uint& valueRows,
+    uint index
+) {
+    uint count = pageCount * pageSize * inner;
+
+    if (index >= count) {
+        return;
+    }
+
+    uint storageRow = index / inner;
+    uint col = index - storageRow * inner;
+    Storage value = storage[index];
+
+    for (int row = int(valueRows) - 1; row >= 0; row--) {
+        int pageID = pageIDs[uint(row)];
+        int pageOffset = offsets[uint(row)];
+
+        if (pageID < 0 || uint(pageID) >= pageCount || pageOffset < 0 || uint(pageOffset) >= pageSize) {
+            shape_set_error(errorFlag);
+            continue;
+        }
+
+        uint writeRow = uint(pageID) * pageSize + uint(pageOffset);
+
+        if (writeRow == storageRow) {
+            value = values[uint(row) * inner + col];
+            break;
+        }
+    }
+
+    out[index] = value;
+}
+
+template <typename Storage>
+static inline void page_gather_kernel(
+    device const Storage* storage,
+    device const int* pageTable,
+    device Storage* out,
+    device atomic_uint* errorFlag,
+    constant uint& pageCount,
+    constant uint& pageSize,
+    constant uint& inner,
+    constant uint& outRows,
+    uint index
+) {
+    uint count = outRows * inner;
+
+    if (index >= count) {
+        return;
+    }
+
+    uint row = index / inner;
+    uint col = index - row * inner;
+    uint tableIndex = row / pageSize;
+    uint pageOffset = row - tableIndex * pageSize;
+    int pageID = pageTable[tableIndex];
+
+    if (pageID < 0 || uint(pageID) >= pageCount) {
+        shape_set_error(errorFlag);
+        return;
+    }
+
+    uint storageRow = uint(pageID) * pageSize + pageOffset;
+    out[index] = storage[storageRow * inner + col];
+}
+
 template <typename Scalar, typename Vec>
 static inline void where_kernel(
     device const uchar* mask,
@@ -551,6 +628,42 @@ kernel void name( \
     scatter_kernel<storage>(target, indices, updates, out, errorFlag, targetRows, inner, updateRows, index); \
 }
 
+#define PAGE_WRITE_KERNEL(name, storage) \
+kernel void name( \
+    device const storage* storageRef [[buffer(0)]], \
+    device const storage* values [[buffer(1)]], \
+    device const int* pageIDs [[buffer(2)]], \
+    device const int* offsets [[buffer(3)]], \
+    device storage* out [[buffer(4)]], \
+    device atomic_uint* errorFlag [[buffer(5)]], \
+    constant uint& pageCount [[buffer(6)]], \
+    constant uint& pageSize [[buffer(7)]], \
+    constant uint& inner [[buffer(8)]], \
+    constant uint& valueRows [[buffer(9)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    page_write_kernel<storage>( \
+        storageRef, values, pageIDs, offsets, out, errorFlag, pageCount, pageSize, inner, valueRows, index \
+    ); \
+}
+
+#define PAGE_GATHER_KERNEL(name, storage) \
+kernel void name( \
+    device const storage* storageRef [[buffer(0)]], \
+    device const int* pageTable [[buffer(1)]], \
+    device storage* out [[buffer(2)]], \
+    device atomic_uint* errorFlag [[buffer(3)]], \
+    constant uint& pageCount [[buffer(4)]], \
+    constant uint& pageSize [[buffer(5)]], \
+    constant uint& inner [[buffer(6)]], \
+    constant uint& outRows [[buffer(7)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    page_gather_kernel<storage>( \
+        storageRef, pageTable, out, errorFlag, pageCount, pageSize, inner, outRows, index \
+    ); \
+}
+
 #define WHERE_KERNEL(name, scalar, vec) \
 kernel void name( \
     device const uchar* mask [[buffer(0)]], \
@@ -599,6 +712,14 @@ GATHER_KERNEL(gather_bfloat16, ushort)
 SCATTER_KERNEL(scatter_float32, uint)
 SCATTER_KERNEL(scatter_float16, ushort)
 SCATTER_KERNEL(scatter_bfloat16, ushort)
+
+PAGE_WRITE_KERNEL(page_write_float32, uint)
+PAGE_WRITE_KERNEL(page_write_float16, ushort)
+PAGE_WRITE_KERNEL(page_write_bfloat16, ushort)
+
+PAGE_GATHER_KERNEL(page_gather_float32, uint)
+PAGE_GATHER_KERNEL(page_gather_float16, ushort)
+PAGE_GATHER_KERNEL(page_gather_bfloat16, ushort)
 
 WHERE_KERNEL(where_float32, uint, uint4)
 WHERE_KERNEL(where_float16, ushort, ushort4)

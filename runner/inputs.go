@@ -9,6 +9,7 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/dtype/convert"
 	"github.com/theapemachine/manifesto/ir"
+	"github.com/theapemachine/manifesto/runtime"
 	"github.com/theapemachine/manifesto/tensor"
 	"github.com/theapemachine/manifesto/weights"
 )
@@ -47,6 +48,21 @@ func bindProgramInputs(
 			return fmt.Errorf("runner: bind input %q: %w", node.ID(), err)
 		}
 
+		if _, ok := value.(tensor.Tensor); ok {
+			tensorWorkspace.StoreBorrowed(node.ID(), resident)
+			continue
+		}
+
+		if _, ok := value.(*runtime.PagedTensorState); ok {
+			tensorWorkspace.StoreBorrowed(node.ID(), resident)
+			continue
+		}
+
+		if _, ok := value.(*runtime.PageTableState); ok {
+			tensorWorkspace.StoreBorrowed(node.ID(), resident)
+			continue
+		}
+
 		tensorWorkspace.Store(node.ID(), resident)
 	}
 
@@ -59,6 +75,26 @@ func residentInputTensor(
 	value any,
 ) (tensor.Tensor, error) {
 	if resident, ok := value.(tensor.Tensor); ok {
+		return resident, nil
+	}
+
+	if paged, ok := value.(*runtime.PagedTensorState); ok {
+		resident, ok := paged.Storage.(tensor.Tensor)
+
+		if !ok {
+			return nil, fmt.Errorf("paged tensor state has %T storage", paged.Storage)
+		}
+
+		return resident, nil
+	}
+
+	if table, ok := value.(*runtime.PageTableState); ok {
+		resident, ok := table.Storage.(tensor.Tensor)
+
+		if !ok {
+			return nil, fmt.Errorf("page table state has %T storage", table.Storage)
+		}
+
 		return resident, nil
 	}
 
@@ -148,6 +184,7 @@ func collectProgramOutputs(
 	memory tensor.Backend,
 	manifestGraph *ast.Graph,
 	tensorWorkspace *workspace,
+	stateOutputs map[string]bool,
 ) (map[string]any, error) {
 	outputs := make(map[string]any, len(manifestGraph.Outputs))
 
@@ -156,6 +193,17 @@ func collectProgramOutputs(
 
 		if !ok {
 			return nil, fmt.Errorf("runner: missing output tensor for node %q", nodeID)
+		}
+
+		if stateOutputs[outputName] {
+			resident, ok := tensorWorkspace.Detach(nodeID)
+
+			if !ok {
+				return nil, fmt.Errorf("runner: missing output tensor for node %q", nodeID)
+			}
+
+			outputs[outputName] = resident
+			continue
 		}
 
 		hostValues, err := downloadFloat32Vector(memory, value)

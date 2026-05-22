@@ -130,6 +130,27 @@ func TestRunnerCallGraphRequiresComputeGraph(testingObject *testing.T) {
 	})
 }
 
+func TestRunnerWeightCache(testingObject *testing.T) {
+	convey.Convey("Given a runner and a compute backend", testingObject, func() {
+		devicePool, err := pool.New(context.Background(), nil)
+		convey.So(err, convey.ShouldBeNil)
+		defer devicePool.Close()
+
+		memory, _, err := devicePool.ComputeMemory()
+		convey.So(err, convey.ShouldBeNil)
+
+		graphRunner := New(devicePool)
+		defer graphRunner.Close()
+
+		convey.Convey("It should reuse the same resident weight cache across calls", func() {
+			first := graphRunner.weightCache(memory)
+			second := graphRunner.weightCache(memory)
+
+			convey.So(first, convey.ShouldEqual, second)
+		})
+	})
+}
+
 func BenchmarkRunnerCallGraphMatMul(benchmark *testing.B) {
 	workerPool := qpool.NewQ(context.Background(), 1, 2, qpool.NewConfig())
 	defer workerPool.Close()

@@ -3,9 +3,11 @@ package runner
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/theapemachine/manifesto/ir"
 	"github.com/theapemachine/manifesto/runtime"
+	"github.com/theapemachine/manifesto/tensor"
 	"github.com/theapemachine/puter/pool"
 )
 
@@ -14,7 +16,10 @@ Runner executes graph.call steps via discovered device backends.
 It implements manifesto/runtime.Backend.
 */
 type Runner struct {
-	devicePool *pool.Pool
+	devicePool      *pool.Pool
+	mu              sync.Mutex
+	weights         *weightCache
+	weightsLocation tensor.Location
 }
 
 /*
@@ -22,6 +27,47 @@ New constructs a graph runner over a discovered device pool.
 */
 func New(devicePool *pool.Pool) *Runner {
 	return &Runner{devicePool: devicePool}
+}
+
+/*
+Close releases resident runner-owned resources.
+*/
+func (graphRunner *Runner) Close() error {
+	if graphRunner == nil {
+		return nil
+	}
+
+	graphRunner.mu.Lock()
+	defer graphRunner.mu.Unlock()
+
+	if graphRunner.weights != nil {
+		graphRunner.weights.Close()
+	}
+
+	graphRunner.weights = nil
+	graphRunner.weightsLocation = ""
+
+	return nil
+}
+
+func (graphRunner *Runner) weightCache(memory tensor.Backend) *weightCache {
+	graphRunner.mu.Lock()
+	defer graphRunner.mu.Unlock()
+
+	location := memory.Location()
+
+	if graphRunner.weights != nil && graphRunner.weightsLocation == location {
+		return graphRunner.weights
+	}
+
+	if graphRunner.weights != nil {
+		graphRunner.weights.Close()
+	}
+
+	graphRunner.weights = newWeightCache(memory)
+	graphRunner.weightsLocation = location
+
+	return graphRunner.weights
 }
 
 /*
@@ -59,8 +105,7 @@ func (graphRunner *Runner) CallGraph(
 	tensorWorkspace := newWorkspace()
 	defer tensorWorkspace.Close()
 
-	weightTable := newWeightCache(memory)
-	defer weightTable.Close()
+	weightTable := graphRunner.weightCache(memory)
 
 	bindings := newManifestBindings(request.Graph)
 
@@ -85,7 +130,7 @@ func (graphRunner *Runner) CallGraph(
 		return runtime.GraphCallResult{}, err
 	}
 
-	outputs, err := collectProgramOutputs(memory, request.Graph, tensorWorkspace)
+	outputs, err := collectProgramOutputs(memory, request.Graph, tensorWorkspace, request.StateOutputs)
 
 	if err != nil {
 		return runtime.GraphCallResult{}, err
