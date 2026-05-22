@@ -54,12 +54,12 @@ GLOBL mathSoftmaxClamp<>(SB), RODATA|NOPTR, $4
     VFMUL_S4(5, 4, 6)
 
 // func InvSqrtDimScaleFloat32NEONAsm(out, input *float32, scale float32, count int)
-TEXT ·InvSqrtDimScaleFloat32NEONAsm(SB), NOSPLIT, $0-28
+TEXT ·InvSqrtDimScaleFloat32NEONAsm(SB), NOSPLIT, $0-32
 	MOVD out+0(FP), R0
 	MOVD input+8(FP), R1
 	FMOVS scale+16(FP), F31
 	VDUP V31.S[0], V31.S4
-	MOVD count+20(FP), R2
+	MOVD count+24(FP), R2
 
 math_inv_loop4:
 	CMP  $4, R2

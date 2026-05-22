@@ -2,16 +2,21 @@
 // NEON float32 shape kernels: contiguous copy, where, masked fill.
 #include "textflag.h"
 
-#define VBSL_B16(m, n, d) WORD $(0x6E601C00 | ((m) << 16) | ((n) << 5) | (d))
-#define VADD_I32(m, n, d) WORD $(0x4EA08400 | ((m) << 16) | ((n) << 5) | (d))
-#define VSUB_I32(m, n, d) WORD $(0x6EA08400 | ((m) << 16) | ((n) << 5) | (d))
-#define VCGT_I32(m, n, d) WORD $(0x6EA0E800 | ((m) << 16) | ((n) << 5) | (d))
+#define VAND_B16(m, n, d) WORD $(0x4E201C00 | ((m) << 16) | ((n) << 5) | (d))
+#define VBIC_B16(m, n, d) WORD $(0x6E601C00 | ((m) << 16) | ((n) << 5) | (d))
+#define VORR_B16(m, n, d) WORD $(0x6EA01C00 | ((m) << 16) | ((n) << 5) | (d))
 
 DATA shapeMaskBit4<>+0(SB)/4, $1
 DATA shapeMaskBit4<>+4(SB)/4, $2
 DATA shapeMaskBit4<>+8(SB)/4, $4
 DATA shapeMaskBit4<>+12(SB)/4, $8
 GLOBL shapeMaskBit4<>(SB), RODATA|NOPTR, $16
+
+DATA shapeAllOnes4<>+0(SB)/4, $-1
+DATA shapeAllOnes4<>+4(SB)/4, $-1
+DATA shapeAllOnes4<>+8(SB)/4, $-1
+DATA shapeAllOnes4<>+12(SB)/4, $-1
+GLOBL shapeAllOnes4<>(SB), RODATA|NOPTR, $16
 
 // func CopyContiguousFloat32NEONAsm(dst, src *float32, count int)
 TEXT ·CopyContiguousFloat32NEONAsm(SB), NOSPLIT, $0-24
@@ -57,8 +62,8 @@ shape_copy_scalar_loop:
 shape_copy_done:
 	RET
 
-// Build V8.S4 lane mask (all-ones where bit set) from R10 mask byte and R11 bit offset.
-// Clobbers R10-R12, V8-V10, V14-V15.
+// Build V13.S4 lane mask (all-ones where bit set) from R10 mask byte and R11 bit offset.
+// Clobbers R10-R12, R15, V10-V16.
 #define SHAPE_MASK4_R10_R11 \
 	LSRW R11, R10, R12; \
 	ANDW $0xF, R12; \
@@ -67,7 +72,10 @@ shape_copy_done:
 	VLD1 (R15), [V14.S4]; \
 	VAND V10.B16, V14.B16, V15.B16; \
 	VEOR V9.B16, V9.B16, V9.B16; \
-	VCGT_I32(9, 15, 8)
+	VCEQ_S4(9, 15, 16); \
+	MOVD $shapeAllOnes4<>(SB), R15; \
+	VLD1 (R15), [V14.S4]; \
+	VBIC_B16(16, 14, 13)
 
 // func WhereFloat32NEONAsm(dst, positive, negative *float32, mask *byte, count int)
 TEXT ·WhereFloat32NEONAsm(SB), NOSPLIT, $0-40
@@ -81,7 +89,7 @@ TEXT ·WhereFloat32NEONAsm(SB), NOSPLIT, $0-40
 
 shape_where_loop4:
 	CMP  $4, R4
-	BLT  shape_where_done
+	BLT  shape_where_scalar_tail
 
 shape_where_load:
 	CBNZ R5, shape_where_use
@@ -95,8 +103,10 @@ shape_where_use:
 
 	VLD1 (R1), [V0.S4]
 	VLD1 (R2), [V1.S4]
-	VBSL  V8.B16, V0.B16, V1.B16
-	VST1 [V8.S4], (R0)
+	VAND_B16(13, 0, 4)
+	VBIC_B16(13, 1, 5)
+	VORR_B16(5, 4, 0)
+	VST1 [V0.S4], (R0)
 
 	ADD  $16, R0
 	ADD  $16, R1
@@ -111,6 +121,43 @@ shape_where_use:
 shape_where_no_advance:
 	SUB  $4, R4
 	B    shape_where_loop4
+
+shape_where_scalar_tail:
+	CBZ  R4, shape_where_done
+
+shape_where_scalar_loop:
+	CBNZ R5, shape_where_scalar_use
+
+	MOVBU (R3), R6
+
+shape_where_scalar_use:
+	MOVW  R6, R10
+	MOVW  R5, R11
+	LSRW  R11, R10, R12
+	ANDW  $1, R12
+	CBZ   R12, shape_where_scalar_neg
+
+	FMOVS (R1), F0
+	B     shape_where_scalar_store
+
+shape_where_scalar_neg:
+	FMOVS (R2), F0
+
+shape_where_scalar_store:
+	FMOVS F0, (R0)
+	ADD  $4, R0
+	ADD  $4, R1
+	ADD  $4, R2
+	ADD  $1, R5
+	CMP  $8, R5
+	BLT  shape_where_scalar_no_advance
+
+	MOVD  $0, R5
+	ADD  $1, R3
+
+shape_where_scalar_no_advance:
+	SUB  $1, R4
+	CBNZ R4, shape_where_scalar_loop
 
 shape_where_done:
 	RET
@@ -128,7 +175,7 @@ TEXT ·MaskedFillFloat32NEONAsm(SB), NOSPLIT, $0-36
 
 shape_mfill_loop4:
 	CMP  $4, R4
-	BLT  shape_mfill_done
+	BLT  shape_mfill_scalar_tail
 
 shape_mfill_load:
 	CBNZ R5, shape_mfill_use
@@ -141,8 +188,10 @@ shape_mfill_use:
 	SHAPE_MASK4_R10_R11
 
 	VLD1 (R1), [V0.S4]
-	VBSL  V8.B16, V31.B16, V0.B16
-	VST1 [V8.S4], (R0)
+	VAND_B16(13, 31, 4)
+	VBIC_B16(13, 0, 5)
+	VORR_B16(5, 4, 0)
+	VST1 [V0.S4], (R0)
 
 	ADD  $16, R0
 	ADD  $16, R1
@@ -156,6 +205,42 @@ shape_mfill_use:
 shape_mfill_no_advance:
 	SUB  $4, R4
 	B    shape_mfill_loop4
+
+shape_mfill_scalar_tail:
+	CBZ  R4, shape_mfill_done
+
+shape_mfill_scalar_loop:
+	CBNZ R5, shape_mfill_scalar_use
+
+	MOVBU (R3), R6
+
+shape_mfill_scalar_use:
+	MOVW  R6, R10
+	MOVW  R5, R11
+	LSRW  R11, R10, R12
+	ANDW  $1, R12
+	CBZ   R12, shape_mfill_scalar_keep
+
+	FMOVS F31, F0
+	B     shape_mfill_scalar_store
+
+shape_mfill_scalar_keep:
+	FMOVS (R1), F0
+
+shape_mfill_scalar_store:
+	FMOVS F0, (R0)
+	ADD  $4, R0
+	ADD  $4, R1
+	ADD  $1, R5
+	CMP  $8, R5
+	BLT  shape_mfill_scalar_no_advance
+
+	MOVD  $0, R5
+	ADD  $1, R3
+
+shape_mfill_scalar_no_advance:
+	SUB  $1, R4
+	CBNZ R4, shape_mfill_scalar_loop
 
 shape_mfill_done:
 	RET

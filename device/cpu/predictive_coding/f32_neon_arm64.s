@@ -61,7 +61,7 @@ pc_pred_row:
 	CBZ  R9, pc_pred_done
 
 	VEOR V16.B16, V16.B16, V16.B16
-	VEOR V17.B16, V17.B16, V17.B16
+	FMOVD $0, F14
 	MOVD R11, R0
 	MOVD R12, R1
 	MOVD R8, R2
@@ -76,8 +76,8 @@ pc_pred_dot_loop4:
 	FCVTL2_2D(0, 9)
 	FCVTL_2D(4, 10)
 	FCVTL2_2D(4, 11)
-	VFMLA_D2(8, 10, 16)
-	VFMLA_D2(9, 11, 17)
+	VFMLA_D2(10, 8, 16)
+	VFMLA_D2(11, 9, 16)
 	SUB  $4, R2
 	B    pc_pred_dot_loop4
 
@@ -90,15 +90,15 @@ pc_pred_dot_tail_loop:
 	FCVTSD F0, F0
 	FCVTSD F1, F1
 	FMULD F1, F0, F0
-	FADDD F0, F16, F16
+	FADDD F0, F14, F14
 	ADD  $4, R0
 	ADD  $4, R1
 	SUB  $1, R2
 	CBNZ R2, pc_pred_dot_tail_loop
 
 pc_pred_dot_reduce:
-	VFADD_D2(17, 16, 16)
 	FADDP_D(16, 0)
+	FADDD F0, F14, F0
 	FCVTDS F0, F0
 	FMOVS F0, (R13)
 	ADD  $4, R13

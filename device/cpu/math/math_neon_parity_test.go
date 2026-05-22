@@ -62,7 +62,7 @@ func TestLogSumExpRowF32NEONParity(t *testing.T) {
 				got := logSumExpRowF32NEON(row)
 
 				parity.AssertFloat32SlicesWithinULP(t, []float32{got}, []float32{want}, mathNEONMaxULP)
-			})
+			}
 		})
 	})
 }
@@ -132,7 +132,7 @@ func TestOuterF32NEONParity(t *testing.T) {
 				OuterFloat32NEONAsm(&got[0], &left[0], &right[0], leftLen, rightLen)
 
 				parity.AssertFloat32SlicesWithinULP(t, got, want, 0)
-			})
+			}
 		})
 	})
 }

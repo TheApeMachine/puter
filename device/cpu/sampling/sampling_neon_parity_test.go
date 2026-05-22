@@ -37,7 +37,7 @@ func TestGreedySampleF32NEONParity(t *testing.T) {
 				if got != want {
 					t.Fatalf("direct asm N=%d got=%d want=%d", length, got, want)
 				}
-			})
+			}
 		})
 	})
 }
@@ -71,7 +71,7 @@ func TestSamplingSoftmaxRowF32NEONParity(t *testing.T) {
 				)
 
 				parity.AssertFloat32SlicesWithinULP(t, got, want, samplingNEONMaxULP)
-			})
+			}
 		})
 	})
 }

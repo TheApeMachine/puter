@@ -101,15 +101,14 @@ sam_greedy_find_loop4:
 
 	VLD1.P 16(R0), [V0.S4]
 	VFCMEQ_S4(16, 0, 1)
-	MOVD RSP, R9
-	VST1 [V1.S4], (R9)
-	MOVW (R9), R2
+	VST1 [V1.S4], (RSP)
+	MOVW (RSP), R2
 	CBNZ R2, sam_greedy_found_lane0
-	MOVW 4(R9), R2
+	MOVW 4(RSP), R2
 	CBNZ R2, sam_greedy_found_lane1
-	MOVW 8(R9), R2
+	MOVW 8(RSP), R2
 	CBNZ R2, sam_greedy_found_lane2
-	MOVW 12(R9), R2
+	MOVW 12(RSP), R2
 	CBNZ R2, sam_greedy_found_lane3
 	ADD  $4, R8
 	SUB  $4, R1

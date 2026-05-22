@@ -5,7 +5,9 @@
 #define VFADD_S4(m, n, d) WORD $(0x4E20D400 | ((m) << 16) | ((n) << 5) | (d))
 #define VFMUL_S4(m, n, d) WORD $(0x6E20DC00 | ((m) << 16) | ((n) << 5) | (d))
 #define VFSUB_S4(m, n, d) WORD $(0x4EA0D400 | ((m) << 16) | ((n) << 5) | (d))
-#define VBSL_B16(m, n, d) WORD $(0x6E601C00 | ((m) << 16) | ((n) << 5) | (d))
+#define VAND_B16(m, n, d) WORD $(0x4E201C00 | ((m) << 16) | ((n) << 5) | (d))
+#define VBIC_B16(m, n, d) WORD $(0x4E601C00 | ((m) << 16) | ((n) << 5) | (d))
+#define VORR_B16(m, n, d) WORD $(0x4EA01C00 | ((m) << 16) | ((n) << 5) | (d))
 #define VADD_I32(m, n, d) WORD $(0x4EA08400 | ((m) << 16) | ((n) << 5) | (d))
 #define VSUB_I32(m, n, d) WORD $(0x6EA08400 | ((m) << 16) | ((n) << 5) | (d))
 #define VSCVTF_S32(n, d)  WORD $(0x6E21D800 | ((n) << 5) | (d))
@@ -87,13 +89,15 @@ mask_apply_done:
 	RET
 
 // func CausalMaskFloat32NEONAsm(output *float32, seqQ, seqK int)
-TEXT ·CausalMaskFloat32NEONAsm(SB), NOSPLIT, $0-24
+TEXT ·CausalMaskFloat32NEONAsm(SB), NOSPLIT, $8-24
 	MOVD output+0(FP), R0
 	MOVD seqQ+8(FP), R1
 	MOVD seqK+16(FP), R2
 	MOVD $0, R3
 	MOVD $maskZero<>(SB), R10
 	MOVD $maskNegInf<>(SB), R11
+	MOVD $0xFF800000, R12
+	MOVD R12, 0(RSP)
 	VLD1 (R10), [V0.S4]
 	VLD1 (R11), [V1.S4]
 
@@ -148,7 +152,7 @@ causal_inf_scalar_tail:
 	CBZ  R5, causal_next_row
 
 causal_inf_scalar_loop:
-	FMOVS (R11), F0
+	FMOVS 0(RSP), F0
 	FMOVS F0, (R0)
 	ADD  $4, R0
 	SUB  $1, R5
@@ -196,8 +200,10 @@ alibi_col:
 	VFCMGE_S4_zero(10, 8)
 	VFMUL_S4(31, 10, 10)
 	VFSUB_S4(10, 0, 1)
-	VBSL_B16(8, 1, 0)
-	VST1 [V8.S4], (R2)
+	VAND_B16(8, 1, 4)
+	VBIC_B16(8, 0, 5)
+	VORR_B16(5, 4, 0)
+	VST1 [V0.S4], (R2)
 
 	ADD  $16, R0
 	ADD  $16, R2

@@ -125,7 +125,7 @@ func TestPrecisionWeightF32NEONParity(t *testing.T) {
 				PrecisionWeightFloat32NEONAsm(&errors[0], &precision[0], &got[0], length)
 
 				parity.AssertFloat32SlicesWithinULP(t, got, want, activeInferenceScalarMaxULP)
-			})
+			}
 		})
 	})
 }

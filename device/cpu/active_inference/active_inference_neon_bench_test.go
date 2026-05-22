@@ -40,11 +40,3 @@ func BenchmarkExpectedFreeEnergyF32NEON(b *testing.B) {
 		)
 	}
 }
-
-func BenchmarkFreeEnergyFloat32Scalar(b *testing.B) {
-	likelihood, posterior, prior := randomActiveInferenceVectors(8192, 0xA404)
-
-	for b.Loop() {
-		_ = FreeEnergyFloat32Scalar(likelihood, posterior, prior)
-	}
-}
