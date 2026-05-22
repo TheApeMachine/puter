@@ -6,7 +6,6 @@ import (
 	"math"
 
 	"github.com/theapemachine/puter/device/cpu/elementwise"
-	"golang.org/x/sys/cpu"
 )
 
 func Laplacian1DFloat32Native(input, out []float32, invH2 float32) {
@@ -25,18 +24,14 @@ func Laplacian1DFloat32Native(input, out []float32, invH2 float32) {
 	interiorCount := elementCount - 2
 
 	if interiorCount > 0 {
-		blockCount := 0
-
-		if cpu.X86.HasAVX512F {
-			blockCount = interiorCount &^ 7
-		}
-
-		if blockCount > 0 {
-			Laplacian1DStencilF32AVX512Asm(
-				&out[1], &input[0], &input[1], &input[2],
-				invH2, blockCount,
-			)
-		}
+		blockCount := runLaplacian1DInterior(
+			out[1:1+interiorCount],
+			input[0:elementCount-1],
+			input[1:elementCount-1],
+			input[2:],
+			invH2,
+			interiorCount,
+		)
 
 		for index := 1 + blockCount; index < elementCount-1; index++ {
 			left := input[index-1]
@@ -142,25 +137,17 @@ func Laplacian4Float32Native(input, out []float32, invDen float32) {
 	}
 
 	interiorCount := elementCount - 4
-	blockCount := 0
-
-	if cpu.X86.HasAVX512F {
-		blockCount = interiorCount &^ 7
-	}
-
-	if blockCount > 0 {
-		baseIndex := 2
-		Laplacian4StencilF32AVX512Asm(
-			&out[baseIndex],
-			&input[baseIndex-2],
-			&input[baseIndex-1],
-			&input[baseIndex],
-			&input[baseIndex+1],
-			&input[baseIndex+2],
-			invDen,
-			blockCount,
-		)
-	}
+	baseIndex := 2
+	blockCount := runLaplacian4Interior(
+		out[baseIndex:baseIndex+interiorCount],
+		input[baseIndex-2:baseIndex-2+interiorCount],
+		input[baseIndex-1:baseIndex-1+interiorCount],
+		input[baseIndex:baseIndex+interiorCount],
+		input[baseIndex+1:baseIndex+1+interiorCount],
+		input[baseIndex+2:baseIndex+2+interiorCount],
+		invDen,
+		interiorCount,
+	)
 
 	for index := 2 + blockCount; index < elementCount-2; index++ {
 		um2 := input[index-2]
@@ -197,18 +184,13 @@ func Grad1DFloat32Native(input, out []float32, invTwoDx float32) {
 	interiorCount := elementCount - 2
 
 	if interiorCount > 0 {
-		blockCount := 0
-
-		if cpu.X86.HasAVX512F {
-			blockCount = interiorCount &^ 7
-		}
-
-		if blockCount > 0 {
-			Grad1DStencilF32AVX512Asm(
-				&out[1], &input[0], &input[2],
-				invTwoDx, blockCount,
-			)
-		}
+		blockCount := runGrad1DInterior(
+			out[1:1+interiorCount],
+			input[0:elementCount-1],
+			input[2:],
+			invTwoDx,
+			interiorCount,
+		)
 
 		for index := 1 + blockCount; index < elementCount-1; index++ {
 			out[index] = (input[index+1] - input[index-1]) * invTwoDx
@@ -227,18 +209,13 @@ func CentralDifferenceInteriorFloat32Native(input, out []float32, invTwoDx float
 	}
 
 	interiorCount := elementCount - 2
-	blockCount := 0
-
-	if cpu.X86.HasAVX512F {
-		blockCount = interiorCount &^ 7
-	}
-
-	if blockCount > 0 {
-		Grad1DStencilF32AVX512Asm(
-			&out[1], &input[0], &input[2],
-			invTwoDx, blockCount,
-		)
-	}
+	blockCount := runGrad1DInterior(
+		out[1:1+interiorCount],
+		input[0:elementCount-1],
+		input[2:],
+		invTwoDx,
+		interiorCount,
+	)
 
 	for index := 1 + blockCount; index < elementCount-1; index++ {
 		out[index] = (input[index+1] - input[index-1]) * invTwoDx
@@ -279,22 +256,14 @@ func QuantumPotentialFloat32Native(
 	}
 
 	interiorCount := elementCount - 2
-	blockCount := 0
-
-	if cpu.X86.HasAVX512F {
-		blockCount = interiorCount &^ 7
-	}
-
-	if blockCount > 0 {
-		Laplacian1DStencilF32AVX512Asm(
-			&laplacian[1],
-			&sqrtRho[0],
-			&sqrtRho[1],
-			&sqrtRho[2],
-			invH2,
-			blockCount,
-		)
-	}
+	blockCount := runLaplacian1DInterior(
+		laplacian[1:1+interiorCount],
+		sqrtRho[0:elementCount-1],
+		sqrtRho[1:elementCount-1],
+		sqrtRho[2:],
+		invH2,
+		interiorCount,
+	)
 
 	for index := 1 + blockCount; index < elementCount-1; index++ {
 		laplacian[index] = (sqrtRho[index+1] - 2*sqrtRho[index] + sqrtRho[index-1]) * invH2

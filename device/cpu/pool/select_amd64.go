@@ -20,11 +20,41 @@ func Pool2DFloat32Native(
 	inputView := float32View(input, inputLength)
 	outputView := float32View(output, outputLength)
 
-	if poolConfigNEONEligible(config) && cpu.X86.HasAVX512F {
-		pool2DFloat32FastRowAVX512Native(
+	if !poolConfigNEONEligible(config) {
+		Pool2DFloat32Scalar(
 			config, inputView, outputView,
 			batch, channels, inHeight, inWidth, outHeight, outWidth,
 			useMax,
+		)
+
+		return
+	}
+
+	if cpu.X86.HasAVX512F {
+		pool2DFloat32FastRowNative(
+			config, inputView, outputView,
+			batch, channels, inHeight, inWidth, outHeight, outWidth,
+			useMax, poolF32AVX512Kernels,
+		)
+
+		return
+	}
+
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		pool2DFloat32FastRowNative(
+			config, inputView, outputView,
+			batch, channels, inHeight, inWidth, outHeight, outWidth,
+			useMax, poolF32AVX2Kernels,
+		)
+
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		pool2DFloat32FastRowNative(
+			config, inputView, outputView,
+			batch, channels, inHeight, inWidth, outHeight, outWidth,
+			useMax, poolF32SSE2Kernels,
 		)
 
 		return
@@ -43,61 +73,11 @@ func pool2DFloat32FastRowAVX512Native(
 	batch, channels, inHeight, inWidth, outHeight, outWidth int,
 	useMax bool,
 ) {
-	strideTwo := config.StrideH == 2 && config.StrideW == 2
-
-	for batchIndex := range batch {
-		for channelIndex := range channels {
-			channelOffsetIn := (batchIndex*channels + channelIndex) * inHeight * inWidth
-			channelOffsetOut := (batchIndex*channels + channelIndex) * outHeight * outWidth
-			channel := inputView[channelOffsetIn : channelOffsetIn+inHeight*inWidth]
-			outChannel := outputView[channelOffsetOut : channelOffsetOut+outHeight*outWidth]
-
-			for outRow := range outHeight {
-				outputRow := outChannel[outRow*outWidth : (outRow+1)*outWidth]
-				blockCols := len(outputRow) &^ 3
-				ihStart := outRow*config.StrideH - config.PaddingH
-
-				if blockCols > 0 && strideTwo && useMax {
-					MaxPool2x2Stride2RowAVX512Asm(
-						&outputRow[0], &channel[0],
-						blockCols, inWidth, ihStart,
-					)
-				}
-
-				if blockCols > 0 && strideTwo && !useMax {
-					AvgPool2x2Stride2RowAVX512Asm(
-						&outputRow[0], &channel[0],
-						blockCols, inWidth, ihStart,
-					)
-				}
-
-				if blockCols > 0 && !strideTwo {
-					if useMax {
-						MaxPool2DStride1RowAVX512Asm(
-							&outputRow[0], &channel[0],
-							blockCols, config.KernelH, config.KernelW,
-							inWidth, ihStart,
-						)
-					}
-
-					if !useMax {
-						AvgPool2DStride1RowAVX512Asm(
-							&outputRow[0], &channel[0],
-							blockCols, config.KernelH, config.KernelW,
-							inWidth, ihStart,
-						)
-					}
-				}
-
-				for outCol := blockCols; outCol < outWidth; outCol++ {
-					outputRow[outCol] = poolWindow(
-						channel, inHeight, inWidth,
-						outRow, outCol, config, useMax,
-					)
-				}
-			}
-		}
-	}
+	pool2DFloat32FastRowNative(
+		config, inputView, outputView,
+		batch, channels, inHeight, inWidth, outHeight, outWidth,
+		useMax, poolF32AVX512Kernels,
+	)
 }
 
 func PoolWindowMaxFloat32Native(

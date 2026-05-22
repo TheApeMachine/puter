@@ -1,0 +1,283 @@
+#include "textflag.h"
+
+DATA phyAvx2C16<>+0(SB)/4, $0x41800000
+DATA phyAvx2C16<>+4(SB)/4, $0x41800000
+DATA phyAvx2C16<>+8(SB)/4, $0x41800000
+DATA phyAvx2C16<>+12(SB)/4, $0x41800000
+GLOBL phyAvx2C16<>(SB), RODATA|NOPTR, $16
+
+DATA phyAvx2Cm30<>+0(SB)/4, $0xC1F00000
+DATA phyAvx2Cm30<>+4(SB)/4, $0xC1F00000
+DATA phyAvx2Cm30<>+8(SB)/4, $0xC1F00000
+DATA phyAvx2Cm30<>+12(SB)/4, $0xC1F00000
+GLOBL phyAvx2Cm30<>(SB), RODATA|NOPTR, $16
+
+DATA phyAvx2Cm1<>+0(SB)/4, $0xBF800000
+DATA phyAvx2Cm1<>+4(SB)/4, $0xBF800000
+DATA phyAvx2Cm1<>+8(SB)/4, $0xBF800000
+DATA phyAvx2Cm1<>+12(SB)/4, $0xBF800000
+GLOBL phyAvx2Cm1<>(SB), RODATA|NOPTR, $16
+
+// func Laplacian1DStencilF32AVX2Asm(out, left, center, right *float32, invH2 float32, n int)
+TEXT ·Laplacian1DStencilF32AVX2Asm(SB), NOSPLIT, $0-48
+	MOVQ out+0(FP), R8
+	MOVQ left+8(FP), R9
+	MOVQ center+16(FP), R10
+	MOVQ right+24(FP), R11
+	MOVSS invH2+32(FP), X0
+	VBROADCASTSS X0, Y7
+
+	MOVQ n+40(FP), CX
+	TESTQ CX, CX
+	JZ   lap1_avx2_done
+
+lap1_avx2_w8:
+	CMPQ CX, $8
+	JL   lap1_avx2_w4
+
+	VMOVUPS (R9), Y0
+	VMOVUPS (R11), Y1
+	VADDPS  Y1, Y0, Y0
+	VMOVUPS (R10), Y1
+	VADDPS  Y1, Y1, Y1
+	VSUBPS  Y1, Y0, Y0
+	VMULPS  Y7, Y0, Y0
+	VMOVUPS Y0, (R8)
+
+	ADDQ $32, R8
+	ADDQ $32, R9
+	ADDQ $32, R10
+	ADDQ $32, R11
+	SUBQ $8, CX
+	JMP  lap1_avx2_w8
+
+lap1_avx2_w4:
+	CMPQ CX, $4
+	JL   lap1_avx2_tail
+
+	VMOVUPS (R9), X0
+	VMOVUPS (R11), X1
+	VADDPS  X1, X0, X0
+	VMOVUPS (R10), X1
+	VADDPS  X1, X1, X1
+	VSUBPS  X1, X0, X0
+	VEXTRACTF128 $0, Y7, X1
+	VMULPS  X1, X0, X0
+	VMOVUPS X0, (R8)
+
+	ADDQ $16, R8
+	ADDQ $16, R9
+	ADDQ $16, R10
+	ADDQ $16, R11
+	SUBQ $4, CX
+	JMP  lap1_avx2_w4
+
+lap1_avx2_tail:
+	TESTQ CX, CX
+	JZ   lap1_avx2_done
+
+lap1_avx2_scalar:
+	MOVSS (R9), X0
+	MOVSS (R11), X1
+	ADDSS X1, X0
+	MOVSS (R10), X1
+	ADDSS X1, X1
+	SUBSS X1, X0
+	MULSS X7, X0
+	MOVSS X0, (R8)
+	ADDQ  $4, R8
+	ADDQ  $4, R9
+	ADDQ  $4, R10
+	ADDQ  $4, R11
+	DECQ  CX
+	JNZ  lap1_avx2_scalar
+
+lap1_avx2_done:
+	RET
+
+// func Grad1DStencilF32AVX2Asm(out, left, right *float32, invTwoDx float32, n int)
+TEXT ·Grad1DStencilF32AVX2Asm(SB), NOSPLIT, $0-40
+	MOVQ out+0(FP), R8
+	MOVQ left+8(FP), R9
+	MOVQ right+16(FP), R10
+	MOVSS invTwoDx+24(FP), X0
+	VBROADCASTSS X0, Y7
+
+	MOVQ n+32(FP), CX
+	TESTQ CX, CX
+	JZ   grad_avx2_done
+
+grad_avx2_w8:
+	CMPQ CX, $8
+	JL   grad_avx2_w4
+
+	VMOVUPS (R10), Y0
+	VMOVUPS (R9), Y1
+	VSUBPS  Y1, Y0, Y0
+	VMULPS  Y7, Y0, Y0
+	VMOVUPS Y0, (R8)
+
+	ADDQ $32, R8
+	ADDQ $32, R9
+	ADDQ $32, R10
+	SUBQ $8, CX
+	JMP  grad_avx2_w8
+
+grad_avx2_w4:
+	CMPQ CX, $4
+	JL   grad_avx2_tail
+
+	VMOVUPS (R10), X0
+	VMOVUPS (R9), X1
+	VSUBPS  X1, X0, X0
+	VEXTRACTF128 $0, Y7, X1
+	VMULPS  X1, X0, X0
+	VMOVUPS X0, (R8)
+
+	ADDQ $16, R8
+	ADDQ $16, R9
+	ADDQ $16, R10
+	SUBQ $4, CX
+	JMP  grad_avx2_w4
+
+grad_avx2_tail:
+	TESTQ CX, CX
+	JZ   grad_avx2_done
+
+grad_avx2_scalar:
+	MOVSS (R10), X0
+	MOVSS (R9), X1
+	SUBSS X1, X0
+	MULSS X7, X0
+	MOVSS X0, (R8)
+	ADDQ  $4, R8
+	ADDQ  $4, R9
+	ADDQ  $4, R10
+	DECQ  CX
+	JNZ  grad_avx2_scalar
+
+grad_avx2_done:
+	RET
+
+// func Laplacian4StencilF32AVX2Asm(out, um2, um1, u0, up1, up2 *float32, invDen float32, n int)
+TEXT ·Laplacian4StencilF32AVX2Asm(SB), NOSPLIT, $0-64
+	MOVQ out+0(FP), R8
+	MOVQ um2+8(FP), R9
+	MOVQ um1+16(FP), R10
+	MOVQ u0+24(FP), R11
+	MOVQ up1+32(FP), R12
+	MOVQ up2+40(FP), R13
+	MOVSS invDen+48(FP), X0
+	VBROADCASTSS X0, Y7
+
+	VMOVUPS phyAvx2C16<>(SB), Y4
+	VMOVUPS phyAvx2Cm30<>(SB), Y5
+	VMOVUPS phyAvx2Cm1<>(SB), Y6
+
+	MOVQ n+56(FP), CX
+	TESTQ CX, CX
+	JZ   lap4_avx2_done
+
+lap4_avx2_w8:
+	CMPQ CX, $8
+	JL   lap4_avx2_w4
+
+	VMOVUPS (R10), Y0
+	VMULPS  Y4, Y0, Y0
+	VMOVUPS (R11), Y1
+	VMULPS  Y5, Y1, Y1
+	VADDPS  Y1, Y0, Y0
+	VMOVUPS (R12), Y1
+	VMULPS  Y4, Y1, Y1
+	VADDPS  Y1, Y0, Y0
+	VMOVUPS (R9), Y1
+	VMULPS  Y6, Y1, Y1
+	VADDPS  Y1, Y0, Y0
+	VMOVUPS (R13), Y1
+	VMULPS  Y6, Y1, Y1
+	VADDPS  Y1, Y0, Y0
+	VMULPS  Y7, Y0, Y0
+	VMOVUPS Y0, (R8)
+
+	ADDQ $32, R8
+	ADDQ $32, R9
+	ADDQ $32, R10
+	ADDQ $32, R11
+	ADDQ $32, R12
+	ADDQ $32, R13
+	SUBQ $8, CX
+	JMP  lap4_avx2_w8
+
+lap4_avx2_w4:
+	CMPQ CX, $4
+	JL   lap4_avx2_tail
+
+	VMOVUPS (R10), X0
+	VEXTRACTF128 $0, Y4, X1
+	VMULPS  X1, X0, X0
+	VMOVUPS (R11), X1
+	VEXTRACTF128 $0, Y5, X2
+	VMULPS  X2, X1, X1
+	VADDPS  X1, X0, X0
+	VMOVUPS (R12), X1
+	VEXTRACTF128 $0, Y4, X2
+	VMULPS  X2, X1, X1
+	VADDPS  X1, X0, X0
+	VMOVUPS (R9), X1
+	VEXTRACTF128 $0, Y6, X2
+	VMULPS  X2, X1, X1
+	VADDPS  X1, X0, X0
+	VMOVUPS (R13), X1
+	VEXTRACTF128 $0, Y6, X2
+	VMULPS  X2, X1, X1
+	VADDPS  X1, X0, X0
+	VEXTRACTF128 $0, Y7, X1
+	VMULPS  X1, X0, X0
+	VMOVUPS X0, (R8)
+
+	ADDQ $16, R8
+	ADDQ $16, R9
+	ADDQ $16, R10
+	ADDQ $16, R11
+	ADDQ $16, R12
+	ADDQ $16, R13
+	SUBQ $4, CX
+	JMP  lap4_avx2_w4
+
+lap4_avx2_tail:
+	TESTQ CX, CX
+	JZ   lap4_avx2_done
+
+lap4_avx2_scalar:
+	MOVSS (R10), X0
+	MOVSS phyAvx2C16<>(SB), X1
+	MULSS X1, X0
+	MOVSS (R11), X1
+	MOVSS phyAvx2Cm30<>(SB), X2
+	MULSS X2, X1
+	ADDSS X1, X0
+	MOVSS (R12), X1
+	MOVSS phyAvx2C16<>(SB), X2
+	MULSS X2, X1
+	ADDSS X1, X0
+	MOVSS (R9), X1
+	MOVSS phyAvx2Cm1<>(SB), X2
+	MULSS X2, X1
+	ADDSS X1, X0
+	MOVSS (R13), X1
+	MOVSS phyAvx2Cm1<>(SB), X2
+	MULSS X2, X1
+	ADDSS X1, X0
+	MULSS X7, X0
+	MOVSS X0, (R8)
+	ADDQ  $4, R8
+	ADDQ  $4, R9
+	ADDQ  $4, R10
+	ADDQ  $4, R11
+	ADDQ  $4, R12
+	ADDQ  $4, R13
+	DECQ  CX
+	JNZ  lap4_avx2_scalar
+
+lap4_avx2_done:
+	RET

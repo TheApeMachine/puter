@@ -2,19 +2,12 @@
 
 package vsa
 
-import "golang.org/x/sys/cpu"
-
 func VsaBindFloat32Native(out, left, right []float32) {
 	if len(out) == 0 {
 		return
 	}
 
-	if cpu.X86.HasAVX512F {
-		VsaBindF32AVX512(&out[0], &left[0], &right[0], len(out))
-		return
-	}
-
-	VsaBindFloat32Scalar(out, left, right)
+	simdBindNative(out, left, right)
 }
 
 func VsaBundleFloat32Native(out, left, right []float32) {
@@ -22,12 +15,7 @@ func VsaBundleFloat32Native(out, left, right []float32) {
 		return
 	}
 
-	if cpu.X86.HasAVX512F {
-		VsaBundleF32AVX512(&out[0], &left[0], &right[0], len(out))
-		return
-	}
-
-	VsaBundleFloat32Scalar(out, left, right)
+	simdBundleNative(out, left, right)
 }
 
 func VsaPermuteFloat32Native(out, in []float32, shift int) {
@@ -39,6 +27,7 @@ func VsaPermuteFloat32Native(out, in []float32, shift int) {
 
 	if shift == 0 {
 		copyBlockNative(out, in)
+
 		return
 	}
 
@@ -59,26 +48,9 @@ func VsaSimilarityFloat32Native(left, right []float32) float32 {
 		return 0
 	}
 
-	if cpu.X86.HasAVX512F {
-		return VsaSimilarityF32AVX512(&left[0], &right[0], len(left))
-	}
-
-	return VsaSimilarityFloat32Scalar(left, right)
+	return simdSimilarityNative(left, right)
 }
 
 func copyBlockNative(dst, src []float32) {
-	elementCount := len(src)
-
-	if elementCount == 0 {
-		return
-	}
-
-	if cpu.X86.HasAVX512F {
-		VsaPermuteCopyF32AVX512(&dst[0], &src[0], elementCount)
-		return
-	}
-
-	for index := range src {
-		dst[index] = src[index]
-	}
+	simdCopyBlockNative(dst, src)
 }
