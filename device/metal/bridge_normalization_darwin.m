@@ -554,3 +554,69 @@ int metal_dispatch_batchnorm_eval(
         }
     );
 }
+
+int metal_dispatch_groupnorm_stats_float32(
+    MetalDeviceRef contextRef,
+    MetalBufferRef inputRef,
+    MetalBufferRef meanRef,
+    MetalBufferRef varianceRef,
+    uint32_t batch,
+    uint32_t channels,
+    uint32_t spatial,
+    uint32_t groups,
+    uint64_t completionToken,
+    MetalStatus* status
+) {
+    if (inputRef == NULL || meanRef == NULL || varianceRef == NULL) {
+        metal_norm_status_set(status, -2, "nil Metal buffer");
+        return -2;
+    }
+
+    return metal_norm_dispatch(
+        contextRef,
+        "groupnorm_stats_float32",
+        batch * groups,
+        completionToken,
+        status,
+        ^(id<MTLComputeCommandEncoder> encoder) {
+            [encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)meanRef offset:0 atIndex:1];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)varianceRef offset:0 atIndex:2];
+            [encoder setBytes:&channels length:sizeof(channels) atIndex:3];
+            [encoder setBytes:&spatial length:sizeof(spatial) atIndex:4];
+            [encoder setBytes:&groups length:sizeof(groups) atIndex:5];
+        }
+    );
+}
+
+int metal_dispatch_instancenorm_stats_float32(
+    MetalDeviceRef contextRef,
+    MetalBufferRef inputRef,
+    MetalBufferRef meanRef,
+    MetalBufferRef varianceRef,
+    uint32_t batch,
+    uint32_t channels,
+    uint32_t spatial,
+    uint64_t completionToken,
+    MetalStatus* status
+) {
+    if (inputRef == NULL || meanRef == NULL || varianceRef == NULL) {
+        metal_norm_status_set(status, -2, "nil Metal buffer");
+        return -2;
+    }
+
+    return metal_norm_dispatch(
+        contextRef,
+        "instancenorm_stats_float32",
+        batch * channels,
+        completionToken,
+        status,
+        ^(id<MTLComputeCommandEncoder> encoder) {
+            [encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)meanRef offset:0 atIndex:1];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)varianceRef offset:0 atIndex:2];
+            [encoder setBytes:&channels length:sizeof(channels) atIndex:3];
+            [encoder setBytes:&spatial length:sizeof(spatial) atIndex:4];
+        }
+    );
+}

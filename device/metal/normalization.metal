@@ -819,3 +819,73 @@ kernel void inv_std_dev_float32(
 
     out[index] = 1.0f / precise::sqrt(values[index]);
 }
+
+kernel void groupnorm_stats_float32(
+    device const float* input [[buffer(0)]],
+    device float* meanOut [[buffer(1)]],
+    device float* invStdDevOut [[buffer(2)]],
+    constant uint& channels [[buffer(3)]],
+    constant uint& spatial [[buffer(4)]],
+    constant uint& groups [[buffer(5)]],
+    uint row [[threadgroup_position_in_grid]],
+    uint threadIndex [[thread_position_in_threadgroup]]
+) {
+    if (threadIndex != 0) {
+        return;
+    }
+
+    uint groupIndex = row % groups;
+    uint batchIndex = row / groups;
+    uint channelsPerGroup = channels / groups;
+    uint channelStart = groupIndex * channelsPerGroup;
+    uint groupSize = channelsPerGroup * spatial;
+    uint groupOffset = (batchIndex * channels + channelStart) * spatial;
+    float sum = 0.0f;
+
+    for (uint offset = 0; offset < groupSize; offset++) {
+        sum += input[groupOffset + offset];
+    }
+
+    float mean = sum / float(groupSize);
+    float variance = 0.0f;
+
+    for (uint offset = 0; offset < groupSize; offset++) {
+        float delta = input[groupOffset + offset] - mean;
+        variance += delta * delta;
+    }
+
+    meanOut[row] = mean;
+    invStdDevOut[row] = 1.0f / precise::sqrt(variance / float(groupSize) + layerNormEpsilonMetal);
+}
+
+kernel void instancenorm_stats_float32(
+    device const float* input [[buffer(0)]],
+    device float* meanOut [[buffer(1)]],
+    device float* invStdDevOut [[buffer(2)]],
+    constant uint& channels [[buffer(3)]],
+    constant uint& spatial [[buffer(4)]],
+    uint row [[threadgroup_position_in_grid]],
+    uint threadIndex [[thread_position_in_threadgroup]]
+) {
+    if (threadIndex != 0) {
+        return;
+    }
+
+    uint rowOffset = row * spatial;
+    float sum = 0.0f;
+
+    for (uint offset = 0; offset < spatial; offset++) {
+        sum += input[rowOffset + offset];
+    }
+
+    float mean = sum / float(spatial);
+    float variance = 0.0f;
+
+    for (uint offset = 0; offset < spatial; offset++) {
+        float delta = input[rowOffset + offset] - mean;
+        variance += delta * delta;
+    }
+
+    meanOut[row] = mean;
+    invStdDevOut[row] = 1.0f / precise::sqrt(variance / float(spatial) + layerNormEpsilonMetal);
+}

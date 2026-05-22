@@ -237,3 +237,17 @@ kernel void swiglu_bfloat16(
 ) {
     swiglu_bfloat16_kernel(destination, gateVector, upVector, count, index);
 }
+
+kernel void swiglu_silu_float32(
+    device const float* inputVector [[buffer(0)]],
+    device float* outVector [[buffer(1)]],
+    constant uint& count [[buffer(2)]],
+    uint index [[thread_position_in_grid]]
+) {
+    if (index >= count) {
+        return;
+    }
+
+    float value = inputVector[index];
+    outVector[index] = value / (1.0f + metal_fast_exp32(-value));
+}

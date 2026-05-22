@@ -10,7 +10,7 @@ import (
 	"github.com/theapemachine/puter/kernels"
 )
 
-const swiGLUMaxULP uint32 = 2
+const swiGLUMaxULP uint32 = 1
 
 func TestKernelRegistry_MetalSwiGLUDTypes(testingObject *testing.T) {
 	backend := newBackendForDeviceTest(testingObject)

@@ -120,6 +120,7 @@ typedef enum MetalElementDType {
     MetalElementDTypeFloat32 = 0,
     MetalElementDTypeFloat16 = 1,
     MetalElementDTypeBFloat16 = 2,
+    MetalElementDTypeFloat64 = 3,
 } MetalElementDType;
 
 MetalDeviceRef metal_open_default_device(
@@ -987,6 +988,38 @@ int metal_dispatch_inv_std_dev_float32(
     MetalBufferRef inputRef,
     MetalBufferRef outRef,
     uint32_t count,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+int metal_dispatch_unary_named_float32(
+    MetalDeviceRef contextRef,
+    const char* kernelName,
+    MetalBufferRef inputRef,
+    MetalBufferRef outRef,
+    uint32_t count,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+int metal_dispatch_groupnorm_stats_float32(
+    MetalDeviceRef contextRef,
+    MetalBufferRef inputRef,
+    MetalBufferRef meanRef,
+    MetalBufferRef varianceRef,
+    uint32_t batch,
+    uint32_t channels,
+    uint32_t spatial,
+    uint32_t groups,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+int metal_dispatch_instancenorm_stats_float32(
+    MetalDeviceRef contextRef,
+    MetalBufferRef inputRef,
+    MetalBufferRef meanRef,
+    MetalBufferRef varianceRef,
+    uint32_t batch,
+    uint32_t channels,
+    uint32_t spatial,
     uint64_t completionToken,
     MetalStatus* status
 );

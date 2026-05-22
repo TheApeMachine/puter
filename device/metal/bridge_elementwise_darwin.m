@@ -95,6 +95,7 @@ static const char* metal_element_dtype_suffix(int elementDType) {
     case MetalElementDTypeFloat32: return "float32";
     case MetalElementDTypeFloat16: return "float16";
     case MetalElementDTypeBFloat16: return "bfloat16";
+    case MetalElementDTypeFloat64: return "float64";
     default: return NULL;
     }
 }

@@ -504,3 +504,63 @@ int metal_dispatch_inv_std_dev_float32(
         return 0;
     }
 }
+
+int metal_dispatch_unary_named_float32(
+    MetalDeviceRef contextRef,
+    const char* kernelName,
+    MetalBufferRef inputRef,
+    MetalBufferRef outRef,
+    uint32_t count,
+    uint64_t completionToken,
+    MetalStatus* status
+) {
+    @autoreleasepool {
+        metal_math_status_clear(status);
+
+        if (count == 0) {
+            return 0;
+        }
+
+        if (kernelName == NULL || inputRef == NULL || outRef == NULL) {
+            metal_math_status_set(status, -2, "nil Metal buffer");
+            return -2;
+        }
+
+        id<MTLCommandBuffer> commandBuffer = nil;
+        id<MTLComputePipelineState> pipeline = nil;
+        int prepareCode = metal_math_prepare(
+            contextRef, kernelName, status, &commandBuffer, &pipeline
+        );
+
+        if (prepareCode != 0) {
+            return prepareCode;
+        }
+
+        id<MTLComputeCommandEncoder> encoder = nil;
+        int encoderCode = metal_math_encoder(commandBuffer, pipeline, status, &encoder);
+
+        if (encoderCode != 0) {
+            return encoderCode;
+        }
+
+        [encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
+        [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:1];
+        [encoder setBytes:&count length:sizeof(count) atIndex:2];
+        NSUInteger threadWidth = [pipeline threadExecutionWidth];
+
+        if (threadWidth == 0) {
+            threadWidth = 1;
+        }
+
+        [encoder
+            dispatchThreads:MTLSizeMake((NSUInteger)count, 1, 1)
+            threadsPerThreadgroup:MTLSizeMake(threadWidth, 1, 1)
+        ];
+        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
+            metal_math_complete(completionToken, completedBuffer, nil);
+        }];
+        metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
+
+        return 0;
+    }
+}

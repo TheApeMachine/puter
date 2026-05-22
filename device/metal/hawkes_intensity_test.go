@@ -69,7 +69,7 @@ func runHawkesIntensityParityCase(
 	storageDType dtype.DType,
 	elementCount int,
 ) {
-	fixture := hawkesIntensityDTypeBytes(elementCount, storageDType)
+	fixture := hawkesIntensityDTypeBytes(testingObject, backend, elementCount, storageDType)
 	eventShape := mustShapeForTest(testingObject, []int{elementCount})
 	outShape := mustShapeForTest(testingObject, []int{elementCount})
 	events, queryTimes, baseline, alpha, beta, out := hawkesIntensityTensorsForTest(

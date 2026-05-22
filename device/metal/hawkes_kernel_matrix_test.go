@@ -70,7 +70,7 @@ func runHawkesKernelMatrixParityCase(
 	elementCount int,
 ) {
 	eventCount := hawkesMatrixEventCount(elementCount)
-	fixture := hawkesKernelMatrixDTypeBytes(elementCount, storageDType)
+	fixture := hawkesKernelMatrixDTypeBytes(testingObject, backend, elementCount, storageDType)
 	eventShape := mustShapeForTest(testingObject, []int{eventCount})
 	outShape := mustShapeForTest(testingObject, []int{eventCount, eventCount})
 	events, alpha, beta, out := hawkesKernelMatrixTensorsForTest(

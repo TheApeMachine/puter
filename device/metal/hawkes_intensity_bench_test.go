@@ -19,7 +19,7 @@ func BenchmarkKernel_RunHawkesIntensityDTypes(benchmark *testing.B) {
 		storageDType := storageDType
 
 		benchmark.Run(storageDType.Name(), func(benchmark *testing.B) {
-			fixture := hawkesIntensityDTypeBytes(elementCount, storageDType)
+			fixture := hawkesIntensityDTypeBytes(benchmark, backend, elementCount, storageDType)
 			eventShape := mustShapeForTest(benchmark, []int{elementCount})
 			outShape := mustShapeForTest(benchmark, []int{elementCount})
 			events, queryTimes, baseline, alpha, beta, out := hawkesIntensityTensorsForTest(

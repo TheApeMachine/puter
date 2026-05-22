@@ -517,3 +517,16 @@ MARKOV_MI_PARTIAL_KERNEL(markov_mutual_information_bfloat16_partial, BFloat16Haw
 HAWKES_MARKOV_FINALIZE_KERNEL(hawkes_markov_finalize_bfloat16, BFloat16HawkesMarkovStorage, ushort)
 MARKOV_PARTITION_KERNEL(markov_blanket_partition_bfloat16, BFloat16HawkesMarkovStorage, ushort)
 MARKOV_FLOW_KERNEL(markov_flow_bfloat16, BFloat16HawkesMarkovStorage, ushort)
+
+kernel void hawkes_exp_float32(
+    device const float* inputVector [[buffer(0)]],
+    device float* outVector [[buffer(1)]],
+    constant uint& count [[buffer(2)]],
+    uint index [[thread_position_in_grid]]
+) {
+    if (index >= count) {
+        return;
+    }
+
+    outVector[index] = metal_hawkes_exp32(inputVector[index]);
+}

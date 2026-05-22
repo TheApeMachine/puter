@@ -6,6 +6,7 @@ package metal
 #cgo CFLAGS: -x objective-c -fobjc-arc
 #cgo LDFLAGS: -framework Metal -framework Foundation -framework CoreFoundation
 
+#include <stdlib.h>
 #include "bridge_darwin.h"
 */
 import "C"
@@ -14,6 +15,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 	dtypeconvert "github.com/theapemachine/manifesto/dtype/convert"
@@ -106,6 +108,136 @@ func metalFMAFloat32VectorForTest(
 	return downloadFloat32ForTest(testingObject, backend, outTensor)
 }
 
+func metalUnaryNamedFloat32VectorForTest(
+	testingObject testing.TB,
+	backend *Backend,
+	kernelName string,
+	inputValues []float32,
+) []float32 {
+	testingObject.Helper()
+
+	if len(inputValues) == 0 {
+		return nil
+	}
+
+	shape := mustShapeForTest(testingObject, []int{len(inputValues)})
+	inputTensor, err := backend.Upload(shape, dtype.Float32, dtypeconvert.Float32ToBytes(inputValues))
+	if err != nil {
+		testingObject.Fatalf("Upload %s input failed: %v", kernelName, err)
+	}
+
+	defer func() {
+		if closeErr := inputTensor.Close(); closeErr != nil {
+			testingObject.Fatalf("Close %s input failed: %v", kernelName, closeErr)
+		}
+	}()
+
+	outTensor := emptyTensorForTest(testingObject, backend, shape, dtype.Float32)
+
+	defer func() {
+		if closeErr := outTensor.Close(); closeErr != nil {
+			testingObject.Fatalf("Close %s out failed: %v", kernelName, closeErr)
+		}
+	}()
+
+	if err := runMetalUnaryNamedFloat32(context.Background(), kernelName, inputTensor, outTensor); err != nil {
+		testingObject.Fatalf("runMetalUnaryNamedFloat32 %s failed: %v", kernelName, err)
+	}
+
+	return downloadFloat32ForTest(testingObject, backend, outTensor)
+}
+
+func metalSiluFloat32VectorForTest(
+	testingObject testing.TB,
+	backend *Backend,
+	inputValues []float32,
+) []float32 {
+	return metalUnaryNamedFloat32VectorForTest(testingObject, backend, "swiglu_silu_float32", inputValues)
+}
+
+func metalHawkesExpFloat32VectorForTest(
+	testingObject testing.TB,
+	backend *Backend,
+	inputValues []float32,
+) []float32 {
+	return metalUnaryNamedFloat32VectorForTest(testingObject, backend, "hawkes_exp_float32", inputValues)
+}
+
+func runMetalUnaryNamedFloat32(
+	ctx context.Context,
+	kernelName string,
+	inputTensor tensor.Tensor,
+	outTensor tensor.Tensor,
+) error {
+	inputMetal, outMetal, err := requireMetalUnaryNamedFloat32Tensors(inputTensor, outTensor)
+	if err != nil {
+		return err
+	}
+
+	if inputMetal.shape.Len() == 0 {
+		return nil
+	}
+
+	token, err := metalCompletions.Begin(outMetal, inputMetal)
+	if err != nil {
+		return err
+	}
+
+	kernelCString := C.CString(kernelName)
+	defer C.free(unsafe.Pointer(kernelCString))
+
+	status := C.MetalStatus{}
+	rc := C.metal_dispatch_unary_named_float32(
+		inputMetal.bridge.device,
+		kernelCString,
+		inputMetal.buffer,
+		outMetal.buffer,
+		C.uint32_t(inputMetal.shape.Len()),
+		C.uint64_t(token),
+		&status,
+	)
+
+	if rc != 0 {
+		dispatchErr := fmt.Errorf("metal %s: %s", kernelName, metalStatus("dispatch", status))
+		metalCompletions.Fail(token, dispatchErr)
+
+		return dispatchErr
+	}
+
+	_ = ctx
+
+	return nil
+}
+
+func requireMetalUnaryNamedFloat32Tensors(
+	inputTensor tensor.Tensor,
+	outTensor tensor.Tensor,
+) (*metalTensor, *metalTensor, error) {
+	inputMetal, err := requireMetalTensor(inputTensor)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	outMetal, err := requireMetalTensor(outTensor)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if inputMetal.dtype != dtype.Float32 || outMetal.dtype != dtype.Float32 {
+		return nil, nil, tensor.ErrDTypeMismatch
+	}
+
+	if !inputMetal.shape.Equal(outMetal.shape) {
+		return nil, nil, tensor.ErrShapeMismatch
+	}
+
+	if inputMetal.bridge != outMetal.bridge {
+		return nil, nil, fmt.Errorf("metal unary_named_float32: tensors belong to different Metal backends")
+	}
+
+	return inputMetal, outMetal, nil
+}
+
 /*
 applyNorm3DExpectedRowGPU applies fma(centered*invStdDev, scale, bias) via Metal fma_float32.
 */
@@ -136,6 +268,41 @@ func applyNorm3DExpectedRowGPU(
 	}
 
 	result := metalFMAFloat32VectorForTest(testingObject, backend, aValues, bValues, cValues)
+	copy(out, result)
+}
+
+/*
+applyNorm3DAffineSliceGPU applies fma((x-mean)*invStdDev, scale, bias) on a contiguous slice with per-element scale/bias.
+*/
+func applyNorm3DAffineSliceGPU(
+	testingObject testing.TB,
+	backend *Backend,
+	input []float32,
+	out []float32,
+	scaleByElement []float32,
+	biasByElement []float32,
+	mean float32,
+	invStdDev float32,
+) {
+	testingObject.Helper()
+
+	if len(input) == 0 {
+		return
+	}
+
+	if len(scaleByElement) != len(input) || len(biasByElement) != len(input) {
+		testingObject.Fatalf(
+			"norm affine slice lengths mismatch: input=%d scale=%d bias=%d",
+			len(input), len(scaleByElement), len(biasByElement),
+		)
+	}
+
+	aValues := make([]float32, len(input))
+	for index, value := range input {
+		aValues[index] = (value - mean) * invStdDev
+	}
+
+	result := metalFMAFloat32VectorForTest(testingObject, backend, aValues, scaleByElement, biasByElement)
 	copy(out, result)
 }
 

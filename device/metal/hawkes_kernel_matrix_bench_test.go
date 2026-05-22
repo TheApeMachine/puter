@@ -20,7 +20,7 @@ func BenchmarkKernel_RunHawkesKernelMatrixDTypes(benchmark *testing.B) {
 
 		benchmark.Run(storageDType.Name(), func(benchmark *testing.B) {
 			eventCount := hawkesMatrixEventCount(elementCount)
-			fixture := hawkesKernelMatrixDTypeBytes(elementCount, storageDType)
+			fixture := hawkesKernelMatrixDTypeBytes(benchmark, backend, elementCount, storageDType)
 			eventShape := mustShapeForTest(benchmark, []int{eventCount})
 			outShape := mustShapeForTest(benchmark, []int{eventCount, eventCount})
 			events, alpha, beta, out := hawkesKernelMatrixTensorsForTest(

@@ -17,11 +17,11 @@ const normalizationNorm3DFloat32MaxULP = 64
 func normalizationNorm3DMaxULP(name string) uint32 {
 	switch name {
 	case "groupnorm":
-		return 64
+		return 1
 	case "instancenorm":
-		return 40
+		return 1
 	case "batchnorm_eval":
-		return 64
+		return 1
 	default:
 		return normalizationNorm3DFloat32MaxULP
 	}

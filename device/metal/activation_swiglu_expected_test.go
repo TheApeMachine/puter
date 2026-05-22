@@ -5,7 +5,6 @@ import (
 
 	"github.com/theapemachine/manifesto/dtype"
 	dtypeconvert "github.com/theapemachine/manifesto/dtype/convert"
-	cpumath "github.com/theapemachine/puter/device/cpu/math"
 )
 
 type swiGLUFixture struct {
@@ -74,12 +73,8 @@ func swiGLUExpectedFloat32ForTest(
 ) []float32 {
 	testingObject.Helper()
 
-	siluValues := make([]float32, len(gateValues))
+	siluValues := metalSiluFloat32VectorForTest(testingObject, backend, gateValues)
 	zeroValues := make([]float32, len(gateValues))
-
-	for index := range gateValues {
-		siluValues[index] = cpumath.FastSilu32(gateValues[index])
-	}
 
 	return metalFMAFloat32VectorForTest(testingObject, backend, siluValues, upValues, zeroValues)
 }

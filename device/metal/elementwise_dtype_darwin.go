@@ -25,6 +25,7 @@ const (
 	metalElementDTypeFloat32 metalElementDType = iota
 	metalElementDTypeFloat16
 	metalElementDTypeBFloat16
+	metalElementDTypeFloat64
 )
 
 func metalElementDTypeFor(storageDType dtype.DType) (metalElementDType, error) {
@@ -35,6 +36,8 @@ func metalElementDTypeFor(storageDType dtype.DType) (metalElementDType, error) {
 		return metalElementDTypeFloat16, nil
 	case dtype.BFloat16:
 		return metalElementDTypeBFloat16, nil
+	case dtype.Float64:
+		return metalElementDTypeFloat64, nil
 	}
 
 	return 0, tensor.ErrDTypeMismatch

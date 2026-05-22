@@ -148,37 +148,12 @@ func expectedGroupNormValuesMetalSqrt(
 
 	groups := metalDefaultGroupNormGroups
 	channelsPerGroup := channels / groups
-	groupCount := batch * groups
-	variancePlusEpsilon := make([]float32, groupCount)
-	groupStats := make([]struct {
-		mean      float32
-		invStdDev float32
-	}, groupCount)
-
-	statsIndex := 0
-
-	for batchIndex := range batch {
-		for groupIndex := range groups {
-			channelStart := groupIndex * channelsPerGroup
-			groupStart := (batchIndex*channels + channelStart) * spatial
-			groupSize := channelsPerGroup * spatial
-			groupSlice := input[groupStart : groupStart+groupSize]
-			mean := normalizationMeanForTest(groupSlice)
-			variance := normalizationVarianceForTest(groupSlice, mean)
-			variancePlusEpsilon[statsIndex] = variance + layerNormEpsilonMetalForTest
-			groupStats[statsIndex].mean = mean
-			statsIndex++
-		}
-	}
-
-	invStdDevs := metalInvStdDevsForTest(testingObject, backend, variancePlusEpsilon)
-
-	for index := range groupCount {
-		groupStats[index].invStdDev = invStdDevs[index]
-	}
+	groupStats := metalGroupNormRowStatsForTest(
+		testingObject, backend, input, batch, channels, spatial, groups,
+	)
 
 	out := make([]float32, len(input))
-	statsIndex = 0
+	statsIndex := 0
 
 	for batchIndex := range batch {
 		for groupIndex := range groups {
@@ -186,22 +161,31 @@ func expectedGroupNormValuesMetalSqrt(
 			groupStart := (batchIndex*channels + channelStart) * spatial
 			mean := groupStats[statsIndex].mean
 			invStdDev := groupStats[statsIndex].invStdDev
+			statsIndex++
+
+			groupSize := channelsPerGroup * spatial
+			scaleByElement := make([]float32, groupSize)
+			biasByElement := make([]float32, groupSize)
 
 			for channelIndex := range channelsPerGroup {
-				start := groupStart + channelIndex*spatial
-				applyNorm3DExpectedRowGPU(
-					testingObject,
-					backend,
-					input[start:start+spatial],
-					out[start:start+spatial],
-					scale[channelStart+channelIndex],
-					bias[channelStart+channelIndex],
-					mean,
-					invStdDev,
-				)
+				channel := channelStart + channelIndex
+				for spatialIndex := range spatial {
+					index := channelIndex*spatial + spatialIndex
+					scaleByElement[index] = scale[channel]
+					biasByElement[index] = bias[channel]
+				}
 			}
 
-			statsIndex++
+			applyNorm3DAffineSliceGPU(
+				testingObject,
+				backend,
+				input[groupStart:groupStart+groupSize],
+				out[groupStart:groupStart+groupSize],
+				scaleByElement,
+				biasByElement,
+				mean,
+				invStdDev,
+			)
 		}
 	}
 
@@ -220,30 +204,9 @@ func expectedInstanceNormValuesMetalSqrt(
 ) []float32 {
 	testingObject.Helper()
 
-	rowCount := batch * channels
-	variancePlusEpsilon := make([]float32, rowCount)
-	rowStats := make([]struct {
-		mean      float32
-		invStdDev float32
-	}, rowCount)
-
-	for batchIndex := range batch {
-		for channelIndex := range channels {
-			rowIndex := batchIndex*channels + channelIndex
-			start := rowIndex * spatial
-			row := input[start : start+spatial]
-			mean := normalizationMeanForTest(row)
-			variance := normalizationVarianceForTest(row, mean)
-			variancePlusEpsilon[rowIndex] = variance + layerNormEpsilonMetalForTest
-			rowStats[rowIndex].mean = mean
-		}
-	}
-
-	invStdDevs := metalInvStdDevsForTest(testingObject, backend, variancePlusEpsilon)
-
-	for rowIndex := range rowCount {
-		rowStats[rowIndex].invStdDev = invStdDevs[rowIndex]
-	}
+	rowStats := metalInstanceNormRowStatsForTest(
+		testingObject, backend, input, batch, channels, spatial,
+	)
 
 	out := make([]float32, len(input))
 
@@ -251,13 +214,21 @@ func expectedInstanceNormValuesMetalSqrt(
 		for channelIndex := range channels {
 			rowIndex := batchIndex*channels + channelIndex
 			start := rowIndex * spatial
-			applyNorm3DExpectedRowGPU(
+			scaleByElement := make([]float32, spatial)
+			biasByElement := make([]float32, spatial)
+
+			for spatialIndex := range spatial {
+				scaleByElement[spatialIndex] = scale[channelIndex]
+				biasByElement[spatialIndex] = bias[channelIndex]
+			}
+
+			applyNorm3DAffineSliceGPU(
 				testingObject,
 				backend,
 				input[start:start+spatial],
 				out[start:start+spatial],
-				scale[channelIndex],
-				bias[channelIndex],
+				scaleByElement,
+				biasByElement,
 				rowStats[rowIndex].mean,
 				rowStats[rowIndex].invStdDev,
 			)

@@ -27,6 +27,7 @@ func init() {
 	registerBinaryFloat32Kernel("mod", metalBinaryFloat32Mod)
 	registerBinaryFloat16Kernels()
 	registerBinaryBFloat16Kernels()
+	registerBinaryFloat64Kernels()
 }
 
 /*
@@ -175,6 +176,10 @@ func registerBinaryFloat16Kernels() {
 
 func registerBinaryBFloat16Kernels() {
 	registerBinaryDTypeKernels(dtype.BFloat16)
+}
+
+func registerBinaryFloat64Kernels() {
+	registerBinaryKernel("add", dtype.Float64, runBinaryElementwise(metalBinaryFloat32Add))
 }
 
 func registerBinaryDTypeKernels(storageDType dtype.DType) {
