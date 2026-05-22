@@ -578,6 +578,7 @@ var (
 		{ReluF16Generic, "generic", true},
 	}
 	axpyF16Funcs = []uint16AxpyKernelImpl{
+		{AxpyF16NEON, "neon", true},
 		{AxpyF16Generic, "generic", true},
 	}
 	addBF16Funcs = []uint16BinaryKernelImpl{
@@ -621,6 +622,7 @@ var (
 		{ReluBF16Generic, "generic", true},
 	}
 	axpyBF16Funcs = []uint16AxpyKernelImpl{
+		{AxpyBF16NEON, "neon", true},
 		{AxpyBF16Generic, "generic", true},
 	}
 )

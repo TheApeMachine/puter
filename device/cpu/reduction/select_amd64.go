@@ -116,10 +116,14 @@ var (
 	}
 	sumBF16Funcs = []bf16SumKernelImpl{
 		{SumBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{SumBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{SumBF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{SumBF16Generic, "generic", true},
 	}
 	sumFP16Funcs = []fp16SumKernelImpl{
 		{SumFP16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{SumFP16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{SumFP16SSE2, "sse2", cpu.X86.HasSSE2},
 		{SumFP16Generic, "generic", true},
 	}
 )

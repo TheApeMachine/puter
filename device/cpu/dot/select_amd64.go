@@ -68,14 +68,19 @@ var (
 	}
 	dotBF16Funcs = []bf16DotKernelImpl{
 		{DotBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{DotBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{DotBF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{DotBF16Generic, "generic", true},
 	}
 	dotFP16Funcs = []fp16DotKernelImpl{
 		{DotFP16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{DotFP16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{DotFP16SSE2, "sse2", cpu.X86.HasSSE2},
 		{DotFP16Generic, "generic", true},
 	}
 	dotInt8Funcs = []int8DotKernelImpl{
 		{DotInt8AVX512, "avx512", cpu.X86.HasAVX512F},
+		{DotInt8AVX2, "avx2", cpu.X86.HasAVX2},
 		{DotInt8Generic, "generic", true},
 	}
 )
