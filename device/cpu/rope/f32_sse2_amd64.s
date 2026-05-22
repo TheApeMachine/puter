@@ -1,5 +1,30 @@
 #include "textflag.h"
 
+// RopePairsFloat32SSE2Block applies RoPE to two pairs loaded in X0.
+// DI=out, R8=cos, R9=sin. Advances DI by 32, R8/R9 by 8.
+#define ROPE_SSE2_BLOCK2() \
+	SHUFPS $136, X0, X1; \
+	SHUFPS $221, X0, X2; \
+	VMOVUPS (R8), X4; \
+	SHUFPS $144, X4, X4; \
+	VMOVUPS (R9), X5; \
+	SHUFPS $144, X5, X5; \
+	VMULPS X1, X4, X6; \
+	VMULPS X2, X5, X7; \
+	VSUBPS X7, X6, X6; \
+	VMULPS X1, X5, X10; \
+	VMULPS X2, X4, X11; \
+	VADDPS X11, X10, X10; \
+	MOVAPS X6, X12; \
+	MOVAPS X6, X13; \
+	UNPCKLPS X10, X12; \
+	UNPCKHPS X10, X13; \
+	VMOVUPS X12, (DI); \
+	VMOVUPS X13, 16(DI); \
+	ADDQ $8, R8; \
+	ADDQ $8, R9; \
+	ADDQ $32, DI
+
 // func RopePairsFloat32SSE2Asm(out, in, cos, sin *float32, pairs int)
 TEXT ·RopePairsFloat32SSE2Asm(SB), NOSPLIT, $0-40
 	MOVQ out+0(FP), DI
@@ -10,34 +35,27 @@ TEXT ·RopePairsFloat32SSE2Asm(SB), NOSPLIT, $0-40
 
 rope_sse2_w4:
 	CMPQ CX, $4
+	JL   rope_sse2_w2
+
+	VMOVUPS (SI), X0
+	ROPE_SSE2_BLOCK2()
+	VMOVUPS 16(SI), X0
+	ROPE_SSE2_BLOCK2()
+
+	ADDQ $32, SI
+	SUBQ $4, CX
+	JMP  rope_sse2_w4
+
+rope_sse2_w2:
+	CMPQ CX, $2
 	JL   rope_sse2_tail
 
 	VMOVUPS (SI), X0
-	SHUFPS $136, X0, X1
-	SHUFPS $221, X0, X2
-	VMOVUPS (R8), X4
-	SHUFPS $136, X4, X4
-	VMOVUPS (R9), X5
-	SHUFPS $136, X5, X5
-	VMULPS X1, X4, X6
-	VMULPS X2, X5, X7
-	VSUBPS X7, X6, X6
-	VMULPS X1, X5, X10
-	VMULPS X2, X4, X11
-	VADDPS X11, X10, X10
-	MOVAPS X6, X12
-	MOVAPS X6, X13
-	UNPCKLPS X10, X12
-	UNPCKHPS X10, X13
-	VMOVUPS X12, (DI)
-	VMOVUPS X13, 16(DI)
-	ADDQ $16, R8
-	ADDQ $16, R9
+	ROPE_SSE2_BLOCK2()
 
 	ADDQ $16, SI
-	ADDQ $32, DI
-	SUBQ $4, CX
-	JMP  rope_sse2_w4
+	SUBQ $2, CX
+	JMP  rope_sse2_w2
 
 rope_sse2_tail:
 	TESTQ CX, CX
