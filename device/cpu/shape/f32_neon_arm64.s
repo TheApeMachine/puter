@@ -6,17 +6,23 @@
 #define VBIC_B16(m, n, d) WORD $(0x6E601C00 | ((m) << 16) | ((n) << 5) | (d))
 #define VORR_B16(m, n, d) WORD $(0x6EA01C00 | ((m) << 16) | ((n) << 5) | (d))
 
-DATA shapeMaskBit4<>+0(SB)/4, $1
-DATA shapeMaskBit4<>+4(SB)/4, $2
-DATA shapeMaskBit4<>+8(SB)/4, $4
-DATA shapeMaskBit4<>+12(SB)/4, $8
-GLOBL shapeMaskBit4<>(SB), RODATA|NOPTR, $16
-
-DATA shapeAllOnes4<>+0(SB)/4, $-1
-DATA shapeAllOnes4<>+4(SB)/4, $-1
-DATA shapeAllOnes4<>+8(SB)/4, $-1
-DATA shapeAllOnes4<>+12(SB)/4, $-1
-GLOBL shapeAllOnes4<>(SB), RODATA|NOPTR, $16
+DATA shapeMask4Table<>+0(SB)/16, $0x0, $0x0, $0x0, $0x0
+DATA shapeMask4Table<>+16(SB)/16, $0xffffffff, $0x0, $0x0, $0x0
+DATA shapeMask4Table<>+32(SB)/16, $0x0, $0xffffffff, $0x0, $0x0
+DATA shapeMask4Table<>+48(SB)/16, $0xffffffff, $0xffffffff, $0x0, $0x0
+DATA shapeMask4Table<>+64(SB)/16, $0x0, $0x0, $0xffffffff, $0x0
+DATA shapeMask4Table<>+80(SB)/16, $0xffffffff, $0x0, $0xffffffff, $0x0
+DATA shapeMask4Table<>+96(SB)/16, $0x0, $0xffffffff, $0xffffffff, $0x0
+DATA shapeMask4Table<>+112(SB)/16, $0xffffffff, $0xffffffff, $0xffffffff, $0x0
+DATA shapeMask4Table<>+128(SB)/16, $0x0, $0x0, $0x0, $0xffffffff
+DATA shapeMask4Table<>+144(SB)/16, $0xffffffff, $0x0, $0x0, $0xffffffff
+DATA shapeMask4Table<>+160(SB)/16, $0x0, $0xffffffff, $0x0, $0xffffffff
+DATA shapeMask4Table<>+176(SB)/16, $0xffffffff, $0xffffffff, $0x0, $0xffffffff
+DATA shapeMask4Table<>+192(SB)/16, $0x0, $0x0, $0xffffffff, $0xffffffff
+DATA shapeMask4Table<>+208(SB)/16, $0xffffffff, $0x0, $0xffffffff, $0xffffffff
+DATA shapeMask4Table<>+224(SB)/16, $0x0, $0xffffffff, $0xffffffff, $0xffffffff
+DATA shapeMask4Table<>+240(SB)/16, $0xffffffff, $0xffffffff, $0xffffffff, $0xffffffff
+GLOBL shapeMask4Table<>(SB), RODATA|NOPTR, $256
 
 // func CopyContiguousFloat32NEONAsm(dst, src *float32, count int)
 TEXT ·CopyContiguousFloat32NEONAsm(SB), NOSPLIT, $0-24
@@ -62,20 +68,14 @@ shape_copy_scalar_loop:
 shape_copy_done:
 	RET
 
-// Build V13.S4 lane mask (all-ones where bit set) from R10 mask byte and R11 bit offset.
-// Clobbers R10-R12, R15, V10-V16.
+// Build V13.S4 lane mask from R10 mask byte and R11 bit offset.
 #define SHAPE_MASK4_R10_R11 \
 	LSRW R11, R10, R12; \
 	ANDW $0xF, R12; \
-	VDUP R12, V10.S4; \
-	MOVD $shapeMaskBit4<>(SB), R15; \
-	VLD1 (R15), [V14.S4]; \
-	VAND V10.B16, V14.B16, V15.B16; \
-	VEOR V9.B16, V9.B16, V9.B16; \
-	VCEQ_S4(9, 15, 16); \
-	MOVD $shapeAllOnes4<>(SB), R15; \
-	VLD1 (R15), [V14.S4]; \
-	VBIC_B16(16, 14, 13)
+	LSL  $4, R12, R12; \
+	MOVD $shapeMask4Table<>(SB), R15; \
+	ADD  R12, R15, R15; \
+	VLD1 (R15), [V13.S4]
 
 // func WhereFloat32NEONAsm(dst, positive, negative *float32, mask *byte, count int)
 TEXT ·WhereFloat32NEONAsm(SB), NOSPLIT, $0-40

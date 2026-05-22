@@ -13,6 +13,7 @@
 #define VSHL_S4_BY23(n, d) WORD $(0x4F375400 | ((n) << 5) | (d))
 #define VMOV_B16(src, dst) WORD $(0x4EA01C00 | ((src) << 16) | ((src) << 5) | (dst))
 #define VFMAX_S4(m, n, d)  WORD $(0x4E20F400 | ((m) << 16) | ((n) << 5) | (d))
+#define VFMAXV_S4(n, d)    WORD $(0x6E30F800 | ((n) << 5) | (d))
 #define VFADDP_S4(m, n, d) WORD $(0x6E30D400 | ((m) << 16) | ((n) << 5) | (d))
 #define FADDP_S(n, d)      WORD $(0x7E30D800 | ((n) << 5) | (d))
 
@@ -107,6 +108,8 @@ math_lse_max_loop4:
 	B    math_lse_max_loop4
 
 math_lse_max_scalar:
+	VFMAXV_S4(16, 0)
+	FMOVS F0, F16
 	CBZ  R1, math_lse_max_done
 
 math_lse_max_scalar_loop:

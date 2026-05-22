@@ -79,6 +79,8 @@ sam_greedy_max_loop4:
 	B    sam_greedy_max_loop4
 
 sam_greedy_max_scalar:
+	VFMAXV_S4(16, 0)
+	FMOVS F0, F16
 	CBZ  R1, sam_greedy_max_done
 
 sam_greedy_max_scalar_loop:
@@ -194,6 +196,8 @@ sam_softmax_max_loop4:
 	B    sam_softmax_max_loop4
 
 sam_softmax_max_scalar:
+	VFMAXV_S4(16, 0)
+	FMOVS F0, F16
 	CBZ  R2, sam_softmax_max_done
 
 sam_softmax_max_scalar_loop:
