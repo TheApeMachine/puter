@@ -86,41 +86,74 @@ mask_apply_done:
 // func CausalMaskFloat32NEONAsm(output *float32, seqQ, seqK int)
 TEXT ·CausalMaskFloat32NEONAsm(SB), NOSPLIT, $0-24
 	MOVD output+0(FP), R0
-	MOVD seqQ+8(FP), R16
-	MOVD R16, R10
+	MOVD seqQ+8(FP), R10
 	MOVD seqK+16(FP), R5
 	MOVD $maskZero<>(SB), R11
+	MOVD $maskNegInf<>(SB), R9
+	VLD1 (R11), [V0.S4]
+	VLD1 (R9), [V1.S4]
+	MOVD $0, R20
 
 causal_row:
-	CBZ  R10, causal_done
+	CMP  R20, R10
+	BGE  causal_done
 
-	MOVD R16, R7
-	SUB  R10, R7, R7
-	MOVD R5, R6
-
-causal_col:
-	CBZ  R6, causal_row_done
-
+	MOVD R20, R4
+	ADD  $1, R4
+	CMP  R4, R5
+	BLE  causal_zero_len_ok
 	MOVD R5, R4
-	SUB  R6, R4, R8
-	CMP  R8, R7
-	BGT  causal_inf_cell
+
+causal_zero_len_ok:
+	MOVD R4, R6
+
+causal_zero_loop4:
+	CMP  $4, R6
+	BLT  causal_zero_scalar
+
+	VST1 [V0.S4], (R0)
+	ADD  $16, R0
+	SUB  $4, R6
+	B    causal_zero_loop4
+
+causal_zero_scalar:
+	CBZ  R6, causal_zero_done
 
 	FMOVS (R11), F0
 	FMOVS F0, (R0)
-	B    causal_col_next
-
-causal_inf_cell:
-	MOVD $0xFF800000, R12
-	MOVW R12, (R0)
-
-causal_col_next:
 	ADD  $4, R0
 	SUB  $1, R6
-	B    causal_col
+	CBNZ R6, causal_zero_scalar
 
-causal_row_done:
-	SUB  $1, R10
+causal_zero_done:
+	MOVD R2, R5
+	MOVD R20, R4
+	ADD  $1, R4
+	CMP  R4, R5
+	BGE  causal_next_row
+
+	SUB  R4, R5, R6
+
+causal_inf_loop4:
+	CMP  $4, R6
+	BLT  causal_inf_scalar
+
+	VST1 [V1.S4], (R0)
+	ADD  $16, R0
+	SUB  $4, R6
+	B    causal_inf_loop4
+
+causal_inf_scalar:
+	CBZ  R6, causal_next_row
+
+	MOVD $0xFF800000, R12
+	MOVW R12, (R0)
+	ADD  $4, R0
+	SUB  $1, R6
+	CBNZ R6, causal_inf_scalar
+
+causal_next_row:
+	ADD  $1, R20
 	B    causal_row
 
 causal_done:

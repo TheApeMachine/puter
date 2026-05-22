@@ -25,7 +25,7 @@ Metal is **substantially ahead of CPU** on “is there a GPU kernel at all?” �
 | **FP8**                  | Tensor accessors exist; **no Metal compute kernels**                                                                                                                |
 | **f32-only enforcement** | **Dot fixed** (f16/bf16 GPU); **legacy binary float32 registry**, **unary float32 test path** still hard `dtype.Float32` |
 | **Optimizer state**      | Params/grads may be f16/bf16; **moment/state tensors must stay f32** (by design)                                                                                    |
-| **Correctness tests**    | Many suites use **ULP 2–4096**; physics FFT allows **4096 ULP** — must be tightened                                                                                 |
+| **Correctness tests**    | Physics FFT **1 ULP** (POT) / **2 ULP** (naive DFT); NCS norms f32 **128 ULP** (GPU vs serial); `quantum_potential` **96 ULP**; pow/atan2 **4/8 ULP** |
 
 ---
 
@@ -260,9 +260,9 @@ Used by: elementwise unary/binary, matmul, reduction, dropout, vision conv/pool,
 
 | Domain       | Notes                                                                                          |
 |--------------|------------------------------------------------------------------------------------------------|
-| **physics**  | GPU stencils for triad; **FFT/IFFT** parity **1 ULP** (power-of-2), **2 ULP** (naive DFT, N=7) |
+| **physics**  | GPU stencils for triad; **FFT/IFFT** host twiddles + `fp math_mode(safe)` — **1 ULP** (POT), **2 ULP** (naive) |
 | **causal**   | Many ops dispatch; Cholesky/IV heavy — verify triad                                            |
-| **hawkes**   | GPU kernels; tests use widened ULP                                                             |
+| **hawkes**   | GPU partial + Kahan finalize + `exp()` compensator; parity **≤4 ULP** at N=8192                |
 | **research** | Active inference + predictive coding on GPU                                                    |
 | **vsa**      | Bind/bundle/similarity via GPU; permute verify                                                 |
 
@@ -296,8 +296,8 @@ Used by: elementwise unary/binary, matmul, reduction, dropout, vision conv/pool,
 
 | Issue                | Location                                                         | Required fix                                                |
 |----------------------|------------------------------------------------------------------|-------------------------------------------------------------|
-| **Wide ULP bands**   | `physics_test.go` (`fft1d` power-of-2 **1 ULP**, non-POT **2 ULP**; `quantum_potential` **96**) | Tighten quantum_potential; naive DFT libm alignment optional |
-| **Hawkes tests**     | `hawkes_*_test.go`, expected tests                               | Reduce to ≤1 ULP                                            |
+| **Wide ULP bands**   | `physics_test.go` (`quantum_potential` **96**); `backend_test.go` pow **4**, atan2 **8** ULP | Tighten kernels; NCS f32 norms use dedicated **128 ULP** budget vs serial ref |
+| **Hawkes tests**     | `hawkes_*_test.go` (**≤4 ULP**)                                    | Tighten to ≤1 ULP if contract requires                      |
 | **GLU tests**        | `*glu*_test.go` often **maxULP 2**                               | Tighten after kernel fix                                    |
 | **Binary registry**  | `backend_test.go` pow **4**, atan2 **8** ULP                     | Fix `elementwise_float*.metal` math                         |
 | **GELU definitions** | `gelu_reference_probe_test.go`                                   | Separate exact `Gelu` vs `GeluTanh` vs `QuickGelu` in Metal |

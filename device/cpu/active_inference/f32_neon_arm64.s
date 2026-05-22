@@ -93,28 +93,28 @@ GLOBL aiMantMask<>(SB), RODATA|NOPTR, $4
     VFSUB_S4(9, 2, 3) ;\
     VFADD_S4(9, 2, 4) ;\
     VFDIV_S4(4, 3, 5) ;\
-    VFMUL_S4(5, 5, 6) ;\
+    VFMUL_S4(5, 5, 20) ;\
     VMOV_B16(10, 7) ;\
-    VMOV_B16(11, 8) ; VFMLA_S4(6, 7, 8) ;\
-    VMOV_B16(12, 7) ; VFMLA_S4(6, 8, 7) ;\
-    VMOV_B16(13, 8) ; VFMLA_S4(6, 7, 8) ;\
-    VMOV_B16(14, 7) ; VFMLA_S4(6, 8, 7) ;\
-    VMOV_B16(9, 8) ; VFMLA_S4(6, 7, 8) ;\
+    VMOV_B16(11, 8) ; VFMLA_S4(20, 7, 8) ;\
+    VMOV_B16(12, 7) ; VFMLA_S4(20, 8, 7) ;\
+    VMOV_B16(13, 8) ; VFMLA_S4(20, 7, 8) ;\
+    VMOV_B16(14, 7) ; VFMLA_S4(20, 8, 7) ;\
+    VMOV_B16(9, 8) ; VFMLA_S4(20, 7, 8) ;\
     VFMUL_S4(5, 8, 8) ;\
     VFMUL_S4(15, 8, 8) ;\
     VFMLA_S4(16, 1, out)
 
 #define AI_F32X4_TO_F64_ADD_CE(src) \
-    FCVTL_2D(src, 0) ;\
-    FCVTL2_2D(src, 1) ;\
-    FADDD F0, F28, F28 ;\
-    FADDD F1, F28, F28
+    FCVTL_2D(src, 8) ;\
+    FCVTL2_2D(src, 9) ;\
+    VFADD_D2(8, 18, 18) ;\
+    VFADD_D2(9, 18, 18)
 
 #define AI_F32X4_TO_F64_ADD_KL(src) \
-    FCVTL_2D(src, 0) ;\
-    FCVTL2_2D(src, 1) ;\
-    FADDD F0, F29, F29 ;\
-    FADDD F1, F29, F29
+    FCVTL_2D(src, 8) ;\
+    FCVTL2_2D(src, 9) ;\
+    VFADD_D2(8, 19, 19) ;\
+    VFADD_D2(9, 19, 19)
 
 #define AI_F32X4_TO_F64_ADD(src, acc) \
     FCVTL_2D(src, 8) ;\
@@ -265,11 +265,12 @@ TEXT ·FreeEnergyFloat32NEONAsm(SB), NOSPLIT, $0-40
 	MOVD prior+16(FP), R12
 	MOVD count+24(FP), R3
 
-	FMOVS aiEps<>(SB), F30
-	VDUP V30.S[0], V30.S4
+	MOVD $0x358637BD, R17
+	VMOV R17, V31.S[0]
+	VDUP V31.S[0], V31.S4
 	AI_LOAD_LOG_CONSTS
-	FMOVD $0, F28
-	FMOVD $0, F29
+	VEOR V18.B16, V18.B16, V18.B16
+	VEOR V19.B16, V19.B16, V19.B16
 	CBZ  R3, ai_fe_store
 
 ai_fe_loop4:
@@ -279,29 +280,33 @@ ai_fe_loop4:
 	VLD1 (R10), [V3.S4]
 	VLD1 (R11), [V4.S4]
 	VLD1 (R12), [V5.S4]
-	VMAX_S4(30, 3, 3)
-	VMAX_S4(30, 4, 4)
-	VMAX_S4(30, 5, 5)
+	VMAX_S4(31, 3, 3)
+	VMAX_S4(31, 4, 4)
+	VMAX_S4(31, 5, 5)
 	VMOV_B16(4, 22)
 
 	AI_RELOAD_LOG_POLY
 	VMOV_B16(3, 0)
 	AI_NEON_LOG(0, 6)
+	VMOV_B16(6, 21)
+
 	AI_RELOAD_LOG_POLY
 	VMOV_B16(4, 0)
 	AI_NEON_LOG(0, 7)
+	VMOV_B16(7, 23)
+
 	AI_RELOAD_LOG_POLY
 	VMOV_B16(5, 0)
 	AI_NEON_LOG(0, 8)
 
 	VEOR V9.B16, V9.B16, V9.B16
-	VFSUB_S4(8, 7, 11)
-	VFMUL_S4(22, 11, 11)
-	AI_F32X4_TO_F64_ADD_KL(11)
-
-	VFSUB_S4(6, 9, 10)
+	VFSUB_S4(21, 9, 10)
 	VFMUL_S4(22, 10, 10)
 	AI_F32X4_TO_F64_ADD_CE(10)
+
+	VFSUB_S4(8, 23, 11)
+	VFMUL_S4(22, 11, 11)
+	AI_F32X4_TO_F64_ADD_KL(11)
 
 	ADD  $16, R10
 	ADD  $16, R11
@@ -310,45 +315,13 @@ ai_fe_loop4:
 	B    ai_fe_loop4
 
 ai_fe_tail:
-	CBZ  R3, ai_fe_store
-
-ai_fe_tail_loop:
-	FMOVS (R10), F0
-	FMOVS (R11), F1
-	FMOVS (R12), F2
-	FMAXS F30, F0, F0
-	FMAXS F30, F1, F1
-	FMAXS F30, F2, F2
-	AI_RELOAD_LOG_POLY
-	VDUP V0.S[0], V0.S4
-	AI_NEON_LOG(0, 6)
-	AI_RELOAD_LOG_POLY
-	VDUP V1.S[0], V1.S4
-	AI_NEON_LOG(1, 7)
-	AI_RELOAD_LOG_POLY
-	VDUP V2.S[0], V2.S4
-	AI_NEON_LOG(2, 8)
-	FMOVS F6, F10
-	FMOVS $-1.0, F12
-	FMULS F12, F10, F10
-	FMULS F1, F10, F10
-	FCVTSD F10, F10
-	FADDD F10, F28, F28
-	FMOVS F7, F11
-	FMOVS F8, F12
-	FSUBS F12, F11, F11
-	FMULS F1, F11, F11
-	FCVTSD F11, F11
-	FADDD F11, F29, F29
-	ADD  $4, R10
-	ADD  $4, R11
-	ADD  $4, R12
-	SUB  $1, R3
-	CBNZ R3, ai_fe_tail_loop
+	B ai_fe_store
 
 ai_fe_store:
-	FADDD F29, F28, F28
-	FCVTDS F28, F0
+	FADDP_D(18, 0)
+	FADDP_D(19, 1)
+	FADDD F1, F0, F0
+	FCVTDS F0, F0
 	FMOVS F0, ret+32(FP)
 	RET
 
@@ -363,11 +336,12 @@ TEXT ·ExpectedFreeEnergyFloat32NEONAsm(SB), NOSPLIT, $0-48
 	MOVD obsCount+24(FP), R3
 	MOVD stateCount+32(FP), R4
 
-	FMOVS aiEps<>(SB), F30
-	VDUP V30.S[0], V30.S4
+	MOVD $0x358637BD, R17
+	VMOV R17, V31.S[0]
+	VDUP V31.S[0], V31.S4
 	AI_LOAD_LOG_CONSTS
-	FMOVD $0, F28
-	FMOVD $0, F29
+	VEOR V18.B16, V18.B16, V18.B16
+	VEOR V19.B16, V19.B16, V19.B16
 
 ai_efe_obs_loop4:
 	CMP  $4, R3
@@ -375,18 +349,20 @@ ai_efe_obs_loop4:
 
 	VLD1 (R0), [V3.S4]
 	VLD1 (R1), [V4.S4]
-	VMAX_S4(30, 3, 3)
-	VMAX_S4(30, 4, 4)
+	VMAX_S4(31, 3, 3)
+	VMAX_S4(31, 4, 4)
 	VMOV_B16(3, 22)
 
 	AI_RELOAD_LOG_POLY
 	VMOV_B16(3, 0)
 	AI_NEON_LOG(0, 6)
+	VMOV_B16(6, 21)
+
 	AI_RELOAD_LOG_POLY
 	VMOV_B16(4, 0)
 	AI_NEON_LOG(0, 7)
 
-	VFSUB_S4(7, 6, 10)
+	VFSUB_S4(7, 21, 10)
 	VFMUL_S4(22, 10, 10)
 	AI_F32X4_TO_F64_ADD_CE(10)
 
@@ -404,7 +380,7 @@ ai_efe_state_loop4:
 	BLT  ai_efe_store
 
 	VLD1 (R2), [V3.S4]
-	VMAX_S4(30, 3, 3)
+	VMAX_S4(31, 3, 3)
 	VMOV_B16(3, 22)
 	AI_RELOAD_LOG_POLY
 	VMOV_B16(3, 0)
@@ -420,7 +396,9 @@ ai_efe_state_loop4:
 	B    ai_efe_state_loop4
 
 ai_efe_store:
-	FADDD F29, F28, F28
-	FCVTDS F28, F0
+	FADDP_D(18, 0)
+	FADDP_D(19, 1)
+	FADDD F1, F0, F0
+	FCVTDS F0, F0
 	FMOVS F0, ret+40(FP)
 	RET

@@ -217,8 +217,6 @@ func requireMetalMultiHeadAttentionDims(config *metalMultiHeadAttentionConfig) e
 
 func (config *metalMultiHeadAttentionConfig) applyVariant() {
 	switch config.variant {
-	case metalMultiHeadAttentionVariantGrouped:
-		config.causal = 1
 	case metalMultiHeadAttentionVariantSliding:
 		config.causal = 1
 		config.windowSize = 128

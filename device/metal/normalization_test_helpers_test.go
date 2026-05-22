@@ -149,6 +149,31 @@ func assertNormalizationBytesForTest(
 	storageDType dtype.DType,
 	expectedBytes []byte,
 ) {
+	assertNormalizationBytesWithinULPForTest(
+		testingObject, backend, input, storageDType, expectedBytes, normalizationFloat32MaxULP,
+	)
+}
+
+func assertNormalizationNorm3DBytesForTest(
+	testingObject testing.TB,
+	backend *Backend,
+	input tensor.Tensor,
+	storageDType dtype.DType,
+	expectedBytes []byte,
+) {
+	assertNormalizationBytesWithinULPForTest(
+		testingObject, backend, input, storageDType, expectedBytes, normalizationNorm3DFloat32MaxULP,
+	)
+}
+
+func assertNormalizationBytesWithinULPForTest(
+	testingObject testing.TB,
+	backend *Backend,
+	input tensor.Tensor,
+	storageDType dtype.DType,
+	expectedBytes []byte,
+	maxULP uint32,
+) {
 	testingObject.Helper()
 
 	if storageDType != dtype.Float32 {
@@ -171,7 +196,7 @@ func assertNormalizationBytesForTest(
 		testingObject,
 		actualValues,
 		expectedValues,
-		normalizationFloat32MaxULP,
+		maxULP,
 	)
 }
 

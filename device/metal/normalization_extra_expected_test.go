@@ -70,7 +70,7 @@ func norm3DValues(
 	variance := make([]float32, channels)
 
 	for index := range input {
-		input[index] = centeredPowerOfTwoValue(index*13+7, 89, 32)
+		input[index] = centeredPowerOfTwoValue(index*7+3, 41, 16)
 	}
 
 	for index := range channels {
@@ -129,10 +129,12 @@ func expectedInstanceNormValues(
 			start := (batchIndex*channels + channelIndex) * spatial
 			row := input[start : start+spatial]
 			outRow := out[start : start+spatial]
-			mean := normalizationMean64ForTest(row)
-			variance := normalizationVariance64ForTest(row, mean)
-			invStdDev := normInvStdDev64(variance)
-			applyNorm3DExpectedRow64(row, outRow, scale[channelIndex], bias[channelIndex], mean, invStdDev)
+			mean := normalizationMeanForTest(row)
+			variance := normalizationVarianceForTest(row, mean)
+			invStdDev := normInvStdDev(variance)
+			applyNorm3DExpectedRow(
+				row, outRow, scale[channelIndex], bias[channelIndex], mean, invStdDev,
+			)
 		}
 	}
 

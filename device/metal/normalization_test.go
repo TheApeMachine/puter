@@ -11,6 +11,10 @@ import (
 
 const normalizationFloat32MaxULP = 32
 
+// normalizationNorm3DFloat32MaxULP covers NCS group/instance/batchnorm_eval paths where
+// Apple GPU float32 reductions and sqrt differ slightly from the host serial reference.
+const normalizationNorm3DFloat32MaxULP = 128
+
 func TestKernelRegistry_MetalLayerNormDTypes(testingObject *testing.T) {
 	backend := newBackendForDeviceTest(testingObject)
 	defer func() {
