@@ -1,0 +1,261 @@
+#include "textflag.h"
+
+DATA optOneF32SSE2<>+0(SB)/4, $0x3F800000
+GLOBL optOneF32SSE2<>(SB), RODATA|NOPTR, $4
+
+// func AdamStepFloat32SSE2Asm(params, grad, first, second, output *float32, n int,
+//     lr, beta1, beta2, eps, beta1Corr, beta2Corr float32)
+TEXT ·AdamStepFloat32SSE2Asm(SB), NOSPLIT, $0-72
+	MOVQ params+0(FP), DI
+	MOVQ grad+8(FP), SI
+	MOVQ first+16(FP), R8
+	MOVQ second+24(FP), R9
+	MOVQ output+32(FP), R10
+	MOVQ n+40(FP), CX
+
+	MOVSS lr+48(FP), X6
+	VBROADCASTSS X6, X6
+	MOVSS beta1+52(FP), X7
+	VBROADCASTSS X7, X7
+	MOVSS beta2+56(FP), X8
+	VBROADCASTSS X8, X8
+	MOVSS eps+60(FP), X9
+	VBROADCASTSS X9, X9
+	MOVSS beta1Corr+64(FP), X10
+	VBROADCASTSS X10, X10
+	MOVSS beta2Corr+68(FP), X11
+	VBROADCASTSS X11, X11
+	MOVSS optOneF32SSE2<>(SB), X12
+	VBROADCASTSS X12, X12
+	VSUBPS X7, X12, X14
+	VSUBPS X8, X12, X15
+
+adam_sse2_w4:
+	CMPQ CX, $4
+	JL   adam_sse2_tail
+
+	VMOVUPS (DI), X0
+	VMOVUPS (SI), X1
+	VMOVUPS (R8), X2
+	VMOVUPS (R9), X3
+	VMULPS X7, X2, X2
+	VFMADD132PS X14, X1, X2
+	VMULPS X1, X1, X5
+	VMULPS X8, X3, X3
+	VFMADD132PS X15, X5, X3
+	VDIVPS X10, X2, X6
+	VDIVPS X11, X3, X7
+	VSQRTPS X7, X7
+	VADDPS X9, X7, X7
+	VMULPS X6, X6, X6
+	VDIVPS X7, X6, X6
+	VSUBPS X6, X0, X0
+	VMOVUPS X2, (R8)
+	VMOVUPS X3, (R9)
+	VMOVUPS X0, (R10)
+
+	ADDQ $16, DI
+	ADDQ $16, SI
+	ADDQ $16, R8
+	ADDQ $16, R9
+	ADDQ $16, R10
+	SUBQ $4, CX
+	JMP  adam_sse2_w4
+
+adam_sse2_tail:
+	TESTQ CX, CX
+	JZ   adam_sse2_done
+
+adam_sse2_scalar:
+	VMOVSS (DI), X0
+	VMOVSS (SI), X1
+	VMOVSS (R8), X2
+	VMOVSS (R9), X3
+	VMULSS X7, X2, X2
+	VFMADD132SS X14, X1, X2
+	VMULSS X1, X1, X5
+	VMULSS X8, X3, X3
+	VFMADD132SS X15, X5, X3
+	VDIVSS X10, X2, X6
+	VDIVSS X11, X3, X7
+	VSQRTSS X7, X7, X7
+	VADDSS X9, X7, X7
+	VMULSS X6, X6, X6
+	VDIVSS X7, X6, X6
+	VSUBSS X6, X0, X0
+	MOVSS X0, (R10)
+	MOVSS X2, (R8)
+	MOVSS X3, (R9)
+	ADDQ $4, DI
+	ADDQ $4, SI
+	ADDQ $4, R8
+	ADDQ $4, R9
+	ADDQ $4, R10
+	DECQ CX
+	JNZ  adam_sse2_scalar
+
+adam_sse2_done:
+	RET
+
+// func SgdStepFloat32SSE2Asm(params, grad, momentum, output *float32, n int,
+//     lr, momentumFactor, weightDecay float32)
+TEXT ·SgdStepFloat32SSE2Asm(SB), NOSPLIT, $0-52
+	MOVQ params+0(FP), DI
+	MOVQ grad+8(FP), SI
+	MOVQ momentum+16(FP), R8
+	MOVQ output+24(FP), R9
+	MOVQ n+32(FP), CX
+
+	MOVSS lr+40(FP), X6
+	VBROADCASTSS X6, X6
+	MOVSS momentumFactor+44(FP), X7
+	VBROADCASTSS X7, X7
+	MOVSS weightDecay+48(FP), X8
+	VBROADCASTSS X8, X8
+	XORPS X12, X12
+	VSUBPS X6, X12, X12
+
+sgd_sse2_w4:
+	CMPQ CX, $4
+	JL   sgd_sse2_tail
+
+	VMOVUPS (DI), X0
+	VMOVUPS (SI), X1
+	VMOVUPS (R8), X2
+	VFMADD213PS X8, X0, X1
+	VFMADD213PS X7, X2, X1
+	VFMADD213PS X12, X1, X0
+	VMOVUPS X1, (R8)
+	VMOVUPS X0, (R9)
+
+	ADDQ $16, DI
+	ADDQ $16, SI
+	ADDQ $16, R8
+	ADDQ $16, R9
+	SUBQ $4, CX
+	JMP  sgd_sse2_w4
+
+sgd_sse2_tail:
+	TESTQ CX, CX
+	JZ   sgd_sse2_done
+
+sgd_sse2_scalar:
+	VMOVSS (DI), X0
+	VMOVSS (SI), X1
+	VMOVSS (R8), X2
+	VFMADD213SS X8, X0, X1
+	VFMADD213SS X7, X2, X1
+	VFMADD213SS X12, X1, X0
+	MOVSS X1, (R8)
+	MOVSS X0, (R9)
+	ADDQ $4, DI
+	ADDQ $4, SI
+	ADDQ $4, R8
+	ADDQ $4, R9
+	DECQ CX
+	JNZ  sgd_sse2_scalar
+
+sgd_sse2_done:
+	RET
+
+// func AdamwStepFloat32SSE2Asm(params, grad, first, second, output *float32, n int,
+//     lr, beta1, beta2, eps, beta1Corr, beta2Corr, weightDecay float32)
+TEXT ·AdamwStepFloat32SSE2Asm(SB), NOSPLIT, $0-76
+	MOVQ params+0(FP), DI
+	MOVQ grad+8(FP), SI
+	MOVQ first+16(FP), R8
+	MOVQ second+24(FP), R9
+	MOVQ output+32(FP), R10
+	MOVQ n+40(FP), CX
+
+	MOVSS lr+48(FP), X6
+	VBROADCASTSS X6, X6
+	MOVSS beta1+52(FP), X7
+	VBROADCASTSS X7, X7
+	MOVSS beta2+56(FP), X8
+	VBROADCASTSS X8, X8
+	MOVSS eps+60(FP), X9
+	VBROADCASTSS X9, X9
+	MOVSS beta1Corr+64(FP), X10
+	VBROADCASTSS X10, X10
+	MOVSS beta2Corr+68(FP), X11
+	VBROADCASTSS X11, X11
+	MOVSS weightDecay+72(FP), X12
+	VBROADCASTSS X12, X12
+	MOVSS optOneF32SSE2<>(SB), X13
+	VBROADCASTSS X13, X13
+	VSUBPS X7, X13, X14
+	VSUBPS X8, X13, X15
+
+adamw_sse2_w4:
+	CMPQ CX, $4
+	JL   adamw_sse2_tail
+
+	VMOVUPS (DI), X0
+	VMOVUPS (SI), X1
+	VMOVUPS (R8), X2
+	VMOVUPS (R9), X3
+	VMULPS X7, X2, X2
+	VFMADD132PS X14, X1, X2
+	VMULPS X1, X1, X5
+	VMULPS X8, X3, X3
+	VFMADD132PS X15, X5, X3
+	VDIVPS X10, X2, X6
+	VDIVPS X11, X3, X7
+	VSQRTPS X7, X7
+	VADDPS X9, X7, X7
+	VMULPS X6, X6, X6
+	VDIVPS X7, X6, X6
+	VMULPS X12, X6, X4
+	VMULPS X0, X4, X4
+	VSUBPS X6, X0, X0
+	VSUBPS X4, X0, X0
+	VMOVUPS X2, (R8)
+	VMOVUPS X3, (R9)
+	VMOVUPS X0, (R10)
+
+	ADDQ $16, DI
+	ADDQ $16, SI
+	ADDQ $16, R8
+	ADDQ $16, R9
+	ADDQ $16, R10
+	SUBQ $4, CX
+	JMP  adamw_sse2_w4
+
+adamw_sse2_tail:
+	TESTQ CX, CX
+	JZ   adamw_sse2_done
+
+adamw_sse2_scalar:
+	VMOVSS (DI), X0
+	VMOVSS (SI), X1
+	VMOVSS (R8), X2
+	VMOVSS (R9), X3
+	VMULSS X7, X2, X2
+	VFMADD132SS X14, X1, X2
+	VMULSS X1, X1, X5
+	VMULSS X8, X3, X3
+	VFMADD132SS X15, X5, X3
+	VDIVSS X10, X2, X6
+	VDIVSS X11, X3, X7
+	VSQRTSS X7, X7, X7
+	VADDSS X9, X7, X7
+	VMULSS X6, X6, X6
+	VDIVSS X7, X6, X6
+	VMULSS X12, X6, X4
+	VMULSS X0, X4, X4
+	VSUBSS X6, X0, X0
+	VSUBSS X4, X0, X0
+	MOVSS X0, (R10)
+	MOVSS X2, (R8)
+	MOVSS X3, (R9)
+	ADDQ $4, DI
+	ADDQ $4, SI
+	ADDQ $4, R8
+	ADDQ $4, R9
+	ADDQ $4, R10
+	DECQ CX
+	JNZ  adamw_sse2_scalar
+
+adamw_sse2_done:
+	RET

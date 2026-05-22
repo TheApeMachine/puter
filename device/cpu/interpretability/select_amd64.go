@@ -6,6 +6,8 @@ import "golang.org/x/sys/cpu"
 
 var activationSteerFloat32Funcs = []activationSteerKernelImpl{
 	{activationSteerFloat32AVX512, "avx512", cpu.X86.HasAVX512F},
+	{activationSteerFloat32AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+	{activationSteerFloat32SSE2, "sse2", cpu.X86.HasSSE2},
 	{activationSteerFloat32Scalar, "generic", true},
 }
 

@@ -6,6 +6,8 @@ import "golang.org/x/sys/cpu"
 
 var weightGraftAddFloat32Funcs = []weightGraftAddKernelImpl{
 	{weightGraftAddFloat32AVX512, "avx512", cpu.X86.HasAVX512F},
+	{weightGraftAddFloat32AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+	{weightGraftAddFloat32SSE2, "sse2", cpu.X86.HasSSE2},
 	{weightGraftAddFloat32Scalar, "generic", true},
 }
 

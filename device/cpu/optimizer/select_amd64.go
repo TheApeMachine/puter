@@ -17,6 +17,16 @@ func adamStepSlices(
 		return
 	}
 
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		adamStepSlicesAVX2(config, params, gradients, firstMoment, secondMoment, output)
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		adamStepSlicesSSE2(config, params, gradients, firstMoment, secondMoment, output)
+		return
+	}
+
 	adamStepSlicesScalar(config, params, gradients, firstMoment, secondMoment, output)
 }
 
@@ -29,16 +39,41 @@ func adamWStepSlices(
 		return
 	}
 
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		adamWStepSlicesAVX2(config, params, gradients, firstMoment, secondMoment, output)
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		adamWStepSlicesSSE2(config, params, gradients, firstMoment, secondMoment, output)
+		return
+	}
+
 	adamWStepSlicesScalar(config, params, gradients, firstMoment, secondMoment, output)
 }
 
 func sgdStepSlices(config SGDConfig, params, gradients, momentum, output []float32) {
-	if config.Nesterov || !cpu.X86.HasAVX512F {
+	if config.Nesterov {
 		sgdStepSlicesScalar(config, params, gradients, momentum, output)
 		return
 	}
 
-	sgdStepSlicesAVX512(config, params, gradients, momentum, output)
+	if cpu.X86.HasAVX512F {
+		sgdStepSlicesAVX512(config, params, gradients, momentum, output)
+		return
+	}
+
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		sgdStepSlicesAVX2(config, params, gradients, momentum, output)
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		sgdStepSlicesSSE2(config, params, gradients, momentum, output)
+		return
+	}
+
+	sgdStepSlicesScalar(config, params, gradients, momentum, output)
 }
 
 func adamaxStepSlices(
@@ -47,6 +82,16 @@ func adamaxStepSlices(
 ) {
 	if cpu.X86.HasAVX512F {
 		adamaxStepSlicesAVX512(config, params, gradients, firstMoment, infinityMoment, output)
+		return
+	}
+
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		adamaxStepSlicesAVX2(config, params, gradients, firstMoment, infinityMoment, output)
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		adamaxStepSlicesSSE2(config, params, gradients, firstMoment, infinityMoment, output)
 		return
 	}
 
@@ -59,12 +104,32 @@ func adagradStepSlices(config AdagradConfig, params, gradients, accumulator, out
 		return
 	}
 
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		adagradStepSlicesAVX2(config, params, gradients, accumulator, output)
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		adagradStepSlicesSSE2(config, params, gradients, accumulator, output)
+		return
+	}
+
 	adagradStepSlicesScalar(config, params, gradients, accumulator, output)
 }
 
 func rmspropStepSlices(config RMSpropConfig, params, gradients, secondMoment, output []float32) {
 	if cpu.X86.HasAVX512F {
 		rmspropStepSlicesAVX512(config, params, gradients, secondMoment, output)
+		return
+	}
+
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		rmspropStepSlicesAVX2(config, params, gradients, secondMoment, output)
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		rmspropStepSlicesSSE2(config, params, gradients, secondMoment, output)
 		return
 	}
 
@@ -77,6 +142,16 @@ func lionStepSlices(config LionConfig, params, gradients, momentum, output []flo
 		return
 	}
 
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		lionStepSlicesAVX2(config, params, gradients, momentum, output)
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		lionStepSlicesSSE2(config, params, gradients, momentum, output)
+		return
+	}
+
 	lionStepSlicesScalar(config, params, gradients, momentum, output)
 }
 
@@ -86,12 +161,32 @@ func larsStepSlices(config LARSConfig, params, gradients, momentum, output []flo
 		return
 	}
 
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		larsStepSlicesAVX2(config, params, gradients, momentum, output)
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		larsStepSlicesSSE2(config, params, gradients, momentum, output)
+		return
+	}
+
 	larsStepSlicesScalar(config, params, gradients, momentum, output)
 }
 
 func lbfgsStepSlices(config LBFGSConfig, params, gradients, output []float32) {
 	if cpu.X86.HasAVX512F {
 		lbfgsStepSlicesAVX512(config, params, gradients, output)
+		return
+	}
+
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		lbfgsStepSlicesAVX2(config, params, gradients, output)
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		lbfgsStepSlicesSSE2(config, params, gradients, output)
 		return
 	}
 
@@ -105,6 +200,16 @@ func hebbianStepSlices(
 ) {
 	if cpu.X86.HasAVX512F {
 		hebbianStepSlicesAVX512(config, weights, post, pre, output, preDim)
+		return
+	}
+
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		hebbianStepSlicesAVX2(config, weights, post, pre, output, preDim)
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		hebbianStepSlicesSSE2(config, weights, post, pre, output, preDim)
 		return
 	}
 

@@ -10,16 +10,22 @@ import (
 
 var applyMaskF32Funcs = []f32ApplyMaskKernelImpl{
 	{applyMaskF32AVX512, "avx512", cpu.X86.HasAVX512F},
+	{applyMaskF32AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+	{applyMaskF32SSE2, "sse2", cpu.X86.HasSSE2},
 	{applyMaskF32GenericKernel, "generic", true},
 }
 
 var causalMaskF32Funcs = []f32CausalMaskKernelImpl{
 	{causalMaskF32AVX512, "avx512", cpu.X86.HasAVX512F},
+	{causalMaskF32AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+	{causalMaskF32SSE2, "sse2", cpu.X86.HasSSE2},
 	{causalMaskF32GenericKernel, "generic", true},
 }
 
 var alibiBiasF32Funcs = []f32ALiBiBiasKernelImpl{
 	{alibiBiasF32AVX512, "avx512", cpu.X86.HasAVX512F},
+	{alibiBiasF32AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+	{alibiBiasF32SSE2, "sse2", cpu.X86.HasSSE2},
 	{alibiBiasF32GenericKernel, "generic", true},
 }
 

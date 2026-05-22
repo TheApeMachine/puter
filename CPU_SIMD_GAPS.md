@@ -18,16 +18,16 @@
 |-------------|--------------------------------------:|--------------:|---------------------------------------------------------------------------------|
 | Scalar (Go) |                                    32 |            32 | None at domain level                                                            |
 | AVX-512     |                                    32 |            32 | **File-level registration only** — many ops/configs still scalar inside domains |
-| AVX2        |                                    6 |            32 | **26 domains: entire ISA missing**                                              |
-| SSE2        |                                    8 |            32 | **24 domains: entire ISA missing**                                              |
+| AVX2        |                                   12 |            32 | **20 domains: entire ISA missing**                                              |
+| SSE2        |                                   14 |            32 | **18 domains: entire ISA missing**                                              |
 | NEON        |                                    20 |            32 | **12 domains: no arm64 SIMD at all**                                            |
 
-**Full amd64 ladder (AVX-512 → AVX2 → SSE2 → scalar):** `activation`, `pospop`, `dot`, `elementwise`, `matmul`, `reduction`.  
+**Full amd64 ladder (AVX-512 → AVX2 → SSE2 → scalar):** `activation`, `dot`, `dropout`, `elementwise`, `interpretability`, `layernorm`, `losses`, `matmul`, `model_editing`, `optimizer`, `pospop`, `reduction`.  
 **Partial amd64 ladder (AVX-512/AVX2 ymm alias + SSE2 xmm, or SSE2-only on some ops):** `pool` (bf16/fp16 **stride-1 + 2×2 SSE2**; AVX-512/AVX2 ymm for fast paths), `convolution` (stride-1 + patch-dot bf16/fp16 SSE2; general/transpose AVX-512/AVX2 only).
 
 **Largest structural gaps:**
 
-1. **AVX2 + SSE2** for 26/32 domains (all except the six full-ladder domains plus partial `pool`/`convolution`).
+1. **AVX2 + SSE2** for 18–20/32 domains (remaining: `attention`, `causal`, `convolution` partial, `embedding`, `masking`, `math`, `normalization`, `quant`, `dequant`, `rope`, `sampling`, `shape`, `tokenizer`, `vsa`, etc.).
 2. **NEON** for 12 domains that are AVX-512 + scalar only on arm64.
 3. **amd64 f32** for many domains: AVX-512 exists but dispatch falls back to scalar for common configs (convolution f32 “NEON-eligible” shapes on amd64, sparse matmul, most attention/MHA, etc.).
 4. **BF16/FP16 on amd64**: hot paths (`dot`, `elementwise`, `matmul`, `reduction`, `pool` stride-1 + 2×2, `conv` stride-1) have AVX-512/AVX2/SSE2; adaptive pool, conv-transpose SSE2, conv 2×2 SSE2 still open.
@@ -44,10 +44,10 @@ For **each** public CPU op (see §4) and **each** supported dtype:
 |-----------------------------------------------------------|--------------------------------------------------------------|
 | Go scalar reference (exact op definition)                 | Present everywhere; **not always exact math** (see §5)       |
 | `*_avx512_amd64.s` kernel using zmm                       | Partial — 32 domains have files; op coverage varies          |
-| `*_avx2_amd64.s` kernel using ymm                         | **6 domains** (activation, dot, elementwise, matmul, pospop, reduction) |
-| `*_sse2_amd64.s` kernel using xmm                         | **8 domains** (+ convolution, pool)                                    |
+| `*_avx2_amd64.s` kernel using ymm                         | **12 domains** (activation, dot, dropout, elementwise, interpretability, layernorm, losses, matmul, model_editing, optimizer, pospop, reduction) |
+| `*_sse2_amd64.s` kernel using xmm                         | **14 domains** (+ convolution, pool)                                                                                                             |
 | `*_neon_arm64.s` kernel using v0–v31                      | **20 domains**; op coverage varies                           |
-| `select_*` ladder: AVX512 → AVX2 → SSE2 → scalar (amd64)  | **6 full** + **2 partial** (pool, convolution)                         |
+| `select_*` ladder: AVX512 → AVX2 → SSE2 → scalar (amd64)  | **12 full** + **2 partial** (pool, convolution)                                                                                                  |
 | `select_arm64` ladder: NEON → scalar                      | Most NEON domains; 12 domains scalar-only                    |
 | Parity tests, max **1 ULP** vs scalar at standard lengths | **Violated** in multiple places (§5–§6)                      |
 | Benchmark per kernel                                      | Present for many hot paths; not exhaustively verified per op |
@@ -92,7 +92,7 @@ Legend: **Y** = dedicated SIMD for that dtype on at least one ISA; **P** = parti
 | embedding | Y | — | S | S | — | — | — | Bag reduced scalar |
 | normalization | Y | — | S | S | — | — | — | Full pass largely scalar |
 | quant / dequant | — | — | — | — | Y | P | — | int8/int4 paths |
-| optimizer | Y | — | P | P | — | — | — | NEON Adam broken; state f32 |
+| optimizer | Y | — | P | P | — | — | — | **All 10 f32 steps: AVX512→AVX2→SSE2→scalar**; reduced dtypes scalar |
 | rope | Y | — | — | — | — | — | — | |
 | shape | Y | — | — | — | — | — | — | Most shape ops scalar |
 | math | Y | — | — | — | — | — | — | |
@@ -138,7 +138,7 @@ Counts: `*_avx512_amd64.s` / `*_avx2_amd64.s` / `*_sse2_amd64.s` / `*_neon_arm64
 | physics           |       1 |    0 |    0 |    1 | **Partial** AVX512 stencils; **FFT/Bohmian scalar**                                | **Partial** NEON                               |
 | rope              |       1 |    0 |    0 |    1 | AVX512 blocks + scalar tail                                                        | NEON blocks + scalar tail                      |
 | vsa               |       1 |    0 |    0 |    1 | AVX512 bind/bundle/sim; **permute scalar**                                         | Uses elementwise/dot NEON + scalar             |
-| optimizer         |       1 |    0 |    0 |    1 | **AVX512→scalar** per step; SGD Nesterov scalar                                    | **NEON→scalar**; **Adam/AdamW parity failing** |
+| optimizer         |       1 |    1 |    1 |    1 | **All 10 f32 steps: AVX512→AVX2→SSE2→scalar**                                      | NEON Adam/AdamW fixed; other steps NEON→scalar  |
 | embedding         |       1 |    0 |    0 |    0 | AVX512→generic                                                                     | **generic only**                               |
 | normalization     |       1 |    0 |    0 |    0 | AVX512 row helpers; **full pass scalar**                                           | **generic only**                               |
 | masking           |       1 |    0 |    0 |    0 | AVX512→generic                                                                     | **generic only**                               |
@@ -146,14 +146,14 @@ Counts: `*_avx512_amd64.s` / `*_avx2_amd64.s` / `*_sse2_amd64.s` / `*_neon_arm64
 | sampling          |       1 |    0 |    0 |    0 | AVX512 partial → generic                                                           | **generic only**                               |
 | shape             |       1 |    0 |    0 |    0 | AVX512 (3 f32 ops) → generic                                                       | **generic only**                               |
 | checkpoint        |       1 |    0 |    0 |    0 | AVX512→scalar                                                                      | **scalar only**                                |
-| interpretability  |       1 |    0 |    0 |    0 | AVX512→scalar                                                                      | **scalar only**                                |
-| model_editing     |       1 |    0 |    0 |    0 | AVX512→scalar                                                                      | **scalar only**                                |
+| interpretability  |       1 |    1 |    1 |    0 | f32: **AVX512→AVX2→SSE2→scalar**                                                   | **scalar only**                                |
+| model_editing     |       1 |    1 |    1 |    0 | f32: **AVX512→AVX2→SSE2→scalar**                                                   | **scalar only**                                |
 | active_inference  |       1 |    0 |    0 |    0 | AVX512→scalar                                                                      | **scalar only**                                |
 | predictive_coding |       1 |    0 |    0 |    0 | AVX512→scalar                                                                      | **scalar only**                                |
 | tokenizer         |       1 |    0 |    0 |    0 | AVX512→generic                                                                     | **generic only**                               |
 
 **Domains with zero NEON (need full arm64 SIMD stack):**  
-`embedding`, `normalization`, `masking`, `math`, `sampling`, `shape`, `checkpoint`, `interpretability`, `model_editing`, `active_inference`, `predictive_coding`, `tokenizer`.
+`embedding`, `normalization`, `masking`, `math`, `sampling`, `shape`, `checkpoint`, `active_inference`, `predictive_coding`, `tokenizer`.
 
 ---
 
@@ -415,9 +415,9 @@ Below, **Missing** means no dedicated vector kernel on that ISA for that op (dty
 
 | ISA            | Missing                                                                                                     |
 |----------------|-------------------------------------------------------------------------------------------------------------|
-| AVX2 / SSE2    | **All optimizers**                                                                                          |
+| AVX2 / SSE2    | **Adamax, Adagrad, RMSprop, Lion, LARS, LBFGS, Hebbian** (Adam/AdamW/SGD **shipped**)                     |
 | AVX-512 / NEON | **Per-op assembly exists** but dispatch is **SIMD block + scalar tail**; **SGD Nesterov → scalar** on amd64 |
-| NEON           | **Adam, AdamW failing parity** (§6) — treat as **incorrect until fixed**                                    |
+| NEON           | Adam/AdamW parity **fixed** (§6)                                                                            |
 
 ---
 
