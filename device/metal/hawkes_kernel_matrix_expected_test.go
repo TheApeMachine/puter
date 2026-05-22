@@ -1,3 +1,5 @@
+//go:build darwin && cgo
+
 package metal
 
 import (
@@ -36,7 +38,7 @@ func hawkesKernelMatrixDTypeBytes(
 		storedAlpha := decodeDTypeBytesToFloat32(alphaBytes, storageDType)[0]
 		storedBeta := decodeDTypeBytesToFloat32(betaBytes, storageDType)[0]
 
-		expected := hawkesKernelMatrixMetalExpectedForTest(
+		expected := hawkesKernelMatrixMetalExpected(
 			testingObject, backend, storedEvents, storedAlpha, storedBeta,
 		)
 
@@ -48,7 +50,7 @@ func hawkesKernelMatrixDTypeBytes(
 		}
 	}
 
-	expected := hawkesKernelMatrixMetalExpectedForTest(testingObject, backend, events, alpha, beta)
+	expected := hawkesKernelMatrixMetalExpected(testingObject, backend, events, alpha, beta)
 
 	return hawkesKernelMatrixFixture{
 		eventBytes:    dtypeconvert.Float32ToBytes(events),

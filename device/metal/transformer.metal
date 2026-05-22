@@ -119,66 +119,6 @@ static inline void embedding_bag_kernel(
 }
 
 template <typename Storage, typename Scalar>
-static inline void apply_mask_kernel(
-    device const Scalar* input,
-    device const Scalar* mask,
-    device Scalar* out,
-    constant uint& count,
-    uint index
-) {
-    if (index >= count) {
-        return;
-    }
-
-    Storage::store(out, index, Storage::load(input, index) + Storage::load(mask, index));
-}
-
-template <typename Storage, typename Scalar>
-static inline void causal_mask_kernel(
-    device Scalar* out,
-    constant uint& rows,
-    constant uint& cols,
-    uint index
-) {
-    uint count = rows * cols;
-
-    if (index >= count) {
-        return;
-    }
-
-    uint row = index / cols;
-    uint col = index - row * cols;
-    float value = col > row ? -INFINITY : 0.0f;
-    Storage::store(out, index, value);
-}
-
-template <typename Storage, typename Scalar>
-static inline void alibi_bias_kernel(
-    device const Scalar* scores,
-    device const Scalar* slope,
-    device Scalar* out,
-    constant uint& rows,
-    constant uint& cols,
-    uint index
-) {
-    uint count = rows * cols;
-
-    if (index >= count) {
-        return;
-    }
-
-    uint row = index / cols;
-    uint col = index - row * cols;
-    float value = Storage::load(scores, index);
-
-    if (row >= col) {
-        value -= Storage::load(slope, 0) * float(row - col);
-    }
-
-    Storage::store(out, index, value);
-}
-
-template <typename Storage, typename Scalar>
 static inline void attention_scores_tiled(
     device const Scalar* query,
     device const Scalar* key,
@@ -634,39 +574,6 @@ kernel void name( \
     ); \
 }
 
-#define APPLY_MASK_KERNEL(name, storage, scalar) \
-kernel void name( \
-    device const scalar* input [[buffer(0)]], \
-    device const scalar* mask [[buffer(1)]], \
-    device scalar* out [[buffer(2)]], \
-    constant uint& count [[buffer(3)]], \
-    uint index [[thread_position_in_grid]] \
-) { \
-    apply_mask_kernel<storage, scalar>(input, mask, out, count, index); \
-}
-
-#define CAUSAL_MASK_KERNEL(name, storage, scalar) \
-kernel void name( \
-    device scalar* out [[buffer(0)]], \
-    constant uint& rows [[buffer(1)]], \
-    constant uint& cols [[buffer(2)]], \
-    uint index [[thread_position_in_grid]] \
-) { \
-    causal_mask_kernel<storage, scalar>(out, rows, cols, index); \
-}
-
-#define ALIBI_BIAS_KERNEL(name, storage, scalar) \
-kernel void name( \
-    device const scalar* scores [[buffer(0)]], \
-    device const scalar* slope [[buffer(1)]], \
-    device scalar* out [[buffer(2)]], \
-    constant uint& rows [[buffer(3)]], \
-    constant uint& cols [[buffer(4)]], \
-    uint index [[thread_position_in_grid]] \
-) { \
-    alibi_bias_kernel<storage, scalar>(scores, slope, out, rows, cols, index); \
-}
-
 #define ATTENTION_SCORES_KERNEL(name, storage, scalar) \
 kernel void name( \
     device const scalar* query [[buffer(0)]], \
@@ -794,18 +701,6 @@ EMBEDDING_LOOKUP_KERNEL(embedding_lookup_bfloat16, BFloat16TransformerStorage, u
 EMBEDDING_BAG_KERNEL(embedding_bag_float32, Float32TransformerStorage, float)
 EMBEDDING_BAG_KERNEL(embedding_bag_float16, Float16TransformerStorage, half)
 EMBEDDING_BAG_KERNEL(embedding_bag_bfloat16, BFloat16TransformerStorage, ushort)
-
-APPLY_MASK_KERNEL(apply_mask_float32, Float32TransformerStorage, float)
-APPLY_MASK_KERNEL(apply_mask_float16, Float16TransformerStorage, half)
-APPLY_MASK_KERNEL(apply_mask_bfloat16, BFloat16TransformerStorage, ushort)
-
-CAUSAL_MASK_KERNEL(causal_mask_float32, Float32TransformerStorage, float)
-CAUSAL_MASK_KERNEL(causal_mask_float16, Float16TransformerStorage, half)
-CAUSAL_MASK_KERNEL(causal_mask_bfloat16, BFloat16TransformerStorage, ushort)
-
-ALIBI_BIAS_KERNEL(alibi_bias_float32, Float32TransformerStorage, float)
-ALIBI_BIAS_KERNEL(alibi_bias_float16, Float16TransformerStorage, half)
-ALIBI_BIAS_KERNEL(alibi_bias_bfloat16, BFloat16TransformerStorage, ushort)
 
 ATTENTION_SCORES_KERNEL(attention_scores_float32, Float32TransformerStorage, float)
 ATTENTION_SCORES_KERNEL(attention_scores_float16, Float16TransformerStorage, half)

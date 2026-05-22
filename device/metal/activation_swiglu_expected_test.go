@@ -1,3 +1,5 @@
+//go:build darwin && cgo
+
 package metal
 
 import (
@@ -73,8 +75,8 @@ func swiGLUExpectedFloat32ForTest(
 ) []float32 {
 	testingObject.Helper()
 
-	siluValues := metalSiluFloat32VectorForTest(testingObject, backend, gateValues)
+	siluValues := metalSiluFloat32Vector(testingObject, backend, gateValues)
 	zeroValues := make([]float32, len(gateValues))
 
-	return metalFMAFloat32VectorForTest(testingObject, backend, siluValues, upValues, zeroValues)
+	return metalFMAFloat32Vector(testingObject, backend, siluValues, upValues, zeroValues)
 }

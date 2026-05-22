@@ -14,11 +14,6 @@ import (
 // #include "bridge_darwin.h"
 import "C"
 
-func (backend *Backend) ALiBiBias(scores, slope, output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
-	tensors := backend.tensorsAtPanic(scores, slope, output)
-	devicePanic(runMetalALiBiBias(tensors[0], tensors[1], tensors[2]))
-}
-
 func (backend *Backend) AdaptiveAvgPool2D(input, output unsafe.Pointer,
 	batch, channels, inHeight, inWidth, outHeight, outWidth int,
 	format dtype.DType) {
@@ -31,11 +26,6 @@ func (backend *Backend) AdaptiveMaxPool2D(input, output unsafe.Pointer,
 	format dtype.DType) {
 	tensors := backend.tensorsAtPanic(input, output)
 	devicePanic(runMetalAdaptiveMaxPool2D(tensors[0], tensors[1]))
-}
-
-func (backend *Backend) ApplyMask(input, mask, output unsafe.Pointer, count int, format dtype.DType) {
-	tensors := backend.tensorsAtPanic(input, mask, output)
-	devicePanic(runMetalApplyMask(tensors[0], tensors[1], tensors[2]))
 }
 
 func (backend *Backend) AvgPool2D(config device.PoolConfig,
@@ -91,11 +81,6 @@ func (backend *Backend) Bundle(left, right, output unsafe.Pointer, count int, fo
 func (backend *Backend) CATE(treated, control, output unsafe.Pointer, count int, format dtype.DType) {
 	tensors := backend.tensorsAtPanic(treated, control, output)
 	devicePanic(runMetalCATE(tensors[0], tensors[1], tensors[2]))
-}
-
-func (backend *Backend) CausalMask(output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
-	tensors := backend.tensorsAtPanic(output)
-	devicePanic(runMetalCausalMask(tensors[0], tensors[0]))
 }
 
 func runMetalCholesky(input tensor.Tensor, out tensor.Tensor) error {

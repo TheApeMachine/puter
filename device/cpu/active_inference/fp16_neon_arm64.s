@@ -2,6 +2,16 @@
 // NEON active inference float16 kernels: widen fp16→f32, compute, narrow.
 #include "textflag.h"
 
+DATA aiLogC<>+0(SB)/4, $0.6931471805599453
+DATA aiLogC<>+4(SB)/4, $1.0
+DATA aiLogC<>+8(SB)/4, $0.09090909
+DATA aiLogC<>+12(SB)/4, $0.11111111
+DATA aiLogC<>+16(SB)/4, $0.14285715
+DATA aiLogC<>+20(SB)/4, $0.20000000
+DATA aiLogC<>+24(SB)/4, $0.33333334
+DATA aiLogC<>+28(SB)/4, $2.0
+GLOBL aiLogC<>(SB), RODATA|NOPTR, $32
+
 #define VFCVTL_4S(n, d)   WORD $(0x0E217800 | ((n) << 5) | (d))
 #define VFCVTL2_4S(n, d)  WORD $(0x4E217800 | ((n) << 5) | (d))
 #define VFCVTN_4H(n, d)   WORD $(0x0E216800 | ((n) << 5) | (d))
@@ -28,7 +38,9 @@
 	FCVTL_2D(src, 8) ;\
 	FCVTL2_2D(src, 9) ;\
 	FADDD F8, F14, F14 ;\
-	FADDD F9, F14, F14
+	FADDD F9, F14, F14 ;\
+	FADDD F10, F14, F14 ;\
+	FADDD F11, F14, F14
 
 #define AI_F32X4_TO_F64_ADD_CE(src) \
 	FCVTL_2D(src, 8) ;\

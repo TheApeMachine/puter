@@ -2,8 +2,6 @@
 
 package active_inference
 
-import "unsafe"
-
 //go:noescape
 func PrecisionWeightFloat32AVX512Asm(errors, precision, output *float32, count int)
 

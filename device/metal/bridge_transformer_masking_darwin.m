@@ -27,8 +27,10 @@ int metal_dispatch_apply_mask(
         return nameCode;
     }
 
+    NSUInteger vectorCount = (NSUInteger)((count + 3u) / 4u);
+
     return metal_transformer_dispatch(
-        contextRef, kernelName, (NSUInteger)count, false, completionToken, status,
+        contextRef, kernelName, vectorCount, false, completionToken, status,
         ^(id<MTLComputeCommandEncoder> encoder, id<MTLBuffer> validationBuffer) {
             (void)validationBuffer;
             [encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
@@ -63,7 +65,7 @@ int metal_dispatch_causal_mask(
     }
 
     return metal_transformer_dispatch(
-        contextRef, kernelName, (NSUInteger)rows * cols, false, completionToken, status,
+        contextRef, kernelName, (NSUInteger)rows, false, completionToken, status,
         ^(id<MTLComputeCommandEncoder> encoder, id<MTLBuffer> validationBuffer) {
             (void)validationBuffer;
             [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:0];
@@ -99,7 +101,7 @@ int metal_dispatch_alibi_bias(
     }
 
     return metal_transformer_dispatch(
-        contextRef, kernelName, (NSUInteger)rows * cols, false, completionToken, status,
+        contextRef, kernelName, (NSUInteger)rows, false, completionToken, status,
         ^(id<MTLComputeCommandEncoder> encoder, id<MTLBuffer> validationBuffer) {
             (void)validationBuffer;
             [encoder setBuffer:(__bridge id<MTLBuffer>)scoresRef offset:0 atIndex:0];

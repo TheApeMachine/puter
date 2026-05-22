@@ -2,6 +2,16 @@
 // NEON active inference bfloat16 kernels: widen bf16→f32, compute, narrow.
 #include "textflag.h"
 
+DATA aiLogC<>+0(SB)/4, $0.6931471805599453
+DATA aiLogC<>+4(SB)/4, $1.0
+DATA aiLogC<>+8(SB)/4, $0.09090909
+DATA aiLogC<>+12(SB)/4, $0.11111111
+DATA aiLogC<>+16(SB)/4, $0.14285715
+DATA aiLogC<>+20(SB)/4, $0.20000000
+DATA aiLogC<>+24(SB)/4, $0.33333334
+DATA aiLogC<>+28(SB)/4, $2.0
+GLOBL aiLogC<>(SB), RODATA|NOPTR, $32
+
 #define VFADD_S4(m, n, d)   WORD $(0x4E20D400 | ((m) << 16) | ((n) << 5) | (d))
 #define VFSUB_S4(m, n, d)   WORD $(0x4EA0D400 | ((m) << 16) | ((n) << 5) | (d))
 #define VFMUL_S4(m, n, d)   WORD $(0x6E20DC00 | ((m) << 16) | ((n) << 5) | (d))
@@ -24,11 +34,77 @@
 #define BF16_WIDEN_H8_TO_S4_HIGH(src, dst) VZIP2 src, V30.H8, dst
 #define BF16_NARROW_S4_TO_H8(s0, s1, dst)  VUZP2 s1, s0, dst
 
-#define AI_F32X4_TO_F64_ADD_F14(src) \
-	FCVTL_2D(src, 8) ;\
-	FCVTL2_2D(src, 9) ;\
-	FADDD F8, F14, F14 ;\
-	FADDD F9, F14, F14
+#define AI_BF16_BU_ACCUM_V4 \
+	VMOV R6, V4.S[0] ;\
+	FMOVS R6, F0 ;\
+	FCVTSD F0, F6 ;\
+	FADDD F6, F23, F23 ;\
+	VMOV R6, V4.S[1] ;\
+	FMOVS R6, F0 ;\
+	FCVTSD F0, F6 ;\
+	FADDD F6, F23, F23 ;\
+	VMOV R6, V4.S[2] ;\
+	FMOVS R6, F0 ;\
+	FCVTSD F0, F6 ;\
+	FADDD F6, F23, F23 ;\
+	VMOV R6, V4.S[3] ;\
+	FMOVS R6, F0 ;\
+	FCVTSD F0, F6 ;\
+	FADDD F6, F23, F23
+
+#define AI_BF16_BU_ACCUM_V5 \
+	VMOV R6, V5.S[0] ;\
+	FMOVS R6, F0 ;\
+	FCVTSD F0, F6 ;\
+	FADDD F6, F23, F23 ;\
+	VMOV R6, V5.S[1] ;\
+	FMOVS R6, F0 ;\
+	FCVTSD F0, F6 ;\
+	FADDD F6, F23, F23 ;\
+	VMOV R6, V5.S[2] ;\
+	FMOVS R6, F0 ;\
+	FCVTSD F0, F6 ;\
+	FADDD F6, F23, F23 ;\
+	VMOV R6, V5.S[3] ;\
+	FMOVS R6, F0 ;\
+	FCVTSD F0, F6 ;\
+	FADDD F6, F23, F23
+
+#define AI_BF16_BU_ACCUM_V6 \
+	VMOV R6, V6.S[0] ;\
+	FMOVS R6, F0 ;\
+	FCVTSD F0, F6 ;\
+	FADDD F6, F23, F23 ;\
+	VMOV R6, V6.S[1] ;\
+	FMOVS R6, F0 ;\
+	FCVTSD F0, F6 ;\
+	FADDD F6, F23, F23 ;\
+	VMOV R6, V6.S[2] ;\
+	FMOVS R6, F0 ;\
+	FCVTSD F0, F6 ;\
+	FADDD F6, F23, F23 ;\
+	VMOV R6, V6.S[3] ;\
+	FMOVS R6, F0 ;\
+	FCVTSD F0, F6 ;\
+	FADDD F6, F23, F23
+
+#define AI_BF16_BU_ACCUM_V7 \
+	VMOV R6, V7.S[0] ;\
+	FMOVS R6, F0 ;\
+	FCVTSD F0, F6 ;\
+	FADDD F6, F23, F23 ;\
+	VMOV R6, V7.S[1] ;\
+	FMOVS R6, F0 ;\
+	FCVTSD F0, F6 ;\
+	FADDD F6, F23, F23 ;\
+	VMOV R6, V7.S[2] ;\
+	FMOVS R6, F0 ;\
+	FCVTSD F0, F6 ;\
+	FADDD F6, F23, F23 ;\
+	VMOV R6, V7.S[3] ;\
+	FMOVS R6, F0 ;\
+	FCVTSD F0, F6 ;\
+	FADDD F6, F23, F23
 
 #define AI_F32X4_TO_F64_ADD_CE(src) \
 	FCVTL_2D(src, 8) ;\
@@ -390,7 +466,7 @@ TEXT ·BeliefUpdateBFloat16NEONAsm(SB), NOSPLIT, $0-32
 	CBZ  R3, ai_bf16_bu_done
 
 	VEOR V30.B16, V30.B16, V30.B16
-	FMOVD $0, F14
+	FMOVD $0, F23
 
 ai_bf16_bu_loop16:
 	CMP  $16, R3
@@ -410,10 +486,10 @@ ai_bf16_bu_loop16:
 	VFMUL_S4(9, 5, 5)
 	VFMUL_S4(10, 6, 6)
 	VFMUL_S4(11, 7, 7)
-	AI_F32X4_TO_F64_ADD_F14(4)
-	AI_F32X4_TO_F64_ADD_F14(5)
-	AI_F32X4_TO_F64_ADD_F14(6)
-	AI_F32X4_TO_F64_ADD_F14(7)
+	AI_BF16_BU_ACCUM_V4
+	AI_BF16_BU_ACCUM_V5
+	AI_BF16_BU_ACCUM_V6
+	AI_BF16_BU_ACCUM_V7
 	BF16_NARROW_S4_TO_H8(V4.H8, V5.H8, V12.H8)
 	BF16_NARROW_S4_TO_H8(V6.H8, V7.H8, V13.H8)
 	VST1.P [V12.H8, V13.H8], 32(R2)
@@ -422,7 +498,7 @@ ai_bf16_bu_loop16:
 
 ai_bf16_bu_loop8:
 	CMP  $8, R3
-	BLT  ai_bf16_bu_scalar
+	BLT  ai_bf16_bu_tail
 
 	VLD1.P 16(R0), [V0.H8]
 	VLD1.P 16(R1), [V2.H8]
@@ -432,17 +508,17 @@ ai_bf16_bu_loop8:
 	BF16_WIDEN_H8_TO_S4_HIGH(V2.H8, V9.H8)
 	VFMUL_S4(8, 4, 4)
 	VFMUL_S4(9, 5, 5)
-	AI_F32X4_TO_F64_ADD_F14(4)
-	AI_F32X4_TO_F64_ADD_F14(5)
+	AI_BF16_BU_ACCUM_V4
+	AI_BF16_BU_ACCUM_V5
 	BF16_NARROW_S4_TO_H8(V4.H8, V5.H8, V12.H8)
 	VST1.P [V12.H8], 16(R2)
 	SUB  $8, R3
 	B    ai_bf16_bu_loop8
 
-ai_bf16_bu_scalar:
+ai_bf16_bu_tail:
 	CBZ  R3, ai_bf16_bu_normalize
 
-ai_bf16_bu_scalar_loop:
+ai_bf16_bu_tail_loop:
 	MOVHU (R0), R4
 	MOVHU (R1), R5
 	LSL  $16, R4, R4
@@ -451,26 +527,26 @@ ai_bf16_bu_scalar_loop:
 	FMOVS R5, F1
 	FMULS F1, F0, F0
 	FCVTSD F0, F6
-	FADDD F6, F14, F14
+	FADDD F6, F23, F23
 	AI_BF16_STORE_F32_AS_BF16
 	ADD  $2, R0
 	ADD  $2, R1
 	ADD  $2, R2
 	SUB  $1, R3
-	CBNZ R3, ai_bf16_bu_scalar_loop
+	CBNZ R3, ai_bf16_bu_tail_loop
 
 ai_bf16_bu_normalize:
+	MOVD count+24(FP), R3
 	FMOVD $0, F15
-	FCMPD F14, F15
+	FCMPD F23, F15
 	BEQ  ai_bf16_bu_done
 
 	FMOVD $1.0, F3
-	FDIVD F14, F3, F3
+	FDIVD F23, F3, F3
 	FCVTDS F3, F3
 	VDUP V3.S[0], V3.S4
 
 	MOVD output+16(FP), R2
-	MOVD count+24(FP), R3
 	VEOR V30.B16, V30.B16, V30.B16
 
 ai_bf16_bu_scale_loop16:

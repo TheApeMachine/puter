@@ -1,0 +1,14 @@
+{
+  "go.toolsEnvVars": {
+    "GOOS": "darwin",
+    "GOARCH": "arm64",
+    "CGO_ENABLED": "1"
+  },
+  "gopls": {
+    "build.env": {
+      "GOOS": "darwin",
+      "GOARCH": "arm64",
+      "CGO_ENABLED": "1"
+    }
+  }
+}

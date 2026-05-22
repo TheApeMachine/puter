@@ -1,3 +1,5 @@
+//go:build darwin && cgo
+
 package metal
 
 import (
@@ -63,7 +65,7 @@ func hawkesIntensityDTypeBytes(
 		storedAlpha := decodeDTypeBytesToFloat32(alphaBytes, storageDType)[0]
 		storedBeta := decodeDTypeBytesToFloat32(betaBytes, storageDType)[0]
 
-		expected := hawkesIntensityMetalExpectedForTest(
+		expected := hawkesIntensityMetalExpected(
 			testingObject, backend,
 			storedEvents, storedQueries, storedMu, storedAlpha, storedBeta,
 		)
@@ -78,7 +80,7 @@ func hawkesIntensityDTypeBytes(
 		}
 	}
 
-	expected := hawkesIntensityMetalExpectedForTest(
+	expected := hawkesIntensityMetalExpected(
 		testingObject, backend, events, queries, mu, alpha, beta,
 	)
 

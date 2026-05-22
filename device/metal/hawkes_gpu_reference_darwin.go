@@ -10,9 +10,9 @@ import (
 )
 
 /*
-hawkesIntensityMetalExpectedForTest runs hawkes_intensity_float32 on GPU for test gold values.
+hawkesIntensityMetalExpected runs hawkes_intensity_float32 on GPU for test gold values.
 */
-func hawkesIntensityMetalExpectedForTest(
+func hawkesIntensityMetalExpected(
 	testingObject testing.TB,
 	backend *Backend,
 	events []float32,
@@ -55,9 +55,9 @@ func hawkesIntensityMetalExpectedForTest(
 }
 
 /*
-hawkesKernelMatrixMetalExpectedForTest runs hawkes_kernel_matrix_float32 on GPU for test gold values.
+hawkesKernelMatrixMetalExpected runs hawkes_kernel_matrix_float32 on GPU for test gold values.
 */
-func hawkesKernelMatrixMetalExpectedForTest(
+func hawkesKernelMatrixMetalExpected(
 	testingObject testing.TB,
 	backend *Backend,
 	events []float32,

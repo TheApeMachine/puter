@@ -1,3 +1,5 @@
+//go:build darwin && cgo
+
 package metal
 
 import (
@@ -89,7 +91,7 @@ func metalInvStdDevsForTest(
 ) []float32 {
 	testingObject.Helper()
 
-	return metalInvStdDevPreciseFloat32ForTest(testingObject, backend, variancePlusEpsilon)
+	return metalInvStdDevPreciseFloat32(testingObject, backend, variancePlusEpsilon)
 }
 
 func expectedBatchNormEvalValuesMetalSqrt(
@@ -148,7 +150,7 @@ func expectedGroupNormValuesMetalSqrt(
 
 	groups := metalDefaultGroupNormGroups
 	channelsPerGroup := channels / groups
-	groupStats := metalGroupNormRowStatsForTest(
+	groupStats := metalGroupNormRowStats(
 		testingObject, backend, input, batch, channels, spatial, groups,
 	)
 
@@ -204,7 +206,7 @@ func expectedInstanceNormValuesMetalSqrt(
 ) []float32 {
 	testingObject.Helper()
 
-	rowStats := metalInstanceNormRowStatsForTest(
+	rowStats := metalInstanceNormRowStats(
 		testingObject, backend, input, batch, channels, spatial,
 	)
 
