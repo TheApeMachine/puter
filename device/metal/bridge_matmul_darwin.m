@@ -63,31 +63,6 @@ static int metal_matmul_kernel_name(
     return 0;
 }
 
-static void metal_matmul_complete(
-    uint64_t completionToken,
-    id<MTLCommandBuffer> completedBuffer
-) {
-    @autoreleasepool {
-        if ([completedBuffer status] == MTLCommandBufferStatusCompleted) {
-            metalCommandCompleted(completionToken, 0, "");
-            return;
-        }
-
-        NSError* error = [completedBuffer error];
-        NSString* message = @"Metal matmul command buffer failed";
-
-        if (error != nil) {
-            message = [NSString
-                stringWithFormat:@"%@: %@",
-                message,
-                [error localizedDescription]
-            ];
-        }
-
-        metalCommandCompleted(completionToken, -5, (char*)[message UTF8String]);
-    }
-}
-
 static int metal_matmul_mps_element_size(int elementDType, MetalStatus* status) {
     switch (elementDType) {
     case MetalElementDTypeFloat32: return (int)sizeof(float);
@@ -108,6 +83,12 @@ static MPSDataType metal_matmul_mps_dtype(int elementDType, MetalStatus* status)
         metal_matmul_status_set(status, -6, "unsupported MPS matmul dtype");
         return MPSDataTypeInvalid;
     }
+}
+
+static bool metal_matmul_mps_row_bytes_aligned(uint32_t columnCount, int elementSize) {
+    NSUInteger rowBytes = (NSUInteger)columnCount * (NSUInteger)elementSize;
+
+    return rowBytes % 256 == 0;
 }
 
 static int metal_matmul_dispatch_mps(
@@ -136,6 +117,11 @@ static int metal_matmul_dispatch_mps(
 
         if (elementSize == 0) {
             return status != NULL && status->code != 0 ? status->code : -6;
+        }
+
+        if (!metal_matmul_mps_row_bytes_aligned(inner, elementSize)
+            || !metal_matmul_mps_row_bytes_aligned(cols, elementSize)) {
+            return -100;
         }
 
         MPSDataType dataType = metal_matmul_mps_dtype(elementDType, status);
@@ -273,17 +259,51 @@ int metal_dispatch_matmul(
         return -2;
     }
 
-    return metal_matmul_dispatch_mps(
-        contextRef,
+    int mpsCode = metal_matmul_dispatch_mps(
+            contextRef,
+            elementDType,
+            leftRef,
+            rightRef,
+            outRef,
+            rows,
+            inner,
+            cols,
+            completionToken,
+            status
+        );
+
+        if (mpsCode != -100) {
+            return mpsCode;
+        }
+
+    char kernelName[128];
+    int nameCode = metal_matmul_kernel_name(
+        kernelName,
+        sizeof(kernelName),
+        "matmul",
         elementDType,
-        leftRef,
-        rightRef,
-        outRef,
+        status
+    );
+
+    if (nameCode != 0) {
+        return nameCode;
+    }
+
+    return metal_matmul_dispatch(
+        contextRef,
+        kernelName,
         rows,
-        inner,
         cols,
         completionToken,
-        status
+        status,
+        ^(id<MTLComputeCommandEncoder> encoder) {
+            [encoder setBuffer:(__bridge id<MTLBuffer>)leftRef offset:0 atIndex:0];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)rightRef offset:0 atIndex:1];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:2];
+            [encoder setBytes:&rows length:sizeof(rows) atIndex:3];
+            [encoder setBytes:&inner length:sizeof(inner) atIndex:4];
+            [encoder setBytes:&cols length:sizeof(cols) atIndex:5];
+        }
     );
 }
 
