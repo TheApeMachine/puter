@@ -39,7 +39,16 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 		Convey("It should match expected NEON registration counts", func() {
 			counts := summarize(matrix)
 
-			So(counts[ISAPathNEON], ShouldEqual, 20)
+			So(counts[ISAPathNEON], ShouldEqual, 32)
+		})
+
+		Convey("It should register NEON on every domain", func() {
+			neonDomains := domainNamesWith(matrix, ISAPathNEON)
+
+			So(neonDomains, ShouldResemble, []string{
+				"activation", "active_inference", "attention", "causal", "checkpoint", "convolution", "dequant", "dot", "dropout", "elementwise", "embedding", "hawkes", "interpretability", "layernorm", "losses", "masking", "math",
+				"matmul", "model_editing", "normalization", "optimizer", "physics", "pool", "pospop", "predictive_coding", "quant", "reduction", "rope", "sampling", "shape", "tokenizer", "vsa",
+			})
 		})
 
 		Convey("It should register amd64 AVX2 on hot-path domains", func() {
@@ -165,7 +174,7 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 
 			So(row.Scalar, ShouldEqual, ISARegistered)
 			So(row.AVX512, ShouldEqual, ISARegistered)
-			So(row.NEON, ShouldEqual, ISANotRegistered)
+			So(row.NEON, ShouldEqual, ISARegistered)
 			So(row.AVX2, ShouldEqual, ISARegistered)
 			So(row.SSE2, ShouldEqual, ISARegistered)
 		})
@@ -185,7 +194,7 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 
 			So(row.Scalar, ShouldEqual, ISARegistered)
 			So(row.AVX512, ShouldEqual, ISARegistered)
-			So(row.NEON, ShouldEqual, ISANotRegistered)
+			So(row.NEON, ShouldEqual, ISARegistered)
 			So(row.AVX2, ShouldEqual, ISARegistered)
 			So(row.SSE2, ShouldEqual, ISARegistered)
 		})
@@ -205,7 +214,7 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 
 			So(row.Scalar, ShouldEqual, ISARegistered)
 			So(row.AVX512, ShouldEqual, ISARegistered)
-			So(row.NEON, ShouldEqual, ISANotRegistered)
+			So(row.NEON, ShouldEqual, ISARegistered)
 			So(row.AVX2, ShouldEqual, ISARegistered)
 			So(row.SSE2, ShouldEqual, ISARegistered)
 		})
@@ -215,7 +224,7 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 
 			So(row.Scalar, ShouldEqual, ISARegistered)
 			So(row.AVX512, ShouldEqual, ISARegistered)
-			So(row.NEON, ShouldEqual, ISANotRegistered)
+			So(row.NEON, ShouldEqual, ISARegistered)
 			So(row.AVX2, ShouldEqual, ISARegistered)
 			So(row.SSE2, ShouldEqual, ISARegistered)
 		})
@@ -225,7 +234,7 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 
 			So(row.Scalar, ShouldEqual, ISARegistered)
 			So(row.AVX512, ShouldEqual, ISARegistered)
-			So(row.NEON, ShouldEqual, ISANotRegistered)
+			So(row.NEON, ShouldEqual, ISARegistered)
 			So(row.AVX2, ShouldEqual, ISARegistered)
 			So(row.SSE2, ShouldEqual, ISARegistered)
 		})
@@ -275,7 +284,7 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 
 			So(row.Scalar, ShouldEqual, ISARegistered)
 			So(row.AVX512, ShouldEqual, ISARegistered)
-			So(row.NEON, ShouldEqual, ISANotRegistered)
+			So(row.NEON, ShouldEqual, ISARegistered)
 			So(row.AVX2, ShouldEqual, ISARegistered)
 			So(row.SSE2, ShouldEqual, ISARegistered)
 		})
@@ -295,7 +304,7 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 
 			So(row.Scalar, ShouldEqual, ISARegistered)
 			So(row.AVX512, ShouldEqual, ISARegistered)
-			So(row.NEON, ShouldEqual, ISANotRegistered)
+			So(row.NEON, ShouldEqual, ISARegistered)
 			So(row.AVX2, ShouldEqual, ISARegistered)
 			So(row.SSE2, ShouldEqual, ISARegistered)
 		})
@@ -305,7 +314,7 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 
 			So(row.Scalar, ShouldEqual, ISARegistered)
 			So(row.AVX512, ShouldEqual, ISARegistered)
-			So(row.NEON, ShouldEqual, ISANotRegistered)
+			So(row.NEON, ShouldEqual, ISARegistered)
 			So(row.AVX2, ShouldEqual, ISARegistered)
 			So(row.SSE2, ShouldEqual, ISARegistered)
 		})
@@ -325,7 +334,7 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 
 			So(row.Scalar, ShouldEqual, ISARegistered)
 			So(row.AVX512, ShouldEqual, ISARegistered)
-			So(row.NEON, ShouldEqual, ISANotRegistered)
+			So(row.NEON, ShouldEqual, ISARegistered)
 			So(row.AVX2, ShouldEqual, ISARegistered)
 			So(row.SSE2, ShouldEqual, ISARegistered)
 		})
@@ -335,7 +344,7 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 
 			So(row.Scalar, ShouldEqual, ISARegistered)
 			So(row.AVX512, ShouldEqual, ISARegistered)
-			So(row.NEON, ShouldEqual, ISANotRegistered)
+			So(row.NEON, ShouldEqual, ISARegistered)
 			So(row.AVX2, ShouldEqual, ISARegistered)
 			So(row.SSE2, ShouldEqual, ISARegistered)
 		})
@@ -345,7 +354,7 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 
 			So(row.Scalar, ShouldEqual, ISARegistered)
 			So(row.AVX512, ShouldEqual, ISARegistered)
-			So(row.NEON, ShouldEqual, ISANotRegistered)
+			So(row.NEON, ShouldEqual, ISARegistered)
 			So(row.AVX2, ShouldEqual, ISARegistered)
 			So(row.SSE2, ShouldEqual, ISARegistered)
 		})
@@ -355,7 +364,7 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 
 			So(row.Scalar, ShouldEqual, ISARegistered)
 			So(row.AVX512, ShouldEqual, ISARegistered)
-			So(row.NEON, ShouldEqual, ISANotRegistered)
+			So(row.NEON, ShouldEqual, ISARegistered)
 			So(row.AVX2, ShouldEqual, ISARegistered)
 			So(row.SSE2, ShouldEqual, ISARegistered)
 		})

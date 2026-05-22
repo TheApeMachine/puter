@@ -1,6 +1,6 @@
 #include "textflag.h"
 
-DATA aiEps<>+0(SB)/4, $0x358637bd
+DATA aiEps<>+0(SB)/4, $0x2b8cbccc
 GLOBL aiEps<>(SB), RODATA|NOPTR, $4
 
 DATA aiLogC<>+0(SB)/4, $0.6931471805599453

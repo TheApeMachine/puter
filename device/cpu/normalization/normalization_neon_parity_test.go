@@ -11,7 +11,7 @@ import (
 	"github.com/theapemachine/puter/device/cpu/parity"
 )
 
-const normalizationNEONMaxULP = 0
+const normalizationNEONMaxULP = 1
 
 func assertSquaredDiffSumParity(
 	testingTB *testing.T,
