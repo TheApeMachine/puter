@@ -79,13 +79,14 @@ adam_loop4:
     VLD1 (R3), [V3.S4]           // second
 
     // firstNew = beta1 * first + (1-beta1) * grad
-    // V2 *= beta1; FMLA Vd, Vn, Vm: Vd = Vd + Vn*Vm
     VFMUL_S4(17, 2, 2)
-    VFMLA_S4(1, 23, 2)
+    VFMUL_S4(1, 23, 4)
+    VFADD_S4(4, 2, 2)
     // secondNew = beta2 * second + (1-beta2) * grad²
     VFMUL_S4(18, 3, 3)
-    VFMUL_S4(1, 1, 4)            // V4 = grad²
-    VFMLA_S4(4, 24, 3)
+    VFMUL_S4(1, 1, 4)
+    VFMUL_S4(4, 24, 5)
+    VFADD_S4(5, 3, 3)
     // bias-corrected: V5 = V2/beta1Corr, V6 = V3/beta2Corr
     VFDIV_S4(20, 2, 5)
     VFDIV_S4(21, 3, 6)
@@ -222,11 +223,13 @@ adamw_loop4:
     VLD1 (R3), [V3.S4]
     // firstNew = beta1*first + (1-beta1)*grad
     VFMUL_S4(17, 2, 2)
-    VFMLA_S4(1, 23, 2)
+    VFMUL_S4(1, 23, 4)
+    VFADD_S4(4, 2, 2)
     // secondNew = beta2*second + (1-beta2)*grad²
     VFMUL_S4(18, 3, 3)
     VFMUL_S4(1, 1, 4)
-    VFMLA_S4(4, 24, 3)
+    VFMUL_S4(4, 24, 5)
+    VFADD_S4(5, 3, 3)
     // bias correction
     VFDIV_S4(20, 2, 5)
     VFDIV_S4(21, 3, 6)

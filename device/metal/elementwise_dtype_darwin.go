@@ -171,6 +171,56 @@ func requireBinaryElementwiseTensors(
 	return leftTensor, rightTensor, outTensor, nil
 }
 
+func requireMetalDotTensors(
+	left tensor.Tensor,
+	right tensor.Tensor,
+	out tensor.Tensor,
+) (*metalTensor, *metalTensor, *metalTensor, error) {
+	leftTensor, err := requireMetalTensor(left)
+
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	rightTensor, err := requireMetalTensor(right)
+
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	outTensor, err := requireMetalTensor(out)
+
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	if leftTensor.dtype != rightTensor.dtype {
+		return nil, nil, nil, tensor.ErrDTypeMismatch
+	}
+
+	if outTensor.dtype != dtype.Float32 {
+		return nil, nil, nil, tensor.ErrDTypeMismatch
+	}
+
+	if leftTensor.shape.Len() > math.MaxUint32 {
+		return nil, nil, nil, tensor.ErrShapeMismatch
+	}
+
+	if !leftTensor.shape.Equal(rightTensor.shape) || outTensor.shape.Len() != 1 {
+		return nil, nil, nil, tensor.ErrShapeMismatch
+	}
+
+	if leftTensor.bridge != rightTensor.bridge || leftTensor.bridge != outTensor.bridge {
+		return nil, nil, nil, errors.New("metal dot: tensors belong to different Metal backends")
+	}
+
+	if _, err := metalElementDTypeFor(leftTensor.dtype); err != nil {
+		return nil, nil, nil, err
+	}
+
+	return leftTensor, rightTensor, outTensor, nil
+}
+
 func requireUnaryElementwiseTensors(
 	input tensor.Tensor,
 	out tensor.Tensor,

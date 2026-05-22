@@ -104,13 +104,17 @@ func adamWStepSlicesScalar(
 	beta2Correction := 1 - float32(math.Pow(float64(config.Beta2), float64(config.Step)))
 
 	for index, gradValue := range gradients {
-		firstMoment[index] = config.Beta1*firstMoment[index] + (1-config.Beta1)*gradValue
-		secondMoment[index] = config.Beta2*secondMoment[index] + (1-config.Beta2)*gradValue*gradValue
+		firstMoment[index] = adamFirstMomentUpdate(config.Beta1, firstMoment[index], gradValue)
+		secondMoment[index] = adamSecondMomentUpdate(
+			config.Beta2,
+			secondMoment[index],
+			f32Mul(gradValue, gradValue),
+		)
 
 		biasCorrectedFirst := firstMoment[index] / beta1Correction
 		biasCorrectedSecond := secondMoment[index] / beta2Correction
 
-		denominator := float32(math.Sqrt(float64(biasCorrectedSecond))) + config.Epsilon
+		denominator := optimizerSqrtFloat32(biasCorrectedSecond) + config.Epsilon
 		gradStep := config.LearningRate * biasCorrectedFirst / denominator
 		decayStep := config.LearningRate * config.WeightDecay * params[index]
 

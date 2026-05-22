@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"unsafe"
 
-	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
 )
 
@@ -135,22 +134,20 @@ func runMetalAxpy(y tensor.Tensor, x tensor.Tensor, alpha float32) error {
 }
 
 func runMetalDot(left tensor.Tensor, right tensor.Tensor, out tensor.Tensor) error {
-	leftTensor, rightTensor, outTensor, err := requireBinaryElementwiseTensors(left, right, out)
+	leftTensor, rightTensor, outTensor, err := requireMetalDotTensors(left, right, out)
 
 	if err != nil {
 		return err
 	}
 
-	if leftTensor.dtype != dtype.Float32 || rightTensor.dtype != dtype.Float32 || outTensor.dtype != dtype.Float32 {
-		return tensor.ErrDTypeMismatch
-	}
-
-	if leftTensor.shape.Len() != rightTensor.shape.Len() || outTensor.shape.Len() < 1 {
-		return tensor.ErrShapeMismatch
-	}
-
 	if leftTensor.shape.Len() == 0 {
 		return nil
+	}
+
+	elementDType, err := metalElementDTypeFor(leftTensor.dtype)
+
+	if err != nil {
+		return err
 	}
 
 	token, err := metalCompletions.Begin(outTensor, leftTensor, rightTensor)
@@ -162,7 +159,7 @@ func runMetalDot(left tensor.Tensor, right tensor.Tensor, out tensor.Tensor) err
 	status := C.MetalStatus{}
 	rc := C.metal_dispatch_dot(
 		leftTensor.bridge.device,
-		C.int(metalElementDTypeFloat32),
+		C.int(elementDType),
 		leftTensor.buffer,
 		rightTensor.buffer,
 		outTensor.buffer,

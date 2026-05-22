@@ -99,6 +99,148 @@ func TestKernelRegistry_MetalUnaryElementwiseDTypes(t *testing.T) {
 	}
 }
 
+func TestBackend_DotDTypes(testingObject *testing.T) {
+	backend := newBackendForDeviceTest(testingObject)
+	defer func() {
+		if err := backend.Close(); err != nil {
+			testingObject.Fatalf("Close failed: %v", err)
+		}
+	}()
+
+	for _, storageDType := range elementwiseStorageDTypes {
+		storageDType := storageDType
+
+		testingObject.Run(storageDType.Name(), func(testingObject *testing.T) {
+			for _, elementCount := range parityElementCounts {
+				elementCount := elementCount
+
+				testingObject.Run(fmt.Sprintf("N=%d", elementCount), func(testingObject *testing.T) {
+					convey.Convey("Given Metal "+storageDType.Name()+" tensors for Dot", testingObject, func() {
+						shape, err := tensor.NewShape([]int{elementCount})
+						convey.So(err, convey.ShouldBeNil)
+
+						leftValues, rightValues, _ := binaryFloat32ParityValues(elementCount, "mul")
+						leftBytes := encodeFloat32ValuesAsDType(leftValues, storageDType)
+						rightBytes := encodeFloat32ValuesAsDType(rightValues, storageDType)
+						leftStored := decodeDTypeBytesToFloat32(leftBytes, storageDType)
+						rightStored := decodeDTypeBytesToFloat32(rightBytes, storageDType)
+						expected := expectedDotFromStored(leftStored, rightStored, storageDType)
+
+						left := uploadDTypeTensorForTest(testingObject, backend, shape, storageDType, leftBytes)
+						defer func() {
+							convey.So(left.Close(), convey.ShouldBeNil)
+						}()
+
+						right := uploadDTypeTensorForTest(testingObject, backend, shape, storageDType, rightBytes)
+						defer func() {
+							convey.So(right.Close(), convey.ShouldBeNil)
+						}()
+
+						got := backend.Dot(Resident(left), Resident(right), elementCount, storageDType)
+
+						convey.Convey("It should match the scalar dot reference within 1 ULP", func() {
+							assertFloat32WithinULP(testingObject, []float32{got}, []float32{expected}, 1)
+						})
+					})
+				})
+			}
+		})
+	}
+}
+
+func TestBackend_DotFloat32(testingObject *testing.T) {
+	backend := newBackendForDeviceTest(testingObject)
+	defer func() {
+		if err := backend.Close(); err != nil {
+			testingObject.Fatalf("Close failed: %v", err)
+		}
+	}()
+
+	for _, elementCount := range parityElementCounts {
+		elementCount := elementCount
+
+		testingObject.Run(fmt.Sprintf("N=%d", elementCount), func(testingObject *testing.T) {
+			convey.Convey("Given Metal float32 tensors for Dot", testingObject, func() {
+				shape, err := tensor.NewShape([]int{elementCount})
+				convey.So(err, convey.ShouldBeNil)
+
+				leftValues, rightValues, _ := binaryFloat32ParityValues(elementCount, "mul")
+				left, err := backend.Upload(shape, dtype.Float32, convert.Float32ToBytes(leftValues))
+				convey.So(err, convey.ShouldBeNil)
+				defer func() {
+					convey.So(left.Close(), convey.ShouldBeNil)
+				}()
+
+				right, err := backend.Upload(shape, dtype.Float32, convert.Float32ToBytes(rightValues))
+				convey.So(err, convey.ShouldBeNil)
+				defer func() {
+					convey.So(right.Close(), convey.ShouldBeNil)
+				}()
+
+				expected := expectedDotFromStored(leftValues, rightValues, dtype.Float32)
+				got := backend.Dot(Resident(left), Resident(right), elementCount, dtype.Float32)
+
+				convey.Convey("It should match the scalar dot reference within 1 ULP", func() {
+					assertFloat32WithinULP(testingObject, []float32{got}, []float32{expected}, 1)
+				})
+			})
+		})
+	}
+}
+
+func TestBackend_AxpyFloat16(testingObject *testing.T) {
+	backend := newBackendForDeviceTest(testingObject)
+	defer func() {
+		if err := backend.Close(); err != nil {
+			testingObject.Fatalf("Close failed: %v", err)
+		}
+	}()
+
+	convey.Convey("Given FP16 Metal tensors for Axpy", testingObject, func() {
+		shape, err := tensor.NewShape([]int{7})
+		convey.So(err, convey.ShouldBeNil)
+
+		yValues := []float32{1, 2, 3, 4, 5, 6, 7}
+		xValues := []float32{8, 7, 6, 5, 4, 3, 2}
+		alpha := float32(-0.25)
+
+		y := uploadDTypeTensorForTest(
+			testingObject, backend, shape, dtype.Float16,
+			encodeFloat32ValuesAsDType(yValues, dtype.Float16),
+		)
+		defer func() {
+			convey.So(y.Close(), convey.ShouldBeNil)
+		}()
+
+		x := uploadDTypeTensorForTest(
+			testingObject, backend, shape, dtype.Float16,
+			encodeFloat32ValuesAsDType(xValues, dtype.Float16),
+		)
+		defer func() {
+			convey.So(x.Close(), convey.ShouldBeNil)
+		}()
+
+		expectedValues := make([]float32, len(yValues))
+
+		for index := range expectedValues {
+			expectedValues[index] = yValues[index] + alpha*xValues[index]
+		}
+
+		convey.Convey("It should update y in-place without dtype promotion", func() {
+			backend.Axpy(Resident(y), Resident(x), len(yValues), alpha, dtype.Float16)
+
+			assertDTypeBytesForTest(
+				testingObject,
+				backend,
+				y,
+				dtype.Float16,
+				encodeFloat32ValuesAsDType(expectedValues, dtype.Float16),
+				1,
+			)
+		})
+	})
+}
+
 func TestBackend_AxpyBFloat16(testingObject *testing.T) {
 	backend := newBackendForDeviceTest(testingObject)
 	defer func() {
@@ -269,6 +411,29 @@ func unaryElementwiseDTypeBytes(
 	}
 
 	return inputBytes, encodeFloat32ValuesAsDType(expectedValues, storageDType)
+}
+
+func expectedDotFromStored(
+	leftStored []float32,
+	rightStored []float32,
+	storageDType dtype.DType,
+) float32 {
+	var sum float32
+
+	for index := range leftStored {
+		sum += leftStored[index] * rightStored[index]
+	}
+
+	switch storageDType {
+	case dtype.BFloat16:
+		bf16 := dtype.NewBfloat16FromFloat32(sum)
+
+		return (&bf16).Float32()
+	case dtype.Float16:
+		return dtype.Fromfloat32(sum).Float32()
+	default:
+		return sum
+	}
 }
 
 func encodeFloat32ValuesAsDType(values []float32, storageDType dtype.DType) []byte {

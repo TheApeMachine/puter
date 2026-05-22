@@ -112,11 +112,15 @@ func adamStepSlicesNEON(
 	// Scalar tail for the last <4 elements.
 	for index := tailStart; index < n; index++ {
 		gradValue := gradients[index]
-		firstMoment[index] = config.Beta1*firstMoment[index] + (1-config.Beta1)*gradValue
-		secondMoment[index] = config.Beta2*secondMoment[index] + (1-config.Beta2)*gradValue*gradValue
+		firstMoment[index] = adamFirstMomentUpdate(config.Beta1, firstMoment[index], gradValue)
+		secondMoment[index] = adamSecondMomentUpdate(
+			config.Beta2,
+			secondMoment[index],
+			f32Mul(gradValue, gradValue),
+		)
 		biasFirst := firstMoment[index] / beta1Corr
 		biasSec := secondMoment[index] / beta2Corr
-		denom := float32(math.Sqrt(float64(biasSec))) + config.Epsilon
+		denom := optimizerSqrtFloat32(biasSec) + config.Epsilon
 		output[index] = params[index] - config.LearningRate*biasFirst/denom
 	}
 }
@@ -143,11 +147,15 @@ func adamwStepSlicesNEON(
 
 	for index := tailStart; index < n; index++ {
 		gradValue := gradients[index]
-		firstMoment[index] = config.Beta1*firstMoment[index] + (1-config.Beta1)*gradValue
-		secondMoment[index] = config.Beta2*secondMoment[index] + (1-config.Beta2)*gradValue*gradValue
+		firstMoment[index] = adamFirstMomentUpdate(config.Beta1, firstMoment[index], gradValue)
+		secondMoment[index] = adamSecondMomentUpdate(
+			config.Beta2,
+			secondMoment[index],
+			f32Mul(gradValue, gradValue),
+		)
 		biasFirst := firstMoment[index] / beta1Corr
 		biasSec := secondMoment[index] / beta2Corr
-		denom := float32(math.Sqrt(float64(biasSec))) + config.Epsilon
+		denom := optimizerSqrtFloat32(biasSec) + config.Epsilon
 		gradStep := config.LearningRate * biasFirst / denom
 		decayStep := config.LearningRate * config.WeightDecay * params[index]
 		output[index] = params[index] - gradStep - decayStep

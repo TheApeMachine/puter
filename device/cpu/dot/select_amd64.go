@@ -81,6 +81,7 @@ var (
 	dotInt8Funcs = []int8DotKernelImpl{
 		{DotInt8AVX512, "avx512", cpu.X86.HasAVX512F},
 		{DotInt8AVX2, "avx2", cpu.X86.HasAVX2},
+		{DotInt8SSE2, "sse2", cpu.X86.HasSSE2},
 		{DotInt8Generic, "generic", true},
 	}
 )

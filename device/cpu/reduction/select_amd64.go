@@ -96,22 +96,32 @@ func L1NormFloat32Native(values []float32) float32 {
 var (
 	sumF32Funcs = []f32ReduceKernelImpl{
 		{SumF32AVX512, "avx512", cpu.X86.HasAVX512F},
+		{SumF32AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{SumF32SSE2, "sse2", cpu.X86.HasSSE2},
 		{SumF32Generic, "generic", true},
 	}
 	prodF32Funcs = []f32ReduceKernelImpl{
 		{ProdF32AVX512, "avx512", cpu.X86.HasAVX512F},
+		{ProdF32AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{ProdF32SSE2, "sse2", cpu.X86.HasSSE2},
 		{ProdF32Generic, "generic", true},
 	}
 	minF32Funcs = []f32ReduceKernelImpl{
 		{MinF32AVX512, "avx512", cpu.X86.HasAVX512F},
+		{MinF32AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{MinF32SSE2, "sse2", cpu.X86.HasSSE2},
 		{MinF32Generic, "generic", true},
 	}
 	maxF32Funcs = []f32ReduceKernelImpl{
 		{MaxF32AVX512, "avx512", cpu.X86.HasAVX512F},
+		{MaxF32AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{MaxF32SSE2, "sse2", cpu.X86.HasSSE2},
 		{MaxF32Generic, "generic", true},
 	}
 	l1NormF32Funcs = []f32ReduceKernelImpl{
 		{L1NormF32AVX512, "avx512", cpu.X86.HasAVX512F},
+		{L1NormF32AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{L1NormF32SSE2, "sse2", cpu.X86.HasSSE2},
 		{L1NormF32Generic, "generic", true},
 	}
 	sumBF16Funcs = []bf16SumKernelImpl{

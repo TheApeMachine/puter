@@ -1,0 +1,177 @@
+#include "textflag.h"
+
+#define WIDEN_BF16_4H_TO_X4(srcPtr, dstX) \
+	VMOVDQU X2, (srcPtr); \
+	VPMOVZXWD X2, dstX; \
+	VPSLLD $16, dstX, dstX
+
+#define NARROW_BF16_X1_TO_4H(dstPtr) \
+	VPSRLD $16, X1, X1; \
+	MOVL  X1, AX; \
+	MOVW  AX, (dstPtr); \
+	PEXTRD $1, X1, AX; \
+	MOVW  AX, 2(dstPtr); \
+	PEXTRD $2, X1, AX; \
+	MOVW  AX, 4(dstPtr); \
+	PEXTRD $3, X1, AX; \
+	MOVW  AX, 6(dstPtr)
+
+// func Conv2dStride1RowBF16SSE2Asm(
+//     outRow, input, weight *uint16,
+//     biasValue float32,
+//     outCols, inChannels, kH, kW int,
+//     inHStride, inCStride, wHStride, wCStride int,
+//     ihStart, iwStart int,
+// )
+TEXT ·Conv2dStride1RowBF16SSE2Asm(SB), NOSPLIT, $0-112
+	MOVQ outRow+0(FP), DI
+	MOVQ input+8(FP), SI
+	MOVQ weight+16(FP), BX
+	MOVSS biasValue+24(FP), X0
+	SHUFPS $0, X0, X0
+	MOVQ outCols+32(FP), CX
+	MOVQ inHStride+64(FP), R15
+	MOVQ ihStart+96(FP), R11
+
+	SHLQ $1, R15
+	IMULQ R15, R11
+	ADDQ R11, SI
+
+col_block_loop:
+	CMPQ CX, $4
+	JL   conv2d_bf16_sse2_done
+
+	MOVAPS X0, X1
+
+	MOVQ inChannels+40(FP), R12
+	MOVQ SI, R13
+	MOVQ BX, R14
+
+c_loop:
+	TESTQ R12, R12
+	JZ    c_done
+
+	MOVQ kH+48(FP), R10
+	MOVQ R13, R8
+	MOVQ R14, R9
+
+kh_loop:
+	TESTQ R10, R10
+	JZ    kh_done
+
+	MOVQ kW+56(FP), AX
+	MOVQ R8, R11
+	MOVQ R9, R15
+
+kw_loop:
+	TESTQ AX, AX
+	JZ    kw_done
+
+	MOVWLZX (R15), DX
+	SHLQ  $16, DX
+	VMOVD X2, DX
+	SHUFPS $0, X2, X2
+
+	WIDEN_BF16_4H_TO_X4(R11, X3)
+	MULPS X3, X2
+	ADDPS X2, X1
+
+	ADDQ $2, R11
+	ADDQ $2, R15
+	DECQ AX
+	JMP  kw_loop
+
+kw_done:
+	MOVQ inHStride+64(FP), R15
+	SHLQ $1, R15
+	ADDQ R15, R8
+	MOVQ wHStride+80(FP), R15
+	SHLQ $1, R15
+	ADDQ R15, R9
+	DECQ R10
+	JMP  kh_loop
+
+kh_done:
+	MOVQ inCStride+72(FP), R15
+	SHLQ $1, R15
+	ADDQ R15, R13
+	MOVQ wCStride+88(FP), R15
+	SHLQ $1, R15
+	ADDQ R15, R14
+	DECQ R12
+	JMP  c_loop
+
+c_done:
+	NARROW_BF16_X1_TO_4H(DI)
+
+	ADDQ $8, DI
+	ADDQ $8, SI
+	SUBQ $4, CX
+	JMP  col_block_loop
+
+conv2d_bf16_sse2_done:
+	RET
+
+// func Conv2dPatchDotBF16SSE2Asm(weight, patch *uint16, n int) float32
+TEXT ·Conv2dPatchDotBF16SSE2Asm(SB), NOSPLIT, $0-28
+	MOVQ weight+0(FP), SI
+	MOVQ patch+8(FP), DI
+	MOVQ n+16(FP), CX
+
+	TESTQ CX, CX
+	JZ    cpd_bf16_sse2_zero
+
+	XORPS X0, X0
+
+cpd_bf16_sse2_w4:
+	CMPQ CX, $4
+	JL   cpd_bf16_sse2_reduce
+
+	VMOVDQU X1, (SI)
+	VMOVDQU X2, (DI)
+	VPMOVZXWD X1, X3
+	VPSLLD    $16, X3, X3
+	VPMOVZXWD X2, X4
+	VPSLLD    $16, X4, X4
+	MULPS     X4, X3
+	ADDPS     X3, X0
+
+	ADDQ $8, SI
+	ADDQ $8, DI
+	SUBQ $4, CX
+	JMP  cpd_bf16_sse2_w4
+
+cpd_bf16_sse2_reduce:
+	MOVAPS X0, X1
+	SHUFPS $2, X0, X1
+	ADDPS  X1, X0
+	MOVAPS X0, X1
+	SHUFPS $1, X0, X1
+	ADDPS  X1, X0
+
+	TESTQ CX, CX
+	JZ    cpd_bf16_sse2_store
+
+cpd_bf16_sse2_tail:
+	MOVWLZX (SI), AX
+	SHLQ  $16, AX
+	VMOVD X1, AX
+	MOVWLZX (DI), R8
+	SHLQ  $16, R8
+	VMOVD X2, R8
+	MULSS X2, X1
+	ADDSS X1, X0
+
+	ADDQ $2, SI
+	ADDQ $2, DI
+	DECQ CX
+	JNZ  cpd_bf16_sse2_tail
+
+cpd_bf16_sse2_store:
+	MOVSS X0, ret+24(FP)
+	RET
+
+cpd_bf16_sse2_zero:
+	XORPS X0, X0
+	MOVSS X0, ret+24(FP)
+	RET

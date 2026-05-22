@@ -11,6 +11,18 @@ func MatmulFloat32Native(out, left, right []float32, rows, inner, cols int) {
 		return
 	}
 
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		MatmulFloat32AVX2(out, left, right, rows, inner, cols)
+
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		MatmulFloat32SSE2(out, left, right, rows, inner, cols)
+
+		return
+	}
+
 	matmulFloat32Scalar(out, left, right, rows, inner, cols)
 }
 

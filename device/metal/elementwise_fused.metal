@@ -35,6 +35,34 @@ kernel void axpy_float32(
     }
 }
 
+kernel void axpy_float16(
+    device half4* yVector [[buffer(0)]],
+    device const half4* xVector [[buffer(1)]],
+    constant uint& count [[buffer(2)]],
+    constant float& alpha [[buffer(3)]],
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]]
+) {
+    uint vectorCount = count / 4;
+
+    for (uint vectorIndex = index; vectorIndex < vectorCount; vectorIndex += stride) {
+        half4 yPacked = yVector[vectorIndex];
+        half4 xPacked = xVector[vectorIndex];
+        yVector[vectorIndex] = yPacked + half(alpha) * xPacked;
+    }
+
+    if (index == 0) {
+        uint remainder = count % 4;
+        device half* yScalar = reinterpret_cast<device half*>(yVector);
+        device const half* xScalar = reinterpret_cast<device const half*>(xVector);
+
+        for (uint offset = 0; offset < remainder; offset++) {
+            uint scalarIndex = vectorCount * 4 + offset;
+            yScalar[scalarIndex] += half(alpha) * xScalar[scalarIndex];
+        }
+    }
+}
+
 kernel void axpy_bfloat16(
     device ushort4* yVector [[buffer(0)]],
     device const ushort4* xVector [[buffer(1)]],
@@ -83,6 +111,10 @@ kernel void axpy_bfloat16(
     }
 }
 
+static inline float dot_bf16_to_float(ushort value) {
+    return as_type<float>(uint(value) << 16);
+}
+
 kernel void dot_float32(
     device const float* left [[buffer(0)]],
     device const float* right [[buffer(1)]],
@@ -96,6 +128,50 @@ kernel void dot_float32(
 
     for (uint offset = index; offset < count; offset += stride) {
         partial += left[offset] * right[offset];
+    }
+
+    float simd_partial = simd_sum(partial);
+
+    if (simd_lane_id == 0) {
+        atomic_fetch_add_explicit(out, simd_partial, memory_order_relaxed);
+    }
+}
+
+kernel void dot_bfloat16(
+    device const ushort* left [[buffer(0)]],
+    device const ushort* right [[buffer(1)]],
+    device atomic_float* out [[buffer(2)]],
+    constant uint& count [[buffer(3)]],
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]],
+    uint simd_lane_id [[thread_index_in_simdgroup]]
+) {
+    float partial = 0.0f;
+
+    for (uint offset = index; offset < count; offset += stride) {
+        partial += dot_bf16_to_float(left[offset]) * dot_bf16_to_float(right[offset]);
+    }
+
+    float simd_partial = simd_sum(partial);
+
+    if (simd_lane_id == 0) {
+        atomic_fetch_add_explicit(out, simd_partial, memory_order_relaxed);
+    }
+}
+
+kernel void dot_float16(
+    device const half* left [[buffer(0)]],
+    device const half* right [[buffer(1)]],
+    device atomic_float* out [[buffer(2)]],
+    constant uint& count [[buffer(3)]],
+    uint index [[thread_position_in_grid]],
+    uint stride [[threads_per_grid]],
+    uint simd_lane_id [[thread_index_in_simdgroup]]
+) {
+    float partial = 0.0f;
+
+    for (uint offset = index; offset < count; offset += stride) {
+        partial += float(left[offset]) * float(right[offset]);
     }
 
     float simd_partial = simd_sum(partial);

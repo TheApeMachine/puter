@@ -8,16 +8,16 @@ GLOBL ewAbsMaskSSE2<>(SB), RODATA|NOPTR, $4
 GLOBL ewSignMaskSSE2<>(SB), RODATA|NOPTR, $4
 
 #define WIDEN_BF16_4(src, xLo, xHi) \
-	MOVDQU X2, (src); \
-	VPXOR  X3, X3; \
+	VMOVDQU X2, (src); \
+	VPXOR  X3, X3, X3; \
 	VPUNPCKLWD X3, X2, xLo; \
 	VPUNPCKHWD X3, X2, xHi; \
-	VPSLLD $16, xLo; \
-	VPSLLD $16, xHi
+	VPSLLD $16, xLo, xLo; \
+	VPSLLD $16, xHi, xHi
 
 #define NARROW_BF16_4(xLo, xHi, dst) \
-	VPSRLD $16, xLo; \
-	VPSRLD $16, xHi; \
+	VPSRLD $16, xLo, xLo; \
+	VPSRLD $16, xHi, xHi; \
 	MOVL  xLo, AX; \
 	MOVW  AX, (dst); \
 	PEXTRD $1, xLo, AX; \
@@ -27,74 +27,169 @@ GLOBL ewSignMaskSSE2<>(SB), RODATA|NOPTR, $4
 	PEXTRD $1, xHi, AX; \
 	MOVW  AX, 6(dst)
 
-#define BF16_BIN_LOOP(opLo, opHi, opScalar) \
-	MOVQ dst+0(FP), DI; \
-	MOVQ left+8(FP), SI; \
-	MOVQ right+16(FP), R8; \
-	MOVQ n+24(FP), CX; \
-w4: \
-	CMPQ CX, $4; \
-	JL   tail; \
-	WIDEN_BF16_4(SI, X4, X5); \
-	WIDEN_BF16_4(R8, X6, X7); \
-	opLo; \
-	opHi; \
-	NARROW_BF16_4(X4, X5, DI); \
-	ADDQ $8, SI; \
-	ADDQ $8, R8; \
-	ADDQ $8, DI; \
-	SUBQ $4, CX; \
-	JMP  w4; \
-tail: \
-	TESTQ CX, CX; \
-	JZ   done; \
-scalar: \
-	MOVWLZX (SI), AX; \
-	SHLQ  $16, AX; \
-	VMOVD X2, AX; \
-	MOVWLZX (R8), DX; \
-	SHLQ  $16, DX; \
-	VMOVD X3, DX; \
-	opScalar; \
-	VPSRLD $16, X2, X2; \
-	MOVL  X2, AX; \
-	MOVW  AX, (DI); \
-	ADDQ $2, SI; \
-	ADDQ $2, R8; \
-	ADDQ $2, DI; \
-	DECQ CX; \
-	JNZ  scalar; \
-done: \
-	RET
-
-#define MAX_PS(a, b, m, t) \
-	CMPPS  $6, b, a, m; \
-	ANDPS  m, a; \
-	ANDNPS m, b, t; \
-	ORPS   t, a
-
-#define MIN_PS(a, b, m, t) \
-	CMPPS  $6, a, b, m; \
-	ANDPS  m, b; \
-	ANDNPS m, a, t; \
-	ORPS   t, b; \
-	MOVAPS b, a
-
 // func AddBFloat16SSE2Asm(dst, left, right *uint16, n int)
 TEXT ·AddBFloat16SSE2Asm(SB), NOSPLIT, $0-32
-	BF16_BIN_LOOP(ADDPS X6, X4; , ADDPS X7, X5; , VADDSS X3, X2, X2)
+	MOVQ dst+0(FP), DI
+	MOVQ left+8(FP), SI
+	MOVQ right+16(FP), R8
+	MOVQ n+24(FP), CX
+add_w4:
+	CMPQ CX, $4
+	JL   add_tail
+	WIDEN_BF16_4(SI, X4, X5)
+	WIDEN_BF16_4(R8, X6, X7)
+	ADDPS X6, X4
+	ADDPS X7, X5
+	NARROW_BF16_4(X4, X5, DI)
+	ADDQ $8, SI
+	ADDQ $8, R8
+	ADDQ $8, DI
+	SUBQ $4, CX
+	JMP  add_w4
+add_tail:
+	TESTQ CX, CX
+	JZ   add_done
+add_scalar:
+	MOVWLZX (SI), AX
+	SHLQ  $16, AX
+	VMOVD X2, AX
+	MOVWLZX (R8), DX
+	SHLQ  $16, DX
+	VMOVD X3, DX
+	VADDSS X3, X2, X2
+	VPSRLD $16, X2, X2
+	MOVL  X2, AX
+	MOVW  AX, (DI)
+	ADDQ $2, SI
+	ADDQ $2, R8
+	ADDQ $2, DI
+	DECQ CX
+	JNZ  add_scalar
+add_done:
+	RET
 
 // func SubBFloat16SSE2Asm(dst, left, right *uint16, n int)
 TEXT ·SubBFloat16SSE2Asm(SB), NOSPLIT, $0-32
-	BF16_BIN_LOOP(SUBPS X6, X4; , SUBPS X7, X5; , VSUBSS X3, X2, X2)
+	MOVQ dst+0(FP), DI
+	MOVQ left+8(FP), SI
+	MOVQ right+16(FP), R8
+	MOVQ n+24(FP), CX
+sub_w4:
+	CMPQ CX, $4
+	JL   sub_tail
+	WIDEN_BF16_4(SI, X4, X5)
+	WIDEN_BF16_4(R8, X6, X7)
+	SUBPS X6, X4
+	SUBPS X7, X5
+	NARROW_BF16_4(X4, X5, DI)
+	ADDQ $8, SI
+	ADDQ $8, R8
+	ADDQ $8, DI
+	SUBQ $4, CX
+	JMP  sub_w4
+sub_tail:
+	TESTQ CX, CX
+	JZ   sub_done
+sub_scalar:
+	MOVWLZX (SI), AX
+	SHLQ  $16, AX
+	VMOVD X2, AX
+	MOVWLZX (R8), DX
+	SHLQ  $16, DX
+	VMOVD X3, DX
+	VSUBSS X3, X2, X2
+	VPSRLD $16, X2, X2
+	MOVL  X2, AX
+	MOVW  AX, (DI)
+	ADDQ $2, SI
+	ADDQ $2, R8
+	ADDQ $2, DI
+	DECQ CX
+	JNZ  sub_scalar
+sub_done:
+	RET
 
 // func MulBFloat16SSE2Asm(dst, left, right *uint16, n int)
 TEXT ·MulBFloat16SSE2Asm(SB), NOSPLIT, $0-32
-	BF16_BIN_LOOP(MULPS X6, X4; , MULPS X7, X5; , VMULSS X3, X2, X2)
+	MOVQ dst+0(FP), DI
+	MOVQ left+8(FP), SI
+	MOVQ right+16(FP), R8
+	MOVQ n+24(FP), CX
+mul_w4:
+	CMPQ CX, $4
+	JL   mul_tail
+	WIDEN_BF16_4(SI, X4, X5)
+	WIDEN_BF16_4(R8, X6, X7)
+	MULPS X6, X4
+	MULPS X7, X5
+	NARROW_BF16_4(X4, X5, DI)
+	ADDQ $8, SI
+	ADDQ $8, R8
+	ADDQ $8, DI
+	SUBQ $4, CX
+	JMP  mul_w4
+mul_tail:
+	TESTQ CX, CX
+	JZ   mul_done
+mul_scalar:
+	MOVWLZX (SI), AX
+	SHLQ  $16, AX
+	VMOVD X2, AX
+	MOVWLZX (R8), DX
+	SHLQ  $16, DX
+	VMOVD X3, DX
+	VMULSS X3, X2, X2
+	VPSRLD $16, X2, X2
+	MOVL  X2, AX
+	MOVW  AX, (DI)
+	ADDQ $2, SI
+	ADDQ $2, R8
+	ADDQ $2, DI
+	DECQ CX
+	JNZ  mul_scalar
+mul_done:
+	RET
 
 // func DivBFloat16SSE2Asm(dst, left, right *uint16, n int)
 TEXT ·DivBFloat16SSE2Asm(SB), NOSPLIT, $0-32
-	BF16_BIN_LOOP(DIVPS X6, X4; , DIVPS X7, X5; , VDIVSS X3, X2, X2)
+	MOVQ dst+0(FP), DI
+	MOVQ left+8(FP), SI
+	MOVQ right+16(FP), R8
+	MOVQ n+24(FP), CX
+div_w4:
+	CMPQ CX, $4
+	JL   div_tail
+	WIDEN_BF16_4(SI, X4, X5)
+	WIDEN_BF16_4(R8, X6, X7)
+	DIVPS X6, X4
+	DIVPS X7, X5
+	NARROW_BF16_4(X4, X5, DI)
+	ADDQ $8, SI
+	ADDQ $8, R8
+	ADDQ $8, DI
+	SUBQ $4, CX
+	JMP  div_w4
+div_tail:
+	TESTQ CX, CX
+	JZ   div_done
+div_scalar:
+	MOVWLZX (SI), AX
+	SHLQ  $16, AX
+	VMOVD X2, AX
+	MOVWLZX (R8), DX
+	SHLQ  $16, DX
+	VMOVD X3, DX
+	VDIVSS X3, X2, X2
+	VPSRLD $16, X2, X2
+	MOVL  X2, AX
+	MOVW  AX, (DI)
+	ADDQ $2, SI
+	ADDQ $2, R8
+	ADDQ $2, DI
+	DECQ CX
+	JNZ  div_scalar
+div_done:
+	RET
 
 // func MaxBFloat16SSE2Asm(dst, left, right *uint16, n int)
 TEXT ·MaxBFloat16SSE2Asm(SB), NOSPLIT, $0-32
@@ -107,8 +202,14 @@ max_w4:
 	JL   max_tail
 	WIDEN_BF16_4(SI, X4, X5)
 	WIDEN_BF16_4(R8, X6, X7)
-	MAX_PS(X4, X6, X8, X9)
-	MAX_PS(X5, X7, X8, X9)
+	VCMPPS  $6, X6, X4, X8
+	ANDPS  X8, X4
+	VANDNPS X9, X8, X6
+	ORPS   X9, X4
+	VCMPPS  $6, X7, X5, X8
+	ANDPS  X8, X5
+	VANDNPS X9, X8, X7
+	ORPS   X9, X5
 	NARROW_BF16_4(X4, X5, DI)
 	ADDQ $8, SI
 	ADDQ $8, R8
@@ -125,7 +226,10 @@ max_scalar:
 	MOVWLZX (R8), DX
 	SHLQ  $16, DX
 	VMOVD X3, DX
-	MAX_PS(X2, X3, X4, X5)
+	VCMPPS  $6, X3, X2, X4
+	ANDPS  X4, X2
+	VANDNPS X5, X4, X3
+	ORPS   X5, X2
 	VPSRLD $16, X2, X2
 	MOVL  X2, AX
 	MOVW  AX, (DI)
@@ -148,8 +252,16 @@ min_w4:
 	JL   min_tail
 	WIDEN_BF16_4(SI, X4, X5)
 	WIDEN_BF16_4(R8, X6, X7)
-	MIN_PS(X4, X6, X8, X9)
-	MIN_PS(X5, X7, X8, X9)
+	VCMPPS  $6, X4, X6, X8
+	ANDPS  X8, X6
+	VANDNPS X9, X8, X4
+	ORPS   X9, X6
+	MOVAPS X6, X4
+	VCMPPS  $6, X5, X7, X8
+	ANDPS  X8, X7
+	VANDNPS X9, X8, X5
+	ORPS   X9, X7
+	MOVAPS X7, X5
 	NARROW_BF16_4(X4, X5, DI)
 	ADDQ $8, SI
 	ADDQ $8, R8
@@ -166,7 +278,11 @@ min_scalar:
 	MOVWLZX (R8), DX
 	SHLQ  $16, DX
 	VMOVD X3, DX
-	MIN_PS(X2, X3, X4, X5)
+	VCMPPS  $6, X2, X3, X4
+	ANDPS  X4, X3
+	VANDNPS X5, X4, X2
+	ORPS   X5, X3
+	MOVAPS X3, X2
 	VPSRLD $16, X2, X2
 	MOVL  X2, AX
 	MOVW  AX, (DI)
@@ -223,8 +339,8 @@ neg_w4:
 	CMPQ CX, $4
 	JL   neg_tail
 	WIDEN_BF16_4(SI, X4, X5)
-	XORPS X10, X4
-	XORPS X10, X5
+	VXORPS X10, X4, X4
+	VXORPS X10, X5, X5
 	NARROW_BF16_4(X4, X5, DI)
 	ADDQ $8, SI
 	ADDQ $8, DI
@@ -237,7 +353,7 @@ neg_scalar:
 	MOVWLZX (SI), AX
 	SHLQ  $16, AX
 	VMOVD X2, AX
-	XORPS X10, X2
+	VXORPS X10, X2, X2
 	VPSRLD $16, X2, X2
 	MOVL  X2, AX
 	MOVW  AX, (DI)
@@ -271,7 +387,7 @@ sqrt_scalar:
 	MOVWLZX (SI), AX
 	SHLQ  $16, AX
 	VMOVD X2, AX
-	SQRTSS X2, X2, X2
+	SQRTSS X2, X2
 	VPSRLD $16, X2, X2
 	MOVL  X2, AX
 	MOVW  AX, (DI)
@@ -287,14 +403,14 @@ TEXT ·ReluBFloat16SSE2Asm(SB), NOSPLIT, $0-24
 	MOVQ dst+0(FP), DI
 	MOVQ src+8(FP), SI
 	MOVQ n+16(FP), CX
-	XORPS X10, X10
+	VXORPS X10, X10, X10
 relu_w4:
 	CMPQ CX, $4
 	JL   relu_tail
 	WIDEN_BF16_4(SI, X4, X5)
-	CMPPS $6, X10, X4, X8
+	VCMPPS $6, X10, X4, X8
 	ANDPS X8, X4
-	CMPPS $6, X10, X5, X8
+	VCMPPS $6, X10, X5, X8
 	ANDPS X8, X5
 	NARROW_BF16_4(X4, X5, DI)
 	ADDQ $8, SI
@@ -308,7 +424,7 @@ relu_scalar:
 	MOVWLZX (SI), AX
 	SHLQ  $16, AX
 	VMOVD X2, AX
-	CMPPS $6, X10, X2, X4
+	VCMPPS $6, X10, X2, X4
 	ANDPS X4, X2
 	VPSRLD $16, X2, X2
 	MOVL  X2, AX

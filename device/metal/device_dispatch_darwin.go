@@ -128,11 +128,24 @@ func (backend *Backend) dotProduct(
 ) float32 {
 	_ = count
 	tensors := backend.tensorsAtPanic(left, right)
-	out := backend.uploadFloat32Scalar(0.0, format)
+	out := backend.uploadFloat32Scalar(0.0, dtype.Float32)
 
 	devicePanic(runMetalDot(tensors[0], tensors[1], out))
 
-	return backend.readFloat32Scalar(out.residentPointer())
+	return roundDotScalar(backend.readFloat32Scalar(out.residentPointer()), format)
+}
+
+func roundDotScalar(value float32, format dtype.DType) float32 {
+	switch format {
+	case dtype.BFloat16:
+		bf16 := dtype.NewBfloat16FromFloat32(value)
+
+		return (&bf16).Float32()
+	case dtype.Float16:
+		return dtype.Fromfloat32(value).Float32()
+	default:
+		return value
+	}
 }
 
 func (backend *Backend) gluInvoke(

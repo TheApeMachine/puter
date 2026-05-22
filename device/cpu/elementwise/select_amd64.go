@@ -433,90 +433,134 @@ var (
 	addF64Funcs = []f64BinaryKernelImpl{{AddF64Generic, "generic", true}}
 	addF16Funcs = []uint16BinaryKernelImpl{
 		{AddF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{AddF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{AddF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{AddF16Generic, "generic", true},
 	}
 	subF16Funcs = []uint16BinaryKernelImpl{
 		{SubF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{SubF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{SubF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{SubF16Generic, "generic", true},
 	}
 	mulF16Funcs = []uint16BinaryKernelImpl{
 		{MulF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{MulF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{MulF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{MulF16Generic, "generic", true},
 	}
 	divF16Funcs = []uint16BinaryKernelImpl{
 		{DivF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{DivF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{DivF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{DivF16Generic, "generic", true},
 	}
 	maxF16Funcs = []uint16BinaryKernelImpl{
 		{MaxF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{MaxF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{MaxF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{MaxF16Generic, "generic", true},
 	}
 	minF16Funcs = []uint16BinaryKernelImpl{
 		{MinF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{MinF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{MinF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{MinF16Generic, "generic", true},
 	}
 	absF16Funcs = []uint16UnaryKernelImpl{
 		{AbsF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{AbsF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{AbsF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{AbsF16Generic, "generic", true},
 	}
 	negF16Funcs = []uint16UnaryKernelImpl{
 		{NegF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{NegF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{NegF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{NegF16Generic, "generic", true},
 	}
 	sqrtF16Funcs = []uint16UnaryKernelImpl{
 		{SqrtF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{SqrtF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{SqrtF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{SqrtF16Generic, "generic", true},
 	}
 	reluF16Funcs = []uint16UnaryKernelImpl{
 		{ReluF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{ReluF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{ReluF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{ReluF16Generic, "generic", true},
 	}
 	axpyF16Funcs = []uint16AxpyKernelImpl{
 		{AxpyF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{AxpyF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{AxpyF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{AxpyF16Generic, "generic", true},
 	}
 	addBF16Funcs = []uint16BinaryKernelImpl{
 		{AddBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{AddBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{AddBF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{AddBF16Generic, "generic", true},
 	}
 	subBF16Funcs = []uint16BinaryKernelImpl{
 		{SubBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{SubBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{SubBF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{SubBF16Generic, "generic", true},
 	}
 	mulBF16Funcs = []uint16BinaryKernelImpl{
 		{MulBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{MulBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{MulBF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{MulBF16Generic, "generic", true},
 	}
 	divBF16Funcs = []uint16BinaryKernelImpl{
 		{DivBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{DivBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{DivBF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{DivBF16Generic, "generic", true},
 	}
 	maxBF16Funcs = []uint16BinaryKernelImpl{
 		{MaxBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{MaxBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{MaxBF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{MaxBF16Generic, "generic", true},
 	}
 	minBF16Funcs = []uint16BinaryKernelImpl{
 		{MinBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{MinBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{MinBF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{MinBF16Generic, "generic", true},
 	}
 	absBF16Funcs = []uint16UnaryKernelImpl{
 		{AbsBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{AbsBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{AbsBF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{AbsBF16Generic, "generic", true},
 	}
 	negBF16Funcs = []uint16UnaryKernelImpl{
 		{NegBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{NegBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{NegBF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{NegBF16Generic, "generic", true},
 	}
 	sqrtBF16Funcs = []uint16UnaryKernelImpl{
 		{SqrtBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{SqrtBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{SqrtBF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{SqrtBF16Generic, "generic", true},
 	}
 	reluBF16Funcs = []uint16UnaryKernelImpl{
 		{ReluBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{ReluBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{ReluBF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{ReluBF16Generic, "generic", true},
 	}
 	axpyBF16Funcs = []uint16AxpyKernelImpl{
 		{AxpyBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{AxpyBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{AxpyBF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{AxpyBF16Generic, "generic", true},
 	}
 )

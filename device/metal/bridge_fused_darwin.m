@@ -27,6 +27,7 @@ static void metal_fused_complete(uint64_t completionToken, id<MTLCommandBuffer> 
 static const char* metal_fused_dtype_suffix(int elementDType) {
     switch (elementDType) {
     case MetalElementDTypeFloat32: return "float32";
+    case MetalElementDTypeFloat16: return "float16";
     case MetalElementDTypeBFloat16: return "bfloat16";
     default: return NULL;
     }
@@ -194,8 +195,6 @@ int metal_dispatch_dot(
     uint64_t completionToken,
     MetalStatus* status
 ) {
-    (void)elementDType;
-
     @autoreleasepool {
         if (status != NULL) {
             status->code = 0;
@@ -217,7 +216,30 @@ int metal_dispatch_dot(
             return -2;
         }
 
-        id<MTLComputePipelineState> pipeline = metal_get_pipeline(context, "dot_float32", status);
+        const char* dtypeSuffix = metal_fused_dtype_suffix(elementDType);
+
+        if (dtypeSuffix == NULL) {
+            if (status != NULL) {
+                status->code = -6;
+                snprintf(status->message, METAL_STATUS_MESSAGE_BYTES, "unsupported Metal dot dtype");
+            }
+
+            return -6;
+        }
+
+        char dotKernelName[64];
+        int written = snprintf(dotKernelName, sizeof(dotKernelName), "dot_%s", dtypeSuffix);
+
+        if (written <= 0 || (size_t)written >= sizeof(dotKernelName)) {
+            if (status != NULL) {
+                status->code = -6;
+                snprintf(status->message, METAL_STATUS_MESSAGE_BYTES, "Metal dot kernel name overflow");
+            }
+
+            return -6;
+        }
+
+        id<MTLComputePipelineState> pipeline = metal_get_pipeline(context, dotKernelName, status);
 
         if (pipeline == nil) {
             return status != NULL && status->code != 0 ? status->code : -7;
