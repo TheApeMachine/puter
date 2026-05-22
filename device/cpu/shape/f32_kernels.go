@@ -11,3 +11,19 @@ var whereF32Kernel = func() func(dst, positive, negative *float32, mask []byte, 
 var maskedFillF32Kernel = func() func(dst, input *float32, fill float32, mask []byte, count int) {
 	return pickF32MaskedFillKernel(maskedFillF32Funcs)
 }()
+
+var pageWriteF32Kernel = func() f32PageWriteKernelImpl {
+	return pickF32PageWriteKernel(pageWriteF32Funcs)
+}()
+
+var pageGatherF32Kernel = func() f32PageGatherKernelImpl {
+	return pickF32PageGatherKernel(pageGatherF32Funcs)
+}()
+
+var pageWriteU16Kernel = func() u16PageWriteKernelImpl {
+	return pickU16PageWriteKernel(pageWriteU16Funcs)
+}()
+
+var pageGatherU16Kernel = func() u16PageGatherKernelImpl {
+	return pickU16PageGatherKernel(pageGatherU16Funcs)
+}()

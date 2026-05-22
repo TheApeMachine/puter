@@ -17,6 +17,26 @@ var maskedFillF32Funcs = []f32MaskedFillKernelImpl{
 	{maskedFillF32Generic, "generic", true},
 }
 
+var pageWriteF32Funcs = []f32PageWriteKernelImpl{
+	{PageWriteFloat32NEON, "neon", true},
+	{pageWriteF32Generic, "generic", true},
+}
+
+var pageGatherF32Funcs = []f32PageGatherKernelImpl{
+	{PageGatherFloat32NEON, "neon", true},
+	{pageGatherF32Generic, "generic", true},
+}
+
+var pageWriteU16Funcs = []u16PageWriteKernelImpl{
+	{PageWriteUint16NEON, "neon", true},
+	{pageWriteU16Generic, "generic", true},
+}
+
+var pageGatherU16Funcs = []u16PageGatherKernelImpl{
+	{PageGatherUint16NEON, "neon", true},
+	{pageGatherU16Generic, "generic", true},
+}
+
 func whereF32NEON(dst, positive, negative *float32, mask []byte, count int) {
 	WhereF32NEON(dst, positive, negative, mask, count)
 }
