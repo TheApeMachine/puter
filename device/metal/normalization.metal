@@ -806,3 +806,16 @@ INSTANCENORM_KERNEL(instancenorm_bfloat16, BFloat16NormStorage, ushort)
 BATCHNORM_EVAL_KERNEL(batchnorm_eval_float32, Float32NormStorage, float)
 BATCHNORM_EVAL_KERNEL(batchnorm_eval_float16, Float16NormStorage, half)
 BATCHNORM_EVAL_KERNEL(batchnorm_eval_bfloat16, BFloat16NormStorage, ushort)
+
+kernel void inv_std_dev_float32(
+    device const float* values [[buffer(0)]],
+    device float* out [[buffer(1)]],
+    constant uint& count [[buffer(2)]],
+    uint index [[thread_position_in_grid]]
+) {
+    if (index >= count) {
+        return;
+    }
+
+    out[index] = 1.0f / precise::sqrt(values[index]);
+}

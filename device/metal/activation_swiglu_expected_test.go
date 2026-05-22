@@ -1,6 +1,8 @@
 package metal
 
 import (
+	"testing"
+
 	"github.com/theapemachine/manifesto/dtype"
 	dtypeconvert "github.com/theapemachine/manifesto/dtype/convert"
 	cpumath "github.com/theapemachine/puter/device/cpu/math"
@@ -12,10 +14,15 @@ type swiGLUFixture struct {
 	expectedBytes []byte
 }
 
-func swiGLUFixtureForTest(elementCount int, storageDType dtype.DType) swiGLUFixture {
+func swiGLUFixtureForTest(
+	testingObject testing.TB,
+	backend *Backend,
+	elementCount int,
+	storageDType dtype.DType,
+) swiGLUFixture {
 	gateValues := swiGLUGateValuesForTest(elementCount)
 	upValues := swiGLUUpValuesForTest(elementCount)
-	destination := swiGLUExpectedFloat32ForTest(gateValues, upValues)
+	destination := swiGLUExpectedFloat32ForTest(testingObject, backend, gateValues, upValues)
 
 	if storageDType == dtype.Float32 {
 		return swiGLUFixture{
@@ -30,7 +37,7 @@ func swiGLUFixtureForTest(elementCount int, storageDType dtype.DType) swiGLUFixt
 
 	storedGate := decodeDTypeBytesToFloat32(gateBytes, storageDType)
 	storedUp := decodeDTypeBytesToFloat32(upBytes, storageDType)
-	roundTrip := swiGLUExpectedFloat32ForTest(storedGate, storedUp)
+	roundTrip := swiGLUExpectedFloat32ForTest(testingObject, backend, storedGate, storedUp)
 
 	return swiGLUFixture{
 		gateBytes:     gateBytes,
@@ -59,13 +66,20 @@ func swiGLUUpValuesForTest(elementCount int) []float32 {
 	return values
 }
 
-func swiGLUExpectedFloat32ForTest(gateValues []float32, upValues []float32) []float32 {
-	destination := make([]float32, len(gateValues))
+func swiGLUExpectedFloat32ForTest(
+	testingObject testing.TB,
+	backend *Backend,
+	gateValues []float32,
+	upValues []float32,
+) []float32 {
+	testingObject.Helper()
+
+	siluValues := make([]float32, len(gateValues))
+	zeroValues := make([]float32, len(gateValues))
 
 	for index := range gateValues {
-		silu := cpumath.FastSilu32(gateValues[index])
-		destination[index] = normMetalFMAFloat32(silu, upValues[index], 0)
+		siluValues[index] = cpumath.FastSilu32(gateValues[index])
 	}
 
-	return destination
+	return metalFMAFloat32VectorForTest(testingObject, backend, siluValues, upValues, zeroValues)
 }

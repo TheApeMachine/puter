@@ -47,7 +47,7 @@ func runSwiGLUParityCase(
 	storageDType dtype.DType,
 	elementCount int,
 ) {
-	fixture := swiGLUFixtureForTest(elementCount, storageDType)
+	fixture := swiGLUFixtureForTest(testingObject, backend, elementCount, storageDType)
 	shape := mustShapeForTest(testingObject, []int{elementCount})
 	gate := uploadDTypeTensorForTest(testingObject, backend, shape, storageDType, fixture.gateBytes)
 	up := uploadDTypeTensorForTest(testingObject, backend, shape, storageDType, fixture.upBytes)

@@ -972,6 +972,24 @@ int metal_dispatch_outer(
     uint64_t completionToken,
     MetalStatus* status
 );
+int metal_dispatch_fma_float32(
+    MetalDeviceRef contextRef,
+    MetalBufferRef aRef,
+    MetalBufferRef bRef,
+    MetalBufferRef cRef,
+    MetalBufferRef outRef,
+    uint32_t count,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+int metal_dispatch_inv_std_dev_float32(
+    MetalDeviceRef contextRef,
+    MetalBufferRef inputRef,
+    MetalBufferRef outRef,
+    uint32_t count,
+    uint64_t completionToken,
+    MetalStatus* status
+);
 int metal_dispatch_sampling(
     MetalDeviceRef contextRef,
     int operation,

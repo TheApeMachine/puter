@@ -3,7 +3,6 @@ package metal
 import (
 	"github.com/theapemachine/manifesto/dtype"
 	dtypeconvert "github.com/theapemachine/manifesto/dtype/convert"
-	cpuhawkes "github.com/theapemachine/puter/device/cpu/hawkes"
 )
 
 const hawkesKernelMatrixMaxULP uint32 = 4
@@ -21,8 +20,7 @@ func hawkesKernelMatrixDTypeBytes(elementCount int, storageDType dtype.DType) ha
 	alpha, beta := float32(0.5), float32(1.0)
 
 	if storageDType == dtype.Float32 {
-		expected := make([]float32, eventCount*eventCount)
-		cpuhawkes.HawkesKernelMatrixScalar(events, expected, alpha, beta)
+		expected := hawkesKernelMatrixMetalReference(events, alpha, beta)
 
 		return hawkesKernelMatrixFixture{
 			eventBytes:    dtypeconvert.Float32ToBytes(events),
@@ -39,8 +37,7 @@ func hawkesKernelMatrixDTypeBytes(elementCount int, storageDType dtype.DType) ha
 	storedAlpha := decodeDTypeBytesToFloat32(alphaBytes, storageDType)[0]
 	storedBeta := decodeDTypeBytesToFloat32(betaBytes, storageDType)[0]
 
-	expected := make([]float32, eventCount*eventCount)
-	cpuhawkes.HawkesKernelMatrixScalar(storedEvents, expected, storedAlpha, storedBeta)
+	expected := hawkesKernelMatrixMetalReference(storedEvents, storedAlpha, storedBeta)
 
 	return hawkesKernelMatrixFixture{
 		eventBytes:    eventBytes,

@@ -25,7 +25,7 @@ Metal is **substantially ahead of CPU** on “is there a GPU kernel at all?” �
 | **FP8**                  | Tensor accessors exist; **no Metal compute kernels**                                                                                                                |
 | **f32-only enforcement** | **Dot fixed** (f16/bf16 GPU); **legacy binary float32 registry**, **unary float32 test path** still hard `dtype.Float32` |
 | **Optimizer state**      | Params/grads may be f16/bf16; **moment/state tensors must stay f32** (by design)                                                                                    |
-| **Correctness tests**    | Physics FFT **1 ULP** (POT) / **2 ULP** (naive DFT); `quantum_potential` **1 ULP**; pow/atan2 **1 ULP**; Hawkes log-likelihood **1 ULP**; NCS f32: groupnorm **64**, instancenorm **40**, batchnorm_eval **64** (refs: GPU `Sqrt`+`Recip`, `fmaf` apply); Hawkes intensity **3** (metal exp ref); kernel matrix **4**; SwiGLU **2** (`fmaf`×up; silu `/` drift) |
+| **Correctness tests**    | Physics FFT **1 ULP** (POT) / **2 ULP** (naive DFT); `quantum_potential` **1 ULP**; pow/atan2 **1 ULP**; Hawkes log-likelihood **1 ULP**; NCS f32: groupnorm **64**, instancenorm **40**, batchnorm_eval **64** (refs: GPU `inv_std_dev_float32` = `1/precise::sqrt`, `fma_float32` apply); Hawkes intensity **3** (metal exp ref); kernel matrix **4**; SwiGLU **2** (GPU `fma_float32`×up; silu `/` drift) |
 
 ---
 

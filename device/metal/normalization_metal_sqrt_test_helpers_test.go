@@ -89,9 +89,7 @@ func metalInvStdDevsForTest(
 ) []float32 {
 	testingObject.Helper()
 
-	sqrtValues := metalSqrtFloat32ForTest(testingObject, backend, variancePlusEpsilon)
-
-	return metalRecipFloat32ForTest(testingObject, backend, sqrtValues)
+	return metalInvStdDevPreciseFloat32ForTest(testingObject, backend, variancePlusEpsilon)
 }
 
 func expectedBatchNormEvalValuesMetalSqrt(
@@ -120,7 +118,9 @@ func expectedBatchNormEvalValuesMetalSqrt(
 	for batchIndex := range batch {
 		for channelIndex := range channels {
 			start := (batchIndex*channels + channelIndex) * spatial
-			applyNorm3DExpectedRow(
+			applyNorm3DExpectedRowGPU(
+				testingObject,
+				backend,
 				input[start:start+spatial],
 				out[start:start+spatial],
 				scale[channelIndex],
@@ -189,7 +189,9 @@ func expectedGroupNormValuesMetalSqrt(
 
 			for channelIndex := range channelsPerGroup {
 				start := groupStart + channelIndex*spatial
-				applyNorm3DExpectedRow(
+				applyNorm3DExpectedRowGPU(
+					testingObject,
+					backend,
 					input[start:start+spatial],
 					out[start:start+spatial],
 					scale[channelStart+channelIndex],
@@ -249,7 +251,9 @@ func expectedInstanceNormValuesMetalSqrt(
 		for channelIndex := range channels {
 			rowIndex := batchIndex*channels + channelIndex
 			start := rowIndex * spatial
-			applyNorm3DExpectedRow(
+			applyNorm3DExpectedRowGPU(
+				testingObject,
+				backend,
 				input[start:start+spatial],
 				out[start:start+spatial],
 				scale[channelIndex],

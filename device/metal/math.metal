@@ -182,3 +182,18 @@ OUTER_KERNEL(outer_float16, Float16MathStorage, half)
 INV_SQRT_DIM_SCALE_KERNEL(inv_sqrt_dim_scale_bfloat16, BFloat16MathStorage, ushort)
 LOGSUMEXP_KERNEL(logsumexp_bfloat16, BFloat16MathStorage, ushort)
 OUTER_KERNEL(outer_bfloat16, BFloat16MathStorage, ushort)
+
+kernel void fma_float32(
+    device const float* aVector [[buffer(0)]],
+    device const float* bVector [[buffer(1)]],
+    device const float* cVector [[buffer(2)]],
+    device float* outVector [[buffer(3)]],
+    constant uint& count [[buffer(4)]],
+    uint index [[thread_position_in_grid]]
+) {
+    if (index >= count) {
+        return;
+    }
+
+    outVector[index] = fma(aVector[index], bVector[index], cVector[index]);
+}

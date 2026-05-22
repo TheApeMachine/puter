@@ -29,7 +29,7 @@ func benchmarkSwiGLUDType(
 ) {
 	elementCount := parityElementCounts[len(parityElementCounts)-1]
 	shape := mustShapeForTest(benchmark, []int{elementCount})
-	fixture := swiGLUFixtureForTest(elementCount, storageDType)
+	fixture := swiGLUFixtureForTest(benchmark, backend, elementCount, storageDType)
 	gate := uploadDTypeTensorForTest(benchmark, backend, shape, storageDType, fixture.gateBytes)
 	up := uploadDTypeTensorForTest(benchmark, backend, shape, storageDType, fixture.upBytes)
 	out := emptyTensorForTest(benchmark, backend, shape, storageDType)
