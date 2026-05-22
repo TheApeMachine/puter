@@ -54,36 +54,6 @@ func ExpectedFreeEnergyFloat32Scalar(
 }
 
 /*
-pragmaticTermFloat32Scalar sums predicted * (log(predicted) - log(preferred)).
-*/
-func pragmaticTermFloat32Scalar(predictedObs, preferredObs []float32) float32 {
-	var pragmatic float64
-
-	for index, predicted := range predictedObs {
-		predictedClamped := math.Max(activeInferenceEps, float64(predicted))
-		preferredClamped := math.Max(activeInferenceEps, float64(preferredObs[index]))
-
-		pragmatic += float64(predicted) * (math.Log(predictedClamped) - math.Log(preferredClamped))
-	}
-
-	return float32(pragmatic)
-}
-
-/*
-epistemicTermFloat32Scalar sums -state * log(state).
-*/
-func epistemicTermFloat32Scalar(predictedState []float32) float32 {
-	var epistemic float64
-
-	for _, stateValue := range predictedState {
-		clamped := math.Max(activeInferenceEps, float64(stateValue))
-		epistemic += -float64(stateValue) * math.Log(clamped)
-	}
-
-	return float32(epistemic)
-}
-
-/*
 BeliefUpdateFloat32Scalar writes posterior q(s|o) ∝ p(o|s) × q(s) and normalizes.
 */
 func BeliefUpdateFloat32Scalar(likelihood, prior, output []float32) {
