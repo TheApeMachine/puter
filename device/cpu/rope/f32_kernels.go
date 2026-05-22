@@ -1,3 +1,5 @@
+//go:build amd64
+
 package rope
 
 var ropePairsF32Kernel = func() func(out, in, cosBuf, sinBuf []float32) {
