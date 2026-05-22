@@ -22,6 +22,8 @@ func SamplingSoftmaxRowFloat32Native(logits, out []float32, temperature float32)
 
 var greedySampleF32Funcs = []f32GreedyKernelImpl{
 	{GreedySampleF32AVX512, "avx512", cpu.X86.HasAVX512F},
+	{GreedySampleF32AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+	{GreedySampleF32SSE2, "sse2", cpu.X86.HasSSE2},
 	{greedySampleF32Generic, "generic", true},
 }
 

@@ -12,6 +12,16 @@ DATA shapeMaskBit8AVX2<>+24(SB)/4, $64
 DATA shapeMaskBit8AVX2<>+28(SB)/4, $128
 GLOBL shapeMaskBit8AVX2<>(SB), RODATA|NOPTR, $32
 
+DATA shapeAllOnesAVX2<>+0(SB)/4, $-1
+DATA shapeAllOnesAVX2<>+4(SB)/4, $-1
+DATA shapeAllOnesAVX2<>+8(SB)/4, $-1
+DATA shapeAllOnesAVX2<>+12(SB)/4, $-1
+DATA shapeAllOnesAVX2<>+16(SB)/4, $-1
+DATA shapeAllOnesAVX2<>+20(SB)/4, $-1
+DATA shapeAllOnesAVX2<>+24(SB)/4, $-1
+DATA shapeAllOnesAVX2<>+28(SB)/4, $-1
+GLOBL shapeAllOnesAVX2<>(SB), RODATA|NOPTR, $32
+
 // func CopyContiguousFloat32AVX2Asm(dst, src *float32, count int)
 TEXT ·CopyContiguousFloat32AVX2Asm(SB), NOSPLIT, $0-24
 	MOVQ dst+0(FP), DI
@@ -87,12 +97,16 @@ shape_avx2_where_w8_use:
 	VPBROADCASTD X10, Y10
 	VMOVDQU shapeMaskBit8AVX2<>(SB), Y14
 	VPAND Y10, Y14, Y11
-	VXORPS Y12, Y12, Y12
-	VPCMPGTD Y13, Y11, Y12
+	VPXOR Y12, Y12, Y12
+	VPCMPEQD Y11, Y12, Y13
+	VMOVDQU shapeAllOnesAVX2<>(SB), Y14
+	VPANDN Y14, Y13, Y13
 
 	VMOVUPS (SI), Y0
 	VMOVUPS (R8), Y1
-	VBLENDVPS Y1, Y0, Y13, Y0
+	VANDPS Y13, Y0, Y4
+	VANDNPS Y1, Y13, Y5
+	VORPS Y4, Y5, Y0
 	VMOVUPS Y0, (DI)
 
 	ADDQ $32, SI
@@ -184,11 +198,15 @@ shape_avx2_mfill_w8_use:
 	VPBROADCASTD X10, Y10
 	VMOVDQU shapeMaskBit8AVX2<>(SB), Y14
 	VPAND Y10, Y14, Y11
-	VXORPS Y12, Y12, Y12
-	VPCMPGTD Y13, Y11, Y12
+	VPXOR Y12, Y12, Y12
+	VPCMPEQD Y11, Y12, Y13
+	VMOVDQU shapeAllOnesAVX2<>(SB), Y14
+	VPANDN Y14, Y13, Y13
 
 	VMOVUPS (SI), Y0
-	VBLENDVPS Y0, Y15, Y13, Y0
+	VANDPS Y13, Y15, Y4
+	VANDNPS Y0, Y13, Y5
+	VORPS Y4, Y5, Y0
 	VMOVUPS Y0, (DI)
 
 	ADDQ $32, SI

@@ -1,19 +1,16 @@
 #include "textflag.h"
 
-// func RopePairsFloat32AVX512Asm(out, in, cos, sin *float32, pairs int)
-// pairs = headDim/2. For each pair p:
-//   out[2p]   = in[2p]*cos[p] - in[2p+1]*sin[p]
-//   out[2p+1] = in[2p]*sin[p] + in[2p+1]*cos[p]
-TEXT ·RopePairsFloat32AVX512Asm(SB), NOSPLIT, $0-40
+// func RopePairsFloat32AVX2Asm(out, in, cos, sin *float32, pairs int)
+TEXT ·RopePairsFloat32AVX2Asm(SB), NOSPLIT, $0-40
 	MOVQ out+0(FP), DI
 	MOVQ in+8(FP), SI
 	MOVQ cos+16(FP), R8
 	MOVQ sin+24(FP), R9
 	MOVQ pairs+32(FP), CX
 
-rope_avx512_w4:
+rope_avx2_w4:
 	CMPQ CX, $4
-	JL   rope_avx512_tail
+	JL   rope_avx2_tail
 
 	VMOVUPS (SI), Y0
 
@@ -64,13 +61,13 @@ rope_avx512_w4:
 	ADDQ $32, SI
 	ADDQ $64, DI
 	SUBQ $4, CX
-	JMP  rope_avx512_w4
+	JMP  rope_avx2_w4
 
-rope_avx512_tail:
+rope_avx2_tail:
 	TESTQ CX, CX
-	JZ   rope_avx512_done
+	JZ   rope_avx2_done
 
-rope_avx512_scalar:
+rope_avx2_scalar:
 	VMOVSS (SI), X0
 	VMOVSS 4(SI), X1
 	VMOVSS (R8), X4
@@ -89,7 +86,7 @@ rope_avx512_scalar:
 	ADDQ $4, R8
 	ADDQ $4, R9
 	DECQ CX
-	JNZ  rope_avx512_scalar
+	JNZ  rope_avx2_scalar
 
-rope_avx512_done:
+rope_avx2_done:
 	RET

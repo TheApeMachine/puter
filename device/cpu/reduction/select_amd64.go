@@ -139,7 +139,7 @@ var (
 	prodBF16Funcs = []bf16ProdKernelImpl{
 		{ProdBF16AVX512, "avx512", cpu.X86.HasAVX512F},
 		{ProdBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
-		{ProdBF16SSE2, "sse2", cpu.X86.HasSSE2},
+		{ProdBF16SSE2, "sse2", cpu.X86.HasSSE2 && cpu.X86.HasAVX},
 		{ProdBF16Generic, "generic", true},
 	}
 	prodFP16Funcs = []fp16ProdKernelImpl{
@@ -163,7 +163,7 @@ var (
 	l1NormBF16Funcs = []bf16L1NormKernelImpl{
 		{L1NormBF16AVX512, "avx512", cpu.X86.HasAVX512F},
 		{L1NormBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
-		{L1NormBF16SSE2, "sse2", cpu.X86.HasSSE2},
+		{L1NormBF16SSE2, "sse2", cpu.X86.HasSSE2 && cpu.X86.HasAVX},
 		{L1NormBF16Generic, "generic", true},
 	}
 	minFP16Funcs = []fp16MinKernelImpl{

@@ -22,13 +22,14 @@ GLOBL l1ReducedAbsMaskSSE2<>(SB), RODATA|NOPTR, $16
 	SHUFPS $0x55, X0, X1; \
 	VMAXPS X1, X0, X0
 
-#define BF16_L1_FOLD_SSE2 \
-	MOVAPS X0, X1; \
-	SHUFPS $0xEE, X0, X1; \
-	VADDPS X1, X0, X0; \
-	MOVAPS X0, X1; \
-	SHUFPS $0x55, X0, X1; \
-	VADDPS X1, X0, X0
+#define BF16_L1_HSUM_XMM4_INTO_X0 \
+	MOVAPS X4, X1; \
+	SHUFPS $0xEE, X4, X1; \
+	VADDPS X1, X4, X4; \
+	MOVAPS X4, X1; \
+	SHUFPS $0x55, X4, X1; \
+	VADDPS X1, X4, X4; \
+	ADDSS X4, X0
 
 // func MinBFloat16SSE2Asm(src *uint16, count int) float32
 TEXT ·MinBFloat16SSE2Asm(SB), NOSPLIT, $0-20
@@ -41,6 +42,9 @@ TEXT ·MinBFloat16SSE2Asm(SB), NOSPLIT, $0-20
 	MOVWLZX (SI), AX
 	SHLQ  $16, AX
 	VMOVD X0, AX
+	MOVAPS X0, X1
+	SHUFPS $0, X0, X1
+	MOVAPS X1, X0
 
 	ADDQ $2, SI
 	DECQ CX
@@ -72,7 +76,7 @@ min_bf16_sse2_scalar:
 	MOVWLZX (SI), AX
 	SHLQ  $16, AX
 	VMOVD X1, AX
-	VMINSS X1, X0, X0
+	MINSS X1, X0
 
 	ADDQ $2, SI
 	DECQ CX
@@ -98,6 +102,9 @@ TEXT ·MaxBFloat16SSE2Asm(SB), NOSPLIT, $0-20
 	MOVWLZX (SI), AX
 	SHLQ  $16, AX
 	VMOVD X0, AX
+	MOVAPS X0, X1
+	SHUFPS $0, X0, X1
+	MOVAPS X1, X0
 
 	ADDQ $2, SI
 	DECQ CX
@@ -129,7 +136,7 @@ max_bf16_sse2_scalar:
 	MOVWLZX (SI), AX
 	SHLQ  $16, AX
 	VMOVD X1, AX
-	VMAXSS X1, X0, X0
+	MAXSS X1, X0
 
 	ADDQ $2, SI
 	DECQ CX
@@ -152,6 +159,18 @@ TEXT ·L1NormBFloat16SSE2Asm(SB), NOSPLIT, $0-20
 	TESTQ CX, CX
 	JZ    l1_bf16_sse2_zero
 
+	CMPQ CX, $1
+	JNE   l1_bf16_sse2_multi
+
+	MOVWLZX (SI), AX
+	SHLQ  $16, AX
+	VMOVD X0, AX
+	MOVUPS l1ReducedAbsMaskSSE2<>(SB), X6
+	ANDPS X6, X0
+	MOVSS X0, ret+16(FP)
+	RET
+
+l1_bf16_sse2_multi:
 	XORPS X0, X0
 	MOVUPS l1ReducedAbsMaskSSE2<>(SB), X6
 
@@ -165,18 +184,16 @@ l1_bf16_sse2_w4:
 	VPUNPCKHWD X3, X1, X5
 	VPSLLD  $16, X4, X4
 	VPSLLD  $16, X5, X5
+	VINSERTF128 $1, X5, Y4, Y4
+	VEXTRACTF128 $0, Y4, X4
 	VANDPS  X6, X4, X4
-	VADDPS  X4, X0, X0
-	VANDPS  X6, X5, X5
-	VADDPS  X5, X0, X0
+	BF16_L1_HSUM_XMM4_INTO_X0
 
 	ADDQ $8, SI
 	SUBQ $4, CX
 	JMP  l1_bf16_sse2_w4
 
 l1_bf16_sse2_tail:
-	BF16_L1_FOLD_SSE2
-
 	TESTQ CX, CX
 	JZ    l1_bf16_sse2_store
 
@@ -185,7 +202,7 @@ l1_bf16_sse2_scalar:
 	SHLQ  $16, AX
 	VMOVD X1, AX
 	VANDPS X6, X1, X1
-	VADDSS X1, X0, X0
+	ADDSS X1, X0
 
 	ADDQ $2, SI
 	DECQ CX
@@ -211,6 +228,9 @@ TEXT ·MinFloat16SSE2Asm(SB), NOSPLIT, $0-20
 	MOVWLZX (SI), AX
 	VMOVD X0, AX
 	VCVTPH2PS X0, X0
+	MOVAPS X0, X1
+	SHUFPS $0, X0, X1
+	MOVAPS X1, X0
 
 	ADDQ $2, SI
 	DECQ CX
@@ -237,7 +257,7 @@ min_fp16_sse2_scalar:
 	MOVWLZX (SI), AX
 	VMOVD X1, AX
 	VCVTPH2PS X1, X1
-	VMINSS X1, X0, X0
+	MINSS X1, X0
 
 	ADDQ $2, SI
 	DECQ CX
@@ -263,6 +283,9 @@ TEXT ·MaxFloat16SSE2Asm(SB), NOSPLIT, $0-20
 	MOVWLZX (SI), AX
 	VMOVD X0, AX
 	VCVTPH2PS X0, X0
+	MOVAPS X0, X1
+	SHUFPS $0, X0, X1
+	MOVAPS X1, X0
 
 	ADDQ $2, SI
 	DECQ CX
@@ -289,7 +312,7 @@ max_fp16_sse2_scalar:
 	MOVWLZX (SI), AX
 	VMOVD X1, AX
 	VCVTPH2PS X1, X1
-	VMAXSS X1, X0, X0
+	MAXSS X1, X0
 
 	ADDQ $2, SI
 	DECQ CX
@@ -312,6 +335,18 @@ TEXT ·L1NormFloat16SSE2Asm(SB), NOSPLIT, $0-20
 	TESTQ CX, CX
 	JZ    l1_fp16_sse2_zero
 
+	CMPQ CX, $1
+	JNE   l1_fp16_sse2_multi
+
+	MOVWLZX (SI), AX
+	VMOVD X0, AX
+	VCVTPH2PS X0, X0
+	MOVUPS l1ReducedAbsMaskSSE2<>(SB), X6
+	ANDPS X6, X0
+	MOVSS X0, ret+16(FP)
+	RET
+
+l1_fp16_sse2_multi:
 	XORPS X0, X0
 	MOVUPS l1ReducedAbsMaskSSE2<>(SB), X6
 
@@ -322,15 +357,13 @@ l1_fp16_sse2_w4:
 	VMOVDQU X1, (SI)
 	VCVTPH2PS X1, X4
 	VANDPS  X6, X4, X4
-	VADDPS  X4, X0, X0
+	BF16_L1_HSUM_XMM4_INTO_X0
 
 	ADDQ $8, SI
 	SUBQ $4, CX
 	JMP  l1_fp16_sse2_w4
 
 l1_fp16_sse2_tail:
-	BF16_L1_FOLD_SSE2
-
 	TESTQ CX, CX
 	JZ    l1_fp16_sse2_store
 

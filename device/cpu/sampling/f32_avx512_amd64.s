@@ -140,7 +140,7 @@ greedy_avx512_found_hi8:
 	BSFQ AX, DX
 	ADDQ $8, DX
 	ADDQ R8, DX
-	MOVL DX, ret+12(FP)
+	MOVL DX, ret+16(FP)
 	RET
 
 greedy_avx512_find_w8:
@@ -195,23 +195,23 @@ greedy_avx512_find_w4_tail:
 greedy_avx512_fail:
 	MOVQ count+8(FP), AX
 	DECQ AX
-	MOVL AX, ret+12(FP)
+	MOVL AX, ret+16(FP)
 	RET
 
 greedy_avx512_found:
 	BSFQ AX, DX
 	ADDQ R8, DX
-	MOVL DX, ret+12(FP)
+	MOVL DX, ret+16(FP)
 	RET
 
 greedy_avx512_one:
 	XORL AX, AX
-	MOVL AX, ret+12(FP)
+	MOVL AX, ret+16(FP)
 	RET
 
 greedy_avx512_zero:
 	XORL AX, AX
-	MOVL AX, ret+12(FP)
+	MOVL AX, ret+16(FP)
 	RET
 
 // func SamplingSoftmaxRowFloat32AVX512Asm(logits, out *float32, temperature float32, count int)

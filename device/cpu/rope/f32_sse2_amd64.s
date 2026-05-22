@@ -1,0 +1,68 @@
+#include "textflag.h"
+
+// func RopePairsFloat32SSE2Asm(out, in, cos, sin *float32, pairs int)
+TEXT ·RopePairsFloat32SSE2Asm(SB), NOSPLIT, $0-40
+	MOVQ out+0(FP), DI
+	MOVQ in+8(FP), SI
+	MOVQ cos+16(FP), R8
+	MOVQ sin+24(FP), R9
+	MOVQ pairs+32(FP), CX
+
+rope_sse2_w4:
+	CMPQ CX, $4
+	JL   rope_sse2_tail
+
+	VMOVUPS (SI), X0
+	SHUFPS $136, X0, X1
+	SHUFPS $221, X0, X2
+	VMOVUPS (R8), X4
+	SHUFPS $136, X4, X4
+	VMOVUPS (R9), X5
+	SHUFPS $136, X5, X5
+	VMULPS X1, X4, X6
+	VMULPS X2, X5, X7
+	VSUBPS X7, X6, X6
+	VMULPS X1, X5, X10
+	VMULPS X2, X4, X11
+	VADDPS X11, X10, X10
+	MOVAPS X6, X12
+	MOVAPS X6, X13
+	UNPCKLPS X10, X12
+	UNPCKHPS X10, X13
+	VMOVUPS X12, (DI)
+	VMOVUPS X13, 16(DI)
+	ADDQ $16, R8
+	ADDQ $16, R9
+
+	ADDQ $16, SI
+	ADDQ $32, DI
+	SUBQ $4, CX
+	JMP  rope_sse2_w4
+
+rope_sse2_tail:
+	TESTQ CX, CX
+	JZ   rope_sse2_done
+
+rope_sse2_scalar:
+	VMOVSS (SI), X0
+	VMOVSS 4(SI), X1
+	VMOVSS (R8), X4
+	VMOVSS (R9), X5
+	VMULSS X0, X4, X6
+	VMULSS X1, X5, X7
+	VSUBSS X7, X6, X6
+	VMULSS X0, X5, X10
+	VMULSS X1, X4, X11
+	VADDSS X11, X10, X10
+	MOVSS X6, (DI)
+	MOVSS X10, 4(DI)
+
+	ADDQ $8, SI
+	ADDQ $8, DI
+	ADDQ $4, R8
+	ADDQ $4, R9
+	DECQ CX
+	JNZ  rope_sse2_scalar
+
+rope_sse2_done:
+	RET

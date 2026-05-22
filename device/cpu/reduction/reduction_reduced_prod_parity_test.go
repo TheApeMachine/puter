@@ -22,6 +22,14 @@ func sse2ReductionAvailable() bool {
 	return cpu.X86.HasSSE2
 }
 
+func f16SSE2ReductionAvailable() bool {
+	return cpu.X86.HasSSE2 && cpu.X86.HasAVX
+}
+
+func bf16SSE2ReductionAvailable() bool {
+	return cpu.X86.HasSSE2 && cpu.X86.HasAVX
+}
+
 func TestProdBF16AVX512Parity(t *testing.T) {
 	if !avx512ReductionAvailable() {
 		t.Skip("AVX-512F required")
@@ -39,8 +47,8 @@ func TestProdBF16AVX2Parity(t *testing.T) {
 }
 
 func TestProdBF16SSE2Parity(t *testing.T) {
-	if !sse2ReductionAvailable() {
-		t.Skip("SSE2 required")
+	if !bf16SSE2ReductionAvailable() {
+		t.Skip("SSE2+AVX required for bf16 widen")
 	}
 
 	runProdBF16Parity(t, ProdBF16SSE2)
@@ -63,8 +71,8 @@ func TestProdFP16AVX2Parity(t *testing.T) {
 }
 
 func TestProdFP16SSE2Parity(t *testing.T) {
-	if !sse2ReductionAvailable() {
-		t.Skip("SSE2 required")
+	if !f16SSE2ReductionAvailable() {
+		t.Skip("SSE2+AVX required for VCVTPH2PS")
 	}
 
 	runProdFP16Parity(t, ProdFP16SSE2)
@@ -205,8 +213,8 @@ func TestL1NormBF16AVX2Parity(t *testing.T) {
 }
 
 func TestL1NormBF16SSE2Parity(t *testing.T) {
-	if !sse2ReductionAvailable() {
-		t.Skip("SSE2 required")
+	if !bf16SSE2ReductionAvailable() {
+		t.Skip("SSE2+AVX required for bf16 widen")
 	}
 
 	runL1NormBF16Parity(t, L1NormBF16SSE2)
@@ -229,8 +237,8 @@ func TestMinFP16AVX2Parity(t *testing.T) {
 }
 
 func TestMinFP16SSE2Parity(t *testing.T) {
-	if !sse2ReductionAvailable() {
-		t.Skip("SSE2 required")
+	if !f16SSE2ReductionAvailable() {
+		t.Skip("SSE2+AVX required for VCVTPH2PS")
 	}
 
 	runMinFP16Parity(t, MinFP16SSE2)
@@ -253,8 +261,8 @@ func TestMaxFP16AVX2Parity(t *testing.T) {
 }
 
 func TestMaxFP16SSE2Parity(t *testing.T) {
-	if !sse2ReductionAvailable() {
-		t.Skip("SSE2 required")
+	if !f16SSE2ReductionAvailable() {
+		t.Skip("SSE2+AVX required for VCVTPH2PS")
 	}
 
 	runMaxFP16Parity(t, MaxFP16SSE2)
@@ -277,8 +285,8 @@ func TestL1NormFP16AVX2Parity(t *testing.T) {
 }
 
 func TestL1NormFP16SSE2Parity(t *testing.T) {
-	if !sse2ReductionAvailable() {
-		t.Skip("SSE2 required")
+	if !f16SSE2ReductionAvailable() {
+		t.Skip("SSE2+AVX required for VCVTPH2PS")
 	}
 
 	runL1NormFP16Parity(t, L1NormFP16SSE2)
