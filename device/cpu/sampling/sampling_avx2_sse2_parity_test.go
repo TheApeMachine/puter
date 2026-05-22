@@ -40,6 +40,7 @@ func TestGreedySampleF32AVX2Parity(t *testing.T) {
 	})
 }
 
+
 func TestGreedySampleF32SSE2Parity(t *testing.T) {
 	if !sse2SamplingAvailable() {
 		t.Skip("SSE2 required")

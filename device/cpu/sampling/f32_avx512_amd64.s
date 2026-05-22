@@ -24,7 +24,7 @@ DATA samSoftmaxClamp<>+0(SB)/4, $-87.0
 GLOBL samSoftmaxClamp<>(SB), RODATA|NOPTR, $4
 
 // func GreedySampleFloat32AVX512Asm(logits *float32, count int) int32
-TEXT ·GreedySampleFloat32AVX512Asm(SB), NOSPLIT, $64-16
+TEXT ·GreedySampleFloat32AVX512Asm(SB), NOSPLIT, $64-20
 	MOVQ logits+0(FP), SI
 	MOVQ SI, BX
 	MOVQ count+8(FP), CX
