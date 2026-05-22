@@ -25,7 +25,7 @@ Metal is **substantially ahead of CPU** on “is there a GPU kernel at all?” �
 | **FP8**                  | Tensor accessors exist; **no Metal compute kernels**                                                                                                                |
 | **f32-only enforcement** | **Dot fixed** (f16/bf16 GPU); **legacy binary float32 registry**, **unary float32 test path** still hard `dtype.Float32` |
 | **Optimizer state**      | Params/grads may be f16/bf16; **moment/state tensors must stay f32** (by design)                                                                                    |
-| **Correctness tests**    | Physics FFT **1 ULP** (POT) / **2 ULP** (naive DFT); NCS norms f32 **128 ULP** (GPU vs serial); `quantum_potential` **96 ULP**; pow/atan2 **4/8 ULP** |
+| **Correctness tests**    | Physics FFT **1 ULP** (POT) / **2 ULP** (naive DFT); `quantum_potential` **1 ULP**; pow/atan2 **1 ULP**; Hawkes log-likelihood **1 ULP**; NCS norms f32 **128 ULP** (norm3D registry); Hawkes intensity **3** / kernel matrix **4** |
 
 ---
 
@@ -262,7 +262,7 @@ Used by: elementwise unary/binary, matmul, reduction, dropout, vision conv/pool,
 |--------------|------------------------------------------------------------------------------------------------|
 | **physics**  | GPU stencils for triad; **FFT/IFFT** host twiddles + `fp math_mode(safe)` — **1 ULP** (POT), **2 ULP** (naive) |
 | **causal**   | Many ops dispatch; Cholesky/IV heavy — verify triad                                            |
-| **hawkes**   | GPU partial + Kahan finalize + `exp()` compensator; parity **≤4 ULP** at N=8192                |
+| **hawkes**   | GPU partial + Kahan finalize + `exp()` compensator; log-likelihood **1 ULP**; intensity **3** / kernel matrix **4** at N=8192 |
 | **research** | Active inference + predictive coding on GPU                                                    |
 | **vsa**      | Bind/bundle/similarity via GPU; permute verify                                                 |
 
@@ -296,10 +296,10 @@ Used by: elementwise unary/binary, matmul, reduction, dropout, vision conv/pool,
 
 | Issue                | Location                                                         | Required fix                                                |
 |----------------------|------------------------------------------------------------------|-------------------------------------------------------------|
-| **Wide ULP bands**   | `physics_test.go` (`quantum_potential` **96**); `backend_test.go` pow **4**, atan2 **8** ULP | Tighten kernels; NCS f32 norms use dedicated **128 ULP** budget vs serial ref |
-| **Hawkes tests**     | `hawkes_*_test.go` (**≤4 ULP**)                                    | Tighten to ≤1 ULP if contract requires                      |
-| **GLU tests**        | `*glu*_test.go` often **maxULP 2**                               | Tighten after kernel fix                                    |
-| **Binary registry**  | `backend_test.go` pow **4**, atan2 **8** ULP                     | Fix `elementwise_float*.metal` math                         |
+| **Wide ULP bands**   | NCS f32 norm3D registry **128 ULP** (`normalization_test.go`); batchnorm GPU parity **128 ULP** at large spatial | Align host serial ref with f32 GPU `sqrt` + serial reductions (not parallel `groupnorm_rows` for f32) |
+| **Hawkes tests**     | Intensity **3 ULP**, kernel matrix **4 ULP** at N=8192; log-likelihood **1 ULP** (2026-05-22) | Tighten intensity/matrix exp paths to ≤1 ULP                  |
+| **GLU tests**        | SwiGLU **2 ULP**; other GLU variants **1 ULP** (2026-05-22)      | Tighten SwiGLU silu×gate to 1 ULP                           |
+| **Binary registry**  | ~~pow **4**, atan2 **8** ULP~~ **Fixed** — `precise::pow` / `precise::atan2` in `elementwise_float32.metal`, tests **1 ULP** |
 | **GELU definitions** | `gelu_reference_probe_test.go`                                   | Separate exact `Gelu` vs `GeluTanh` vs `QuickGelu` in Metal |
 | **Transcendentals**  | `elementwise_f64_math.metalinc` polynomial exp/log               | f64 includes must not leak into f32 GELU paths incorrectly  |
 
@@ -328,7 +328,7 @@ For each op×dtype closure:
 4. ~~**Interpretability + model_editing** — bf16/fp16 kernels~~ **Shipped** 2026-05-22.
 5. **Int8 matmul / int8 dot** — if required for inference on GPU (CPU has int8 dot NEON).
 6. **Dequant → bf16/fp16** — extend `quantization.metal` beyond f32 output.
-7. **Tighten all parity** to ≤1 ULP; fix physics FFT first (largest violation).
+7. **Tighten remaining parity** — norm3D f32 **128 ULP**, Hawkes intensity/matrix, SwiGLU; then float64 / FP8 / quant breadth.
 
 ---
 

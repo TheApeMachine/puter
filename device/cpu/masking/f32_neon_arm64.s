@@ -7,6 +7,9 @@
 #define VFSUB_S4(m, n, d) WORD $(0x4EA0D400 | ((m) << 16) | ((n) << 5) | (d))
 #define VBSL_B16(m, n, d) WORD $(0x6E601C00 | ((m) << 16) | ((n) << 5) | (d))
 #define VFCMGE_S4(m, n, d) WORD $(0x4EA0E400 | ((m) << 16) | ((n) << 5) | (d))
+#define VSCVTF_S4(n, d)    WORD $(0x4E21D800 | ((n) << 5) | (d))
+#define VADD_S4(m, n, d)   WORD $(0x4EA08400 | ((m) << 16) | ((n) << 5) | (d))
+#define VSUB_S4(m, n, d)   WORD $(0x6EA08400 | ((m) << 16) | ((n) << 5) | (d))
 
 DATA maskZero<>+0(SB)/4, $0.0
 DATA maskZero<>+4(SB)/4, $0.0
@@ -20,11 +23,11 @@ DATA maskNegInf<>+8(SB)/4, $0xFF800000
 DATA maskNegInf<>+12(SB)/4, $0xFF800000
 GLOBL maskNegInf<>(SB), RODATA|NOPTR, $16
 
-DATA maskIotaF32<>+0(SB)/4, $0.0
-DATA maskIotaF32<>+4(SB)/4, $1.0
-DATA maskIotaF32<>+8(SB)/4, $2.0
-DATA maskIotaF32<>+12(SB)/4, $3.0
-GLOBL maskIotaF32<>(SB), RODATA|NOPTR, $16
+DATA maskIotaS32<>+0(SB)/4, $0
+DATA maskIotaS32<>+4(SB)/4, $1
+DATA maskIotaS32<>+8(SB)/4, $2
+DATA maskIotaS32<>+12(SB)/4, $3
+GLOBL maskIotaS32<>(SB), RODATA|NOPTR, $16
 
 // func ApplyMaskFloat32NEONAsm(input, mask, output *float32, count int)
 TEXT ·ApplyMaskFloat32NEONAsm(SB), NOSPLIT, $0-32
@@ -87,22 +90,22 @@ mask_apply_done:
 TEXT ·CausalMaskFloat32NEONAsm(SB), NOSPLIT, $0-24
 	MOVD output+0(FP), R0
 	MOVD seqQ+8(FP), R10
-	MOVD seqK+16(FP), R5
+	MOVD seqK+16(FP), R13
 	MOVD $maskZero<>(SB), R11
 	MOVD $maskNegInf<>(SB), R9
 	VLD1 (R11), [V0.S4]
 	VLD1 (R9), [V1.S4]
-	MOVD $0, R20
+	MOVD $0, R8
 
 causal_row:
-	CMP  R20, R10
+	CMP  R8, R10
 	BGE  causal_done
 
-	MOVD R20, R4
+	MOVD R8, R4
 	ADD  $1, R4
-	CMP  R4, R5
+	CMP  R4, R13
 	BLE  causal_zero_len_ok
-	MOVD R5, R4
+	MOVD R13, R4
 
 causal_zero_len_ok:
 	MOVD R4, R6
@@ -126,13 +129,13 @@ causal_zero_scalar:
 	CBNZ R6, causal_zero_scalar
 
 causal_zero_done:
-	MOVD R2, R5
-	MOVD R20, R4
+	MOVD seqK+16(FP), R13
+	MOVD R8, R4
 	ADD  $1, R4
-	CMP  R4, R5
+	CMP  R13, R4
 	BGE  causal_next_row
 
-	SUB  R4, R5, R6
+	SUB  R4, R13, R6
 
 causal_inf_loop4:
 	CMP  $4, R6
@@ -153,7 +156,7 @@ causal_inf_scalar:
 	CBNZ R6, causal_inf_scalar
 
 causal_next_row:
-	ADD  $1, R20
+	ADD  $1, R8
 	B    causal_row
 
 causal_done:
@@ -164,54 +167,54 @@ TEXT ·ALiBiBiasFloat32NEONAsm(SB), NOSPLIT, $0-40
 	MOVD scores+0(FP), R0
 	MOVD slope+8(FP), R1
 	MOVD output+16(FP), R2
-	MOVD seqQ+24(FP), R3
-	MOVD seqK+32(FP), R4
-	MOVD seqQ+24(FP), R16
-	MOVD $maskIotaF32<>(SB), R10
-	VLD1 (R10), [V14.S4]
-	VEOR V9.B16, V9.B16, V9.B16
+	MOVD seqQ+24(FP), R10
+	MOVD seqK+32(FP), R11
+	MOVD $maskIotaS32<>(SB), R9
+	FMOVS (R1), F31
+	MOVD $0, R12
 
 alibi_row:
-	CBZ  R3, alibi_done
+	CMP  R12, R10
+	BGE  alibi_done
 
-	MOVD R16, R5
-	SUB  R3, R5, R5
-	FMOVS (R1), F31
-	VDUP  V31.S[0], V31.S4
-	VMOV  R5, V13.S[0]
-	VDUP  V13.S[0], V13.S4
-	MOVD  $0, R6
+	VMOV R12, V15.S[0]
+	VDUP V15.S[0], V15.S4
+	VDUP V31.S[0], V31.S4
+	MOVD $0, R6
 
 alibi_col:
-	MOVD R4, R7
+	MOVD R11, R7
 	SUB  R6, R7, R7
 	CBZ  R7, alibi_row_done
 
 	CMP  $4, R7
-	BLT  alibi_col_scalar_tail
+	BLT  alibi_col_scalar
 
 	VLD1 (R0), [V0.S4]
-	VMOV  R6, V12.S[0]
-	VDUP  V12.S[0], V12.S4
-	VFADD_S4(14, 12, 11)
-	VFSUB_S4(11, 13, 10)
-	VFCMGE_S4(10, 9, 8)
-	VFMUL_S4(31, 10, 10)
-	VFSUB_S4(10, 0, 1)
-	VBSL_B16(1, 0, 8)
-	VST1 [V8.S4], (R2)
+	VMOV R6, V14.S[0]
+	VDUP V14.S[0], V14.S4
+	VLD1 (R9), [V13.S4]
+	VADD_S4(13, 14, 14)
+	VSUB_S4(14, 15, 16)
+	VSCVTF_S4(16, 17)
+	VFCMGE_S4(17, 17, 18)
+	VFMUL_S4(17, 31, 19)
+	VFSUB_S4(19, 0, 20)
+	VBSL_B16(18, 20, 0)
+	VST1 [V0.S4], (R2)
 
 	ADD  $16, R0
 	ADD  $16, R2
 	ADD  $4, R6
+	SUB  $4, R7
 	B    alibi_col
 
-alibi_col_scalar_tail:
+alibi_col_scalar:
 	CBZ  R7, alibi_row_done
 
 alibi_col_scalar_loop:
 	FMOVS (R0), F0
-	SUB   R5, R6, R8
+	SUB   R6, R12, R8
 	CMP   $0, R8
 	BLT   alibi_keep_score
 
@@ -226,9 +229,10 @@ alibi_keep_score:
 	ADD  $1, R6
 	SUB  $1, R7
 	CBNZ R7, alibi_col_scalar_loop
+	B    alibi_col
 
 alibi_row_done:
-	SUB  $1, R3
+	ADD  $1, R12
 	B    alibi_row
 
 alibi_done:

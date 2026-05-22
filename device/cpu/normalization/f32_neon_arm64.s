@@ -121,23 +121,23 @@ norm_apply_loop16:
 	BLT  norm_apply_loop4
 
 	VLD1 (R1), [V0.S4, V1.S4, V2.S4, V3.S4]
-	VFSUB_S4(16, 0, 0)
-	VFSUB_S4(16, 1, 1)
-	VFSUB_S4(16, 2, 2)
-	VFSUB_S4(16, 3, 3)
-	VFMUL_S4(17, 0, 0)
-	VFMUL_S4(17, 1, 1)
-	VFMUL_S4(17, 2, 2)
-	VFMUL_S4(17, 3, 3)
-	VFMUL_S4(18, 0, 0)
-	VFMUL_S4(18, 1, 1)
-	VFMUL_S4(18, 2, 2)
-	VFMUL_S4(18, 3, 3)
-	VFADD_S4(19, 0, 0)
-	VFADD_S4(19, 1, 1)
-	VFADD_S4(19, 2, 2)
-	VFADD_S4(19, 3, 3)
-	VST1 [V0.S4, V1.S4, V2.S4, V3.S4], (R0)
+	VFSUB_S4(16, 0, 4)
+	VFSUB_S4(16, 1, 5)
+	VFSUB_S4(16, 2, 6)
+	VFSUB_S4(16, 3, 7)
+	VFMUL_S4(17, 4, 4)
+	VFMUL_S4(17, 5, 5)
+	VFMUL_S4(17, 6, 6)
+	VFMUL_S4(17, 7, 7)
+	VFMUL_S4(18, 4, 4)
+	VFMUL_S4(18, 5, 5)
+	VFMUL_S4(18, 6, 6)
+	VFMUL_S4(18, 7, 7)
+	VFADD_S4(19, 4, 4)
+	VFADD_S4(19, 5, 5)
+	VFADD_S4(19, 6, 6)
+	VFADD_S4(19, 7, 7)
+	VST1 [V4.S4, V5.S4, V6.S4, V7.S4], (R0)
 
 	ADD  $64, R0
 	ADD  $64, R1
@@ -149,11 +149,11 @@ norm_apply_loop4:
 	BLT  norm_apply_scalar_tail
 
 	VLD1 (R1), [V0.S4]
-	VFSUB_S4(16, 0, 0)
-	VFMUL_S4(17, 0, 0)
-	VFMUL_S4(18, 0, 0)
-	VFADD_S4(19, 0, 0)
-	VST1 [V0.S4], (R0)
+	VFSUB_S4(16, 0, 4)
+	VFMUL_S4(17, 4, 4)
+	VFMUL_S4(18, 4, 4)
+	VFADD_S4(19, 4, 4)
+	VST1 [V4.S4], (R0)
 
 	ADD  $16, R0
 	ADD  $16, R1
