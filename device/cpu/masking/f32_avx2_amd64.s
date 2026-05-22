@@ -268,8 +268,7 @@ alibi_avx2_col_scalar:
 	CMPQ AX, $0
 	JL   alibi_avx2_keep_score
 
-	XORPS X9, X9
-	CVTSI2SS AX, X1
+	CVTSL2SS AX, X1
 	VMULSS X15, X1, X1
 	VSUBSS X1, X0, X0
 

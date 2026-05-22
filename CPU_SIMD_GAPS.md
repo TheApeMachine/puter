@@ -22,12 +22,12 @@
 | SSE2        |                                   14 |            32 | **18 domains: entire ISA missing**                                              |
 | NEON        |                                    20 |            32 | **12 domains: no arm64 SIMD at all**                                            |
 
-**Full amd64 ladder (AVX-512 → AVX2 → SSE2 → scalar):** `activation`, `dot`, `dropout`, `elementwise`, `interpretability`, `layernorm`, `losses`, `matmul`, `model_editing`, `optimizer`, `pospop`, `reduction`.  
+**Full amd64 ladder (AVX-512 → AVX2 → SSE2 → scalar):** `activation`, `dot`, `dropout`, `elementwise`, `interpretability`, `layernorm`, `losses`, `masking`, `matmul`, `model_editing`, `optimizer`, `pospop`, `reduction` (f32 + bf16/fp16 sum/prod).  
 **Partial amd64 ladder (AVX-512/AVX2 ymm alias + SSE2 xmm, or SSE2-only on some ops):** `pool` (bf16/fp16 **stride-1 + 2×2 SSE2**; AVX-512/AVX2 ymm for fast paths), `convolution` (stride-1 + patch-dot bf16/fp16 SSE2; general/transpose AVX-512/AVX2 only).
 
 **Largest structural gaps:**
 
-1. **AVX2 + SSE2** for 18–20/32 domains (remaining: `attention`, `causal`, `convolution` partial, `embedding`, `masking`, `math`, `normalization`, `quant`, `dequant`, `rope`, `sampling`, `shape`, `tokenizer`, `vsa`, etc.).
+1. **AVX2 + SSE2** for 17–19/32 domains (remaining: `attention`, `causal`, `convolution` partial, `embedding`, `math`, `normalization`, `quant`, `dequant`, `rope`, `sampling`, `shape`, `tokenizer`, `vsa`, etc.).
 2. **NEON** for 12 domains that are AVX-512 + scalar only on arm64.
 3. **amd64 f32** for many domains: AVX-512 exists but dispatch falls back to scalar for common configs (convolution f32 “NEON-eligible” shapes on amd64, sparse matmul, most attention/MHA, etc.).
 4. **BF16/FP16 on amd64**: hot paths (`dot`, `elementwise`, `matmul`, `reduction`, `pool` stride-1 + 2×2, `conv` stride-1) have AVX-512/AVX2/SSE2; adaptive pool, conv-transpose SSE2, conv 2×2 SSE2 still open.
@@ -82,7 +82,7 @@ Legend: **Y** = dedicated SIMD for that dtype on at least one ISA; **P** = parti
 | elementwise | Y | P | P | P | — | — | P | amd64 f32 AVX512; bf16/fp16 **AVX512→AVX2→SSE2→generic**; arm64 NEON all |
 | matmul | Y | P | P | P | — | — | — | amd64 f32 **AVX512→AVX2→SSE2→scalar**; bf16/fp16 full ladder; f64/sparse scalar |
 | dot | Y | — | P | P | P | — | — | amd64 f32 AVX512→generic; bf16/fp16/int8 **AVX512→AVX2→SSE2→generic** |
-| reduction | Y | — | P | P | — | — | — | amd64 f32 **AVX512→AVX2→SSE2→generic**; bf16/fp16 sum AVX512→AVX2→SSE2 |
+| reduction | Y | — | P | P | — | — | — | amd64 f32 **AVX512→AVX2→SSE2→generic**; bf16/fp16 sum+prod **AVX512→AVX2→SSE2→generic** |
 | convolution | P | — | P | P | — | — | — | bf16/fp16 stride-1 + patch-dot SSE2; f32 eligible configs scalar on amd64 |
 | pool | P | — | P | P | — | — | — | bf16/fp16 **stride-1 + 2×2 SSE2**; AVX-512/AVX2 fast; adaptive scalar |
 | dropout | Y | X | X | X | — | — | — | f32 **AVX512→AVX2→SSE2→generic**; **panic** on non-f32 |
@@ -229,8 +229,8 @@ Below, **Missing** means no dedicated vector kernel on that ISA for that op (dty
 
 | ISA         | Missing                                                             |
 |-------------|---------------------------------------------------------------------|
-| AVX-512     | **bf16, fp16** prod/min/max/L1 (sum has full ladder)                |
-| AVX2 / SSE2 | **bf16, fp16** prod/min/max/L1                                      |
+| AVX-512     | **bf16, fp16** min/max/L1 (sum+prod have full ladder)               |
+| AVX2 / SSE2 | **bf16, fp16** min/max/L1 (prod ladder shipped)                   |
 | NEON        | Verify prod/min/max/L1 each has `.s` (sum bf16/fp16 exist)        |
 
 ---
@@ -614,7 +614,7 @@ Priority weights **correctness** first, then **coverage of hot paths**, then **I
 1. ~~**Fix optimizer NEON Adam/AdamW**~~ **Done** — mul/add reference + NEON sequence; 1 ULP at N ∈ {1,7,64,1024,8192}.
 2. **Define exact vs approximate** for activation family; align scalar reference with SIMD for Exp/Log/Tanh/Mish/… or document approximate ops.
 3. **amd64 AVX2/SSE2 ladders** for remaining 24 domains — next hot paths: `losses` (MSE/MAE), `dropout`, `layernorm`, `optimizer`, `quant`/`dequant`.
-4. **Complete partial domains:** `pool`/`conv` (conv-transpose SSE2, conv f32 all configs), `reduction` (bf16/fp16 prod/min/max/L1), `attention` (full flash/MHA).
+4. **Complete partial domains:** `pool`/`conv` (conv-transpose SSE2, conv f32 all configs), `reduction` (bf16/fp16 min/max/L1), `attention` (full flash/MHA).
 5. **NEON for 12 zero-NEON domains** — start with `embedding`, `masking`, `shape` (3 kernels each), `math`, `sampling`.
 6. **Tighten all parity suites** to ≤1 ULP; remove hawkes/conv3d **4 ULP** bands.
 

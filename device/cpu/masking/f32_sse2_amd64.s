@@ -169,7 +169,7 @@ alibi_sse2_col:
 	VPSUBD X11, X13, X12
 	VCVTDQ2PS X12, X10
 	VXORPS X9, X9, X9
-	CMPPS $1, X10, X9, X8
+	VCMPPS $1, X10, X9, X8
 	VMULPS X15, X10, X11
 	VSUBPS X11, X0, X1
 	VANDPS X8, X1, X4
@@ -194,8 +194,7 @@ alibi_sse2_col_scalar:
 	CMPQ AX, $0
 	JL   alibi_sse2_keep_score
 
-	XORPS X9, X9
-	CVTSI2SS AX, X1
+	CVTSL2SS AX, X1
 	VMULSS X15, X1, X1
 	VSUBSS X1, X0, X0
 

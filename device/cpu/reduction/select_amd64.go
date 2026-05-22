@@ -136,4 +136,52 @@ var (
 		{SumFP16SSE2, "sse2", cpu.X86.HasSSE2},
 		{SumFP16Generic, "generic", true},
 	}
+	prodBF16Funcs = []bf16ProdKernelImpl{
+		{ProdBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{ProdBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{ProdBF16SSE2, "sse2", cpu.X86.HasSSE2},
+		{ProdBF16Generic, "generic", true},
+	}
+	prodFP16Funcs = []fp16ProdKernelImpl{
+		{ProdFP16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{ProdFP16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{ProdFP16SSE2, "sse2", cpu.X86.HasSSE2},
+		{ProdFP16Generic, "generic", true},
+	}
+	minBF16Funcs = []bf16MinKernelImpl{
+		{MinBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{MinBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{MinBF16SSE2, "sse2", cpu.X86.HasSSE2},
+		{MinBF16Generic, "generic", true},
+	}
+	maxBF16Funcs = []bf16MaxKernelImpl{
+		{MaxBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{MaxBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{MaxBF16SSE2, "sse2", cpu.X86.HasSSE2},
+		{MaxBF16Generic, "generic", true},
+	}
+	l1NormBF16Funcs = []bf16L1NormKernelImpl{
+		{L1NormBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{L1NormBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{L1NormBF16SSE2, "sse2", cpu.X86.HasSSE2},
+		{L1NormBF16Generic, "generic", true},
+	}
+	minFP16Funcs = []fp16MinKernelImpl{
+		{MinFP16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{MinFP16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{MinFP16SSE2, "sse2", cpu.X86.HasSSE2},
+		{MinFP16Generic, "generic", true},
+	}
+	maxFP16Funcs = []fp16MaxKernelImpl{
+		{MaxFP16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{MaxFP16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{MaxFP16SSE2, "sse2", cpu.X86.HasSSE2},
+		{MaxFP16Generic, "generic", true},
+	}
+	l1NormFP16Funcs = []fp16L1NormKernelImpl{
+		{L1NormFP16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{L1NormFP16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{L1NormFP16SSE2, "sse2", cpu.X86.HasSSE2},
+		{L1NormFP16Generic, "generic", true},
+	}
 )

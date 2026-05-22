@@ -177,4 +177,28 @@ var (
 		{SumFP16NEON, "neon", true},
 		{SumFP16Generic, "generic", true},
 	}
+	prodBF16Funcs = []bf16ProdKernelImpl{
+		{ProdBF16Generic, "generic", true},
+	}
+	prodFP16Funcs = []fp16ProdKernelImpl{
+		{ProdFP16Generic, "generic", true},
+	}
+	minBF16Funcs = []bf16MinKernelImpl{
+		{MinBF16Generic, "generic", true},
+	}
+	maxBF16Funcs = []bf16MaxKernelImpl{
+		{MaxBF16Generic, "generic", true},
+	}
+	l1NormBF16Funcs = []bf16L1NormKernelImpl{
+		{L1NormBF16Generic, "generic", true},
+	}
+	minFP16Funcs = []fp16MinKernelImpl{
+		{MinFP16Generic, "generic", true},
+	}
+	maxFP16Funcs = []fp16MaxKernelImpl{
+		{MaxFP16Generic, "generic", true},
+	}
+	l1NormFP16Funcs = []fp16L1NormKernelImpl{
+		{L1NormFP16Generic, "generic", true},
+	}
 )
