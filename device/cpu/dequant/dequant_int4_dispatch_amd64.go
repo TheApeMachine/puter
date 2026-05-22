@@ -20,5 +20,17 @@ func DequantInt4Native(dst []float32, pairs tensor.Int4Vector, scale float32, ze
 		return
 	}
 
+	if cpu.X86.HasAVX2 {
+		dequantInt4AVX2(dst, pairs.Bytes(), elementCount, scale, zeroPoint)
+
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		dequantInt4SSE2(dst, pairs.Bytes(), elementCount, scale, zeroPoint)
+
+		return
+	}
+
 	dequantInt4Generic(dst, pairs, scale, zeroPoint)
 }

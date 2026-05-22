@@ -1,10 +1,10 @@
 #include "textflag.h"
 
-DATA dequantI4Mask0F<>+0(SB)/8, $0x0F0F0F0F0F0F0F0F
-GLOBL dequantI4Mask0F<>(SB), RODATA, $8
+DATA dequantI4AVX2Mask0F<>+0(SB)/8, $0x0F0F0F0F0F0F0F0F
+GLOBL dequantI4AVX2Mask0F<>(SB), RODATA, $8
 
-// func DequantInt4AVX512Asm(dst *float32, src *byte, count int, scale float32, zeroPoint int8)
-TEXT ·DequantInt4AVX512Asm(SB), NOSPLIT, $0-29
+// func DequantInt4AVX2Asm(dst *float32, src *byte, count int, scale float32, zeroPoint int8)
+TEXT ·DequantInt4AVX2Asm(SB), NOSPLIT, $0-29
 	MOVQ dst+0(FP), DI
 	MOVQ src+8(FP), SI
 	MOVQ count+16(FP), CX
@@ -15,15 +15,15 @@ TEXT ·DequantInt4AVX512Asm(SB), NOSPLIT, $0-29
 
 	VBROADCASTSS X15, Y15
 	VPBROADCASTD R8, Y14
-	VMOVDQU dequantI4Mask0F<>(SB), X7
+	VMOVDQU dequantI4AVX2Mask0F<>(SB), X7
 	VPXOR X6, X6, X6
 
 	TESTQ CX, CX
-	JZ   dequant_i4_done
+	JZ   dequant_i4_avx2_done
 
-dequant_i4_w16:
+dequant_i4_avx2_w16:
 	CMPQ CX, $16
-	JL   dequant_i4_w8
+	JL   dequant_i4_avx2_w8
 
 	VMOVDQU (SI), X0
 
@@ -57,11 +57,11 @@ dequant_i4_w16:
 	ADDQ $8, SI
 	ADDQ $64, DI
 	SUBQ $16, CX
-	JMP  dequant_i4_w16
+	JMP  dequant_i4_avx2_w16
 
-dequant_i4_w8:
+dequant_i4_avx2_w8:
 	CMPQ CX, $8
-	JL   dequant_i4_scalar_tail
+	JL   dequant_i4_avx2_scalar_tail
 
 	VMOVD (SI), X0
 
@@ -95,22 +95,22 @@ dequant_i4_w8:
 	ADDQ $4, SI
 	ADDQ $32, DI
 	SUBQ $8, CX
-	JMP  dequant_i4_w16
+	JMP  dequant_i4_avx2_w16
 
-dequant_i4_scalar_tail:
+dequant_i4_avx2_scalar_tail:
 	TESTQ CX, CX
-	JZ   dequant_i4_done
+	JZ   dequant_i4_avx2_done
 
 	MOVQ $0, R10
 
-dequant_i4_scalar_loop:
+dequant_i4_avx2_scalar_loop:
 	MOVB (SI), R9
 
 	CMPQ R10, $0
-	JEQ  dequant_i4_take_lo
+	JEQ  dequant_i4_avx2_take_lo
 	SHRQ $4, R9
 
-dequant_i4_take_lo:
+dequant_i4_avx2_take_lo:
 	ANDQ $15, R9
 	SHLQ $60, R9
 	SARQ $60, R9
@@ -123,12 +123,12 @@ dequant_i4_take_lo:
 	ADDQ $4, DI
 	XORQ $1, R10
 	CMPQ R10, $1
-	JNE  dequant_i4_next_iter
+	JNE  dequant_i4_avx2_next_iter
 	ADDQ $1, SI
 
-dequant_i4_next_iter:
+dequant_i4_avx2_next_iter:
 	DECQ CX
-	JNZ  dequant_i4_scalar_loop
+	JNZ  dequant_i4_avx2_scalar_loop
 
-dequant_i4_done:
+dequant_i4_avx2_done:
 	RET

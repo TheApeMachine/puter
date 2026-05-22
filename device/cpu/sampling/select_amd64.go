@@ -29,5 +29,7 @@ var greedySampleF32Funcs = []f32GreedyKernelImpl{
 
 var samplingSoftmaxRowF32Funcs = []f32SoftmaxRowKernelImpl{
 	{SamplingSoftmaxRowF32AVX512, "avx512", cpu.X86.HasAVX512F},
+	{SamplingSoftmaxRowF32AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+	{SamplingSoftmaxRowF32SSE2, "sse2", cpu.X86.HasSSE2},
 	{samplingSoftmaxRowF32Generic, "generic", true},
 }

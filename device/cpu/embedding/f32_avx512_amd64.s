@@ -10,9 +10,9 @@ emb_copy_w16:
 	CMPQ CX, $16
 	JL   emb_copy_w8
 
-	VMOVUPS Y0, (SI)
+	VMOVUPS (SI), Y0
 	VMOVUPS Y0, (DI)
-	VMOVUPS Y1, 32(SI)
+	VMOVUPS 32(SI), Y1
 	VMOVUPS Y1, 32(DI)
 
 	ADDQ $64, SI
@@ -24,7 +24,7 @@ emb_copy_w8:
 	CMPQ CX, $8
 	JL   emb_copy_w4
 
-	VMOVUPS Y0, (SI)
+	VMOVUPS (SI), Y0
 	VMOVUPS Y0, (DI)
 
 	ADDQ $32, SI
@@ -36,7 +36,7 @@ emb_copy_w4:
 	CMPQ CX, $4
 	JL   emb_copy_w4_tail
 
-	VMOVUPS X0, (SI)
+	VMOVUPS (SI), X0
 	VMOVUPS X0, (DI)
 
 	ADDQ $16, SI
@@ -69,12 +69,12 @@ emb_add_w16:
 	CMPQ CX, $16
 	JL   emb_add_w8
 
-	VMOVUPS Y0, (SI)
-	VMOVUPS Y1, (DI)
+	VMOVUPS (SI), Y0
+	VMOVUPS (DI), Y1
 	VADDPS  Y0, Y1, Y0
 	VMOVUPS Y0, (DI)
-	VMOVUPS Y2, 32(SI)
-	VMOVUPS Y3, 32(DI)
+	VMOVUPS 32(SI), Y2
+	VMOVUPS 32(DI), Y3
 	VADDPS  Y2, Y3, Y2
 	VMOVUPS Y2, 32(DI)
 
@@ -87,8 +87,8 @@ emb_add_w8:
 	CMPQ CX, $8
 	JL   emb_add_w4
 
-	VMOVUPS Y0, (SI)
-	VMOVUPS Y1, (DI)
+	VMOVUPS (SI), Y0
+	VMOVUPS (DI), Y1
 	VADDPS  Y0, Y1, Y0
 	VMOVUPS Y0, (DI)
 
@@ -101,8 +101,8 @@ emb_add_w4:
 	CMPQ CX, $4
 	JL   emb_add_w4_tail
 
-	VMOVUPS X0, (SI)
-	VMOVUPS X1, (DI)
+	VMOVUPS (SI), X0
+	VMOVUPS (DI), X1
 	VADDPS  X0, X1, X0
 	VMOVUPS X0, (DI)
 

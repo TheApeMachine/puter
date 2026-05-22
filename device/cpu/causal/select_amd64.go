@@ -16,6 +16,18 @@ func CateFloat32Native(treated, control, out []float32) {
 		return
 	}
 
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		cateF32AVX2(treated, control, out)
+
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		cateF32SSE2(treated, control, out)
+
+		return
+	}
+
 	elementwise.SubFloat32Native(out, treated, control)
 }
 
@@ -25,6 +37,18 @@ func CounterfactualFloat32Native(
 ) {
 	if cpu.X86.HasAVX512F {
 		counterfactualF32AVX512(out, observedY, observedX, counterfactualX, slope)
+
+		return
+	}
+
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		counterfactualF32AVX2(out, observedY, observedX, counterfactualX, slope)
+
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		counterfactualF32SSE2(out, observedY, observedX, counterfactualX, slope)
 
 		return
 	}
@@ -126,6 +150,14 @@ func MarkovFlowFloat32Native(
 func stridedDotF32Native(values []float32, stride int, weights []float32, elementCount int) float32 {
 	if cpu.X86.HasAVX512F {
 		return stridedDotF32AVX512(values, stride, weights, elementCount)
+	}
+
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		return stridedDotF32AVX2(values, stride, weights, elementCount)
+	}
+
+	if cpu.X86.HasSSE2 {
+		return stridedDotF32SSE2(values, stride, weights, elementCount)
 	}
 
 	return stridedDotF32Generic(values, stride, weights, elementCount)

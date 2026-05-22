@@ -15,5 +15,17 @@ func DequantInt8Native(dst []float32, src []int8, scale float32, zeroPoint int8)
 		return
 	}
 
+	if cpu.X86.HasAVX2 {
+		dequantInt8AVX2(dst, src, scale, zeroPoint)
+
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		dequantInt8SSE2(dst, src, scale, zeroPoint)
+
+		return
+	}
+
 	dequantInt8Generic(dst, src, scale, zeroPoint)
 }

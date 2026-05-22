@@ -15,5 +15,17 @@ func QuantInt8Native(dst []int8, src []float32, scale float32, zeroPoint int8) {
 		return
 	}
 
+	if cpu.X86.HasAVX2 {
+		quantInt8AVX2(dst, src, scale, zeroPoint)
+
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		quantInt8SSE2(dst, src, scale, zeroPoint)
+
+		return
+	}
+
 	quantInt8Generic(dst, src, scale, zeroPoint)
 }
