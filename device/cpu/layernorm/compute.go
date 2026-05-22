@@ -19,32 +19,13 @@ func dispatchLayerNorm(
 		return
 	}
 
-	elementCount := rows * lastDim
-
 	switch format {
 	case dtype.Float32:
 		runLayerNormF32(input, scale, bias, output, rows, lastDim)
-	case dtype.Float16, dtype.BFloat16:
-		inputF32 := widenBuffer(input, elementCount, format)
-		scaleF32 := widenBuffer(scale, lastDim, format)
-		biasF32 := widenBuffer(bias, lastDim, format)
-		outF32 := BorrowFloat32Buffer(elementCount)
-
-		defer ReleaseFloat32Buffer(inputF32)
-		defer ReleaseFloat32Buffer(scaleF32)
-		defer ReleaseFloat32Buffer(biasF32)
-		defer ReleaseFloat32Buffer(outF32)
-
-		runLayerNormF32(
-			unsafe.Pointer(&inputF32[0]),
-			unsafe.Pointer(&scaleF32[0]),
-			unsafe.Pointer(&biasF32[0]),
-			unsafe.Pointer(&outF32[0]),
-			rows,
-			lastDim,
-		)
-
-		narrowBuffer(output, outF32, format)
+	case dtype.BFloat16:
+		runLayerNormBF16(input, scale, bias, output, rows, lastDim)
+	case dtype.Float16:
+		runLayerNormF16(input, scale, bias, output, rows, lastDim)
 	default:
 		panic("layernorm: unsupported dtype")
 	}
@@ -59,65 +40,13 @@ func dispatchRMSNorm(
 		return
 	}
 
-	elementCount := rows * lastDim
-
 	switch format {
 	case dtype.Float32:
 		runRMSNormF32(input, scale, output, rows, lastDim)
-	case dtype.Float16, dtype.BFloat16:
-		inputF32 := widenBuffer(input, elementCount, format)
-		scaleF32 := widenBuffer(scale, lastDim, format)
-		outF32 := BorrowFloat32Buffer(elementCount)
-
-		defer ReleaseFloat32Buffer(inputF32)
-		defer ReleaseFloat32Buffer(scaleF32)
-		defer ReleaseFloat32Buffer(outF32)
-
-		runRMSNormF32(
-			unsafe.Pointer(&inputF32[0]),
-			unsafe.Pointer(&scaleF32[0]),
-			unsafe.Pointer(&outF32[0]),
-			rows,
-			lastDim,
-		)
-
-		narrowBuffer(output, outF32, format)
-	default:
-		panic("layernorm: unsupported dtype")
-	}
-}
-
-func widenBuffer(source unsafe.Pointer, count int, format dtype.DType) []float32 {
-	buffer := BorrowFloat32Buffer(count)
-
-	switch format {
-	case dtype.Float32:
-		sourceView := unsafe.Slice((*float32)(source), count)
-		copy(buffer, sourceView)
-	case dtype.Float16:
-		sourceView := unsafe.Slice((*dtype.F16)(source), count)
-		Float16BulkToFloat32(buffer, sourceView)
 	case dtype.BFloat16:
-		sourceView := unsafe.Slice((*dtype.BF16)(source), count)
-		Bfloat16BulkToFloat32(buffer, sourceView)
-	default:
-		panic("layernorm: unsupported dtype")
-	}
-
-	return buffer
-}
-
-func narrowBuffer(destination unsafe.Pointer, source []float32, format dtype.DType) {
-	switch format {
-	case dtype.Float32:
-		destinationView := unsafe.Slice((*float32)(destination), len(source))
-		copy(destinationView, source)
+		runRMSNormBF16(input, scale, output, rows, lastDim)
 	case dtype.Float16:
-		destinationView := unsafe.Slice((*dtype.F16)(destination), len(source))
-		Float32BulkToFloat16(destinationView, source)
-	case dtype.BFloat16:
-		destinationView := unsafe.Slice((*dtype.BF16)(destination), len(source))
-		Float32BulkToBFloat16(destinationView, source)
+		runRMSNormF16(input, scale, output, rows, lastDim)
 	default:
 		panic("layernorm: unsupported dtype")
 	}
@@ -154,7 +83,69 @@ func runRMSNormF32(
 	for rowIndex := 0; rowIndex < rows; rowIndex++ {
 		row := inputView[rowIndex*lastDim : (rowIndex+1)*lastDim]
 		outRow := outputView[rowIndex*lastDim : (rowIndex+1)*lastDim]
-		applyRMSRow(row, outRow, scaleView)
+		applyRMSRowF32(row, outRow, scaleView)
+	}
+}
+
+func runLayerNormBF16(
+	input, scale, bias, output unsafe.Pointer,
+	rows, lastDim int,
+) {
+	inputView := unsafe.Slice((*dtype.BF16)(input), rows*lastDim)
+	scaleView := unsafe.Slice((*dtype.BF16)(scale), lastDim)
+	biasView := unsafe.Slice((*dtype.BF16)(bias), lastDim)
+	outputView := unsafe.Slice((*dtype.BF16)(output), rows*lastDim)
+
+	for rowIndex := 0; rowIndex < rows; rowIndex++ {
+		row := inputView[rowIndex*lastDim : (rowIndex+1)*lastDim]
+		outRow := outputView[rowIndex*lastDim : (rowIndex+1)*lastDim]
+		applyLayerNormRowBF16(row, outRow, scaleView, biasView)
+	}
+}
+
+func runLayerNormF16(
+	input, scale, bias, output unsafe.Pointer,
+	rows, lastDim int,
+) {
+	inputView := unsafe.Slice((*dtype.F16)(input), rows*lastDim)
+	scaleView := unsafe.Slice((*dtype.F16)(scale), lastDim)
+	biasView := unsafe.Slice((*dtype.F16)(bias), lastDim)
+	outputView := unsafe.Slice((*dtype.F16)(output), rows*lastDim)
+
+	for rowIndex := 0; rowIndex < rows; rowIndex++ {
+		row := inputView[rowIndex*lastDim : (rowIndex+1)*lastDim]
+		outRow := outputView[rowIndex*lastDim : (rowIndex+1)*lastDim]
+		applyLayerNormRowF16(row, outRow, scaleView, biasView)
+	}
+}
+
+func runRMSNormBF16(
+	input, scale, output unsafe.Pointer,
+	rows, lastDim int,
+) {
+	inputView := unsafe.Slice((*dtype.BF16)(input), rows*lastDim)
+	scaleView := unsafe.Slice((*dtype.BF16)(scale), lastDim)
+	outputView := unsafe.Slice((*dtype.BF16)(output), rows*lastDim)
+
+	for rowIndex := 0; rowIndex < rows; rowIndex++ {
+		row := inputView[rowIndex*lastDim : (rowIndex+1)*lastDim]
+		outRow := outputView[rowIndex*lastDim : (rowIndex+1)*lastDim]
+		applyRMSRowBF16(row, outRow, scaleView)
+	}
+}
+
+func runRMSNormF16(
+	input, scale, output unsafe.Pointer,
+	rows, lastDim int,
+) {
+	inputView := unsafe.Slice((*dtype.F16)(input), rows*lastDim)
+	scaleView := unsafe.Slice((*dtype.F16)(scale), lastDim)
+	outputView := unsafe.Slice((*dtype.F16)(output), rows*lastDim)
+
+	for rowIndex := 0; rowIndex < rows; rowIndex++ {
+		row := inputView[rowIndex*lastDim : (rowIndex+1)*lastDim]
+		outRow := outputView[rowIndex*lastDim : (rowIndex+1)*lastDim]
+		applyRMSRowF16(row, outRow, scaleView)
 	}
 }
 
@@ -173,18 +164,95 @@ func applyRowNormalization(
 	LayerNormApplyRowNative(outRow, row, scale, bias, float32(mean), float32(invStdDev))
 }
 
-func applyRMSRow(row, outRow, scale []float32) {
+func applyRMSRowF32(row, outRow, scale []float32) {
 	sumOfSquares := DotFloat32Native(row, row)
 	meanSquare := float64(sumOfSquares) / float64(len(row))
 	invRMS := 1.0 / math.Sqrt(meanSquare+rmsNormEpsilon)
 	invRMSf32 := float32(invRMS)
 
-	combined := BorrowFloat32Buffer(len(row))
-	defer ReleaseFloat32Buffer(combined)
+	combined := make([]float32, len(row))
 
 	for index := range scale {
 		combined[index] = invRMSf32 * scale[index]
 	}
 
 	MulFloat32Native(outRow, row, combined)
+}
+
+func applyRMSRowBF16(row, outRow, scale []dtype.BF16) {
+	sumOfSquares := DotBFloat16Native(row, row)
+	meanSquare := (&sumOfSquares).Float32() / float32(len(row))
+	invRMS := float32(1.0 / math.Sqrt(float64(meanSquare+rmsNormEpsilon)))
+	combined := make([]dtype.BF16, len(row))
+
+	for index := range scale {
+		combined[index] = dtype.NewBfloat16FromFloat32(invRMS * (&scale[index]).Float32())
+	}
+
+	MulBFloat16Native(outRow, row, combined)
+}
+
+func applyRMSRowF16(row, outRow, scale []dtype.F16) {
+	sumOfSquares := DotFloat16Native(row, row)
+	meanSquare := sumOfSquares.Float32() / float32(len(row))
+	invRMS := float32(1.0 / math.Sqrt(float64(meanSquare+rmsNormEpsilon)))
+	combined := make([]dtype.F16, len(row))
+
+	for index := range scale {
+		combined[index] = dtype.Fromfloat32(invRMS * scale[index].Float32())
+	}
+
+	MulFloat16Native(outRow, row, combined)
+}
+
+func applyLayerNormRowBF16(
+	row, outRow, scale, bias []dtype.BF16,
+) {
+	meanValue := SumBFloat16Native(row)
+	mean := (&meanValue).Float32() / float32(len(row))
+	variance := layerNormVarianceBF16(row, mean)
+	invStdDev := float32(1.0 / math.Sqrt(float64(variance+layerNormEpsilon)))
+
+	for index := range row {
+		normalized := ((&row[index]).Float32() - mean) * invStdDev
+		out := normalized*(&scale[index]).Float32() + (&bias[index]).Float32()
+		outRow[index] = dtype.NewBfloat16FromFloat32(out)
+	}
+}
+
+func applyLayerNormRowF16(
+	row, outRow, scale, bias []dtype.F16,
+) {
+	meanValue := SumFloat16Native(row)
+	mean := meanValue.Float32() / float32(len(row))
+	variance := layerNormVarianceF16(row, mean)
+	invStdDev := float32(1.0 / math.Sqrt(float64(variance+layerNormEpsilon)))
+
+	for index := range row {
+		normalized := (row[index].Float32() - mean) * invStdDev
+		out := normalized*scale[index].Float32() + bias[index].Float32()
+		outRow[index] = dtype.Fromfloat32(out)
+	}
+}
+
+func layerNormVarianceBF16(row []dtype.BF16, mean float32) float32 {
+	var variance float32
+
+	for index := range row {
+		delta := (&row[index]).Float32() - mean
+		variance += delta * delta
+	}
+
+	return variance / float32(len(row))
+}
+
+func layerNormVarianceF16(row []dtype.F16, mean float32) float32 {
+	var variance float32
+
+	for index := range row {
+		delta := row[index].Float32() - mean
+		variance += delta * delta
+	}
+
+	return variance / float32(len(row))
 }

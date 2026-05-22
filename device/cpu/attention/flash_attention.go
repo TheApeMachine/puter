@@ -53,33 +53,36 @@ func runFlashAttentionBFloat16(args ...tensor.Tensor) error {
 		return err
 	}
 
-	qBF, _ := query.BFloat16Native()
-	kBF, _ := key.BFloat16Native()
-	vBF, _ := value.BFloat16Native()
-	oBF, _ := out.BFloat16Native()
-
-	qF32 := BorrowFloat32Buffer(len(qBF))
-	kF32 := BorrowFloat32Buffer(len(kBF))
-	vF32 := BorrowFloat32Buffer(len(vBF))
-	oF32 := BorrowFloat32Buffer(len(oBF))
-
-	defer ReleaseFloat32Buffer(qF32)
-	defer ReleaseFloat32Buffer(kF32)
-	defer ReleaseFloat32Buffer(vF32)
-	defer ReleaseFloat32Buffer(oF32)
-
-	Bfloat16BulkToFloat32(qF32, qBF)
-	Bfloat16BulkToFloat32(kF32, kBF)
-	Bfloat16BulkToFloat32(vF32, vBF)
-
-	config := DefaultFlashAttentionConfig()
-	scale := float32(1.0 / math.Sqrt(float64(depth)))
-
-	for rowIndex := 0; rowIndex < seqQ; rowIndex++ {
-		RunFlashAttentionRowNative(qF32, kF32, vF32, oF32, rowIndex, seqK, depth, valueDim, scale, config.Causal)
+	queryNative, err := query.BFloat16Native()
+	if err != nil {
+		return err
 	}
 
-	Float32BulkToBFloat16(oBF, oF32)
+	keyNative, err := key.BFloat16Native()
+	if err != nil {
+		return err
+	}
+
+	valueNative, err := value.BFloat16Native()
+	if err != nil {
+		return err
+	}
+
+	outputNative, err := out.BFloat16Native()
+	if err != nil {
+		return err
+	}
+
+	scaledDotProductAttention(
+		DefaultFlashAttentionConfig(),
+		unsafe.Pointer(&queryNative[0]),
+		unsafe.Pointer(&keyNative[0]),
+		unsafe.Pointer(&valueNative[0]),
+		unsafe.Pointer(&outputNative[0]),
+		seqQ, seqK, depth, valueDim,
+		query.DType(),
+	)
+
 	return nil
 }
 
@@ -95,33 +98,36 @@ func runFlashAttentionFloat16(args ...tensor.Tensor) error {
 		return err
 	}
 
-	qF16, _ := query.Float16Native()
-	kF16, _ := key.Float16Native()
-	vF16, _ := value.Float16Native()
-	oF16, _ := out.Float16Native()
-
-	qF32 := BorrowFloat32Buffer(len(qF16))
-	kF32 := BorrowFloat32Buffer(len(kF16))
-	vF32 := BorrowFloat32Buffer(len(vF16))
-	oF32 := BorrowFloat32Buffer(len(oF16))
-
-	defer ReleaseFloat32Buffer(qF32)
-	defer ReleaseFloat32Buffer(kF32)
-	defer ReleaseFloat32Buffer(vF32)
-	defer ReleaseFloat32Buffer(oF32)
-
-	Float16BulkToFloat32(qF32, qF16)
-	Float16BulkToFloat32(kF32, kF16)
-	Float16BulkToFloat32(vF32, vF16)
-
-	config := DefaultFlashAttentionConfig()
-	scale := float32(1.0 / math.Sqrt(float64(depth)))
-
-	for rowIndex := 0; rowIndex < seqQ; rowIndex++ {
-		RunFlashAttentionRowNative(qF32, kF32, vF32, oF32, rowIndex, seqK, depth, valueDim, scale, config.Causal)
+	queryNative, err := query.Float16Native()
+	if err != nil {
+		return err
 	}
 
-	Float32BulkToFloat16(oF16, oF32)
+	keyNative, err := key.Float16Native()
+	if err != nil {
+		return err
+	}
+
+	valueNative, err := value.Float16Native()
+	if err != nil {
+		return err
+	}
+
+	outputNative, err := out.Float16Native()
+	if err != nil {
+		return err
+	}
+
+	scaledDotProductAttention(
+		DefaultFlashAttentionConfig(),
+		unsafe.Pointer(&queryNative[0]),
+		unsafe.Pointer(&keyNative[0]),
+		unsafe.Pointer(&valueNative[0]),
+		unsafe.Pointer(&outputNative[0]),
+		seqQ, seqK, depth, valueDim,
+		query.DType(),
+	)
+
 	return nil
 }
 

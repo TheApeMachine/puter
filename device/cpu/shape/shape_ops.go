@@ -20,7 +20,7 @@ func runGatherFloat32Int32(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	source, err := args[0].Float32Native()
+	sourceBytes, err := aliasedBytes(args[0])
 
 	if err != nil {
 		return err
@@ -32,7 +32,13 @@ func runGatherFloat32Int32(args ...tensor.Tensor) error {
 		return err
 	}
 
-	out, err := args[2].Float32Native()
+	outBytes, err := aliasedBytes(args[2])
+
+	if err != nil {
+		return err
+	}
+
+	elementSize, err := elementByteSize(args[0])
 
 	if err != nil {
 		return err
@@ -45,8 +51,9 @@ func runGatherFloat32Int32(args ...tensor.Tensor) error {
 	}
 
 	innerDim := sourceDims[1]
+	innerBytes := innerDim * elementSize
 
-	if len(out) != len(indices)*innerDim {
+	if len(outBytes) != len(indices)*innerBytes {
 		return tensor.ErrShapeMismatch
 	}
 
@@ -55,9 +62,11 @@ func runGatherFloat32Int32(args ...tensor.Tensor) error {
 			return tensor.ErrShapeMismatch
 		}
 
-		CopyContiguousFloat32Native(
-			out[resultIndex*innerDim:(resultIndex+1)*innerDim],
-			source[int(sourceRow)*innerDim:(int(sourceRow)+1)*innerDim],
+		copyContiguousElements(
+			outBytes[resultIndex*innerBytes:(resultIndex+1)*innerBytes],
+			sourceBytes[int(sourceRow)*innerBytes:(int(sourceRow)+1)*innerBytes],
+			innerDim,
+			elementSize,
 		)
 	}
 
@@ -73,7 +82,7 @@ func runScatterFloat32Int32(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	target, err := args[0].Float32Native()
+	targetBytes, err := aliasedBytes(args[0])
 
 	if err != nil {
 		return err
@@ -85,13 +94,19 @@ func runScatterFloat32Int32(args ...tensor.Tensor) error {
 		return err
 	}
 
-	updates, err := args[2].Float32Native()
+	updatesBytes, err := aliasedBytes(args[2])
 
 	if err != nil {
 		return err
 	}
 
-	out, err := args[3].Float32Native()
+	outBytes, err := aliasedBytes(args[3])
+
+	if err != nil {
+		return err
+	}
+
+	elementSize, err := elementByteSize(args[0])
 
 	if err != nil {
 		return err
@@ -99,26 +114,29 @@ func runScatterFloat32Int32(args ...tensor.Tensor) error {
 
 	targetDims := args[0].Shape().Dims()
 
-	if len(targetDims) != 2 || len(out) != len(target) {
+	if len(targetDims) != 2 || len(outBytes) != len(targetBytes) {
 		return tensor.ErrShapeMismatch
 	}
 
 	innerDim := targetDims[1]
+	innerBytes := innerDim * elementSize
 
-	if len(updates) != len(indices)*innerDim {
+	if len(updatesBytes) != len(indices)*innerBytes {
 		return tensor.ErrShapeMismatch
 	}
 
-	CopyContiguousFloat32Native(out, target)
+	copyContiguousElements(outBytes, targetBytes, len(outBytes)/elementSize, elementSize)
 
 	for updateIndex, targetRow := range indices {
 		if int(targetRow) < 0 || int(targetRow) >= targetDims[0] {
 			return tensor.ErrShapeMismatch
 		}
 
-		CopyContiguousFloat32Native(
-			out[int(targetRow)*innerDim:(int(targetRow)+1)*innerDim],
-			updates[updateIndex*innerDim:(updateIndex+1)*innerDim],
+		copyContiguousElements(
+			outBytes[int(targetRow)*innerBytes:(int(targetRow)+1)*innerBytes],
+			updatesBytes[updateIndex*innerBytes:(updateIndex+1)*innerBytes],
+			innerDim,
+			elementSize,
 		)
 	}
 
@@ -140,32 +158,40 @@ func runWhereFloat32(args ...tensor.Tensor) error {
 		return err
 	}
 
-	positive, err := args[1].Float32Native()
+	positiveBytes, err := aliasedBytes(args[1])
 
 	if err != nil {
 		return err
 	}
 
-	negative, err := args[2].Float32Native()
+	negativeBytes, err := aliasedBytes(args[2])
 
 	if err != nil {
 		return err
 	}
 
-	out, err := args[3].Float32Native()
+	outBytes, err := aliasedBytes(args[3])
 
 	if err != nil {
 		return err
 	}
 
-	if len(positive) != len(negative) ||
-		len(out) != len(positive) ||
-		mask.Len() != len(positive) {
+	elementSize, err := elementByteSize(args[1])
+
+	if err != nil {
+		return err
+	}
+
+	elementCount := len(positiveBytes) / elementSize
+
+	if len(negativeBytes) != len(positiveBytes) ||
+		len(outBytes) != len(positiveBytes) ||
+		mask.Len() != elementCount {
 		return tensor.ErrShapeMismatch
 	}
 
 	maskBytes := bitVectorMaskBytes(mask)
-	WhereFloat32Native(out, positive, negative, maskBytes)
+	whereElements(outBytes, positiveBytes, negativeBytes, maskBytes, elementCount, elementSize)
 
 	return nil
 }
@@ -180,7 +206,7 @@ func runMaskedFillFloat32(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	input, err := args[0].Float32Native()
+	inputBytes, err := aliasedBytes(args[0])
 
 	if err != nil {
 		return err
@@ -192,25 +218,34 @@ func runMaskedFillFloat32(args ...tensor.Tensor) error {
 		return err
 	}
 
-	scalar, err := args[2].Float32Native()
+	fillBytes, err := aliasedBytes(args[2])
 
 	if err != nil {
 		return err
 	}
 
-	out, err := args[3].Float32Native()
+	outBytes, err := aliasedBytes(args[3])
 
 	if err != nil {
 		return err
 	}
 
-	if len(out) != len(input) || mask.Len() != len(input) || len(scalar) < 1 {
+	elementSize, err := elementByteSize(args[0])
+
+	if err != nil {
+		return err
+	}
+
+	elementCount := len(inputBytes) / elementSize
+
+	if len(outBytes) != len(inputBytes) ||
+		mask.Len() != elementCount ||
+		len(fillBytes) < elementSize {
 		return tensor.ErrShapeMismatch
 	}
 
-	fillValue := scalar[0]
 	maskBytes := bitVectorMaskBytes(mask)
-	MaskedFillFloat32Native(out, input, fillValue, maskBytes)
+	maskedFillElements(outBytes, inputBytes, fillBytes, maskBytes, elementCount, elementSize)
 
 	return nil
 }
@@ -223,13 +258,19 @@ func runTranspose2DFloat32(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	input, err := args[0].Float32Native()
+	inputBytes, err := aliasedBytes(args[0])
 
 	if err != nil {
 		return err
 	}
 
-	out, err := args[1].Float32Native()
+	outBytes, err := aliasedBytes(args[1])
+
+	if err != nil {
+		return err
+	}
+
+	elementSize, err := elementByteSize(args[0])
 
 	if err != nil {
 		return err
@@ -248,7 +289,7 @@ func runTranspose2DFloat32(args ...tensor.Tensor) error {
 
 	for row := 0; row < rows; row++ {
 		for col := 0; col < cols; col++ {
-			out[col*rows+row] = input[row*cols+col]
+			copyElementAt(outBytes, inputBytes, col*rows+row, row*cols+col, elementSize)
 		}
 	}
 
@@ -265,30 +306,39 @@ func runConcatFloat32(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	left, err := args[0].Float32Native()
+	leftBytes, err := aliasedBytes(args[0])
 
 	if err != nil {
 		return err
 	}
 
-	right, err := args[1].Float32Native()
+	rightBytes, err := aliasedBytes(args[1])
 
 	if err != nil {
 		return err
 	}
 
-	out, err := args[2].Float32Native()
+	outBytes, err := aliasedBytes(args[2])
 
 	if err != nil {
 		return err
 	}
 
-	if len(out) != len(left)+len(right) {
+	elementSize, err := elementByteSize(args[0])
+
+	if err != nil {
+		return err
+	}
+
+	if len(outBytes) != len(leftBytes)+len(rightBytes) {
 		return tensor.ErrShapeMismatch
 	}
 
-	CopyContiguousFloat32Native(out[:len(left)], left)
-	CopyContiguousFloat32Native(out[len(left):], right)
+	leftCount := len(leftBytes) / elementSize
+	rightCount := len(rightBytes) / elementSize
+
+	copyContiguousElements(outBytes[:len(leftBytes)], leftBytes, leftCount, elementSize)
+	copyContiguousElements(outBytes[len(leftBytes):], rightBytes, rightCount, elementSize)
 
 	return nil
 }

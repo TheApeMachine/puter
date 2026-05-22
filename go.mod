@@ -8,9 +8,12 @@ replace github.com/theapemachine/errnie => ../errnie
 
 replace github.com/theapemachine/qpool => ../qpool
 
+replace github.com/theapemachine/hf => ../hf
+
 require (
 	github.com/smartystreets/goconvey v1.8.1
 	github.com/theapemachine/errnie v1.2.0
+	github.com/theapemachine/hf v0.0.1
 	github.com/theapemachine/manifesto v0.0.1
 	github.com/theapemachine/qpool v0.0.3
 	golang.org/x/sys v0.43.0
@@ -35,9 +38,21 @@ require (
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/fxamacker/cbor/v2 v2.9.1 // indirect
+	github.com/gofiber/fiber/v3 v3.2.0 // indirect
+	github.com/gofiber/schema v1.7.1 // indirect
+	github.com/gofiber/utils/v2 v2.0.4 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
+	github.com/mattn/go-colorable v0.1.14 // indirect
+	github.com/mattn/go-isatty v0.0.21 // indirect
+	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/smarty/assertions v1.15.0 // indirect
-	github.com/theapemachine/hf v0.0.1 // indirect
+	github.com/tinylib/msgp v1.6.4 // indirect
+	github.com/x448/float16 v0.8.4 // indirect
+	golang.org/x/crypto v0.50.0 // indirect
+	golang.org/x/net v0.53.0 // indirect
+	golang.org/x/text v0.36.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

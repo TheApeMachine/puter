@@ -21,7 +21,6 @@ func Conv2D(
 		outChannels, kernelHeight, kernelWidth,
 		outHeight, outWidth,
 		format,
-		runConv2DF32,
 	)
 }
 
@@ -36,7 +35,6 @@ func Conv1D(
 		input, weight, bias, output,
 		batch, inChannels, inLength, outChannels, kernelLength, outLength,
 		format,
-		runConv1DF32,
 	)
 }
 
@@ -53,7 +51,6 @@ func Conv3D(
 		batch, inChannels, inD, inH, inW,
 		outChannels, kD, kH, kW, outD, outH, outW,
 		format,
-		runConv3DF32,
 	)
 }
 
@@ -72,6 +69,5 @@ func ConvTranspose2D(
 		outChannels, kernelHeight, kernelWidth,
 		outHeight, outWidth,
 		format,
-		runConvTranspose2DF32,
 	)
 }

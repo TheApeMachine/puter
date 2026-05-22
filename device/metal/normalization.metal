@@ -4,7 +4,7 @@ using namespace metal;
 
 constant uint normalizationThreadCount = 256;
 constant float layerNormEpsilonMetal = 1.0e-5f;
-constant float rmsNormEpsilonMetal = 1.0e-6f;
+constant float rmsNormEpsilonMetalDefault = 1.0e-6f;
 
 static inline float bf16_to_float_norm(ushort value) {
     return as_type<float>(uint(value) << 16);
@@ -187,6 +187,7 @@ static inline void rmsnorm_rows(
     device Scalar* out,
     threadgroup float* reduction,
     constant uint& cols,
+    constant float& epsilon,
     uint row,
     uint threadIndex
 ) {
@@ -213,7 +214,7 @@ static inline void rmsnorm_rows(
         threadgroup_barrier(mem_flags::mem_threadgroup);
     }
 
-    float invRMS = 1.0f / sqrt(reduction[0] / float(cols) + rmsNormEpsilonMetal);
+    float invRMS = 1.0f / sqrt(reduction[0] / float(cols) + epsilon);
 
     for (uint col = threadIndex; col < cols; col += normalizationThreadCount) {
         float value = Storage::load(input, rowOffset + col) * invRMS * Storage::load(scale, col);
@@ -254,7 +255,7 @@ static inline void adaptive_rmsnorm_rows(
         threadgroup_barrier(mem_flags::mem_threadgroup);
     }
 
-    float invRMS = 1.0f / sqrt(reduction[0] / float(cols) + rmsNormEpsilonMetal);
+    float invRMS = 1.0f / sqrt(reduction[0] / float(cols) + rmsNormEpsilonMetalDefault);
 
     for (uint col = threadIndex; col < cols; col += normalizationThreadCount) {
         float normalized = Storage::load(input, rowOffset + col) * invRMS;
@@ -499,11 +500,12 @@ kernel void name( \
     device const scalar* scale [[buffer(1)]], \
     device scalar* out [[buffer(2)]], \
     constant uint& cols [[buffer(3)]], \
+    constant float& epsilon [[buffer(4)]], \
     uint row [[threadgroup_position_in_grid]], \
     uint threadIndex [[thread_position_in_threadgroup]] \
 ) { \
     threadgroup float reduction[256]; \
-    rmsnorm_rows<storage, scalar>(input, scale, out, reduction, cols, row, threadIndex); \
+    rmsnorm_rows<storage, scalar>(input, scale, out, reduction, cols, epsilon, row, threadIndex); \
 }
 
 #define ADAPTIVE_RMSNORM_KERNEL(name, storage, scalar) \

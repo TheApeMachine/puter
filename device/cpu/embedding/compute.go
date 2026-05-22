@@ -102,8 +102,23 @@ func runBagReduced(
 	vocab, hidden, bagCount, indexCount int,
 	format dtype.DType,
 ) {
-	accumulator := BorrowFloat32Buffer(hidden)
-	defer ReleaseFloat32Buffer(accumulator)
+	switch format {
+	case dtype.Float16:
+		runBagF16(table, indices, offsets, output, vocab, hidden, bagCount, indexCount)
+	case dtype.BFloat16:
+		runBagBF16(table, indices, offsets, output, vocab, hidden, bagCount, indexCount)
+	default:
+		panic("embedding: unsupported dtype")
+	}
+}
+
+func runBagBF16(
+	table, indices, offsets, output unsafe.Pointer,
+	vocab, hidden, bagCount, indexCount int,
+) {
+	tableView := unsafe.Slice((*dtype.BF16)(table), vocab*hidden)
+	outputView := unsafe.Slice((*dtype.BF16)(output), bagCount*hidden)
+	scratch := make([]dtype.BF16, hidden)
 
 	for bagIndex := 0; bagIndex < bagCount; bagIndex++ {
 		startIdx := int(loadInt32(offsets, bagIndex))
@@ -114,7 +129,7 @@ func runBagReduced(
 		}
 
 		for dimIndex := range hidden {
-			accumulator[dimIndex] = 0
+			scratch[dimIndex] = 0
 		}
 
 		for elementIndex := startIdx; elementIndex < endIdx; elementIndex++ {
@@ -124,27 +139,61 @@ func runBagReduced(
 				panic("embedding: index out of range")
 			}
 
-			for dimIndex := 0; dimIndex < hidden; dimIndex++ {
-				tableIndex := tokenID*hidden + dimIndex
-
-				switch format {
-				case dtype.Float16:
-					accumulator[dimIndex] += loadF16(table, tableIndex)
-				case dtype.BFloat16:
-					accumulator[dimIndex] += loadBF16(table, tableIndex)
-				}
-			}
+			row := tableView[tokenID*hidden : (tokenID+1)*hidden]
+			addBF16InPlace(scratch, row)
 		}
 
 		outOffset := bagIndex * hidden
+		copy(outputView[outOffset:outOffset+hidden], scratch)
+	}
+}
 
-		for dimIndex := 0; dimIndex < hidden; dimIndex++ {
-			switch format {
-			case dtype.Float16:
-				storeF16(output, outOffset+dimIndex, accumulator[dimIndex])
-			case dtype.BFloat16:
-				storeBF16(output, outOffset+dimIndex, accumulator[dimIndex])
-			}
+func runBagF16(
+	table, indices, offsets, output unsafe.Pointer,
+	vocab, hidden, bagCount, indexCount int,
+) {
+	tableView := unsafe.Slice((*dtype.F16)(table), vocab*hidden)
+	outputView := unsafe.Slice((*dtype.F16)(output), bagCount*hidden)
+	scratch := make([]dtype.F16, hidden)
+
+	for bagIndex := 0; bagIndex < bagCount; bagIndex++ {
+		startIdx := int(loadInt32(offsets, bagIndex))
+		endIdx := indexCount
+
+		if bagIndex+1 < bagCount {
+			endIdx = int(loadInt32(offsets, bagIndex+1))
 		}
+
+		for dimIndex := range hidden {
+			scratch[dimIndex] = 0
+		}
+
+		for elementIndex := startIdx; elementIndex < endIdx; elementIndex++ {
+			tokenID := int(loadInt32(indices, elementIndex))
+
+			if tokenID < 0 || tokenID >= vocab {
+				panic("embedding: index out of range")
+			}
+
+			row := tableView[tokenID*hidden : (tokenID+1)*hidden]
+			addF16InPlace(scratch, row)
+		}
+
+		outOffset := bagIndex * hidden
+		copy(outputView[outOffset:outOffset+hidden], scratch)
+	}
+}
+
+func addBF16InPlace(accumulator, row []dtype.BF16) {
+	for index := range accumulator {
+		sum := (&accumulator[index]).Float32() + (&row[index]).Float32()
+		accumulator[index] = dtype.NewBfloat16FromFloat32(sum)
+	}
+}
+
+func addF16InPlace(accumulator, row []dtype.F16) {
+	for index := range accumulator {
+		sum := accumulator[index].Float32() + row[index].Float32()
+		accumulator[index] = dtype.Fromfloat32(sum)
 	}
 }

@@ -1,9 +1,9 @@
 package shape
 
 import (
-	"github.com/theapemachine/puter/kernels"
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
+	"github.com/theapemachine/puter/kernels"
 )
 
 func init() {
@@ -28,7 +28,7 @@ func registerSliceReducedPrecision() {
 			},
 			Locations: []tensor.Location{tensor.Host},
 			Run: func(args ...tensor.Tensor) error {
-				return runSliceMixed(args, paramDType)
+				return runSlice(args...)
 			},
 		})
 	}

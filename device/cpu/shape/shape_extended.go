@@ -23,8 +23,23 @@ func runLastToken(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	inView, _ := args[0].Float32Native()
-	outView, _ := args[1].Float32Native()
+	inBytes, err := aliasedBytes(args[0])
+
+	if err != nil {
+		return err
+	}
+
+	outBytes, err := aliasedBytes(args[1])
+
+	if err != nil {
+		return err
+	}
+
+	elementSize, err := elementByteSize(args[0])
+
+	if err != nil {
+		return err
+	}
 
 	inDims := args[0].Shape().Dims()
 
@@ -35,16 +50,22 @@ func runLastToken(args ...tensor.Tensor) error {
 	batch := inDims[0]
 	seq := inDims[1]
 	hidden := inDims[2]
+	hiddenBytes := hidden * elementSize
 
-	if len(outView) != batch*hidden {
+	if len(outBytes) != batch*hiddenBytes {
 		return tensor.ErrShapeMismatch
 	}
 
 	for batchIndex := 0; batchIndex < batch; batchIndex++ {
-		lastTokenOffset := (batchIndex*seq + seq - 1) * hidden
-		outOffset := batchIndex * hidden
+		lastTokenOffset := ((batchIndex*seq + seq - 1) * hidden) * elementSize
+		outOffset := batchIndex * hiddenBytes
 
-		copy(outView[outOffset:outOffset+hidden], inView[lastTokenOffset:lastTokenOffset+hidden])
+		copyContiguousElements(
+			outBytes[outOffset:outOffset+hiddenBytes],
+			inBytes[lastTokenOffset:lastTokenOffset+hiddenBytes],
+			hidden,
+			elementSize,
+		)
 	}
 
 	return nil
@@ -55,8 +76,23 @@ func runMergeHeads(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	inView, _ := args[0].Float32Native()
-	outView, _ := args[1].Float32Native()
+	inBytes, err := aliasedBytes(args[0])
+
+	if err != nil {
+		return err
+	}
+
+	outBytes, err := aliasedBytes(args[1])
+
+	if err != nil {
+		return err
+	}
+
+	elementSize, err := elementByteSize(args[0])
+
+	if err != nil {
+		return err
+	}
 
 	inDims := args[0].Shape().Dims()
 
@@ -68,18 +104,24 @@ func runMergeHeads(args ...tensor.Tensor) error {
 	seq := inDims[1]
 	heads := inDims[2]
 	headDim := inDims[3]
+	headDimBytes := headDim * elementSize
 
-	if len(outView) != batch*seq*heads*headDim {
+	if len(outBytes) != batch*seq*heads*headDimBytes {
 		return tensor.ErrShapeMismatch
 	}
 
 	for batchIndex := 0; batchIndex < batch; batchIndex++ {
 		for seqIndex := 0; seqIndex < seq; seqIndex++ {
 			for headIndex := 0; headIndex < heads; headIndex++ {
-				inOffset := ((batchIndex*seq+seqIndex)*heads + headIndex) * headDim
-				outOffset := ((batchIndex*seq + seqIndex) * heads * headDim) + headIndex*headDim
+				inOffset := (((batchIndex*seq+seqIndex)*heads + headIndex) * headDim) * elementSize
+				outOffset := (((batchIndex*seq + seqIndex) * heads * headDim) + headIndex*headDim) * elementSize
 
-				copy(outView[outOffset:outOffset+headDim], inView[inOffset:inOffset+headDim])
+				copyContiguousElements(
+					outBytes[outOffset:outOffset+headDimBytes],
+					inBytes[inOffset:inOffset+headDimBytes],
+					headDim,
+					elementSize,
+				)
 			}
 		}
 	}
@@ -92,8 +134,17 @@ func runSplitHeads(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	inView, _ := args[0].Float32Native()
-	outView, _ := args[1].Float32Native()
+	inBytes, err := aliasedBytes(args[0])
+
+	if err != nil {
+		return err
+	}
+
+	outBytes, err := aliasedBytes(args[1])
+
+	if err != nil {
+		return err
+	}
 
 	outDims := args[1].Shape().Dims()
 
@@ -105,12 +156,18 @@ func runSplitHeads(args ...tensor.Tensor) error {
 	seq := outDims[1]
 	heads := outDims[2]
 	headDim := outDims[3]
+	elementSize, err := elementByteSize(args[0])
 
-	if len(inView) != batch*seq*heads*headDim {
+	if err != nil {
+		return err
+	}
+
+	if len(inBytes) != batch*seq*heads*headDim*elementSize {
 		return tensor.ErrShapeMismatch
 	}
 
-	copy(outView, inView)
+	copyContiguousElements(outBytes, inBytes, len(inBytes)/elementSize, elementSize)
+
 	return nil
 }
 
@@ -119,16 +176,39 @@ func runSplit2(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	inView, _ := args[0].Float32Native()
-	leftView, _ := args[1].Float32Native()
-	rightView, _ := args[2].Float32Native()
+	inBytes, err := aliasedBytes(args[0])
 
-	if len(inView) != len(leftView)+len(rightView) {
+	if err != nil {
+		return err
+	}
+
+	leftBytes, err := aliasedBytes(args[1])
+
+	if err != nil {
+		return err
+	}
+
+	rightBytes, err := aliasedBytes(args[2])
+
+	if err != nil {
+		return err
+	}
+
+	elementSize, err := elementByteSize(args[0])
+
+	if err != nil {
+		return err
+	}
+
+	if len(inBytes) != len(leftBytes)+len(rightBytes) {
 		return tensor.ErrShapeMismatch
 	}
 
-	copy(leftView, inView[:len(leftView)])
-	copy(rightView, inView[len(leftView):])
+	leftCount := len(leftBytes) / elementSize
+	rightCount := len(rightBytes) / elementSize
+
+	copyContiguousElements(leftBytes, inBytes[:len(leftBytes)], leftCount, elementSize)
+	copyContiguousElements(rightBytes, inBytes[len(leftBytes):], rightCount, elementSize)
 
 	return nil
 }

@@ -1,9 +1,9 @@
 package optimizer
 
 import (
-	"github.com/theapemachine/puter/kernels"
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
+	"github.com/theapemachine/puter/kernels"
 )
 
 // Kernel aliases kernels.Kernel for consolidated registry access.
@@ -21,21 +21,18 @@ convention: params, gradients, and output stored at the reduced dtype
 (bf16 or fp16); all optimizer state (momentum, variance, etc.) stays
 at f32 for numerical stability across the long-tail of training steps.
 
-Per-optimizer kernels in this file widen params and gradients to f32
-scratch buffers via NEON-accelerated bulk conversion, call the
-slice-based f32 update math, then narrow the output back. State
-tensors pass through as f32 unchanged.
+Each step reads params and gradients lane-wise at native width, updates
+f32 state in place, and stores the output at native width.
 */
 
-// optimizerSliceFn updates output (and the in-place state slices) from
-// params, gradients, and the per-optimizer state slices.
-type optimizerSliceFn func(params, gradients []float32, state [][]float32, output []float32)
+type mixedOptimizerStep func(
+	count int,
+	loadParam, loadGrad valueLoad,
+	state [][]float32,
+	storeOut valueStore,
+)
 
-// runMixedOptimizerBFloat16 dispatches an optimizer step for the
-// standard AMP signature: args[0] params (bf16), args[1] gradients
-// (bf16), args[2..2+stateCount-1] state tensors (f32), args[last]
-// output (bf16).
-func runMixedOptimizerBFloat16(args []tensor.Tensor, stateCount int, step optimizerSliceFn) error {
+func runMixedOptimizerBFloat16(args []tensor.Tensor, stateCount int, step mixedOptimizerStep) error {
 	if len(args) != stateCount+3 {
 		return tensor.ErrShapeMismatch
 	}
@@ -58,9 +55,9 @@ func runMixedOptimizerBFloat16(args []tensor.Tensor, stateCount int, step optimi
 		return err
 	}
 
-	n := len(paramsBF16)
+	count := len(paramsBF16)
 
-	if len(gradBF16) != n || len(outBF16) != n {
+	if len(gradBF16) != count || len(outBF16) != count {
 		return tensor.ErrShapeMismatch
 	}
 
@@ -73,33 +70,27 @@ func runMixedOptimizerBFloat16(args []tensor.Tensor, stateCount int, step optimi
 			return err
 		}
 
-		if len(state) != n {
+		if len(state) != count {
 			return tensor.ErrShapeMismatch
 		}
 
 		stateSlices[index] = state
 	}
 
-	paramsF32 := BorrowFloat32Buffer(n)
-	gradF32 := BorrowFloat32Buffer(n)
-	outF32 := BorrowFloat32Buffer(n)
+	step(
+		count,
+		func(index int) float32 { return (&paramsBF16[index]).Float32() },
+		func(index int) float32 { return (&gradBF16[index]).Float32() },
+		stateSlices,
+		func(index int, value float32) {
+			outBF16[index] = dtype.NewBfloat16FromFloat32(value)
+		},
+	)
 
-	defer ReleaseFloat32Buffer(paramsF32)
-	defer ReleaseFloat32Buffer(gradF32)
-	defer ReleaseFloat32Buffer(outF32)
-
-	Bfloat16BulkToFloat32(paramsF32, paramsBF16)
-	Bfloat16BulkToFloat32(gradF32, gradBF16)
-
-	step(paramsF32, gradF32, stateSlices, outF32)
-
-	Float32BulkToBFloat16(outBF16, outF32)
 	return nil
 }
 
-// runMixedOptimizerFloat16 mirrors runMixedOptimizerBFloat16 but with
-// fp16 params/gradients/output.
-func runMixedOptimizerFloat16(args []tensor.Tensor, stateCount int, step optimizerSliceFn) error {
+func runMixedOptimizerFloat16(args []tensor.Tensor, stateCount int, step mixedOptimizerStep) error {
 	if len(args) != stateCount+3 {
 		return tensor.ErrShapeMismatch
 	}
@@ -122,9 +113,9 @@ func runMixedOptimizerFloat16(args []tensor.Tensor, stateCount int, step optimiz
 		return err
 	}
 
-	n := len(paramsF16)
+	count := len(paramsF16)
 
-	if len(gradF16) != n || len(outF16) != n {
+	if len(gradF16) != count || len(outF16) != count {
 		return tensor.ErrShapeMismatch
 	}
 
@@ -137,33 +128,27 @@ func runMixedOptimizerFloat16(args []tensor.Tensor, stateCount int, step optimiz
 			return err
 		}
 
-		if len(state) != n {
+		if len(state) != count {
 			return tensor.ErrShapeMismatch
 		}
 
 		stateSlices[index] = state
 	}
 
-	paramsF32 := BorrowFloat32Buffer(n)
-	gradF32 := BorrowFloat32Buffer(n)
-	outF32 := BorrowFloat32Buffer(n)
+	step(
+		count,
+		func(index int) float32 { return (&paramsF16[index]).Float32() },
+		func(index int) float32 { return (&gradF16[index]).Float32() },
+		stateSlices,
+		func(index int, value float32) {
+			outF16[index] = dtype.Fromfloat32(value)
+		},
+	)
 
-	defer ReleaseFloat32Buffer(paramsF32)
-	defer ReleaseFloat32Buffer(gradF32)
-	defer ReleaseFloat32Buffer(outF32)
-
-	Float16BulkToFloat32(paramsF32, paramsF16)
-	Float16BulkToFloat32(gradF32, gradF16)
-
-	step(paramsF32, gradF32, stateSlices, outF32)
-
-	Float32BulkToFloat16(outF16, outF32)
 	return nil
 }
 
-// registerMixedOptimizer registers bf16 + fp16 signatures for an
-// optimizer with the given name and number of f32 state tensors.
-func registerMixedOptimizer(name string, stateCount int, step optimizerSliceFn) {
+func registerMixedOptimizer(name string, stateCount int, step mixedOptimizerStep) {
 	inputDtypesBF16 := make([]dtype.DType, 2+stateCount)
 	inputDtypesBF16[0] = dtype.BFloat16
 	inputDtypesBF16[1] = dtype.BFloat16
@@ -211,53 +196,42 @@ func registerMixedOptimizer(name string, stateCount int, step optimizerSliceFn) 
 // RegisterMixedPrecisionSteps registers bf16/fp16 optimizer kernels whose
 // state tensors remain f32. Called from the neon CPU kernel registry init.
 func RegisterMixedPrecisionSteps() {
-	// Adam: 2 states (firstMoment, secondMoment)
-	registerMixedOptimizer("adam_step", 2, func(params, gradients []float32, state [][]float32, output []float32) {
-		adamStepSlices(DefaultAdamConfig(), params, gradients, state[0], state[1], output)
+	registerMixedOptimizer("adam_step", 2, func(count int, loadParam, loadGrad valueLoad, state [][]float32, storeOut valueStore) {
+		adamMixedStep(DefaultAdamConfig(), count, loadParam, loadGrad, state[0], state[1], storeOut)
 	})
 
-	// AdamW: 2 states
-	registerMixedOptimizer("adamw_step", 2, func(params, gradients []float32, state [][]float32, output []float32) {
-		adamWStepSlices(DefaultAdamWConfig(), params, gradients, state[0], state[1], output)
+	registerMixedOptimizer("adamw_step", 2, func(count int, loadParam, loadGrad valueLoad, state [][]float32, storeOut valueStore) {
+		adamWMixedStep(DefaultAdamWConfig(), count, loadParam, loadGrad, state[0], state[1], storeOut)
 	})
 
-	// Lion: 1 state (momentum)
-	registerMixedOptimizer("lion_step", 1, func(params, gradients []float32, state [][]float32, output []float32) {
-		lionStepSlices(DefaultLionConfig(), params, gradients, state[0], output)
+	registerMixedOptimizer("lion_step", 1, func(count int, loadParam, loadGrad valueLoad, state [][]float32, storeOut valueStore) {
+		lionMixedStep(DefaultLionConfig(), count, loadParam, loadGrad, state[0], storeOut)
 	})
 
-	// SGD with momentum: 1 state
-	registerMixedOptimizer("sgd_step", 1, func(params, gradients []float32, state [][]float32, output []float32) {
-		sgdStepSlices(DefaultSGDConfig(), params, gradients, state[0], output)
+	registerMixedOptimizer("sgd_step", 1, func(count int, loadParam, loadGrad valueLoad, state [][]float32, storeOut valueStore) {
+		sgdMixedStep(DefaultSGDConfig(), count, loadParam, loadGrad, state[0], storeOut)
 	})
 
-	// Adamax: 2 states (firstMoment, infinityMoment)
-	registerMixedOptimizer("adamax_step", 2, func(params, gradients []float32, state [][]float32, output []float32) {
-		adamaxStepSlices(DefaultAdamaxConfig(), params, gradients, state[0], state[1], output)
+	registerMixedOptimizer("adamax_step", 2, func(count int, loadParam, loadGrad valueLoad, state [][]float32, storeOut valueStore) {
+		adamaxMixedStep(DefaultAdamaxConfig(), count, loadParam, loadGrad, state[0], state[1], storeOut)
 	})
 
-	// Adagrad: 1 state (accumulator)
-	registerMixedOptimizer("adagrad_step", 1, func(params, gradients []float32, state [][]float32, output []float32) {
-		adagradStepSlices(DefaultAdagradConfig(), params, gradients, state[0], output)
+	registerMixedOptimizer("adagrad_step", 1, func(count int, loadParam, loadGrad valueLoad, state [][]float32, storeOut valueStore) {
+		adagradMixedStep(DefaultAdagradConfig(), count, loadParam, loadGrad, state[0], storeOut)
 	})
 
-	// RMSprop: 1 state (secondMoment)
-	registerMixedOptimizer("rmsprop_step", 1, func(params, gradients []float32, state [][]float32, output []float32) {
-		rmspropStepSlices(DefaultRMSpropConfig(), params, gradients, state[0], output)
+	registerMixedOptimizer("rmsprop_step", 1, func(count int, loadParam, loadGrad valueLoad, state [][]float32, storeOut valueStore) {
+		rmspropMixedStep(DefaultRMSpropConfig(), count, loadParam, loadGrad, state[0], storeOut)
 	})
 
-	// LARS: 1 state (momentum)
-	registerMixedOptimizer("lars_step", 1, func(params, gradients []float32, state [][]float32, output []float32) {
-		larsStepSlices(DefaultLARSConfig(), params, gradients, state[0], output)
+	registerMixedOptimizer("lars_step", 1, func(count int, loadParam, loadGrad valueLoad, state [][]float32, storeOut valueStore) {
+		larsMixedStep(DefaultLARSConfig(), count, loadParam, loadGrad, state[0], storeOut)
 	})
 
-	// LBFGS: 0 state (the host reference is gradient descent)
-	registerMixedOptimizer("lbfgs_step", 0, func(params, gradients []float32, state [][]float32, output []float32) {
-		lbfgsStepSlices(DefaultLBFGSConfig(), params, gradients, output)
+	registerMixedOptimizer("lbfgs_step", 0, func(count int, loadParam, loadGrad valueLoad, state [][]float32, storeOut valueStore) {
+		lbfgsMixedStep(DefaultLBFGSConfig(), count, loadParam, loadGrad, storeOut)
 	})
 
-	// Hebbian has a unique signature (weights, post, pre, output) so
-	// it's registered directly rather than via the generic helper.
 	registerHebbianMixedDType()
 }
 
@@ -276,6 +250,7 @@ func registerHebbianMixedDType() {
 				if paramDType == dtype.BFloat16 {
 					return runHebbianBFloat16(args)
 				}
+
 				return runHebbianFloat16(args)
 			},
 		})
@@ -318,23 +293,17 @@ func runHebbianBFloat16(args []tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	weightsF32 := BorrowFloat32Buffer(len(weightsBF16))
-	postF32 := BorrowFloat32Buffer(len(postBF16))
-	preF32 := BorrowFloat32Buffer(len(preBF16))
-	outF32 := BorrowFloat32Buffer(len(outBF16))
+	hebbianMixedStep(
+		DefaultHebbianConfig(),
+		func(index int) float32 { return (&weightsBF16[index]).Float32() },
+		func(index int) float32 { return (&postBF16[index]).Float32() },
+		func(index int) float32 { return (&preBF16[index]).Float32() },
+		func(index int, value float32) {
+			outBF16[index] = dtype.NewBfloat16FromFloat32(value)
+		},
+		len(postBF16), dims[1],
+	)
 
-	defer ReleaseFloat32Buffer(weightsF32)
-	defer ReleaseFloat32Buffer(postF32)
-	defer ReleaseFloat32Buffer(preF32)
-	defer ReleaseFloat32Buffer(outF32)
-
-	Bfloat16BulkToFloat32(weightsF32, weightsBF16)
-	Bfloat16BulkToFloat32(postF32, postBF16)
-	Bfloat16BulkToFloat32(preF32, preBF16)
-
-	hebbianStepSlices(DefaultHebbianConfig(), weightsF32, postF32, preF32, outF32, dims[1])
-
-	Float32BulkToBFloat16(outBF16, outF32)
 	return nil
 }
 
@@ -374,22 +343,16 @@ func runHebbianFloat16(args []tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	weightsF32 := BorrowFloat32Buffer(len(weightsF16))
-	postF32 := BorrowFloat32Buffer(len(postF16))
-	preF32 := BorrowFloat32Buffer(len(preF16))
-	outF32 := BorrowFloat32Buffer(len(outF16))
+	hebbianMixedStep(
+		DefaultHebbianConfig(),
+		func(index int) float32 { return (&weightsF16[index]).Float32() },
+		func(index int) float32 { return (&postF16[index]).Float32() },
+		func(index int) float32 { return (&preF16[index]).Float32() },
+		func(index int, value float32) {
+			outF16[index] = dtype.Fromfloat32(value)
+		},
+		len(postF16), dims[1],
+	)
 
-	defer ReleaseFloat32Buffer(weightsF32)
-	defer ReleaseFloat32Buffer(postF32)
-	defer ReleaseFloat32Buffer(preF32)
-	defer ReleaseFloat32Buffer(outF32)
-
-	Float16BulkToFloat32(weightsF32, weightsF16)
-	Float16BulkToFloat32(postF32, postF16)
-	Float16BulkToFloat32(preF32, preF16)
-
-	hebbianStepSlices(DefaultHebbianConfig(), weightsF32, postF32, preF32, outF32, dims[1])
-
-	Float32BulkToFloat16(outF16, outF32)
 	return nil
 }

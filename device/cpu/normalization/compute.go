@@ -9,67 +9,6 @@ import (
 
 const normEpsilon = 1e-5
 
-func loadF16(pointer unsafe.Pointer, index int) float32 {
-	bits := *(*uint16)(unsafe.Add(pointer, uintptr(index)*2))
-	return dtype.Frombits(bits).Float32()
-}
-
-func loadBF16(pointer unsafe.Pointer, index int) float32 {
-	bits := *(*uint16)(unsafe.Add(pointer, uintptr(index)*2))
-	bf16 := dtype.BF16(bits)
-	return (&bf16).Float32()
-}
-
-func storeF16(pointer unsafe.Pointer, index int, value float32) {
-	bits := dtype.Fromfloat32(value).Bits()
-	*(*uint16)(unsafe.Add(pointer, uintptr(index)*2)) = bits
-}
-
-func storeBF16(pointer unsafe.Pointer, index int, value float32) {
-	encoded := dtype.NewBfloat16FromFloat32(value)
-	*(*uint16)(unsafe.Add(pointer, uintptr(index)*2)) = uint16(encoded)
-}
-
-func widenBuffer(source unsafe.Pointer, count int, format dtype.DType) []float32 {
-	buffer := BorrowFloat32Buffer(count)
-
-	switch format {
-	case dtype.Float32:
-		sourceView := unsafe.Slice((*float32)(source), count)
-		copy(buffer, sourceView)
-	case dtype.Float16:
-		for index := 0; index < count; index++ {
-			buffer[index] = loadF16(source, index)
-		}
-	case dtype.BFloat16:
-		for index := 0; index < count; index++ {
-			buffer[index] = loadBF16(source, index)
-		}
-	default:
-		panic("normalization: unsupported dtype")
-	}
-
-	return buffer
-}
-
-func narrowBuffer(destination unsafe.Pointer, source []float32, format dtype.DType) {
-	switch format {
-	case dtype.Float32:
-		destinationView := unsafe.Slice((*float32)(destination), len(source))
-		copy(destinationView, source)
-	case dtype.Float16:
-		for index, value := range source {
-			storeF16(destination, index, value)
-		}
-	case dtype.BFloat16:
-		for index, value := range source {
-			storeBF16(destination, index, value)
-		}
-	default:
-		panic("normalization: unsupported dtype")
-	}
-}
-
 func dispatchGroupNorm(
 	config GroupNormConfig,
 	input, scale, bias, output unsafe.Pointer,
@@ -80,34 +19,13 @@ func dispatchGroupNorm(
 		panic("normalization: channels must divide groups evenly")
 	}
 
-	elementCount := batch * channels * spatial
-
 	switch format {
 	case dtype.Float32:
 		runGroupNormF32(config, input, scale, bias, output, batch, channels, spatial)
-	case dtype.Float16, dtype.BFloat16:
-		inputF32 := widenBuffer(input, elementCount, format)
-		scaleF32 := widenBuffer(scale, channels, format)
-		biasF32 := widenBuffer(bias, channels, format)
-		outF32 := BorrowFloat32Buffer(elementCount)
-
-		defer ReleaseFloat32Buffer(inputF32)
-		defer ReleaseFloat32Buffer(scaleF32)
-		defer ReleaseFloat32Buffer(biasF32)
-		defer ReleaseFloat32Buffer(outF32)
-
-		groupNormSlices(
-			config,
-			inputF32,
-			scaleF32,
-			biasF32,
-			outF32,
-			batch,
-			channels,
-			spatial,
-		)
-
-		narrowBuffer(output, outF32, format)
+	case dtype.BFloat16:
+		runGroupNormBF16(config, input, scale, bias, output, batch, channels, spatial)
+	case dtype.Float16:
+		runGroupNormF16(config, input, scale, bias, output, batch, channels, spatial)
 	default:
 		panic("normalization: unsupported dtype")
 	}
@@ -118,24 +36,13 @@ func dispatchInstanceNorm(
 	batch, channels, spatial int,
 	format dtype.DType,
 ) {
-	elementCount := batch * channels * spatial
-
 	switch format {
 	case dtype.Float32:
 		runInstanceNormF32(input, scale, bias, output, batch, channels, spatial)
-	case dtype.Float16, dtype.BFloat16:
-		inputF32 := widenBuffer(input, elementCount, format)
-		scaleF32 := widenBuffer(scale, channels, format)
-		biasF32 := widenBuffer(bias, channels, format)
-		outF32 := BorrowFloat32Buffer(elementCount)
-
-		defer ReleaseFloat32Buffer(inputF32)
-		defer ReleaseFloat32Buffer(scaleF32)
-		defer ReleaseFloat32Buffer(biasF32)
-		defer ReleaseFloat32Buffer(outF32)
-
-		instanceNormSlices(inputF32, scaleF32, biasF32, outF32, batch, channels, spatial)
-		narrowBuffer(output, outF32, format)
+	case dtype.BFloat16:
+		runInstanceNormBF16(input, scale, bias, output, batch, channels, spatial)
+	case dtype.Float16:
+		runInstanceNormF16(input, scale, bias, output, batch, channels, spatial)
 	default:
 		panic("normalization: unsupported dtype")
 	}
@@ -146,32 +53,13 @@ func dispatchBatchNormEval(
 	batch, channels, spatial int,
 	format dtype.DType,
 ) {
-	elementCount := batch * channels * spatial
-
 	switch format {
 	case dtype.Float32:
 		runBatchNormEvalF32(input, scale, bias, mean, variance, output, batch, channels, spatial)
-	case dtype.Float16, dtype.BFloat16:
-		inputF32 := widenBuffer(input, elementCount, format)
-		scaleF32 := widenBuffer(scale, channels, format)
-		biasF32 := widenBuffer(bias, channels, format)
-		meanF32 := widenBuffer(mean, channels, format)
-		varianceF32 := widenBuffer(variance, channels, format)
-		outF32 := BorrowFloat32Buffer(elementCount)
-
-		defer ReleaseFloat32Buffer(inputF32)
-		defer ReleaseFloat32Buffer(scaleF32)
-		defer ReleaseFloat32Buffer(biasF32)
-		defer ReleaseFloat32Buffer(meanF32)
-		defer ReleaseFloat32Buffer(varianceF32)
-		defer ReleaseFloat32Buffer(outF32)
-
-		batchNormEvalSlices(
-			inputF32, scaleF32, biasF32, meanF32, varianceF32, outF32,
-			batch, channels, spatial,
-		)
-
-		narrowBuffer(output, outF32, format)
+	case dtype.BFloat16:
+		runBatchNormEvalBF16(input, scale, bias, mean, variance, output, batch, channels, spatial)
+	case dtype.Float16:
+		runBatchNormEvalF16(input, scale, bias, mean, variance, output, batch, channels, spatial)
 	default:
 		panic("normalization: unsupported dtype")
 	}

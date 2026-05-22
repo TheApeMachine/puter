@@ -1,8 +1,6 @@
 package elementwise
 
 import (
-	"sync"
-
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
 )
@@ -14,42 +12,14 @@ the unaries abs, neg, sqrt, relu.
 
 Math contract: out[i] = round_to_fp8(f32(a[i]) op f32(b[i]))
 
-Implementation strategy: lane-wise scalar widen to f32 (the FP8 widen
-is non-trivial — denormals, NaN sentinels, saturation — and there is
-no native NEON FP8 instruction on the target cores), then the actual
-arithmetic runs through the existing NEON f32 kernel (AddFloat32Native
-et al.), then a lane-wise scalar narrow back. The arithmetic step is
-real NEON; the per-byte conversion is the cost of the dtype.
+Implementation: lane-wise widen to f32, apply the scalar operation,
+then narrow back to FP8. There is no native NEON FP8 instruction on
+the target cores; per-lane conversion avoids full-tensor f32 staging.
 */
 
-var fp8ScratchPool = sync.Pool{
-	New: func() any {
-		buf := make([]float32, 0, 16384)
-		return &buf
-	},
-}
+type fp8ScalarBinaryOp func(leftValue, rightValue float32) float32
 
-func BorrowFloat32Buffer(n int) []float32 {
-	bufPtr := fp8ScratchPool.Get().(*[]float32)
-	buf := *bufPtr
-
-	if cap(buf) < n {
-		buf = make([]float32, n)
-	} else {
-		buf = buf[:n]
-	}
-
-	return buf
-}
-
-func ReleaseFloat32Buffer(buf []float32) {
-	buf = buf[:0]
-	fp8ScratchPool.Put(&buf)
-}
-
-type fp8BinaryOp func(dst, left, right []float32)
-
-func runFP8E4M3Binary(args []tensor.Tensor, op fp8BinaryOp) error {
+func runFP8E4M3Binary(args []tensor.Tensor, op fp8ScalarBinaryOp) error {
 	if len(args) != 3 {
 		return tensor.ErrShapeMismatch
 	}
@@ -76,31 +46,15 @@ func runFP8E4M3Binary(args []tensor.Tensor, op fp8BinaryOp) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	n := len(left)
-
-	leftF32 := BorrowFloat32Buffer(n)
-	rightF32 := BorrowFloat32Buffer(n)
-	outF32 := BorrowFloat32Buffer(n)
-
-	defer ReleaseFloat32Buffer(leftF32)
-	defer ReleaseFloat32Buffer(rightF32)
-	defer ReleaseFloat32Buffer(outF32)
-
 	for index := range left {
-		leftF32[index] = left[index].Float32()
-		rightF32[index] = right[index].Float32()
-	}
-
-	op(outF32, leftF32, rightF32)
-
-	for index := range out {
-		out[index] = dtype.NewF8E4M3FromFloat32(outF32[index])
+		result := op(left[index].Float32(), right[index].Float32())
+		out[index] = dtype.NewF8E4M3FromFloat32(result)
 	}
 
 	return nil
 }
 
-func runFP8E5M2Binary(args []tensor.Tensor, op fp8BinaryOp) error {
+func runFP8E5M2Binary(args []tensor.Tensor, op fp8ScalarBinaryOp) error {
 	if len(args) != 3 {
 		return tensor.ErrShapeMismatch
 	}
@@ -127,38 +81,28 @@ func runFP8E5M2Binary(args []tensor.Tensor, op fp8BinaryOp) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	n := len(left)
-
-	leftF32 := BorrowFloat32Buffer(n)
-	rightF32 := BorrowFloat32Buffer(n)
-	outF32 := BorrowFloat32Buffer(n)
-
-	defer ReleaseFloat32Buffer(leftF32)
-	defer ReleaseFloat32Buffer(rightF32)
-	defer ReleaseFloat32Buffer(outF32)
-
 	for index := range left {
-		leftF32[index] = left[index].Float32()
-		rightF32[index] = right[index].Float32()
-	}
-
-	op(outF32, leftF32, rightF32)
-
-	for index := range out {
-		out[index] = dtype.NewF8E5M2FromFloat32(outF32[index])
+		result := op(left[index].Float32(), right[index].Float32())
+		out[index] = dtype.NewF8E5M2FromFloat32(result)
 	}
 
 	return nil
 }
 
 func runAddF8E4M3(args ...tensor.Tensor) error {
-	return runFP8E4M3Binary(args, AddFloat32Native)
+	return runFP8E4M3Binary(args, func(leftValue, rightValue float32) float32 {
+		return leftValue + rightValue
+	})
 }
 
 func runMulF8E4M3(args ...tensor.Tensor) error {
-	return runFP8E4M3Binary(args, MulFloat32Native)
+	return runFP8E4M3Binary(args, func(leftValue, rightValue float32) float32 {
+		return leftValue * rightValue
+	})
 }
 
 func runAddF8E5M2(args ...tensor.Tensor) error {
-	return runFP8E5M2Binary(args, AddFloat32Native)
+	return runFP8E5M2Binary(args, func(leftValue, rightValue float32) float32 {
+		return leftValue + rightValue
+	})
 }

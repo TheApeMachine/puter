@@ -7,23 +7,23 @@ import (
 )
 
 func MSE(predictions, targets unsafe.Pointer, count int, format dtype.DType) float32 {
-	return dispatchPairLoss(predictions, targets, count, format, runMSEF32)
+	return dispatchMSE(predictions, targets, count, format)
 }
 
 func MAE(predictions, targets unsafe.Pointer, count int, format dtype.DType) float32 {
-	return dispatchPairLoss(predictions, targets, count, format, runMAEF32)
+	return dispatchMAE(predictions, targets, count, format)
 }
 
 func Huber(predictions, targets unsafe.Pointer, count int, format dtype.DType) float32 {
-	return dispatchPairLoss(predictions, targets, count, format, runHuberF32)
+	return dispatchHuber(predictions, targets, count, format)
 }
 
 func BinaryCrossEntropy(predictions, targets unsafe.Pointer, count int, format dtype.DType) float32 {
-	return dispatchPairLoss(predictions, targets, count, format, runBinaryCrossEntropyF32)
+	return dispatchBinaryCrossEntropy(predictions, targets, count, format)
 }
 
 func KLDivergence(predictions, targets unsafe.Pointer, count int, format dtype.DType) float32 {
-	return dispatchPairLoss(predictions, targets, count, format, runKLDivergenceF32)
+	return dispatchKLDivergence(predictions, targets, count, format)
 }
 
 func CrossEntropy(

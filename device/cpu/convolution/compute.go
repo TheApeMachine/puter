@@ -43,36 +43,17 @@ func storeBF16(pointer unsafe.Pointer, index int, value float32) {
 	*(*uint16)(unsafe.Add(pointer, uintptr(index)*2)) = uint16(encoded)
 }
 
-func widenToF32Buffer(dst, src unsafe.Pointer, count int, format dtype.DType) {
-	if count == 0 {
-		return
-	}
+type elementLoad func(pointer unsafe.Pointer, index int) float32
 
+type elementStore func(pointer unsafe.Pointer, index int, value float32)
+
+func elementAccessors(format dtype.DType) (elementLoad, elementStore) {
 	switch format {
 	case dtype.Float16:
-		for index := 0; index < count; index++ {
-			storeF32(dst, index, loadF16(src, index))
-		}
+		return loadF16, storeF16
 	case dtype.BFloat16:
-		for index := 0; index < count; index++ {
-			storeF32(dst, index, loadBF16(src, index))
-		}
-	}
-}
-
-func narrowFromF32Buffer(dst, src unsafe.Pointer, count int, format dtype.DType) {
-	if count == 0 {
-		return
-	}
-
-	switch format {
-	case dtype.Float16:
-		for index := 0; index < count; index++ {
-			storeF16(dst, index, loadF32(src, index))
-		}
-	case dtype.BFloat16:
-		for index := 0; index < count; index++ {
-			storeBF16(dst, index, loadF32(src, index))
-		}
+		return loadBF16, storeBF16
+	default:
+		return loadF32, storeF32
 	}
 }

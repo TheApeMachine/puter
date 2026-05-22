@@ -14,55 +14,6 @@ transformer blocks.
 */
 
 /*
-runLinear computes y = x @ W^T + b where x is [batch, inDim],
-W is [outDim, inDim], b is [outDim], y is [batch, outDim].
-*/
-func runLinear(args ...tensor.Tensor) error {
-	if len(args) != 4 {
-		return tensor.ErrShapeMismatch
-	}
-
-	xView, _ := args[0].Float32Native()
-	wView, _ := args[1].Float32Native()
-	bView, _ := args[2].Float32Native()
-	yView, _ := args[3].Float32Native()
-
-	xDims := args[0].Shape().Dims()
-	wDims := args[1].Shape().Dims()
-	bDims := args[2].Shape().Dims()
-	yDims := args[3].Shape().Dims()
-
-	if len(xDims) != 2 || len(wDims) != 2 ||
-		len(bDims) != 1 || len(yDims) != 2 {
-		return tensor.ErrShapeMismatch
-	}
-
-	batch := xDims[0]
-	inDim := xDims[1]
-	outDim := wDims[0]
-
-	if wDims[1] != inDim || bDims[0] != outDim ||
-		yDims[0] != batch || yDims[1] != outDim {
-		return tensor.ErrShapeMismatch
-	}
-
-	for batchIndex := 0; batchIndex < batch; batchIndex++ {
-		for outIndex := 0; outIndex < outDim; outIndex++ {
-			sum := bView[outIndex]
-
-			for inIndex := 0; inIndex < inDim; inIndex++ {
-				sum += xView[batchIndex*inDim+inIndex] *
-					wView[outIndex*inDim+inIndex]
-			}
-
-			yView[batchIndex*outDim+outIndex] = sum
-		}
-	}
-
-	return nil
-}
-
-/*
 runFusedQKV computes Q, K, V in a single matmul against a fused
 [3 × headDim × numHeads, inDim] weight matrix. Args:
 (input, fusedWeight, bias) → (queryOut, keyOut, valueOut). The

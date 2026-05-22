@@ -1,6 +1,8 @@
 package attention
 
 import (
+	"unsafe"
+
 	"github.com/theapemachine/manifesto/tensor"
 )
 
@@ -72,43 +74,36 @@ func runMultiHeadAttentionBFloat16(args []tensor.Tensor, config MultiHeadAttenti
 		return err
 	}
 
-	qBF, err := args[0].BFloat16Native()
+	queryNative, err := args[0].BFloat16Native()
 	if err != nil {
 		return err
 	}
 
-	kBF, err := args[1].BFloat16Native()
+	keyNative, err := args[1].BFloat16Native()
 	if err != nil {
 		return err
 	}
 
-	vBF, err := args[2].BFloat16Native()
+	valueNative, err := args[2].BFloat16Native()
 	if err != nil {
 		return err
 	}
 
-	oBF, err := args[3].BFloat16Native()
+	outputNative, err := args[3].BFloat16Native()
 	if err != nil {
 		return err
 	}
 
-	qF32 := BorrowFloat32Buffer(len(qBF))
-	kF32 := BorrowFloat32Buffer(len(kBF))
-	vF32 := BorrowFloat32Buffer(len(vBF))
-	oF32 := BorrowFloat32Buffer(len(oBF))
+	multiHeadAttentionSlices(
+		config,
+		unsafe.Pointer(&queryNative[0]),
+		unsafe.Pointer(&keyNative[0]),
+		unsafe.Pointer(&valueNative[0]),
+		unsafe.Pointer(&outputNative[0]),
+		seqQ, seqK, kvHeads,
+		args[0].DType(),
+	)
 
-	defer ReleaseFloat32Buffer(qF32)
-	defer ReleaseFloat32Buffer(kF32)
-	defer ReleaseFloat32Buffer(vF32)
-	defer ReleaseFloat32Buffer(oF32)
-
-	Bfloat16BulkToFloat32(qF32, qBF)
-	Bfloat16BulkToFloat32(kF32, kBF)
-	Bfloat16BulkToFloat32(vF32, vBF)
-
-	multiHeadAttentionSlices(config, qF32, kF32, vF32, oF32, seqQ, seqK, kvHeads)
-
-	Float32BulkToBFloat16(oBF, oF32)
 	return nil
 }
 
@@ -123,42 +118,35 @@ func runMultiHeadAttentionFloat16(args []tensor.Tensor, config MultiHeadAttentio
 		return err
 	}
 
-	qF16, err := args[0].Float16Native()
+	queryNative, err := args[0].Float16Native()
 	if err != nil {
 		return err
 	}
 
-	kF16, err := args[1].Float16Native()
+	keyNative, err := args[1].Float16Native()
 	if err != nil {
 		return err
 	}
 
-	vF16, err := args[2].Float16Native()
+	valueNative, err := args[2].Float16Native()
 	if err != nil {
 		return err
 	}
 
-	oF16, err := args[3].Float16Native()
+	outputNative, err := args[3].Float16Native()
 	if err != nil {
 		return err
 	}
 
-	qF32 := BorrowFloat32Buffer(len(qF16))
-	kF32 := BorrowFloat32Buffer(len(kF16))
-	vF32 := BorrowFloat32Buffer(len(vF16))
-	oF32 := BorrowFloat32Buffer(len(oF16))
+	multiHeadAttentionSlices(
+		config,
+		unsafe.Pointer(&queryNative[0]),
+		unsafe.Pointer(&keyNative[0]),
+		unsafe.Pointer(&valueNative[0]),
+		unsafe.Pointer(&outputNative[0]),
+		seqQ, seqK, kvHeads,
+		args[0].DType(),
+	)
 
-	defer ReleaseFloat32Buffer(qF32)
-	defer ReleaseFloat32Buffer(kF32)
-	defer ReleaseFloat32Buffer(vF32)
-	defer ReleaseFloat32Buffer(oF32)
-
-	Float16BulkToFloat32(qF32, qF16)
-	Float16BulkToFloat32(kF32, kF16)
-	Float16BulkToFloat32(vF32, vF16)
-
-	multiHeadAttentionSlices(config, qF32, kF32, vF32, oF32, seqQ, seqK, kvHeads)
-
-	Float32BulkToFloat16(oF16, oF32)
 	return nil
 }

@@ -55,18 +55,17 @@ func TestAdamStepBFloat16Dispatch(t *testing.T) {
 
 	adamStepSlices(DefaultAdamConfig(), refParams, refGrad, refFirst, refSecond, refOut)
 
-	// Run the bf16 mixed-precision dispatch.
-	if err := runMixedOptimizerBFloat16(
-		[]tensor.Tensor{paramsT, gradT, firstT, secondT, outT},
-		2,
-		func(params, gradients []float32, state [][]float32, output []float32) {
-			adamStepSlices(DefaultAdamConfig(), params, gradients, state[0], state[1], output)
-		},
-	); err != nil {
-		t.Fatal(err)
-	}
-
 	outView, _ := outT.BFloat16Native()
+
+	// Run the bf16 mixed-precision dispatch.
+	adamMixedStep(DefaultAdamConfig(), n,
+		func(index int) float32 { return (&paramsView[index]).Float32() },
+		func(index int) float32 { return (&gradView[index]).Float32() },
+		firstView, secondView,
+		func(index int, value float32) {
+			outView[index] = dtype.NewBfloat16FromFloat32(value)
+		},
+	)
 
 	for index := range n {
 		expected := dtype.NewBfloat16FromFloat32(refOut[index])

@@ -367,6 +367,7 @@ int metal_dispatch_rmsnorm(
     MetalBufferRef outRef,
     uint32_t rows,
     uint32_t cols,
+    float epsilon,
     uint64_t completionToken,
     MetalStatus* status
 );

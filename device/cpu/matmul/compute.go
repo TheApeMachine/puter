@@ -43,9 +43,9 @@ func dispatchMatmul(
 	case dtype.Float64:
 		runMatmulF64(out, left, right, rows, inner, cols)
 	case dtype.Float16:
-		runMatmulReduced(out, left, right, rows, inner, cols, loadF16, storeF16)
+		MatmulFloat16Native(out, left, right, rows, inner, cols)
 	case dtype.BFloat16:
-		runMatmulReduced(out, left, right, rows, inner, cols, loadBF16, storeBF16)
+		MatmulBFloat16Native(out, left, right, rows, inner, cols)
 	}
 }
 
@@ -55,8 +55,18 @@ func runMatmulReduced(
 	load reducedLoadFunc,
 	store reducedStoreFunc,
 ) {
+	runMatmulReducedCols(out, left, right, rows, inner, cols, load, store, 0)
+}
+
+func runMatmulReducedCols(
+	out, left, right unsafe.Pointer,
+	rows, inner, cols int,
+	load reducedLoadFunc,
+	store reducedStoreFunc,
+	colStart int,
+) {
 	for rowIndex := 0; rowIndex < rows; rowIndex++ {
-		for colIndex := 0; colIndex < cols; colIndex++ {
+		for colIndex := colStart; colIndex < cols; colIndex++ {
 			var sum float32
 
 			for innerIndex := 0; innerIndex < inner; innerIndex++ {

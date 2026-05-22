@@ -7,79 +7,188 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 )
 
-func loadF32(pointer unsafe.Pointer, index int) float32 {
-	return *(*float32)(unsafe.Add(pointer, uintptr(index)*4))
-}
+type lossLoadFunc func(pointer unsafe.Pointer, index int) float32
 
-func loadF16(pointer unsafe.Pointer, index int) float32 {
-	bits := *(*uint16)(unsafe.Add(pointer, uintptr(index)*2))
-	return dtype.Frombits(bits).Float32()
-}
-
-func loadBF16(pointer unsafe.Pointer, index int) float32 {
-	bits := *(*uint16)(unsafe.Add(pointer, uintptr(index)*2))
-	bf16 := dtype.BF16(bits)
-	return (&bf16).Float32()
-}
-
-func loadInt32(pointer unsafe.Pointer, index int) int32 {
-	return *(*int32)(unsafe.Add(pointer, uintptr(index)*4))
-}
-
-func widenToFloat32Buffer(
-	source unsafe.Pointer,
-	count int,
-	format dtype.DType,
-) []float32 {
-	buffer := BorrowFloat32Buffer(count)
-
+func lossLoadFuncFor(format dtype.DType) lossLoadFunc {
 	switch format {
 	case dtype.Float32:
-		sourceView := unsafe.Slice((*float32)(source), count)
-		copy(buffer, sourceView)
+		return loadF32
 	case dtype.Float16:
-		for index := 0; index < count; index++ {
-			buffer[index] = loadF16(source, index)
-		}
+		return loadF16
 	case dtype.BFloat16:
-		for index := 0; index < count; index++ {
-			buffer[index] = loadBF16(source, index)
-		}
+		return loadBF16
 	default:
-		panic("losses: unsupported dtype for widen")
+		panic("losses: unsupported dtype")
 	}
-
-	return buffer
 }
 
-func dispatchPairLoss(
+func dispatchMSE(
 	predictions, targets unsafe.Pointer,
 	count int,
 	format dtype.DType,
-	f32 func(predictions, targets unsafe.Pointer, count int) float32,
 ) float32 {
 	if count == 0 {
 		return 0
 	}
 
-	switch format {
-	case dtype.Float32:
-		return f32(predictions, targets, count)
-	case dtype.Float16, dtype.BFloat16:
-		predBuffer := widenToFloat32Buffer(predictions, count, format)
-		targetBuffer := widenToFloat32Buffer(targets, count, format)
-
-		defer ReleaseFloat32Buffer(predBuffer)
-		defer ReleaseFloat32Buffer(targetBuffer)
-
-		return f32(
-			unsafe.Pointer(&predBuffer[0]),
-			unsafe.Pointer(&targetBuffer[0]),
-			count,
-		)
-	default:
-		panic("losses: unsupported dtype")
+	if format == dtype.Float32 {
+		return runMSEF32(predictions, targets, count)
 	}
+
+	return mseTyped(predictions, targets, count, lossLoadFuncFor(format))
+}
+
+func dispatchMAE(
+	predictions, targets unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) float32 {
+	if count == 0 {
+		return 0
+	}
+
+	if format == dtype.Float32 {
+		return runMAEF32(predictions, targets, count)
+	}
+
+	return maeTyped(predictions, targets, count, lossLoadFuncFor(format))
+}
+
+func dispatchHuber(
+	predictions, targets unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) float32 {
+	if count == 0 {
+		return 0
+	}
+
+	if format == dtype.Float32 {
+		return runHuberF32(predictions, targets, count)
+	}
+
+	return huberTyped(predictions, targets, count, lossLoadFuncFor(format))
+}
+
+func dispatchBinaryCrossEntropy(
+	predictions, targets unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) float32 {
+	if count == 0 {
+		return 0
+	}
+
+	if format == dtype.Float32 {
+		return runBinaryCrossEntropyF32(predictions, targets, count)
+	}
+
+	return binaryCrossEntropyTyped(predictions, targets, count, lossLoadFuncFor(format))
+}
+
+func dispatchKLDivergence(
+	predictions, targets unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) float32 {
+	if count == 0 {
+		return 0
+	}
+
+	if format == dtype.Float32 {
+		return runKLDivergenceF32(predictions, targets, count)
+	}
+
+	return klDivergenceTyped(predictions, targets, count, lossLoadFuncFor(format))
+}
+
+func mseTyped(
+	predictions, targets unsafe.Pointer,
+	count int,
+	load lossLoadFunc,
+) float32 {
+	var sum float64
+
+	for index := 0; index < count; index++ {
+		diff := load(predictions, index) - load(targets, index)
+		sum += float64(diff) * float64(diff)
+	}
+
+	return float32(sum / float64(count))
+}
+
+func maeTyped(
+	predictions, targets unsafe.Pointer,
+	count int,
+	load lossLoadFunc,
+) float32 {
+	var sum float64
+
+	for index := 0; index < count; index++ {
+		diff := load(predictions, index) - load(targets, index)
+		sum += math.Abs(float64(diff))
+	}
+
+	return float32(sum / float64(count))
+}
+
+func huberTyped(
+	predictions, targets unsafe.Pointer,
+	count int,
+	load lossLoadFunc,
+) float32 {
+	const delta = float32(1.0)
+	var sum float64
+
+	for index := 0; index < count; index++ {
+		diff := load(predictions, index) - load(targets, index)
+		absDiff := float32(math.Abs(float64(diff)))
+
+		switch {
+		case absDiff <= delta:
+			sum += 0.5 * float64(diff) * float64(diff)
+		default:
+			sum += float64(delta) * (float64(absDiff) - 0.5*float64(delta))
+		}
+	}
+
+	return float32(sum / float64(count))
+}
+
+func binaryCrossEntropyTyped(
+	predictions, targets unsafe.Pointer,
+	count int,
+	load lossLoadFunc,
+) float32 {
+	var sum float64
+	const eps = 1e-7
+
+	for index := 0; index < count; index++ {
+		value := load(predictions, index)
+		target := load(targets, index)
+		clamped := math.Max(eps, math.Min(1-eps, float64(value)))
+		sum += -float64(target)*math.Log(clamped) -
+			(1-float64(target))*math.Log(1-clamped)
+	}
+
+	return float32(sum / float64(count))
+}
+
+func klDivergenceTyped(
+	predictions, targets unsafe.Pointer,
+	count int,
+	load lossLoadFunc,
+) float32 {
+	var sum float64
+	const eps = 1e-12
+
+	for index := 0; index < count; index++ {
+		predicted := math.Max(eps, float64(load(predictions, index)))
+		target := math.Max(eps, float64(load(targets, index)))
+		sum += target * math.Log(target/predicted)
+	}
+
+	return float32(sum / float64(count))
 }
 
 func dispatchCrossEntropy(
@@ -92,40 +201,24 @@ func dispatchCrossEntropy(
 		return 0
 	}
 
-	logitCount := batchSize * classes
-
-	switch format {
-	case dtype.Float32:
-		return crossEntropyF32(logits, targets, batchSize, classes)
-	case dtype.Float16, dtype.BFloat16:
-		logitBuffer := widenToFloat32Buffer(logits, logitCount, format)
-
-		defer ReleaseFloat32Buffer(logitBuffer)
-
-		return crossEntropyF32(
-			unsafe.Pointer(&logitBuffer[0]),
-			targets,
-			batchSize,
-			classes,
-		)
-	default:
-		panic("losses: unsupported dtype")
-	}
+	load := lossLoadFuncFor(format)
+	return crossEntropyTyped(logits, targets, batchSize, classes, load)
 }
 
-func crossEntropyF32(
+func crossEntropyTyped(
 	logits unsafe.Pointer,
 	targets unsafe.Pointer,
 	batchSize, classes int,
+	load lossLoadFunc,
 ) float32 {
 	var sum float64
 
 	for batchIndex := 0; batchIndex < batchSize; batchIndex++ {
 		rowBase := batchIndex * classes
-		maxLogit := loadF32(logits, rowBase)
+		maxLogit := load(logits, rowBase)
 
 		for classIndex := 1; classIndex < classes; classIndex++ {
-			candidate := loadF32(logits, rowBase+classIndex)
+			candidate := load(logits, rowBase+classIndex)
 
 			if candidate > maxLogit {
 				maxLogit = candidate
@@ -135,7 +228,7 @@ func crossEntropyF32(
 		var denominator float64
 
 		for classIndex := 0; classIndex < classes; classIndex++ {
-			candidate := loadF32(logits, rowBase+classIndex)
+			candidate := load(logits, rowBase+classIndex)
 			denominator += math.Exp(float64(candidate - maxLogit))
 		}
 
@@ -145,7 +238,7 @@ func crossEntropyF32(
 			panic("losses: cross entropy target out of range")
 		}
 
-		logProb := float64(loadF32(logits, rowBase+targetClass)-maxLogit) - math.Log(denominator)
+		logProb := float64(load(logits, rowBase+targetClass)-maxLogit) - math.Log(denominator)
 		sum += -logProb
 	}
 
@@ -197,4 +290,23 @@ func klDivergenceMeanF32(predictions, targets unsafe.Pointer, count int) float32
 	}
 
 	return float32(sum / float64(count))
+}
+
+func loadF32(pointer unsafe.Pointer, index int) float32 {
+	return *(*float32)(unsafe.Add(pointer, uintptr(index)*4))
+}
+
+func loadF16(pointer unsafe.Pointer, index int) float32 {
+	bits := *(*uint16)(unsafe.Add(pointer, uintptr(index)*2))
+	return dtype.Frombits(bits).Float32()
+}
+
+func loadBF16(pointer unsafe.Pointer, index int) float32 {
+	bits := *(*uint16)(unsafe.Add(pointer, uintptr(index)*2))
+	bf16 := dtype.BF16(bits)
+	return (&bf16).Float32()
+}
+
+func loadInt32(pointer unsafe.Pointer, index int) int32 {
+	return *(*int32)(unsafe.Add(pointer, uintptr(index)*4))
 }

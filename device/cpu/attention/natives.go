@@ -1,6 +1,7 @@
 package attention
 
 import (
+	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/puter/device/cpu/dot"
 	"github.com/theapemachine/puter/device/cpu/elementwise"
 	"github.com/theapemachine/puter/device/cpu/matmul"
@@ -9,6 +10,14 @@ import (
 
 func DotFloat32Native(left, right []float32) float32 {
 	return dot.DotFloat32Native(left, right)
+}
+
+func DotBFloat16Native(left, right []dtype.BF16) dtype.BF16 {
+	return dot.DotBFloat16Native(left, right)
+}
+
+func DotFloat16Native(left, right []dtype.F16) dtype.F16 {
+	return dot.DotFloat16Native(left, right)
 }
 
 func ReduceMaxFloat32Native(values []float32) float32 {

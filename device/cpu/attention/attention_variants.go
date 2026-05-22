@@ -1,7 +1,7 @@
 package attention
 
 import (
-	"math"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/tensor"
 )
@@ -115,64 +115,35 @@ func MultiHeadAttentionFloat32(
 		return tensor.ErrShapeMismatch
 	}
 
-	queryView, _ := query.Float32Native()
-	keyView, _ := key.Float32Native()
-	valueView, _ := value.Float32Native()
-	outView, _ := out.Float32Native()
+	queryView, err := query.Float32Native()
+	if err != nil {
+		return err
+	}
 
-	multiHeadAttentionSlices(config, queryView, keyView, valueView, outView, seqQ, seqK, kvHeads)
+	keyView, err := key.Float32Native()
+	if err != nil {
+		return err
+	}
+
+	valueView, err := value.Float32Native()
+	if err != nil {
+		return err
+	}
+
+	outView, err := out.Float32Native()
+	if err != nil {
+		return err
+	}
+
+	multiHeadAttentionSlices(
+		config,
+		unsafe.Pointer(&queryView[0]),
+		unsafe.Pointer(&keyView[0]),
+		unsafe.Pointer(&valueView[0]),
+		unsafe.Pointer(&outView[0]),
+		seqQ, seqK, kvHeads,
+		query.DType(),
+	)
+
 	return nil
-}
-
-func multiHeadAttentionSlices(
-	config MultiHeadAttentionConfig,
-	queryView, keyView, valueView, outView []float32,
-	seqQ, seqK, kvHeads int,
-) {
-	scale := float32(1.0 / math.Sqrt(float64(config.HeadDim)))
-	headsPerKVHead := config.NumHeads / kvHeads
-
-	for headIndex := 0; headIndex < config.NumHeads; headIndex++ {
-		kvHeadIndex := headIndex / headsPerKVHead
-
-		runSingleHead(
-			queryView, keyView, valueView, outView,
-			seqQ, seqK,
-			config.HeadDim, config.NumHeads, kvHeads,
-			headIndex, kvHeadIndex,
-			scale, config,
-		)
-	}
-}
-
-func runSingleHead(
-	queryView, keyView, valueView, outView []float32,
-	seqQ, seqK, headDim, numHeads, kvHeads, headIndex, kvHeadIndex int,
-	scale float32,
-	config MultiHeadAttentionConfig,
-) {
-	queryHeadOffset := headIndex * headDim
-	kvHeadOffset := kvHeadIndex * headDim
-	queryStride := numHeads * headDim
-	kvStride := kvHeads * headDim
-
-	scores := make([]float32, seqK)
-
-	for qIndex := range seqQ {
-		ComputeHeadScoresNative(
-			queryView, keyView,
-			qIndex, seqK, headDim,
-			queryHeadOffset, kvHeadOffset,
-			queryStride, kvStride,
-			scale, scores,
-			config,
-		)
-		StableSoftmaxRowNative(scores)
-		WriteHeadOutputNative(
-			scores, valueView, outView,
-			qIndex, seqK, headDim,
-			queryHeadOffset, kvHeadOffset,
-			queryStride, kvStride,
-		)
-	}
 }

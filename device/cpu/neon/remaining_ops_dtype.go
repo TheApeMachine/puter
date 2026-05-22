@@ -4,7 +4,10 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
 	"github.com/theapemachine/puter/device/cpu/attention"
+	"github.com/theapemachine/puter/device/cpu/convolution"
+	"github.com/theapemachine/puter/device/cpu/masking"
 	"github.com/theapemachine/puter/device/cpu/optimizer"
+	"github.com/theapemachine/puter/device/cpu/pool"
 )
 
 /*
@@ -14,12 +17,10 @@ the f32 runner, the input dtype mask (which input positions are
 "params" rounded to the reduced dtype vs which are pass-through like
 Int32 indices), and the output dtype mask.
 
-The runner widens param-dtype inputs to f32 scratch tensors, calls the
-f32 runner with those plus the pass-through tensors, and narrows the
-f32 outputs back. fp32 accumulation per §5.5.
-
-The pattern is mechanical, so most ops register through this table
-rather than each requiring a hand-written wrapper.
+Reduced-precision registrations either delegate to dtype-agnostic
+runners that operate on native storage directly, or to hand-written
+native runners that compute in the param dtype. Ops without a native
+runner are not registered here.
 */
 
 // opSpec describes a mixed-precision wrapper config.
@@ -49,6 +50,12 @@ func (spec opSpec) registerF32() {
 }
 
 func (spec opSpec) registerMixed(paramDType dtype.DType) {
+	runner, ok := mixedPrecisionRunner(spec, paramDType)
+
+	if !ok {
+		return
+	}
+
 	inputs := make([]dtype.DType, len(spec.inputDTypes))
 
 	for index, dt := range spec.inputDTypes {
@@ -69,8 +76,6 @@ func (spec opSpec) registerMixed(paramDType dtype.DType) {
 		}
 	}
 
-	totalArity := len(inputs) + len(outputs)
-
 	Default.Register(Kernel{
 		Name: spec.name,
 		Signature: Signature{
@@ -79,81 +84,121 @@ func (spec opSpec) registerMixed(paramDType dtype.DType) {
 			Outputs: outputs,
 		},
 		Locations: []tensor.Location{tensor.Host},
-		Run: func(args ...tensor.Tensor) error {
-			return runGenericMixed(args, paramDType, spec, totalArity)
-		},
+		Run:       runner,
 	})
 }
 
-func runGenericMixed(
-	args []tensor.Tensor,
-	paramDType dtype.DType,
+func mixedPrecisionRunner(
 	spec opSpec,
-	totalArity int,
-) error {
-	if len(args) != totalArity {
-		return tensor.ErrShapeMismatch
+	paramDType dtype.DType,
+) (func(args ...tensor.Tensor) error, bool) {
+	if isDtypeAgnosticOp(spec.name) {
+		return spec.runF32, true
 	}
 
-	// Build the f32 arg list. Inputs that are paramDType get widened into
-	// fresh f32 temp tensors; pass-through inputs are forwarded as-is.
-	// Outputs that are paramDType get fresh f32 temps; pass-through
-	// outputs are forwarded as-is.
-	f32Args := make([]tensor.Tensor, totalArity)
-	temps := make(map[int]tensor.Tensor)
+	return nativeMixedRunner(spec.name, paramDType)
+}
 
-	for index, arg := range args {
-		var isParam bool
+func isDtypeAgnosticOp(name string) bool {
+	switch name {
+	case "where", "masked_fill",
+		"transpose", "reshape", "upsample_nearest2d",
+		"last_token", "merge_heads", "split_heads", "split2",
+		"slice", "view_as_heads":
+		return true
+	default:
+		return false
+	}
+}
 
-		if index < len(spec.inputDTypes) {
-			isParam = spec.inputDTypes[index] == dtype.Float32
-		} else {
-			outIndex := index - len(spec.inputDTypes)
-			isParam = spec.outputDTypes[outIndex] == dtype.Float32
+func nativeMixedRunner(
+	name string,
+	paramDType dtype.DType,
+) (func(args ...tensor.Tensor) error, bool) {
+	switch name {
+	case "apply_mask":
+		switch paramDType {
+		case dtype.BFloat16:
+			return masking.RunApplyMaskBFloat16, true
+		case dtype.Float16:
+			return masking.RunApplyMaskFloat16, true
 		}
-
-		if !isParam {
-			f32Args[index] = arg
-			continue
+	case "alibi_bias":
+		switch paramDType {
+		case dtype.BFloat16:
+			return masking.RunALiBiBiasBFloat16, true
+		case dtype.Float16:
+			return masking.RunALiBiBiasFloat16, true
 		}
-
-		temp, err := tensor.NewZeroed(arg.Shape(), dtype.Float32)
-
-		if err != nil {
-			return err
+	case "linear":
+		switch paramDType {
+		case dtype.BFloat16, dtype.Float16:
+			return runLinear, true
 		}
-
-		f32Args[index] = temp
-		temps[index] = temp
-
-		// Inputs need widening; outputs stay zero-init.
-		if index < len(spec.inputDTypes) {
-			tempView, _ := temp.Float32Native()
-
-			if err := widenToF32(arg, paramDType, tempView); err != nil {
-				return err
-			}
+	case "matmul_add":
+		switch paramDType {
+		case dtype.BFloat16, dtype.Float16:
+			return runMatMulAddReducedPrecision, true
+		}
+	case "conv1d":
+		switch paramDType {
+		case dtype.BFloat16:
+			return convolution.RunConv1DBFloat16, true
+		case dtype.Float16:
+			return convolution.RunConv1DFloat16, true
+		}
+	case "conv2d":
+		switch paramDType {
+		case dtype.BFloat16:
+			return convolution.RunConv2DBFloat16, true
+		case dtype.Float16:
+			return convolution.RunConv2DFloat16, true
+		}
+	case "conv3d":
+		switch paramDType {
+		case dtype.BFloat16:
+			return convolution.RunConv3DBFloat16, true
+		case dtype.Float16:
+			return convolution.RunConv3DFloat16, true
+		}
+	case "conv_transpose2d":
+		switch paramDType {
+		case dtype.BFloat16:
+			return convolution.RunConvTranspose2DBFloat16, true
+		case dtype.Float16:
+			return convolution.RunConvTranspose2DFloat16, true
+		}
+	case "max_pool2d":
+		switch paramDType {
+		case dtype.BFloat16:
+			return pool.RunMaxPool2DBFloat16, true
+		case dtype.Float16:
+			return pool.RunMaxPool2DFloat16, true
+		}
+	case "avg_pool2d":
+		switch paramDType {
+		case dtype.BFloat16:
+			return pool.RunAvgPool2DBFloat16, true
+		case dtype.Float16:
+			return pool.RunAvgPool2DFloat16, true
+		}
+	case "adaptive_avg_pool2d":
+		switch paramDType {
+		case dtype.BFloat16:
+			return pool.RunAdaptiveAvgPool2DBFloat16, true
+		case dtype.Float16:
+			return pool.RunAdaptiveAvgPool2DFloat16, true
+		}
+	case "adaptive_max_pool2d":
+		switch paramDType {
+		case dtype.BFloat16:
+			return pool.RunAdaptiveMaxPool2DBFloat16, true
+		case dtype.Float16:
+			return pool.RunAdaptiveMaxPool2DFloat16, true
 		}
 	}
 
-	if err := spec.runF32(f32Args...); err != nil {
-		return err
-	}
-
-	// Narrow paramDType outputs back to the caller's tensors.
-	for index, temp := range temps {
-		if index < len(spec.inputDTypes) {
-			continue
-		}
-
-		tempView, _ := temp.Float32Native()
-
-		if err := narrowFromF32(args[index], paramDType, tempView); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return nil, false
 }
 
 func init() {
@@ -679,6 +724,7 @@ func isOptimizerStep(name string) bool {
 func skipMixedRegistration(name string) bool {
 	switch name {
 	case "matmul",
+		"slice",
 		"int8_dequant", "int4_dequant", "int8_quant",
 		"checkpoint_encode_float32", "checkpoint_decode_float32",
 		"tokenizer_pack_int32":

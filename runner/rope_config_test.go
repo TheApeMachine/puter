@@ -14,7 +14,7 @@ func TestRopeConfigFromNode(t *testing.T) {
 		convey.So(err, convey.ShouldBeNil)
 
 		node := manifestComputeNode("rope_q_0", "positional.rope", ir.OpFused, shape)
-		node.SetAttribute("base", ir.FloatAttribute(500000))
+		node.SetAttribute("base", ir.IntAttribute(500000))
 		node.SetAttribute("rope_type", ir.StringAttribute("llama3"))
 		node.SetAttribute("rope_factor", ir.FloatAttribute(32))
 		node.SetAttribute("rope_low_freq_factor", ir.FloatAttribute(1))

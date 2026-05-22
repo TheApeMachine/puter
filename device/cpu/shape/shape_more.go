@@ -23,14 +23,35 @@ func runTranspose(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	input, _ := args[0].Float32Native()
-	permutation, _ := args[1].Int32Native()
-	out, _ := args[2].Float32Native()
+	inputBytes, err := aliasedBytes(args[0])
+
+	if err != nil {
+		return err
+	}
+
+	permutation, err := args[1].Int32Native()
+
+	if err != nil {
+		return err
+	}
+
+	outBytes, err := aliasedBytes(args[2])
+
+	if err != nil {
+		return err
+	}
+
+	elementSize, err := elementByteSize(args[0])
+
+	if err != nil {
+		return err
+	}
 
 	inDims := args[0].Shape().Dims()
 	rank := len(inDims)
+	elementCount := len(inputBytes) / elementSize
 
-	if len(permutation) != rank || len(out) != len(input) {
+	if len(permutation) != rank || len(outBytes) != len(inputBytes) {
 		return tensor.ErrShapeMismatch
 	}
 
@@ -47,7 +68,7 @@ func runTranspose(args ...tensor.Tensor) error {
 	inStrides := computeRowMajorStrides(inDims)
 	outStrides := computeRowMajorStrides(outDims)
 
-	for flatIndex := range input {
+	for flatIndex := 0; flatIndex < elementCount; flatIndex++ {
 		inCoords := flatToCoords(flatIndex, inDims, inStrides)
 		outCoords := make([]int, rank)
 
@@ -56,7 +77,7 @@ func runTranspose(args ...tensor.Tensor) error {
 		}
 
 		outFlat := coordsToFlat(outCoords, outStrides)
-		out[outFlat] = input[flatIndex]
+		copyElementAt(outBytes, inputBytes, outFlat, flatIndex, elementSize)
 	}
 
 	return nil
@@ -108,8 +129,23 @@ func runUpsampleNearest2D(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	inView, _ := args[0].Float32Native()
-	outView, _ := args[1].Float32Native()
+	inBytes, err := aliasedBytes(args[0])
+
+	if err != nil {
+		return err
+	}
+
+	outBytes, err := aliasedBytes(args[1])
+
+	if err != nil {
+		return err
+	}
+
+	elementSize, err := elementByteSize(args[0])
+
+	if err != nil {
+		return err
+	}
 
 	inDims := args[0].Shape().Dims()
 	outDims := args[1].Shape().Dims()
@@ -138,7 +174,7 @@ func runUpsampleNearest2D(args ...tensor.Tensor) error {
 					inCol := outCol * inW / outW
 					inIdx := ((batchIndex*channels+chIndex)*inH+inRow)*inW + inCol
 					outIdx := ((batchIndex*channels+chIndex)*outH+outRow)*outW + outCol
-					outView[outIdx] = inView[inIdx]
+					copyElementAt(outBytes, inBytes, outIdx, inIdx, elementSize)
 				}
 			}
 		}
@@ -159,9 +195,23 @@ func runViewAsHeads(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	inView, _ := args[0].Float32Native()
-	heads, _ := args[1].Int32Native()
-	outView, _ := args[2].Float32Native()
+	inBytes, err := aliasedBytes(args[0])
+
+	if err != nil {
+		return err
+	}
+
+	heads, err := args[1].Int32Native()
+
+	if err != nil {
+		return err
+	}
+
+	outBytes, err := aliasedBytes(args[2])
+
+	if err != nil {
+		return err
+	}
 
 	inDims := args[0].Shape().Dims()
 	outDims := args[2].Shape().Dims()
@@ -176,11 +226,18 @@ func runViewAsHeads(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	if len(inView) != len(outView) {
+	if len(inBytes) != len(outBytes) {
 		return tensor.ErrShapeMismatch
 	}
 
-	copy(outView, inView)
+	elementSize, err := elementByteSize(args[0])
+
+	if err != nil {
+		return err
+	}
+
+	copyContiguousElements(outBytes, inBytes, len(inBytes)/elementSize, elementSize)
+
 	return nil
 }
 
@@ -195,13 +252,29 @@ func runReshape(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	inView, _ := args[0].Float32Native()
-	outView, _ := args[1].Float32Native()
+	inBytes, err := aliasedBytes(args[0])
 
-	if len(inView) != len(outView) {
+	if err != nil {
+		return err
+	}
+
+	outBytes, err := aliasedBytes(args[1])
+
+	if err != nil {
+		return err
+	}
+
+	if len(inBytes) != len(outBytes) {
 		return tensor.ErrShapeMismatch
 	}
 
-	copy(outView, inView)
+	elementSize, err := elementByteSize(args[0])
+
+	if err != nil {
+		return err
+	}
+
+	copyContiguousElements(outBytes, inBytes, len(inBytes)/elementSize, elementSize)
+
 	return nil
 }

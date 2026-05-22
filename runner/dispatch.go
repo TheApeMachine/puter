@@ -75,6 +75,8 @@ func dispatchNode(
 		err = dispatchHostKernel(kernel, args)
 	} else if kernel == "rope" {
 		err = dispatchRoPE(node, args)
+	} else if kernel == "rmsnorm" {
+		err = dispatchRMSNorm(node, args)
 	} else {
 		err = dispatchRegisteredKernel(kernel, location, args)
 	}

@@ -184,6 +184,7 @@ int metal_dispatch_rmsnorm(
     MetalBufferRef outRef,
     uint32_t rows,
     uint32_t cols,
+    float epsilon,
     uint64_t completionToken,
     MetalStatus* status
 ) {
@@ -216,6 +217,7 @@ int metal_dispatch_rmsnorm(
             [encoder setBuffer:(__bridge id<MTLBuffer>)scaleRef offset:0 atIndex:1];
             [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:2];
             [encoder setBytes:&cols length:sizeof(cols) atIndex:3];
+            [encoder setBytes:&epsilon length:sizeof(epsilon) atIndex:4];
         }
     );
 }

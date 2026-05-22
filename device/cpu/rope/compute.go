@@ -17,76 +17,20 @@ func dispatchRoPE(
 		return
 	}
 
-	elementCount := seqLen * numHeads * headDim
-
 	switch format {
-	case dtype.Float32:
-		runRoPEF32(config, input, output, seqLen, numHeads, headDim)
-	case dtype.Float16, dtype.BFloat16:
-		inputF32 := widenBuffer(input, elementCount, format)
-		outputF32 := BorrowFloat32Buffer(elementCount)
-
-		defer ReleaseFloat32Buffer(inputF32)
-		defer ReleaseFloat32Buffer(outputF32)
-
-		runRoPEF32(
-			config,
-			unsafe.Pointer(&inputF32[0]),
-			unsafe.Pointer(&outputF32[0]),
-			seqLen,
-			numHeads,
-			headDim,
-		)
-
-		narrowBuffer(output, outputF32, format)
+	case dtype.Float32, dtype.Float16, dtype.BFloat16:
+		runRoPE(config, input, output, seqLen, numHeads, headDim, format)
 	default:
 		panic("rope: unsupported dtype")
 	}
 }
 
-func widenBuffer(source unsafe.Pointer, count int, format dtype.DType) []float32 {
-	buffer := BorrowFloat32Buffer(count)
-
-	switch format {
-	case dtype.Float32:
-		sourceView := unsafe.Slice((*float32)(source), count)
-		copy(buffer, sourceView)
-	case dtype.Float16:
-		sourceView := unsafe.Slice((*dtype.F16)(source), count)
-		Float16BulkToFloat32(buffer, sourceView)
-	case dtype.BFloat16:
-		sourceView := unsafe.Slice((*dtype.BF16)(source), count)
-		Bfloat16BulkToFloat32(buffer, sourceView)
-	default:
-		panic("rope: unsupported dtype")
-	}
-
-	return buffer
-}
-
-func narrowBuffer(destination unsafe.Pointer, source []float32, format dtype.DType) {
-	switch format {
-	case dtype.Float32:
-		destinationView := unsafe.Slice((*float32)(destination), len(source))
-		copy(destinationView, source)
-	case dtype.Float16:
-		destinationView := unsafe.Slice((*dtype.F16)(destination), len(source))
-		Float32BulkToFloat16(destinationView, source)
-	case dtype.BFloat16:
-		destinationView := unsafe.Slice((*dtype.BF16)(destination), len(source))
-		Float32BulkToBFloat16(destinationView, source)
-	default:
-		panic("rope: unsupported dtype")
-	}
-}
-
-func runRoPEF32(
+func runRoPE(
 	config RoPEConfig,
 	input, output unsafe.Pointer,
 	seqLen, numHeads, headDim int,
+	format dtype.DType,
 ) {
-	inputView := unsafe.Slice((*float32)(input), seqLen*numHeads*headDim)
-	outputView := unsafe.Slice((*float32)(output), seqLen*numHeads*headDim)
 	halfDim := headDim / 2
 
 	cosBuffer := BorrowFloat32Buffer(halfDim)
@@ -107,12 +51,45 @@ func runRoPEF32(
 
 		for headIndex := 0; headIndex < numHeads; headIndex++ {
 			rowOffset := (seqIndex*numHeads + headIndex) * headDim
-			RopePairsNative(
-				outputView[rowOffset:rowOffset+headDim],
-				inputView[rowOffset:rowOffset+headDim],
-				cosBuffer,
-				sinBuffer,
+
+			if format == dtype.Float32 {
+				outputView := unsafe.Slice((*float32)(output), seqLen*numHeads*headDim)
+				inputView := unsafe.Slice((*float32)(input), seqLen*numHeads*headDim)
+				RopePairsNative(
+					outputView[rowOffset:rowOffset+headDim],
+					inputView[rowOffset:rowOffset+headDim],
+					cosBuffer,
+					sinBuffer,
+				)
+				continue
+			}
+
+			load, store := ropeLoadStore(format)
+			ropePairsTyped(
+				output, input, rowOffset,
+				cosBuffer, sinBuffer, halfDim,
+				load, store,
 			)
 		}
+	}
+}
+
+func ropePairsTyped(
+	output, input unsafe.Pointer,
+	rowOffset int,
+	cosBuffer, sinBuffer []float32,
+	halfDim int,
+	load ropeLoadFunc,
+	store ropeStoreFunc,
+) {
+	for pairIndex := 0; pairIndex < halfDim; pairIndex++ {
+		cos := cosBuffer[pairIndex]
+		sin := sinBuffer[pairIndex]
+		evenIndex := rowOffset + 2*pairIndex
+		oddIndex := rowOffset + 2*pairIndex + 1
+		even := load(input, evenIndex)
+		odd := load(input, oddIndex)
+		store(output, evenIndex, even*cos-odd*sin)
+		store(output, oddIndex, even*sin+odd*cos)
 	}
 }

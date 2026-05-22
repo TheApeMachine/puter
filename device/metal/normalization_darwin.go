@@ -74,6 +74,15 @@ func runMetalLayerNorm(
 }
 
 func runMetalRMSNorm(input tensor.Tensor, scale tensor.Tensor, out tensor.Tensor) error {
+	return runMetalRMSNormConfigured(input, scale, out, DefaultRMSNormConfig())
+}
+
+func runMetalRMSNormConfigured(
+	input tensor.Tensor,
+	scale tensor.Tensor,
+	out tensor.Tensor,
+	rmsConfig RMSNormConfig,
+) error {
 	config, err := requireMetalNorm(input, scale, nil, out)
 	if err != nil {
 		return err
@@ -81,6 +90,11 @@ func runMetalRMSNorm(input tensor.Tensor, scale tensor.Tensor, out tensor.Tensor
 
 	if config.out.shape.Len() == 0 {
 		return nil
+	}
+
+	epsilon := rmsConfig.Epsilon
+	if epsilon <= 0 {
+		epsilon = DefaultRMSNormConfig().Epsilon
 	}
 
 	token, err := metalCompletions.Begin(config.out, config.input, config.scale)
@@ -97,6 +111,7 @@ func runMetalRMSNorm(input tensor.Tensor, scale tensor.Tensor, out tensor.Tensor
 		config.out.buffer,
 		C.uint32_t(config.rows),
 		C.uint32_t(config.cols),
+		C.float(epsilon),
 		C.uint64_t(token),
 		&status,
 	)

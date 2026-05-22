@@ -14,27 +14,38 @@ func runSlice(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	inView, err := args[0].Float32Native()
+	inBytes, err := aliasedBytes(args[0])
+
 	if err != nil {
 		return err
 	}
 
 	dim, err := int32ScalarTensor(args[1])
+
 	if err != nil {
 		return err
 	}
 
 	start, err := int32ScalarTensor(args[2])
+
 	if err != nil {
 		return err
 	}
 
 	end, err := int32ScalarTensor(args[3])
+
 	if err != nil {
 		return err
 	}
 
-	outView, err := args[4].Float32Native()
+	outBytes, err := aliasedBytes(args[4])
+
+	if err != nil {
+		return err
+	}
+
+	elementSize, err := elementByteSize(args[0])
+
 	if err != nil {
 		return err
 	}
@@ -75,34 +86,40 @@ func runSlice(args ...tensor.Tensor) error {
 	}
 
 	expectedOutLen := 1
+
 	for _, extent := range outDims {
 		expectedOutLen *= extent
 	}
 
-	if len(outView) != expectedOutLen {
+	if len(outBytes) != expectedOutLen*elementSize {
 		return tensor.ErrShapeMismatch
 	}
 
 	outer := 1
+
 	for axis := 0; axis < int(dim); axis++ {
 		outer *= inDims[axis]
 	}
 
 	inner := 1
+
 	for axis := int(dim) + 1; axis < rank; axis++ {
 		inner *= inDims[axis]
 	}
 
 	inputStride := dimSize * inner
 	blockLen := sliceLen * inner
+	blockBytes := blockLen * elementSize
 
 	for outerIndex := 0; outerIndex < outer; outerIndex++ {
-		inOffset := outerIndex*inputStride + int(start)*inner
-		outOffset := outerIndex * blockLen
+		inOffset := (outerIndex*inputStride + int(start)*inner) * elementSize
+		outOffset := outerIndex * blockBytes
 
-		CopyContiguousFloat32Native(
-			outView[outOffset:outOffset+blockLen],
-			inView[inOffset:inOffset+blockLen],
+		copyContiguousElements(
+			outBytes[outOffset:outOffset+blockBytes],
+			inBytes[inOffset:inOffset+blockBytes],
+			blockLen,
+			elementSize,
 		)
 	}
 
@@ -111,6 +128,7 @@ func runSlice(args ...tensor.Tensor) error {
 
 func int32ScalarTensor(value tensor.Tensor) (int32, error) {
 	view, err := value.Int32Native()
+
 	if err != nil {
 		return 0, err
 	}

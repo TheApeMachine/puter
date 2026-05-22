@@ -2,6 +2,7 @@ package attention
 
 import (
 	"math"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/tensor"
 )
@@ -23,50 +24,42 @@ func runAttentionBFloat16(args ...tensor.Tensor) error {
 		return err
 	}
 
-	qBF, err := query.BFloat16Native()
-
+	queryNative, err := query.BFloat16Native()
 	if err != nil {
 		return err
 	}
 
-	kBF, err := key.BFloat16Native()
-
+	keyNative, err := key.BFloat16Native()
 	if err != nil {
 		return err
 	}
 
-	vBF, err := value.BFloat16Native()
-
+	valueNative, err := value.BFloat16Native()
 	if err != nil {
 		return err
 	}
 
-	oBF, err := out.BFloat16Native()
-
+	outputNative, err := out.BFloat16Native()
 	if err != nil {
 		return err
 	}
-
-	qF32 := BorrowFloat32Buffer(len(qBF))
-	kF32 := BorrowFloat32Buffer(len(kBF))
-	vF32 := BorrowFloat32Buffer(len(vBF))
-	oF32 := BorrowFloat32Buffer(len(oBF))
-
-	defer ReleaseFloat32Buffer(qF32)
-	defer ReleaseFloat32Buffer(kF32)
-	defer ReleaseFloat32Buffer(vF32)
-	defer ReleaseFloat32Buffer(oF32)
-
-	Bfloat16BulkToFloat32(qF32, qBF)
-	Bfloat16BulkToFloat32(kF32, kBF)
-	Bfloat16BulkToFloat32(vF32, vBF)
 
 	scale := float32(1.0 / math.Sqrt(float64(depth)))
-	scores := computeAttentionScores(qF32, kF32, seqQ, seqK, depth, scale)
+	scores := computeAttentionScoresTyped(
+		unsafe.Pointer(&queryNative[0]),
+		unsafe.Pointer(&keyNative[0]),
+		seqQ, seqK, depth, scale,
+		query.DType(),
+	)
 	applySoftmax(scores, seqQ, seqK)
-	computeWeightedOutput(scores, vF32, oF32, seqQ, seqK, valueDim)
+	computeWeightedOutputTyped(
+		scores,
+		unsafe.Pointer(&valueNative[0]),
+		unsafe.Pointer(&outputNative[0]),
+		seqQ, seqK, valueDim,
+		out.DType(),
+	)
 
-	Float32BulkToBFloat16(oBF, oF32)
 	return nil
 }
 
@@ -82,50 +75,42 @@ func runAttentionFloat16(args ...tensor.Tensor) error {
 		return err
 	}
 
-	qF16, err := query.Float16Native()
-
+	queryNative, err := query.Float16Native()
 	if err != nil {
 		return err
 	}
 
-	kF16, err := key.Float16Native()
-
+	keyNative, err := key.Float16Native()
 	if err != nil {
 		return err
 	}
 
-	vF16, err := value.Float16Native()
-
+	valueNative, err := value.Float16Native()
 	if err != nil {
 		return err
 	}
 
-	oF16, err := out.Float16Native()
-
+	outputNative, err := out.Float16Native()
 	if err != nil {
 		return err
 	}
-
-	qF32 := BorrowFloat32Buffer(len(qF16))
-	kF32 := BorrowFloat32Buffer(len(kF16))
-	vF32 := BorrowFloat32Buffer(len(vF16))
-	oF32 := BorrowFloat32Buffer(len(oF16))
-
-	defer ReleaseFloat32Buffer(qF32)
-	defer ReleaseFloat32Buffer(kF32)
-	defer ReleaseFloat32Buffer(vF32)
-	defer ReleaseFloat32Buffer(oF32)
-
-	Float16BulkToFloat32(qF32, qF16)
-	Float16BulkToFloat32(kF32, kF16)
-	Float16BulkToFloat32(vF32, vF16)
 
 	scale := float32(1.0 / math.Sqrt(float64(depth)))
-	scores := computeAttentionScores(qF32, kF32, seqQ, seqK, depth, scale)
+	scores := computeAttentionScoresTyped(
+		unsafe.Pointer(&queryNative[0]),
+		unsafe.Pointer(&keyNative[0]),
+		seqQ, seqK, depth, scale,
+		query.DType(),
+	)
 	applySoftmax(scores, seqQ, seqK)
-	computeWeightedOutput(scores, vF32, oF32, seqQ, seqK, valueDim)
+	computeWeightedOutputTyped(
+		scores,
+		unsafe.Pointer(&valueNative[0]),
+		unsafe.Pointer(&outputNative[0]),
+		seqQ, seqK, valueDim,
+		out.DType(),
+	)
 
-	Float32BulkToFloat16(oF16, oF32)
 	return nil
 }
 
@@ -216,10 +201,6 @@ func attentionViews(
 	return qv, kv, vv, ov, seqQ, seqK, depth, valueDim, nil
 }
 
-/*
-computeAttentionScores returns Q @ K^T × scale. The result is a
-[seqQ, seqK] row-major slice.
-*/
 func computeAttentionScores(
 	queryView, keyView []float32,
 	seqQ, seqK, depth int,
@@ -239,17 +220,10 @@ func computeAttentionScores(
 	return scores
 }
 
-/*
-applySoftmax performs row-wise stable softmax in place on a
-[seqQ, seqK] score matrix.
-*/
 func applySoftmax(scores []float32, seqQ, seqK int) {
 	ApplyAttentionSoftmaxNative(scores, seqQ, seqK)
 }
 
-/*
-computeWeightedOutput computes outView = scores @ valueView.
-*/
 func computeWeightedOutput(
 	scores, valueView, outView []float32,
 	seqQ, seqK, valueDim int,
