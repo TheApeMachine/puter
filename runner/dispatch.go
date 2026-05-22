@@ -2,6 +2,7 @@ package runner
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/ir"
@@ -127,7 +128,7 @@ func nodeArguments(
 	}
 
 	if weightName != "" {
-		weight, err := weights.Tensor(weightFilePath(node, checkpointPath), weightName)
+		weight, err := weights.TensorForNode(weightFilePath(node, checkpointPath), weightName, node)
 
 		if err != nil {
 			return nil, err
@@ -153,6 +154,20 @@ func nodeArguments(
 		args = append(args, bias)
 	}
 
+	if kernelName(node.OperationID()) == "batchnorm_denorm" {
+		normArgs, err := resolveBatchNormDenormTensors(
+			node,
+			weightFilePath(node, checkpointPath),
+			weights,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		args = append(args, normArgs...)
+	}
+
 	args = append(args, output)
 
 	args, attributeErr := appendKernelAttributes(memory, node, kernelName(node.OperationID()), args)
@@ -164,8 +179,46 @@ func nodeArguments(
 	return args, nil
 }
 
+func resolveBatchNormDenormTensors(
+	node *ir.Node,
+	checkpointPath string,
+	weights *weightCache,
+) ([]tensor.Tensor, error) {
+	if weights == nil {
+		return nil, fmt.Errorf("runner: batchnorm_denorm node %q requires weights", node.ID())
+	}
+
+	meanName, ok := nodeOptionalStringAttribute(node, "mean")
+	if !ok || meanName == "" {
+		return nil, fmt.Errorf("runner: batchnorm_denorm node %q missing mean", node.ID())
+	}
+
+	varianceName, ok := nodeOptionalStringAttribute(node, "variance")
+	if !ok || varianceName == "" {
+		return nil, fmt.Errorf("runner: batchnorm_denorm node %q missing variance", node.ID())
+	}
+
+	mean, err := weights.Tensor(checkpointPath, meanName)
+	if err != nil {
+		return nil, err
+	}
+
+	variance, err := weights.Tensor(checkpointPath, varianceName)
+	if err != nil {
+		return nil, err
+	}
+
+	return []tensor.Tensor{mean, variance}, nil
+}
+
 func kernelUsesBias(kernel string) bool {
-	return kernel == "linear"
+	switch kernel {
+	case "linear", "conv1d", "conv2d", "conv3d", "conv_transpose2d",
+		"layernorm", "groupnorm", "instancenorm", "batchnorm_eval":
+		return true
+	default:
+		return false
+	}
 }
 
 func resolveBiasTensor(
@@ -182,6 +235,15 @@ func resolveBiasTensor(
 		return weights.Tensor(checkpointPath, biasName)
 	}
 
+	if weightName := weightTensorName(node); strings.HasSuffix(weightName, ".weight") && weights != nil {
+		inferredBiasName := strings.TrimSuffix(weightName, ".weight") + ".bias"
+		bias, err := weights.Tensor(checkpointPath, inferredBiasName)
+
+		if err == nil {
+			return bias, nil
+		}
+	}
+
 	return zeroBiasTensor(memory, node, storageDType)
 }
 
@@ -190,13 +252,18 @@ func zeroBiasTensor(
 	node *ir.Node,
 	storageDType dtype.DType,
 ) (tensor.Tensor, error) {
-	outputDims := node.Shape().Dims()
+	featureCount, err := nodeIntAttribute(node, "out_channels")
 
-	if len(outputDims) == 0 {
-		return nil, fmt.Errorf("runner: linear node %q has empty output shape", node.ID())
+	if err != nil {
+		outputDims := node.Shape().Dims()
+
+		if len(outputDims) == 0 {
+			return nil, fmt.Errorf("runner: bias node %q has empty output shape", node.ID())
+		}
+
+		featureCount = outputDims[len(outputDims)-1]
 	}
 
-	featureCount := outputDims[len(outputDims)-1]
 	biasShape, err := tensor.NewShape([]int{featureCount})
 
 	if err != nil {
@@ -253,10 +320,14 @@ func nodeStorageDType(
 		return storageDType
 	}
 
+	if node.OperationID() == ir.OpID("embedding.timestep") {
+		return normalizedNodeValueDType(node)
+	}
+
 	for _, inputNode := range node.Inputs() {
 		value, ok := tensorWorkspace.Load(inputNode.ID())
 
-		if !ok || inputNode.OpType() == ir.OpInput {
+		if !ok {
 			continue
 		}
 
@@ -273,6 +344,10 @@ func nodeStorageDType(
 		}
 	}
 
+	return normalizedNodeValueDType(node)
+}
+
+func normalizedNodeValueDType(node *ir.Node) dtype.DType {
 	storageDType := node.ValueType().DType
 
 	if storageDType == dtype.Invalid || storageDType == dtype.Float64 {
@@ -288,6 +363,14 @@ func weightStorageDType(
 	weights *weightCache,
 	bindings *manifestBindings,
 ) dtype.DType {
+	if weightDType, ok := node.Metadata()["weight_dtype"].(string); ok && weightDType != "" {
+		parsed, err := dtype.Parse(weightDType)
+
+		if err == nil {
+			return parsed
+		}
+	}
+
 	weightName := bindings.weightTensorName(node.ID())
 
 	if weightName == "" {
@@ -300,7 +383,7 @@ func weightStorageDType(
 		return dtype.Invalid
 	}
 
-	weight, err := weights.Tensor(weightPath, weightName)
+	weight, err := weights.TensorForNode(weightPath, weightName, node)
 
 	if err != nil {
 		return dtype.Invalid

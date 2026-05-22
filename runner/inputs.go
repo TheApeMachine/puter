@@ -42,6 +42,18 @@ func bindProgramInputs(
 			return fmt.Errorf("runner: missing graph input %q", node.ID())
 		}
 
+		if node.ID() == "timestep" {
+			divisor := timestepDivisorFromManifestGraph(manifestGraph)
+
+			scaled, err := scaleTimestepProgramInput(value, divisor)
+
+			if err != nil {
+				return fmt.Errorf("runner: bind input %q: %w", node.ID(), err)
+			}
+
+			value = scaled
+		}
+
 		resident, err := residentInputTensor(memory, node, value)
 
 		if err != nil {

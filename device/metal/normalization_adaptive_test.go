@@ -9,7 +9,27 @@ import (
 	"github.com/smartystreets/goconvey/convey"
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/dtype/convert"
+	"github.com/theapemachine/manifesto/tensor"
+	"github.com/theapemachine/puter/kernels"
 )
+
+func TestKernelRegistry_MetalAdaptiveRMSNormDTypes(testingObject *testing.T) {
+	for _, storageDType := range metalNormalizationDTypes {
+		storageDType := storageDType
+
+		testingObject.Run(storageDType.Name(), func(testingObject *testing.T) {
+			_, ok := kernels.Default.LookupLocation("adaptive_rmsnorm", kernels.Signature{
+				Layout:  tensor.LayoutDense,
+				Inputs:  []dtype.DType{storageDType, storageDType},
+				Outputs: []dtype.DType{storageDType},
+			}, tensor.Metal)
+
+			if !ok {
+				testingObject.Fatalf("missing Metal %s adaptive_rmsnorm kernel", storageDType.Name())
+			}
+		})
+	}
+}
 
 func TestMetalAdaptiveRMSNorm(t *testing.T) {
 	backend := newBackendForDeviceTest(t)

@@ -28,6 +28,28 @@ func TestKernelRegistry_MetalNorm3DDTypes(testingObject *testing.T) {
 	}
 }
 
+func TestKernelRegistry_MetalBatchNormDenormDTypes(testingObject *testing.T) {
+	for _, storageDType := range metalNormalizationDTypes {
+		storageDType := storageDType
+
+		testingObject.Run(storageDType.Name(), func(testingObject *testing.T) {
+			_, ok := kernels.Default.LookupLocation("batchnorm_denorm", kernels.Signature{
+				Layout: tensor.LayoutDense,
+				Inputs: []dtype.DType{
+					storageDType,
+					storageDType,
+					storageDType,
+				},
+				Outputs: []dtype.DType{storageDType},
+			}, tensor.Metal)
+
+			if !ok {
+				testingObject.Fatalf("missing Metal %s batchnorm_denorm kernel", storageDType.Name())
+			}
+		})
+	}
+}
+
 func TestMetalGroupNormNCHW(testingObject *testing.T) {
 	backend := newBackendForDeviceTest(testingObject)
 	defer func() {

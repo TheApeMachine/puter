@@ -3,6 +3,7 @@ package runner
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/ir"
@@ -42,14 +43,289 @@ func outputShapeForNode(
 		return concatOutputShape(node, tensorWorkspace)
 	case "swiglu":
 		return swiGLUOutputShape(node, tensorWorkspace)
-	case "rmsnorm", "layernorm", "modulated_layernorm", "gated_residual", "rope", "multi_axis_rope",
+	case "slice":
+		return sliceOutputShape(node, tensorWorkspace)
+	case "transpose":
+		return transposeOutputShape(node, tensorWorkspace)
+	case "reshape":
+		return reshapeOutputShape(node, tensorWorkspace)
+	case "conv2d":
+		return conv2DOutputShape(node, tensorWorkspace)
+	case "upsample_nearest2d":
+		return upsampleNearest2DOutputShape(node, tensorWorkspace)
+	case "rmsnorm", "layernorm", "groupnorm", "instancenorm", "batchnorm_eval",
+		"adaptive_rmsnorm", "batchnorm_denorm",
+		"modulated_layernorm", "gated_residual", "rope", "multi_axis_rope",
 		"relu", "gelu", "tanh", "sigmoid", "swish", "selu", "leaky_relu",
-		"slice", "transpose",
-		"reshape", "dropout", "softmax":
+		"dropout", "softmax":
 		return primaryFloatInputShape(node, tensorWorkspace)
 	default:
 		return node.Shape(), nil
 	}
+}
+
+func upsampleNearest2DOutputShape(
+	node *ir.Node,
+	tensorWorkspace *workspace,
+) (tensor.Shape, error) {
+	inputShape, err := primaryFloatInputShape(node, tensorWorkspace)
+	if err != nil {
+		return tensor.Shape{}, err
+	}
+
+	dims := append([]int(nil), inputShape.Dims()...)
+	if len(dims) != 4 {
+		return tensor.Shape{}, fmt.Errorf("runner: upsample_nearest2d node %q expects NCHW input", node.ID())
+	}
+
+	scaleHeight, err := nodeIntAttribute(node, "scale_h")
+	if err != nil {
+		scaleHeight = 1
+	}
+
+	scaleWidth, err := nodeIntAttribute(node, "scale_w")
+	if err != nil {
+		scaleWidth = 1
+	}
+
+	dims[2] *= scaleHeight
+	dims[3] *= scaleWidth
+
+	return tensor.NewShape(dims)
+}
+
+func conv2DOutputShape(
+	node *ir.Node,
+	tensorWorkspace *workspace,
+) (tensor.Shape, error) {
+	inputShape, err := primaryFloatInputShape(node, tensorWorkspace)
+	if err != nil {
+		return tensor.Shape{}, err
+	}
+
+	dims := inputShape.Dims()
+	if len(dims) != 4 {
+		return tensor.Shape{}, fmt.Errorf("runner: conv2d node %q expects NCHW input", node.ID())
+	}
+
+	outChannels, err := nodeIntAttribute(node, "out_channels")
+	if err != nil {
+		return tensor.Shape{}, err
+	}
+
+	kernelHeight, err := nodeIntAttribute(node, "kernel_h")
+	if err != nil {
+		return tensor.Shape{}, err
+	}
+
+	kernelWidth, err := nodeIntAttribute(node, "kernel_w")
+	if err != nil {
+		return tensor.Shape{}, err
+	}
+
+	strideHeight, err := nodeIntAttribute(node, "stride_h")
+	if err != nil {
+		strideHeight = 1
+	}
+
+	strideWidth, err := nodeIntAttribute(node, "stride_w")
+	if err != nil {
+		strideWidth = 1
+	}
+
+	paddingHeight, err := nodeIntAttribute(node, "pad_h")
+	if err != nil {
+		paddingHeight = 0
+	}
+
+	paddingWidth, err := nodeIntAttribute(node, "pad_w")
+	if err != nil {
+		paddingWidth = 0
+	}
+
+	outHeight := (dims[2]+2*paddingHeight-kernelHeight)/strideHeight + 1
+	outWidth := (dims[3]+2*paddingWidth-kernelWidth)/strideWidth + 1
+
+	if outHeight <= 0 || outWidth <= 0 {
+		return tensor.Shape{}, fmt.Errorf("runner: conv2d node %q has invalid output size", node.ID())
+	}
+
+	return tensor.NewShape([]int{dims[0], outChannels, outHeight, outWidth})
+}
+
+func reshapeOutputShape(
+	node *ir.Node,
+	tensorWorkspace *workspace,
+) (tensor.Shape, error) {
+	if dims, ok := reshapeDimsFromNode(node); ok {
+		return tensor.NewShape(dims)
+	}
+
+	return primaryFloatInputShape(node, tensorWorkspace)
+}
+
+func reshapeDimsFromNode(node *ir.Node) ([]int, bool) {
+	if metadata := node.Metadata(); metadata != nil {
+		if dims, ok := intSliceFromAny(metadata["shape"]); ok {
+			return dims, true
+		}
+	}
+
+	attribute := node.Attribute("shape")
+	if attribute.Value == "" {
+		return nil, false
+	}
+
+	value := strings.TrimSpace(attribute.Value)
+	value = strings.TrimPrefix(value, "[")
+	value = strings.TrimSuffix(value, "]")
+
+	parts := strings.Split(value, ",")
+	if len(parts) == 1 {
+		parts = strings.Fields(value)
+	}
+	dims := make([]int, 0, len(parts))
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		dimension, err := strconv.Atoi(part)
+		if err != nil {
+			return nil, false
+		}
+
+		dims = append(dims, dimension)
+	}
+
+	return dims, len(dims) > 0
+}
+
+func intSliceFromAny(value any) ([]int, bool) {
+	switch typed := value.(type) {
+	case []int:
+		return append([]int(nil), typed...), true
+	case []int64:
+		dims := make([]int, len(typed))
+
+		for index, dimension := range typed {
+			dims[index] = int(dimension)
+		}
+
+		return dims, true
+	case []any:
+		dims := make([]int, len(typed))
+
+		for index, raw := range typed {
+			switch dimension := raw.(type) {
+			case int:
+				dims[index] = dimension
+			case int64:
+				dims[index] = int(dimension)
+			case float64:
+				dims[index] = int(dimension)
+			default:
+				return nil, false
+			}
+		}
+
+		return dims, true
+	default:
+		return nil, false
+	}
+}
+
+func transposeOutputShape(
+	node *ir.Node,
+	tensorWorkspace *workspace,
+) (tensor.Shape, error) {
+	inputShape, err := primaryFloatInputShape(node, tensorWorkspace)
+	if err != nil {
+		return tensor.Shape{}, err
+	}
+
+	dims := append([]int(nil), inputShape.Dims()...)
+	dim0, err := nodeIntAttribute(node, "dim0")
+	if err != nil {
+		return tensor.Shape{}, err
+	}
+
+	dim1, err := nodeIntAttribute(node, "dim1")
+	if err != nil {
+		return tensor.Shape{}, err
+	}
+
+	if dim0 < 0 {
+		dim0 += len(dims)
+	}
+
+	if dim1 < 0 {
+		dim1 += len(dims)
+	}
+
+	if dim0 < 0 || dim0 >= len(dims) || dim1 < 0 || dim1 >= len(dims) {
+		return tensor.Shape{}, fmt.Errorf("runner: transpose node %q dims out of range", node.ID())
+	}
+
+	dims[dim0], dims[dim1] = dims[dim1], dims[dim0]
+
+	return tensor.NewShape(dims)
+}
+
+func sliceOutputShape(
+	node *ir.Node,
+	tensorWorkspace *workspace,
+) (tensor.Shape, error) {
+	inputShape, err := primaryFloatInputShape(node, tensorWorkspace)
+	if err != nil {
+		return tensor.Shape{}, err
+	}
+
+	dims := append([]int(nil), inputShape.Dims()...)
+	axis, err := nodeIntAttribute(node, "dim")
+	if err != nil {
+		return tensor.Shape{}, err
+	}
+
+	if axis < 0 {
+		axis += len(dims)
+	}
+
+	if axis < 0 || axis >= len(dims) {
+		return tensor.Shape{}, fmt.Errorf("runner: slice node %q axis %d out of range", node.ID(), axis)
+	}
+
+	start, err := nodeIntAttribute(node, "start")
+	if err != nil {
+		return tensor.Shape{}, err
+	}
+
+	end, err := nodeIntAttribute(node, "end")
+	if err != nil {
+		return tensor.Shape{}, err
+	}
+
+	if end == 0 {
+		end = dims[axis]
+	}
+
+	if start < 0 {
+		start += dims[axis]
+	}
+
+	if end < 0 {
+		end += dims[axis]
+	}
+
+	if start < 0 || end < start || end > dims[axis] {
+		return tensor.Shape{}, fmt.Errorf("runner: slice node %q bounds [%d:%d] out of range", node.ID(), start, end)
+	}
+
+	dims[axis] = end - start
+
+	return tensor.NewShape(dims)
 }
 
 func timestepOutputShape(
@@ -417,6 +693,14 @@ func embeddingHiddenSize(
 		weightName = weightTensorName(node)
 	}
 
+	if rawShape, ok := node.Metadata()["weight_shape"].([]int64); ok && len(rawShape) == 2 {
+		return int(rawShape[1]), nil
+	}
+
+	if rawShape, ok := node.Metadata()["weight_shape"].([]int); ok && len(rawShape) == 2 {
+		return rawShape[1], nil
+	}
+
 	weightPath := weightFilePath(node, checkpointPath)
 
 	if weightName != "" && weightPath != "" && weights != nil {
@@ -429,14 +713,6 @@ func embeddingHiddenSize(
 				return weightDims[1], nil
 			}
 		}
-	}
-
-	if rawShape, ok := node.Metadata()["weight_shape"].([]int64); ok && len(rawShape) == 2 {
-		return int(rawShape[1]), nil
-	}
-
-	if rawShape, ok := node.Metadata()["weight_shape"].([]int); ok && len(rawShape) == 2 {
-		return rawShape[1], nil
 	}
 
 	return 0, fmt.Errorf("runner: embedding node %q is missing weight hidden size", node.ID())

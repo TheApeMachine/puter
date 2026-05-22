@@ -14,65 +14,6 @@ static inline ushort float_to_bf16_norm(float value) {
     return ushort(as_type<uint>(value) >> 16);
 }
 
-static inline float refined_inv_sqrt_norm(float value) {
-    float estimate = 1.0f / precise::sqrt(value);
-    float halfValue = 0.5f * value;
-    estimate = estimate * (1.5f - halfValue * estimate * estimate);
-    return estimate;
-}
-
-static inline float2 ds_renorm(float high, float low) {
-    float sum = high + low;
-    float error = low - (sum - high);
-    return float2(sum, error);
-}
-
-static inline float2 ds_add_float(float2 value, float addend) {
-    float sum = value.x + addend;
-    float virtualAddend = sum - value.x;
-    float error = (value.x - (sum - virtualAddend)) + (addend - virtualAddend);
-    return ds_renorm(sum, value.y + error);
-}
-
-static inline float2 ds_add_pair(float2 left, float2 right) {
-    float2 withHigh = ds_add_float(left, right.x);
-    return ds_add_float(withHigh, right.y);
-}
-
-static inline float2 ds_neg(float2 value) {
-    return float2(-value.x, -value.y);
-}
-
-static inline float2 ds_sub_from_float(float value, float2 subtrahend) {
-    return ds_add_float(ds_neg(subtrahend), value);
-}
-
-static inline float2 ds_mul_pair(float2 left, float2 right) {
-    float product = left.x * right.x;
-    float error = fma(left.x, right.x, -product) + left.x * right.y + left.y * right.x;
-    return ds_renorm(product, error);
-}
-
-static inline float2 ds_mul_float(float2 value, float scalar) {
-    float product = value.x * scalar;
-    float error = fma(value.x, scalar, -product) + value.y * scalar;
-    return ds_renorm(product, error);
-}
-
-static inline float2 ds_div_count(float2 value, uint count) {
-    return ds_mul_float(value, 1.0f / float(count));
-}
-
-static inline float ds_to_float(float2 value) {
-    return value.x + value.y;
-}
-
-static inline float ds_inv_sqrt(float2 value, float epsilon) {
-    float high = value.x + epsilon;
-    float estimate = refined_inv_sqrt_norm(high);
-    return estimate * (1.0f - 0.5f * value.y / high);
-}
-
 struct Float32NormStorage {
     static float load(device const float* values, uint index) {
         return values[index];

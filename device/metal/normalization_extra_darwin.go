@@ -211,7 +211,12 @@ func requireMetalAffineNorm3D(
 	}
 
 	if !config.input.shape.Equal(config.out.shape) {
-		return metalNorm3DConfig{}, tensor.ErrShapeMismatch
+		return metalNorm3DConfig{}, fmt.Errorf(
+			"metal affine norm: input shape %v != out shape %v: %w",
+			config.input.shape.Dims(),
+			config.out.shape.Dims(),
+			tensor.ErrShapeMismatch,
+		)
 	}
 
 	if err := config.withDims(); err != nil {
@@ -219,11 +224,21 @@ func requireMetalAffineNorm3D(
 	}
 
 	if err := requireMetalNorm1DParam(config.scale, int(config.channels)); err != nil {
-		return metalNorm3DConfig{}, err
+		return metalNorm3DConfig{}, fmt.Errorf(
+			"metal affine norm: scale shape %v does not match channels %d: %w",
+			config.scale.shape.Dims(),
+			config.channels,
+			err,
+		)
 	}
 
 	if err := requireMetalNorm1DParam(config.bias, int(config.channels)); err != nil {
-		return metalNorm3DConfig{}, err
+		return metalNorm3DConfig{}, fmt.Errorf(
+			"metal affine norm: bias shape %v does not match channels %d: %w",
+			config.bias.shape.Dims(),
+			config.channels,
+			err,
+		)
 	}
 
 	elementDType, err := metalElementDTypeFor(config.input.dtype)

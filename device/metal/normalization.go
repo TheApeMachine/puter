@@ -16,10 +16,58 @@ func init() {
 	for _, storageDType := range metalNormalizationDTypes {
 		registerMetalLayerNormKernel(storageDType)
 		registerMetalRMSNormKernel(storageDType)
+		registerMetalAdaptiveRMSNormKernel(storageDType)
 		registerMetalGroupNormKernel(storageDType)
 		registerMetalInstanceNormKernel(storageDType)
+		registerMetalBatchNormDenormKernel(storageDType)
 		registerMetalBatchNormEvalKernel(storageDType)
 	}
+}
+
+func registerMetalBatchNormDenormKernel(storageDType dtype.DType) {
+	kernels.Default.Register(kernels.Kernel{
+		Name: "batchnorm_denorm",
+		Signature: kernels.Signature{
+			Layout: tensor.LayoutDense,
+			Inputs: []dtype.DType{
+				storageDType, storageDType, storageDType,
+			},
+			Outputs: []dtype.DType{storageDType},
+		},
+		Locations: []tensor.Location{tensor.Metal},
+		Run:       runMetalBatchNormDenormKernel,
+	})
+}
+
+func runMetalBatchNormDenormKernel(args ...tensor.Tensor) error {
+	if len(args) != 4 {
+		return tensor.ErrShapeMismatch
+	}
+
+	return runMetalBatchNormDenorm(args[0], args[1], args[2], args[3])
+}
+
+func registerMetalAdaptiveRMSNormKernel(storageDType dtype.DType) {
+	kernels.Default.Register(kernels.Kernel{
+		Name: "adaptive_rmsnorm",
+		Signature: kernels.Signature{
+			Layout: tensor.LayoutDense,
+			Inputs: []dtype.DType{
+				storageDType, storageDType,
+			},
+			Outputs: []dtype.DType{storageDType},
+		},
+		Locations: []tensor.Location{tensor.Metal},
+		Run:       runMetalAdaptiveRMSNormKernel,
+	})
+}
+
+func runMetalAdaptiveRMSNormKernel(args ...tensor.Tensor) error {
+	if len(args) != 3 {
+		return tensor.ErrShapeMismatch
+	}
+
+	return runMetalAdaptiveRMSNorm(args[0], args[1], args[2])
 }
 
 func registerMetalLayerNormKernel(storageDType dtype.DType) {

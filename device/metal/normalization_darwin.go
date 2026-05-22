@@ -310,6 +310,15 @@ func (backend *Backend) BatchNormDenorm(
 	variance tensor.Tensor,
 	out tensor.Tensor,
 ) error {
+	return runMetalBatchNormDenorm(input, mean, variance, out)
+}
+
+func runMetalBatchNormDenorm(
+	input tensor.Tensor,
+	mean tensor.Tensor,
+	variance tensor.Tensor,
+	out tensor.Tensor,
+) error {
 	inputTensor, meanTensor, varianceTensor, outTensor, rows, channels, spatial, err :=
 		requireMetalBatchNormDenorm(input, mean, variance, out)
 	if err != nil {

@@ -355,6 +355,36 @@ func requireMetalAttentionSameDTypeAndBridge(config metalAttentionConfig) error 
 	return nil
 }
 
+func metalAttentionSeqDepth(shapeDims []int, elementCount int) (int, int, error) {
+	if len(shapeDims) < 3 {
+		return 0, 0, tensor.ErrShapeMismatch
+	}
+
+	headDim := shapeDims[len(shapeDims)-1]
+
+	if headDim <= 0 {
+		return 0, 0, tensor.ErrShapeMismatch
+	}
+
+	depth := headDim
+
+	if len(shapeDims) >= 4 {
+		numHeads := shapeDims[len(shapeDims)-2]
+
+		if numHeads <= 0 {
+			return 0, 0, tensor.ErrShapeMismatch
+		}
+
+		depth = numHeads * headDim
+	}
+
+	if depth <= 0 || elementCount%depth != 0 {
+		return 0, 0, tensor.ErrShapeMismatch
+	}
+
+	return elementCount / depth, depth, nil
+}
+
 func requireMetalAttentionDims(config *metalAttentionConfig) error {
 	queryDims := config.query.shape.Dims()
 	keyDims := config.key.shape.Dims()
@@ -366,22 +396,48 @@ func requireMetalAttentionDims(config *metalAttentionConfig) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	seqQ := config.query.shape.Len() / (queryDims[len(queryDims)-2] * queryDims[len(queryDims)-1])
-	seqK := config.key.shape.Len() / (keyDims[len(keyDims)-2] * keyDims[len(keyDims)-1])
-	depth := queryDims[len(queryDims)-1]
-	valueDim := valueDims[len(valueDims)-1]
+	seqQ, depth, err := metalAttentionSeqDepth(queryDims, config.query.shape.Len())
 
-	if keyDims[len(keyDims)-1] != depth {
-		fmt.Printf("requireMetalAttentionDims: headDim mismatch: q=%v, k=%v\n", queryDims, keyDims)
+	if err != nil {
+		return err
+	}
+
+	seqK, keyDepth, err := metalAttentionSeqDepth(keyDims, config.key.shape.Len())
+
+	if err != nil {
+		return err
+	}
+
+	_, valueDim, err := metalAttentionSeqDepth(valueDims, config.value.shape.Len())
+
+	if err != nil {
+		return err
+	}
+
+	if keyDepth != depth {
+		fmt.Printf(
+			"requireMetalAttentionDims: Q/K depth mismatch: q=%v k=%v depths=%d/%d\n",
+			queryDims,
+			keyDims,
+			depth,
+			keyDepth,
+		)
+
 		return tensor.ErrShapeMismatch
 	}
 
-	if outDims[len(outDims)-1] != valueDim {
-		fmt.Printf("requireMetalAttentionDims: outDim mismatch: out=%v, v=%v\n", outDims, valueDims)
+	if config.out.shape.Len() != seqQ*valueDim {
+		fmt.Printf(
+			"requireMetalAttentionDims: output len %d != seqQ*valueDim %d*%d\n",
+			config.out.shape.Len(),
+			seqQ,
+			valueDim,
+		)
+
 		return tensor.ErrShapeMismatch
 	}
 
-	if depth <= 0 || seqK <= 0 || valueDim <= 0 {
+	if seqK <= 0 {
 		return tensor.ErrShapeMismatch
 	}
 
@@ -393,6 +449,7 @@ func requireMetalAttentionDims(config *metalAttentionConfig) error {
 	config.seqK = uint32(seqK)
 	config.depth = uint32(depth)
 	config.valueDim = uint32(valueDim)
+
 	return nil
 }
 

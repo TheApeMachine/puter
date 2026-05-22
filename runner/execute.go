@@ -35,6 +35,8 @@ func executeGraph(
 		}
 	}
 
+	remainingUses := tensorUseCounts(computeGraph)
+
 	for _, layer := range plan.Layers {
 		for _, nodeID := range layer {
 			node := findComputeNode(computeGraph, nodeID)
@@ -54,10 +56,41 @@ func executeGraph(
 			); err != nil {
 				return fmt.Errorf("runner: node %q: %w", node.ID(), err)
 			}
+
+			releaseConsumedTensors(node, remainingUses, tensorWorkspace)
 		}
 	}
 
 	return nil
+}
+
+func tensorUseCounts(computeGraph *ir.Graph) map[string]int {
+	counts := make(map[string]int)
+
+	for _, node := range computeGraph.Nodes() {
+		for _, inputNode := range node.Inputs() {
+			counts[inputNode.ID()]++
+		}
+	}
+
+	return counts
+}
+
+func releaseConsumedTensors(
+	node *ir.Node,
+	remainingUses map[string]int,
+	tensorWorkspace *workspace,
+) {
+	for _, inputNode := range node.Inputs() {
+		inputID := inputNode.ID()
+		remainingUses[inputID]--
+
+		if remainingUses[inputID] > 0 {
+			continue
+		}
+
+		tensorWorkspace.ReleaseOwned(inputID)
+	}
 }
 
 func findComputeNode(computeGraph *ir.Graph, nodeID string) *ir.Node {

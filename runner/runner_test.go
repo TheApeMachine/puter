@@ -238,6 +238,105 @@ func TestModulatedLayerNormOutputShapeForNode(testingObject *testing.T) {
 	})
 }
 
+func TestBatchNormDenormOutputShapeForNode(testingObject *testing.T) {
+	convey.Convey("Given a batchnorm denorm node with runtime input shape", testingObject, func() {
+		inputShape, err := tensor.NewShape([]int{1, 128, 64, 64})
+		convey.So(err, convey.ShouldBeNil)
+
+		staleShape, err := tensor.NewShape([]int{1, 1, 1, 1})
+		convey.So(err, convey.ShouldBeNil)
+
+		inputNode := manifestComputeNode("packed_latent", "input", ir.OpInput, inputShape)
+		normNode := manifestComputeNode("bn", "math.batchnorm_denorm", ir.OpFused, staleShape)
+		normNode.AddInput(inputNode)
+		setFloat32ValueType(inputNode)
+		setFloat32ValueType(normNode)
+
+		input, err := tensor.NewZeroed(inputShape, dtype.BFloat16)
+		convey.So(err, convey.ShouldBeNil)
+
+		tensorWorkspace := newWorkspace()
+		defer tensorWorkspace.Close()
+		tensorWorkspace.Store("packed_latent", input)
+
+		convey.Convey("It should preserve the actual input shape", func() {
+			shape, err := outputShapeForNode(normNode, "batchnorm_denorm", tensorWorkspace, "", nil, newManifestBindings(nil))
+
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(shape.Dims(), convey.ShouldResemble, []int{1, 128, 64, 64})
+		})
+	})
+}
+
+func TestConv2DOutputShapeForNode(testingObject *testing.T) {
+	convey.Convey("Given a conv2d node with runtime input shape", testingObject, func() {
+		inputShape, err := tensor.NewShape([]int{1, 32, 128, 128})
+		convey.So(err, convey.ShouldBeNil)
+
+		staleShape, err := tensor.NewShape([]int{1, 1, 1, 1})
+		convey.So(err, convey.ShouldBeNil)
+
+		inputNode := manifestComputeNode("latent_image", "input", ir.OpInput, inputShape)
+		convNode := manifestComputeNode("post_quant_conv", "convolution.conv2d", ir.OpFused, staleShape)
+		convNode.AddInput(inputNode)
+		convNode.SetAttribute("out_channels", ir.IntAttribute(32))
+		convNode.SetAttribute("kernel_h", ir.IntAttribute(1))
+		convNode.SetAttribute("kernel_w", ir.IntAttribute(1))
+		convNode.SetAttribute("stride_h", ir.IntAttribute(1))
+		convNode.SetAttribute("stride_w", ir.IntAttribute(1))
+		convNode.SetAttribute("pad_h", ir.IntAttribute(0))
+		convNode.SetAttribute("pad_w", ir.IntAttribute(0))
+		setFloat32ValueType(inputNode)
+		setFloat32ValueType(convNode)
+
+		input, err := tensor.NewZeroed(inputShape, dtype.BFloat16)
+		convey.So(err, convey.ShouldBeNil)
+
+		tensorWorkspace := newWorkspace()
+		defer tensorWorkspace.Close()
+		tensorWorkspace.Store("latent_image", input)
+
+		convey.Convey("It should derive the convolution output shape", func() {
+			shape, err := outputShapeForNode(convNode, "conv2d", tensorWorkspace, "", nil, newManifestBindings(nil))
+
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(shape.Dims(), convey.ShouldResemble, []int{1, 32, 128, 128})
+		})
+	})
+}
+
+func TestUpsampleNearest2DOutputShapeForNode(testingObject *testing.T) {
+	convey.Convey("Given an upsample nearest2d node with runtime input shape", testingObject, func() {
+		inputShape, err := tensor.NewShape([]int{1, 512, 128, 128})
+		convey.So(err, convey.ShouldBeNil)
+
+		staleShape, err := tensor.NewShape([]int{1, 512, 128, 128})
+		convey.So(err, convey.ShouldBeNil)
+
+		inputNode := manifestComputeNode("up0_h2", "input", ir.OpInput, inputShape)
+		upsampleNode := manifestComputeNode("up0_nearest", "shape.upsample_nearest2d", ir.OpFused, staleShape)
+		upsampleNode.AddInput(inputNode)
+		upsampleNode.SetAttribute("scale_h", ir.IntAttribute(2))
+		upsampleNode.SetAttribute("scale_w", ir.IntAttribute(2))
+		setFloat32ValueType(inputNode)
+		setFloat32ValueType(upsampleNode)
+
+		input, err := tensor.NewZeroed(inputShape, dtype.BFloat16)
+		convey.So(err, convey.ShouldBeNil)
+
+		tensorWorkspace := newWorkspace()
+		defer tensorWorkspace.Close()
+		tensorWorkspace.Store("up0_h2", input)
+
+		convey.Convey("It should scale the spatial dimensions", func() {
+			shape, err := outputShapeForNode(upsampleNode, "upsample_nearest2d", tensorWorkspace, "", nil, newManifestBindings(nil))
+
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(shape.Dims(), convey.ShouldResemble, []int{1, 512, 256, 256})
+		})
+	})
+}
+
 func TestMultiAxisRoPEOutputShapeForNode(testingObject *testing.T) {
 	convey.Convey("Given a multi-axis RoPE node with runtime input shape", testingObject, func() {
 		inputShape, err := tensor.NewShape([]int{1, 5120, 24, 128})
@@ -264,6 +363,181 @@ func TestMultiAxisRoPEOutputShapeForNode(testingObject *testing.T) {
 
 			convey.So(err, convey.ShouldBeNil)
 			convey.So(shape.Dims(), convey.ShouldResemble, []int{1, 5120, 24, 128})
+		})
+	})
+}
+
+func TestSliceOutputShapeForNode(testingObject *testing.T) {
+	convey.Convey("Given a slice node with runtime input shape", testingObject, func() {
+		inputShape, err := tensor.NewShape([]int{1, 5120, 3072})
+		convey.So(err, convey.ShouldBeNil)
+
+		staleShape, err := tensor.NewShape([]int{1, 1, 3072})
+		convey.So(err, convey.ShouldBeNil)
+
+		inputNode := manifestComputeNode("joint", "input", ir.OpInput, inputShape)
+		sliceNode := manifestComputeNode("context_slice", "shape.slice", ir.OpFused, staleShape)
+		sliceNode.AddInput(inputNode)
+		sliceNode.SetAttribute("dim", ir.IntAttribute(1))
+		sliceNode.SetAttribute("start", ir.IntAttribute(0))
+		sliceNode.SetAttribute("end", ir.IntAttribute(1024))
+		setFloat32ValueType(inputNode)
+		setFloat32ValueType(sliceNode)
+
+		input, err := tensor.NewZeroed(inputShape, dtype.Float32)
+		convey.So(err, convey.ShouldBeNil)
+
+		tensorWorkspace := newWorkspace()
+		defer tensorWorkspace.Close()
+		tensorWorkspace.Store("joint", input)
+
+		convey.Convey("It should use the bounded slice length", func() {
+			shape, err := outputShapeForNode(sliceNode, "slice", tensorWorkspace, "", nil, newManifestBindings(nil))
+
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(shape.Dims(), convey.ShouldResemble, []int{1, 1024, 3072})
+		})
+	})
+}
+
+func TestTransposeOutputShapeForNode(testingObject *testing.T) {
+	convey.Convey("Given a transpose node with runtime input shape", testingObject, func() {
+		inputShape, err := tensor.NewShape([]int{1, 64, 64, 128})
+		convey.So(err, convey.ShouldBeNil)
+
+		staleShape, err := tensor.NewShape([]int{1, 64, 64, 128})
+		convey.So(err, convey.ShouldBeNil)
+
+		inputNode := manifestComputeNode("packed_grid", "input", ir.OpInput, inputShape)
+		transposeNode := manifestComputeNode("vae.unpack.pack_t23", "shape.transpose", ir.OpFused, staleShape)
+		transposeNode.AddInput(inputNode)
+		transposeNode.SetAttribute("dim0", ir.IntAttribute(2))
+		transposeNode.SetAttribute("dim1", ir.IntAttribute(3))
+		setFloat32ValueType(inputNode)
+		setFloat32ValueType(transposeNode)
+
+		input, err := tensor.NewZeroed(inputShape, dtype.BFloat16)
+		convey.So(err, convey.ShouldBeNil)
+
+		tensorWorkspace := newWorkspace()
+		defer tensorWorkspace.Close()
+		tensorWorkspace.Store("packed_grid", input)
+
+		convey.Convey("It should swap the requested dimensions", func() {
+			shape, err := outputShapeForNode(transposeNode, "transpose", tensorWorkspace, "", nil, newManifestBindings(nil))
+
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(shape.Dims(), convey.ShouldResemble, []int{1, 64, 128, 64})
+		})
+	})
+}
+
+func TestReshapeOutputShapeForNode(testingObject *testing.T) {
+	convey.Convey("Given a reshape node with manifest target shape", testingObject, func() {
+		inputShape, err := tensor.NewShape([]int{1, 4096, 128})
+		convey.So(err, convey.ShouldBeNil)
+
+		staleShape, err := tensor.NewShape([]int{1, 4096, 128})
+		convey.So(err, convey.ShouldBeNil)
+
+		inputNode := manifestComputeNode("latents", "input", ir.OpInput, inputShape)
+		reshapeNode := manifestComputeNode("vae.unpack.grid", "shape.reshape", ir.OpFused, staleShape)
+		reshapeNode.AddInput(inputNode)
+		reshapeNode.SetAttribute("shape", ir.StringAttribute("[1,64,64,128]"))
+		setFloat32ValueType(inputNode)
+		setFloat32ValueType(reshapeNode)
+
+		input, err := tensor.NewZeroed(inputShape, dtype.BFloat16)
+		convey.So(err, convey.ShouldBeNil)
+
+		tensorWorkspace := newWorkspace()
+		defer tensorWorkspace.Close()
+		tensorWorkspace.Store("latents", input)
+
+		convey.Convey("It should allocate the manifest target shape", func() {
+			shape, err := outputShapeForNode(reshapeNode, "reshape", tensorWorkspace, "", nil, newManifestBindings(nil))
+
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(shape.Dims(), convey.ShouldResemble, []int{1, 64, 64, 128})
+		})
+	})
+}
+
+func TestReshapeOutputShapeForLoweredListAttribute(testingObject *testing.T) {
+	convey.Convey("Given a reshape node with a lowered YAML list attribute", testingObject, func() {
+		inputShape, err := tensor.NewShape([]int{1, 4096, 128})
+		convey.So(err, convey.ShouldBeNil)
+
+		inputNode := manifestComputeNode("latents", "input", ir.OpInput, inputShape)
+		reshapeNode := manifestComputeNode("vae.unpack.grid", "shape.reshape", ir.OpFused, inputShape)
+		reshapeNode.AddInput(inputNode)
+		reshapeNode.SetAttribute("shape", ir.StringAttribute("[1 64 64 128]"))
+
+		input, err := tensor.NewZeroed(inputShape, dtype.BFloat16)
+		convey.So(err, convey.ShouldBeNil)
+
+		tensorWorkspace := newWorkspace()
+		defer tensorWorkspace.Close()
+		tensorWorkspace.Store("latents", input)
+
+		convey.Convey("It should parse the whitespace separated dimensions", func() {
+			shape, err := outputShapeForNode(reshapeNode, "reshape", tensorWorkspace, "", nil, newManifestBindings(nil))
+
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(shape.Dims(), convey.ShouldResemble, []int{1, 64, 64, 128})
+		})
+	})
+}
+
+func TestNodeStorageDTypeUsesRuntimeInputTensor(testingObject *testing.T) {
+	convey.Convey("Given a shape op whose input is a graph input node", testingObject, func() {
+		inputShape, err := tensor.NewShape([]int{1, 4096, 128})
+		convey.So(err, convey.ShouldBeNil)
+
+		inputNode := manifestComputeNode("latents", "input", ir.OpInput, inputShape)
+		reshapeNode := manifestComputeNode("vae.unpack.grid", "shape.reshape", ir.OpFused, inputShape)
+		reshapeNode.AddInput(inputNode)
+
+		input, err := tensor.NewZeroed(inputShape, dtype.BFloat16)
+		convey.So(err, convey.ShouldBeNil)
+
+		tensorWorkspace := newWorkspace()
+		defer tensorWorkspace.Close()
+		tensorWorkspace.Store("latents", input)
+
+		convey.Convey("It should preserve the resident input dtype", func() {
+			storageDType := nodeStorageDType(reshapeNode, tensorWorkspace, "", nil, newManifestBindings(nil))
+
+			convey.So(storageDType, convey.ShouldEqual, dtype.BFloat16)
+		})
+	})
+}
+
+func TestNodeStorageDTypeUsesValueTypeForTimestep(testingObject *testing.T) {
+	convey.Convey("Given a timestep embedding fed by an F32 scalar input", testingObject, func() {
+		inputShape, err := tensor.NewShape([]int{1})
+		convey.So(err, convey.ShouldBeNil)
+
+		outputShape, err := tensor.NewShape([]int{1, 256})
+		convey.So(err, convey.ShouldBeNil)
+
+		inputNode := manifestComputeNode("timestep", "input", ir.OpInput, inputShape)
+		timestepNode := manifestComputeNode("time_proj", "embedding.timestep", ir.OpFused, outputShape)
+		timestepNode.AddInput(inputNode)
+		setFloat32ValueType(inputNode)
+		timestepNode.SetValueType(ir.ValueType{DType: dtype.BFloat16})
+
+		input, err := tensor.NewZeroed(inputShape, dtype.Float32)
+		convey.So(err, convey.ShouldBeNil)
+
+		tensorWorkspace := newWorkspace()
+		defer tensorWorkspace.Close()
+		tensorWorkspace.Store("timestep", input)
+
+		convey.Convey("It should use the lowered output dtype", func() {
+			storageDType := nodeStorageDType(timestepNode, tensorWorkspace, "", nil, newManifestBindings(nil))
+
+			convey.So(storageDType, convey.ShouldEqual, dtype.BFloat16)
 		})
 	})
 }

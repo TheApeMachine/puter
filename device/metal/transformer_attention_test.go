@@ -39,6 +39,7 @@ func testMetalAttentionDType(
 			convey.Convey("Given Metal "+storageDType.Name()+" transformer tensors", testingObject, func() {
 				runAttentionParityCase(testingObject, backend, storageDType, elementCount)
 				runFlashAttentionParityCase(testingObject, backend, storageDType, elementCount)
+				runFlashAttentionMultiHeadParityCase(testingObject, backend, storageDType, elementCount)
 			})
 		})
 	}
@@ -72,6 +73,32 @@ func runFlashAttentionParityCase(
 	fixture := flashAttentionFixtureForTest(seqQ, seqK, depth, valueDim, storageDType)
 	query, key, value, out := attentionTensorsForTest(
 		testingObject, backend, seqQ, seqK, depth, valueDim, storageDType, fixture,
+	)
+	defer closeBenchmarkTensors(query, key, value, out)
+
+	err := lookupFlashAttentionKernel(testingObject, storageDType).Run(query, key, value, out)
+	convey.So(err, convey.ShouldBeNil)
+	assertAttentionBytesForTest(testingObject, backend, out, storageDType, fixture)
+}
+
+func runFlashAttentionMultiHeadParityCase(
+	testingObject testing.TB,
+	backend *Backend,
+	storageDType dtype.DType,
+	headDim int,
+) {
+	seqQ, seqK, numHeads := 5, 7, 4
+	depth := numHeads * headDim
+	fixture := flashAttentionFixtureForTest(seqQ, seqK, depth, depth, storageDType)
+	query, key, value, out := attentionTensors4DForTest(
+		testingObject,
+		backend,
+		seqQ,
+		seqK,
+		numHeads,
+		headDim,
+		storageDType,
+		fixture,
 	)
 	defer closeBenchmarkTensors(query, key, value, out)
 
@@ -154,6 +181,53 @@ func attentionTensorsForTest(
 		testingObject, backend, mustShapeForTest(testingObject, []int{seqQ, 1, valueDim}),
 		storageDType,
 	)
+
+	return query, key, value, out
+}
+
+func attentionTensors4DForTest(
+	testingObject testing.TB,
+	backend *Backend,
+	seqQ int,
+	seqK int,
+	numHeads int,
+	headDim int,
+	storageDType dtype.DType,
+	fixture attentionFixture,
+) (tensor.Tensor, tensor.Tensor, tensor.Tensor, tensor.Tensor) {
+	testingObject.Helper()
+
+	depth := numHeads * headDim
+
+	query := uploadDTypeTensorForTest(
+		testingObject,
+		backend,
+		mustShapeForTest(testingObject, []int{1, seqQ, numHeads, headDim}),
+		storageDType,
+		fixture.queryBytes,
+	)
+	key := uploadDTypeTensorForTest(
+		testingObject,
+		backend,
+		mustShapeForTest(testingObject, []int{1, seqK, numHeads, headDim}),
+		storageDType,
+		fixture.keyBytes,
+	)
+	value := uploadDTypeTensorForTest(
+		testingObject,
+		backend,
+		mustShapeForTest(testingObject, []int{1, seqK, numHeads, headDim}),
+		storageDType,
+		fixture.valueBytes,
+	)
+	out := emptyTensorForTest(
+		testingObject,
+		backend,
+		mustShapeForTest(testingObject, []int{1, seqQ, numHeads, headDim}),
+		storageDType,
+	)
+
+	_ = depth
 
 	return query, key, value, out
 }

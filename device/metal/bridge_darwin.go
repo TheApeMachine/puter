@@ -643,6 +643,10 @@ func requireMetalTensor(input tensor.Tensor) (*metalTensor, error) {
 		return nil, tensor.ErrTensorClosed
 	}
 
+	if err := target.Sync(context.Background()); err != nil {
+		return nil, err
+	}
+
 	return target, nil
 }
 

@@ -80,3 +80,26 @@ func (tensorWorkspace *workspace) Close() {
 		delete(tensorWorkspace.owned, nodeID)
 	}
 }
+
+/*
+ReleaseOwned closes and removes one owned workspace tensor when its last consumer finishes.
+Borrowed graph inputs and external state tensors are left untouched.
+*/
+func (tensorWorkspace *workspace) ReleaseOwned(nodeID string) {
+	tensorWorkspace.mu.Lock()
+	defer tensorWorkspace.mu.Unlock()
+
+	if !tensorWorkspace.owned[nodeID] {
+		return
+	}
+
+	value, ok := tensorWorkspace.tensors[nodeID]
+
+	if !ok {
+		return
+	}
+
+	_ = value.Close()
+	delete(tensorWorkspace.tensors, nodeID)
+	delete(tensorWorkspace.owned, nodeID)
+}
