@@ -562,3 +562,39 @@ Acceptance gates:
 - The dispatch audit reports complete operation/dtype/backend coverage.
 - Every remaining scalar Go implementation is the scalar reference, not the implementation used by a native backend entry.
 
+---
+
+Based on a deep dive into your architecture, your framework is extremely well-structured, but you are leaving significant performance on the table in a few key areas. Because you are bridging a highly concurrent language (Go) with a low-level GPU API (Metal), the bottlenecks are primarily located at the boundaries between these systems, in memory lifecycle management, and in shader-level hardware utilization.
+
+Here is a conceptual breakdown of where performance is leaking and how to resolve it:
+
+### 1. The CGO Callback & Synchronization Bottleneck
+**Where it's happening:** Every time a kernel is dispatched, you call `metalCompletions.Begin()`, pass a `completionToken` to Metal, and attach an `addCompletedHandler:` to the `MTLCommandBuffer`. When the GPU finishes, it fires a CGO callback (`metalCommandCompleted`) back into Go to unblock the tensor's state machine.
+**The Impact:** Your `sample` dump from the previous output shows exactly what this causes: massive thread thrashing. The Go scheduler and macOS kernel are spending a huge amount of time in `_pthread_cond_wait` and `kevent`. You are paying a heavy cross-language context-switch penalty for *every single operation* in the graph.
+**How to resolve it:** 
+Stop synchronizing per-node. The GPU executes command buffers sequentially anyway. You only need to synchronize CPU and GPU at the very end of the forward pass (e.g., when reading the final logits). Remove the per-node completion handlers. Instead, let the Go loop rapidly encode the entire graph into the command buffer(s) completely asynchronously, and only block on a single `MTLSharedEvent` or a single completion handler at the end of the step.
+
+### 2. Intermediate Memory Allocation and Zeroing
+**Where it's happening:** In `runner/dispatch.go`, every node dynamically resolves its output shape and calls `allocateTensor` (which calls `NewZeroed` / `metal_buffer_new_shared`). While you have a `metalBufferPool` to recycle buffers, pooling still incurs locking overhead. More importantly, calling `memset` to zero out intermediate activations on every forward pass consumes massive amounts of memory bandwidth.
+**The Impact:** Memory allocation and zero-filling take up time that the GPU could spend computing. 
+**How to resolve it:**
+Implement **Static Memory Planning**. Because your graph IR and execution plans are known ahead of time, you can calculate the exact lifespan and peak memory footprint of all intermediate tensors. 
+Allocate a single, massive `MTLHeap` or `MTLBuffer` (an Arena) at model load time. Instead of giving each tensor its own buffer, give each tensor an *offset* into this giant buffer. Furthermore, drop the strict requirement to zero out memory (`NewZeroed`) for intermediate activations; unless an operation specifically requires a zeroed canvas (like a scatter or certain sparse ops), subsequent dense kernels will just overwrite the garbage data anyway.
+
+### 3. Missing AMX (Apple Matrix Coprocessor) Utilization
+**Where it's happening:** In `matmul.metal` and `vision.metal`, you have written highly readable, custom MSL kernels for matrix multiplication and convolutions using 16x16 threadgroup memory tiling.
+**The Impact:** Apple Silicon (M1/M2/M3/M4) contains undocumented matrix coprocessors (AMX) that are orders of magnitude faster than standard GPU ALUs for dense matrix math. Custom MSL kernels *cannot* trigger AMX instructions; they only run on the standard GPU cores.
+**How to resolve it:**
+For heavy lifting (Linear, Matmul, Conv2D/3D), abandon your custom MSL kernels. Route these specific operations to `MetalPerformanceShaders` (MPS). You are already using `MPSMatrixDecompositionCholesky` in your code; you should use `MPSMatrixMultiplication` or `MPSGraph` for your dense projections. Save your custom MSL exclusively for things MPS doesn't support well, like custom activations (SwiGLU), specialized RoPE implementations, or custom loss functions.
+
+### 4. Sub-optimal Shader Reductions (SIMD vs. Threadgroup)
+**Where it's happening:** In `softmax.metal`, `loss.metal`, and `normalization.metal`, your reduction patterns (finding max, sums, variances) rely on arrays in `threadgroup` memory and loop with `threadgroup_barrier`.
+**The Impact:** Threadgroup memory (Local Data Share) is fast, but registers are faster. Forcing a threadgroup barrier at every reduction step halts execution across the entire block, leaving GPU cores idle.
+**How to resolve it:**
+Utilize Metal's `simdgroup` (warp-level) intrinsic functions. Apple GPUs execute threads in SIMD groups of 32. You can use `simd_sum()`, `simd_max()`, and `simd_broadcast()` to reduce data instantly across 32 threads using hardware registers with zero barrier overhead. You should only drop down to `threadgroup` memory to combine the final results of the individual SIMD groups.
+
+### 5. CGO Dispatch Loop Overhead
+**Where it's happening:** Your execution loop in Go iterates through `plan.Layers` and calls down into CGO for every node.
+**The Impact:** Even if you remove the completion handlers, making 5,000+ CGO calls per inference step (for a large LLM) creates CPU-bound overhead.
+**How to resolve it:**
+If the graph shape is static, you can use Metal Indirect Command Buffers (ICBs). You encode the execution sequence of the entire model into the GPU once. On subsequent inference steps, you issue a *single* CGO call telling the GPU to execute the ICB. If ICBs are too rigid for your dynamic shapes, consider passing the entire `ExecutionPlan` array down to Objective-C in a single CGO call, and writing a tight `for` loop in C that encodes the whole graph without bouncing back and forth across the language boundary.

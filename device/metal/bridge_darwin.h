@@ -130,7 +130,9 @@ MetalDeviceRef metal_open_default_device(
 );
 long long metal_recommended_max_working_set(MetalDeviceRef contextRef);
 void metal_begin_batch(MetalDeviceRef contextRef);
-void metal_end_batch(MetalDeviceRef contextRef);
+void metal_end_batch(MetalDeviceRef contextRef, MetalStatus* status);
+void metal_layer_begin(MetalDeviceRef contextRef);
+int metal_layer_end(MetalDeviceRef contextRef, MetalStatus* status);
 MetalBufferRef metal_buffer_new_shared(MetalDeviceRef contextRef, long long bytes);
 void metal_buffer_release(MetalBufferRef bufferRef);
 void* metal_buffer_contents(MetalBufferRef bufferRef);

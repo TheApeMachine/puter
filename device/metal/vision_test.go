@@ -105,7 +105,11 @@ func TestMetalConv2DBatchedDispatch(testingObject *testing.T) {
 
 		convey.Convey("It should keep the batch encoder valid across vision kernels", func() {
 			backend.BeginBatch()
-			defer backend.EndBatch()
+			defer func() {
+				if err := backend.EndBatch(); err != nil {
+					testingObject.Fatalf("EndBatch failed: %v", err)
+				}
+			}()
 
 			kernel := lookupVisionConv2DKernel(testingObject, dtype.Float32)
 			firstErr := kernel.Run(input, weight, bias, firstOutput)

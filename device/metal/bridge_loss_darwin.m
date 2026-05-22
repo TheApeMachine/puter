@@ -397,9 +397,7 @@ int metal_dispatch_pair_loss(
             return encodeFinalizeCode;
         }
 
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_loss_complete(completionToken, completedBuffer, nil);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         [commandBuffer commit];
 
         return 0;
@@ -515,9 +513,7 @@ int metal_dispatch_cross_entropy_loss(
             return encodeFinalizeCode;
         }
 
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_loss_complete(completionToken, completedBuffer, validationBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, (__bridge void*)validationBuffer);
         [commandBuffer commit];
 
         return 0;

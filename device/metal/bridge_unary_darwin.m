@@ -135,9 +135,7 @@ int metal_dispatch_unary_float32(
         MTLSize threadgroupSize = MTLSizeMake(threadWidth, 1, 1);
 
         [encoder dispatchThreads:gridSize threadsPerThreadgroup:threadgroupSize];
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_unary_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;

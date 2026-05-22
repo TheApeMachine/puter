@@ -121,9 +121,7 @@ static int metal_norm_dispatch(
             dispatchThreadgroups:MTLSizeMake(rows, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(256, 1, 1)
         ];
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_norm_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;

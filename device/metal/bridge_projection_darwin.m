@@ -142,9 +142,7 @@ static int metal_projection_dispatch_2d(
             dispatchThreadgroups:MTLSizeMake((cols + 15) / 16, (rows + 15) / 16, 1)
             threadsPerThreadgroup:MTLSizeMake(16, 16, 1)
         ];
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_projection_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;
@@ -417,9 +415,7 @@ int metal_dispatch_lora_apply(
             threadsPerThreadgroup:MTLSizeMake(16, 16, 1)
         ];
         [stage2Encoder endEncoding];
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_projection_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         [commandBuffer commit];
 
         return 0;

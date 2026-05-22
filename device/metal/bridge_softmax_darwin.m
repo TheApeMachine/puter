@@ -141,9 +141,7 @@ int metal_dispatch_softmax(
             dispatchThreadgroups:MTLSizeMake(rows, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(256, 1, 1)
         ];
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_softmax_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;

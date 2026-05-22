@@ -40,6 +40,9 @@ type metalBridge struct {
 	resident   sync.Map
 	submission sync.RWMutex
 	batchMutex sync.Mutex
+	batchDepth int
+	graphDepth int
+	arena      metalActivationArena
 	pending    sync.WaitGroup
 	closed     atomic.Bool
 }
@@ -173,13 +176,13 @@ func (bridge *metalBridge) empty(
 	close(ready)
 
 	target := &metalTensor{
-		bridge: bridge,
-		shape:  shape,
-		dtype:  storageDType,
-		buffer: buffer,
-		bytes:  bytes,
-		ready:  ready,
-		state:  atomic.Uint32{},
+		bridge:       bridge,
+		shape:        shape,
+		dtype:        storageDType,
+		buffer:       buffer,
+		bytes:        bytes,
+		ready:        ready,
+		returnToPool: true,
 	}
 	target.state.Store(uint32(tensor.StateReady))
 	target.readyClosed = true
@@ -643,26 +646,34 @@ func requireMetalTensor(input tensor.Tensor) (*metalTensor, error) {
 		return nil, tensor.ErrTensorClosed
 	}
 
-	if err := target.Sync(context.Background()); err != nil {
-		return nil, err
+	target.bridge.batchMutex.Lock()
+	inBatch := target.bridge.batchDepth > 0
+	target.bridge.batchMutex.Unlock()
+
+	if !inBatch {
+		if err := target.Sync(context.Background()); err != nil {
+			return nil, err
+		}
 	}
 
 	return target, nil
 }
 
 type metalTensor struct {
-	bridge      *metalBridge
-	shape       tensor.Shape
-	dtype       dtype.DType
-	buffer      C.MetalBufferRef
-	bytes       int
-	mutex       sync.Mutex
-	err         error
-	ready       chan struct{}
-	readyClosed bool
-	uses        int
-	closed      atomic.Bool
-	state       atomic.Uint32
+	bridge       *metalBridge
+	shape        tensor.Shape
+	dtype        dtype.DType
+	buffer       C.MetalBufferRef
+	bytes        int
+	mutex        sync.Mutex
+	err          error
+	ready        chan struct{}
+	readyClosed  bool
+	uses         int
+	closed       atomic.Bool
+	state        atomic.Uint32
+	arenaEpoch   uint64
+	returnToPool bool
 }
 
 func (target *metalTensor) Shape() tensor.Shape {
@@ -893,7 +904,12 @@ func (target *metalTensor) releaseClosedBufferLocked() {
 		return
 	}
 
-	target.bridge.releaseBuffer(target.buffer, target.bytes)
+	if target.returnToPool {
+		target.bridge.releaseBuffer(target.buffer, target.bytes)
+	} else {
+		C.metal_buffer_release(target.buffer)
+	}
+
 	target.buffer = nil
 }
 
@@ -917,10 +933,24 @@ func (target *metalTensor) GradFn() tensor.GradFn {
 
 func (bridge *metalBridge) beginBatch() {
 	bridge.batchMutex.Lock()
+	bridge.batchDepth++
 	C.metal_begin_batch(bridge.device)
 }
 
-func (bridge *metalBridge) endBatch() {
-	C.metal_end_batch(bridge.device)
+func (bridge *metalBridge) endBatch() error {
+	status := C.MetalStatus{}
+	C.metal_end_batch(bridge.device, &status)
+	bridge.batchDepth--
+
+	if bridge.batchDepth < 0 {
+		bridge.batchDepth = 0
+	}
+
 	bridge.batchMutex.Unlock()
+
+	if status.code != 0 {
+		return fmt.Errorf("metal batch: %s", metalStatus("end", status))
+	}
+
+	return nil
 }

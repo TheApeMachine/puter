@@ -220,9 +220,7 @@ int metal_dispatch_expected_free_energy(
             return finalizeCode;
         }
 
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_active_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         [commandBuffer commit];
 
         return 0;
@@ -309,9 +307,7 @@ int metal_dispatch_belief_update(
             return normalizeCode;
         }
 
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_active_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         [commandBuffer commit];
 
         return 0;

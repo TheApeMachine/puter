@@ -158,9 +158,7 @@ int metal_dispatch_sampling(
             return dispatchCode;
         }
 
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_sampling_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         [commandBuffer commit];
 
         return 0;

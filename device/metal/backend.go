@@ -218,6 +218,6 @@ func (backend *Backend) BeginBatch() {
 	backend.bridge.beginBatch()
 }
 
-func (backend *Backend) EndBatch() {
-	backend.bridge.endBatch()
+func (backend *Backend) EndBatch() error {
+	return backend.bridge.endBatch()
 }

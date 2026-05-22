@@ -174,9 +174,7 @@ int metal_dispatch_active_free_energy(
             return finalizeCode;
         }
 
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_active_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)context, commandBuffer, completionToken, NULL);
         [commandBuffer commit];
 
         return 0;

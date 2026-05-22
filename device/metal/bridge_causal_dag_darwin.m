@@ -161,9 +161,7 @@ int metal_dispatch_dag_markov_factorization(
             return finalizeCode;
         }
 
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_causal_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         [commandBuffer commit];
         return 0;
     }

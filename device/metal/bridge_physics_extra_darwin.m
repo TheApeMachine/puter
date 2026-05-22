@@ -206,9 +206,7 @@ int metal_dispatch_madelung_continuity(
         [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:3];
         [encoder setBytes:&count length:sizeof(count) atIndex:4];
         metal_physics_extra_dispatch(encoder, pipeline, (NSUInteger)count);
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_physics_extra_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;

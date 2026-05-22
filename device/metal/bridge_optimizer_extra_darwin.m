@@ -153,9 +153,7 @@ int metal_dispatch_lars_step(
             threadsPerThreadgroup:MTLSizeMake(threadWidth, 1, 1)
         ];
         [stepEncoder endEncoding];
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_optimizer_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         [commandBuffer commit];
 
         return 0;

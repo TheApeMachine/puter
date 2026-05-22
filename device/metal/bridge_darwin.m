@@ -81,6 +81,11 @@ static void metal_release_context(MetalContext* context) {
         context->device = NULL;
     }
 
+    if (context->deferredCompletions != NULL) {
+        free(context->deferredCompletions);
+        context->deferredCompletions = NULL;
+    }
+
     free(context);
 }
 
@@ -132,24 +137,197 @@ void metal_end_encoder(MetalContext* context, id<MTLComputeCommandEncoder> encod
     }
 }
 
+void metal_suspend_compute_encoder(MetalContext* context) {
+    if (context == NULL || context->currentEncoder == NULL) {
+        return;
+    }
+
+    id<MTLComputeCommandEncoder> encoder =
+        (__bridge_transfer id<MTLComputeCommandEncoder>)context->currentEncoder;
+    [encoder endEncoding];
+    context->currentEncoder = NULL;
+}
+
+static void metal_notify_command_completed(
+    uint64_t completionToken,
+    id<MTLCommandBuffer> completedBuffer,
+    id<MTLBuffer> validationBuffer
+) {
+    @autoreleasepool {
+        if ([completedBuffer status] != MTLCommandBufferStatusCompleted) {
+            NSError* error = [completedBuffer error];
+            NSString* message = @"Metal command buffer failed";
+
+            if (error != nil) {
+                message = [NSString
+                    stringWithFormat:@"%@: %@",
+                    message,
+                    [error localizedDescription]
+                ];
+            }
+
+            metalCommandCompleted(completionToken, -5, (char*)[message UTF8String]);
+            return;
+        }
+
+        if (validationBuffer != nil) {
+            uint32_t* validation = (uint32_t*)[validationBuffer contents];
+
+            if (validation != NULL && validation[0] != 0) {
+                metalCommandCompleted(
+                    completionToken,
+                    -8,
+                    "Metal kernel reported invalid scalar data"
+                );
+                return;
+            }
+        }
+
+        metalCommandCompleted(completionToken, 0, "");
+    }
+}
+
+static void metal_deferred_push(
+    MetalContext* context,
+    uint64_t completionToken,
+    void* validationBufferRef
+) {
+    if (context->deferredCount == context->deferredCapacity) {
+        size_t nextCapacity = context->deferredCapacity == 0 ? 256 : context->deferredCapacity * 2;
+        MetalDeferredCompletion* next = (MetalDeferredCompletion*)realloc(
+            context->deferredCompletions,
+            nextCapacity * sizeof(MetalDeferredCompletion)
+        );
+
+        if (next == NULL) {
+            return;
+        }
+
+        context->deferredCompletions = next;
+        context->deferredCapacity = nextCapacity;
+    }
+
+    context->deferredCompletions[context->deferredCount].token = completionToken;
+    context->deferredCompletions[context->deferredCount].validationBuffer = validationBufferRef;
+    context->deferredCount++;
+}
+
+void metal_track_command_completion(
+    MetalContext* context,
+    id<MTLCommandBuffer> commandBuffer,
+    uint64_t completionToken,
+    void* validationBufferRef
+) {
+    if (context == NULL || commandBuffer == nil || completionToken == 0) {
+        return;
+    }
+
+    if (context->isBatching) {
+        metal_deferred_push(context, completionToken, validationBufferRef);
+        return;
+    }
+
+    id<MTLBuffer> validationBuffer = (__bridge id<MTLBuffer>)validationBufferRef;
+
+    [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
+        metal_notify_command_completed(completionToken, completedBuffer, validationBuffer);
+    }];
+}
+
+static void metal_flush_deferred_completions(
+    MetalContext* context,
+    id<MTLCommandBuffer> completedBuffer
+) {
+    if (context == NULL || context->deferredCount == 0) {
+        return;
+    }
+
+    for (size_t index = 0; index < context->deferredCount; index++) {
+        MetalDeferredCompletion* entry = &context->deferredCompletions[index];
+        id<MTLBuffer> validationBuffer = (__bridge id<MTLBuffer>)entry->validationBuffer;
+
+        metal_notify_command_completed(entry->token, completedBuffer, validationBuffer);
+    }
+
+    context->deferredCount = 0;
+}
+
 void metal_begin_batch(MetalDeviceRef contextRef) {
     MetalContext* context = (MetalContext*)contextRef;
     context->isBatching = true;
+    context->deferredCount = 0;
+    context->lastBatchStatus = 0;
 }
 
-void metal_end_batch(MetalDeviceRef contextRef) {
+void metal_end_batch(MetalDeviceRef contextRef, MetalStatus* status) {
     MetalContext* context = (MetalContext*)contextRef;
+    id<MTLCommandBuffer> batchCommandBuffer = nil;
+
+    metal_status_clear(status);
     context->isBatching = false;
+
     if (context->currentEncoder != NULL) {
-        id<MTLComputeCommandEncoder> enc = (__bridge_transfer id<MTLComputeCommandEncoder>)context->currentEncoder;
-        [enc endEncoding];
+        id<MTLComputeCommandEncoder> encoder =
+            (__bridge_transfer id<MTLComputeCommandEncoder>)context->currentEncoder;
+        [encoder endEncoding];
         context->currentEncoder = NULL;
     }
+
     if (context->currentCommandBuffer != NULL) {
-        id<MTLCommandBuffer> cb = (__bridge_transfer id<MTLCommandBuffer>)context->currentCommandBuffer;
-        [cb commit];
+        batchCommandBuffer =
+            (__bridge_transfer id<MTLCommandBuffer>)context->currentCommandBuffer;
         context->currentCommandBuffer = NULL;
+        [batchCommandBuffer commit];
     }
+
+    if (batchCommandBuffer == nil) {
+        if (context->deferredCount > 0) {
+            metal_status_set(status, -5, "Metal batch ended without a command buffer");
+
+            for (size_t index = 0; index < context->deferredCount; index++) {
+                metalCommandCompleted(
+                    context->deferredCompletions[index].token,
+                    -5,
+                    "Metal batch ended without a command buffer"
+                );
+            }
+
+            context->deferredCount = 0;
+        }
+
+        return;
+    }
+
+    [batchCommandBuffer waitUntilCompleted];
+
+    if ([batchCommandBuffer status] != MTLCommandBufferStatusCompleted) {
+        NSError* error = [batchCommandBuffer error];
+        NSString* message = @"Metal batch command buffer failed";
+
+        if (error != nil) {
+            message = [NSString
+                stringWithFormat:@"%@: %@",
+                message,
+                [error localizedDescription]
+            ];
+        }
+
+        context->lastBatchStatus = -5;
+        metal_status_set(status, -5, [message UTF8String]);
+
+        for (size_t index = 0; index < context->deferredCount; index++) {
+            metalCommandCompleted(
+                context->deferredCompletions[index].token,
+                -5,
+                (char*)[message UTF8String]
+            );
+        }
+
+        context->deferredCount = 0;
+        return;
+    }
+
+    metal_flush_deferred_completions(context, batchCommandBuffer);
 }
 
 id<MTLComputePipelineState> metal_get_pipeline(
@@ -301,6 +479,20 @@ MetalBufferRef metal_buffer_new_shared(MetalDeviceRef contextRef, long long byte
 
         return (__bridge_retained void*)buffer;
     }
+}
+
+void metal_layer_begin(MetalDeviceRef contextRef) {
+    metal_begin_batch(contextRef);
+}
+
+int metal_layer_end(MetalDeviceRef contextRef, MetalStatus* status) {
+    metal_end_batch(contextRef, status);
+
+    if (status != NULL && status->code != 0) {
+        return status->code;
+    }
+
+    return 0;
 }
 
 void metal_buffer_release(MetalBufferRef bufferRef) {

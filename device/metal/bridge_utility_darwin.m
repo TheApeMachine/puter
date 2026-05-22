@@ -105,9 +105,7 @@ static int metal_utility_dispatch(
             dispatchThreads:MTLSizeMake(threadCount, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(threadWidth, 1, 1)
         ];
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_utility_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;

@@ -40,7 +40,7 @@ func (bridge *metalBridge) recommendedMaxWorkingSet() int64 {
 
 func (bridge *metalBridge) beginBatch() {}
 
-func (bridge *metalBridge) endBatch() {}
+func (bridge *metalBridge) endBatch() error { return nil }
 
 func metalHawkesMarkovPartialCount(elementCount int) int {
 	return (elementCount + metalHawkesMarkovThreadCountGo - 1) / metalHawkesMarkovThreadCountGo

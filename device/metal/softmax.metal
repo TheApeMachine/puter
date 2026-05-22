@@ -3,6 +3,7 @@
 using namespace metal;
 
 constant uint softmaxThreadCount = 256;
+constant uint softmaxSimdgroupWidth = 32;
 
 static inline float bf16_to_float_softmax(ushort value) {
     return as_type<float>(uint(value) << 16);
@@ -58,17 +59,29 @@ static inline void softmax_rows(
         localMax = max(localMax, Storage::load(input, rowOffset + col));
     }
 
-    reduction[threadIndex] = localMax;
-    threadgroup_barrier(mem_flags::mem_threadgroup);
+    localMax = simd_max(localMax);
 
-    for (uint stride = softmaxThreadCount / 2; stride > 0; stride >>= 1) {
-        if (threadIndex < stride) {
-            reduction[threadIndex] = max(reduction[threadIndex], reduction[threadIndex + stride]);
-        }
+    uint simdLane = threadIndex & (softmaxSimdgroupWidth - 1u);
+    uint simdgroupIndex = threadIndex / softmaxSimdgroupWidth;
 
-        threadgroup_barrier(mem_flags::mem_threadgroup);
+    if (simdLane == 0) {
+        reduction[simdgroupIndex] = localMax;
     }
 
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    if (threadIndex == 0) {
+        float rowMax = reduction[0];
+        uint simdgroupCount = softmaxThreadCount / softmaxSimdgroupWidth;
+
+        for (uint groupIndex = 1; groupIndex < simdgroupCount; groupIndex++) {
+            rowMax = max(rowMax, reduction[groupIndex]);
+        }
+
+        reduction[0] = rowMax;
+    }
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
     float maximum = reduction[0];
     float localSum = 0.0f;
 
@@ -76,17 +89,26 @@ static inline void softmax_rows(
         localSum += exp(Storage::load(input, rowOffset + col) - maximum);
     }
 
-    reduction[threadIndex] = localSum;
-    threadgroup_barrier(mem_flags::mem_threadgroup);
+    localSum = simd_sum(localSum);
 
-    for (uint stride = softmaxThreadCount / 2; stride > 0; stride >>= 1) {
-        if (threadIndex < stride) {
-            reduction[threadIndex] += reduction[threadIndex + stride];
-        }
-
-        threadgroup_barrier(mem_flags::mem_threadgroup);
+    if (simdLane == 0) {
+        reduction[simdgroupIndex] = localSum;
     }
 
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    if (threadIndex == 0) {
+        float rowSum = reduction[0];
+        uint simdgroupCount = softmaxThreadCount / softmaxSimdgroupWidth;
+
+        for (uint groupIndex = 1; groupIndex < simdgroupCount; groupIndex++) {
+            rowSum += reduction[groupIndex];
+        }
+
+        reduction[0] = rowSum;
+    }
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
     float sum = reduction[0];
 
     for (uint col = threadIndex; col < cols; col += softmaxThreadCount) {

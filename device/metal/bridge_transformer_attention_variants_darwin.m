@@ -83,9 +83,7 @@ int metal_dispatch_multi_head_attention(
             dispatchThreadgroups:MTLSizeMake(seqQ, numHeads, (headDim + 63) / 64)
             threadsPerThreadgroup:MTLSizeMake(threads, 1, 1)
         ];
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_attention_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
         return 0;
     }

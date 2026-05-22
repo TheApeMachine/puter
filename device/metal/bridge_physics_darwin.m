@@ -209,9 +209,7 @@ static int metal_dispatch_physics_vector(
         [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:2];
         [encoder setBytes:&count length:sizeof(count) atIndex:3];
         metal_physics_dispatch_threads(encoder, pipeline, (NSUInteger)count);
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_physics_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;
@@ -271,9 +269,7 @@ int metal_dispatch_laplacian(
         [encoder setBytes:&dim1 length:sizeof(dim1) atIndex:6];
         [encoder setBytes:&dim2 length:sizeof(dim2) atIndex:7];
         metal_physics_dispatch_threads(encoder, pipeline, (NSUInteger)count);
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_physics_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;

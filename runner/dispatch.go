@@ -416,5 +416,13 @@ func allocateTensor(
 	shape tensor.Shape,
 	storageDType dtype.DType,
 ) (tensor.Tensor, error) {
+	if allocator, ok := memory.(uninitializedTensorAllocator); ok {
+		return allocator.NewEmpty(shape, storageDType)
+	}
+
 	return zeroTensor(memory, shape, storageDType)
+}
+
+type uninitializedTensorAllocator interface {
+	NewEmpty(shape tensor.Shape, storageDType dtype.DType) (tensor.Tensor, error)
 }

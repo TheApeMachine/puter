@@ -73,9 +73,7 @@ int metal_dispatch_markov_blanket_partition(
             dispatchThreads:MTLSizeMake((NSUInteger)nodeCount, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(metal_markov_thread_width(pipeline), 1, 1)
         ];
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_hm_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;
@@ -124,9 +122,7 @@ int metal_dispatch_markov_flow(
             dispatchThreads:MTLSizeMake((NSUInteger)nodeCount, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(metal_markov_thread_width(pipeline), 1, 1)
         ];
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_hm_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;

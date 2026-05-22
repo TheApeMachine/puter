@@ -229,9 +229,7 @@ int metal_dispatch_hawkes_intensity(
             dispatchThreadgroups:MTLSizeMake((NSUInteger)queryCount, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(metalHMThreadCount, 1, 1)
         ];
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_hm_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;
@@ -283,9 +281,7 @@ int metal_dispatch_hawkes_kernel_matrix(
             dispatchThreads:MTLSizeMake((NSUInteger)total, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(metal_hm_thread_width(pipeline), 1, 1)
         ];
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_hm_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;

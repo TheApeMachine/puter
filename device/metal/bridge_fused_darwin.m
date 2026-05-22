@@ -89,9 +89,7 @@ int metal_dispatch_unary_param(
         NSUInteger vectorCount = (NSUInteger)((count + 3) / 4);
         [encoder dispatchThreads:MTLSizeMake(vectorCount, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(threadWidth, 1, 1)];
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_fused_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;
@@ -176,9 +174,7 @@ int metal_dispatch_axpy(
         NSUInteger vectorCount = (NSUInteger)((count + 3) / 4);
         [encoder dispatchThreads:MTLSizeMake(vectorCount, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(threadWidth, 1, 1)];
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_fused_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;
@@ -260,9 +256,7 @@ int metal_dispatch_dot(
         
         [encoder dispatchThreads:MTLSizeMake(threadgroups * maxThreads, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(maxThreads, 1, 1)];
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_fused_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         metal_end_encoder((MetalContext*)contextRef, encoder, commandBuffer);
 
         return 0;
@@ -315,9 +309,7 @@ int metal_dispatch_cholesky(
 
         [cholesky encodeToCommandBuffer:commandBuffer sourceMatrix:inputMatrix resultMatrix:outMatrix status:nil];
 
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_fused_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         
         // We pass nil for encoder since we already ended it
         metal_end_encoder((MetalContext*)contextRef, nil, commandBuffer);

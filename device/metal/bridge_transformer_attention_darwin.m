@@ -305,9 +305,7 @@ int metal_dispatch_attention(
             return weightedCode;
         }
 
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_attention_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         [commandBuffer commit];
         return 0;
     }
@@ -371,9 +369,7 @@ int metal_dispatch_flash_attention(
             threadsPerThreadgroup:MTLSizeMake(256, 1, 1)
         ];
         [encoder endEncoding];
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
-            metal_attention_complete(completionToken, completedBuffer);
-        }];
+        metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
         [commandBuffer commit];
         return 0;
     }
