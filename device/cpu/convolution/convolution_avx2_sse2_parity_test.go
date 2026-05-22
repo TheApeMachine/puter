@@ -19,7 +19,7 @@ func TestConvPatchDotF32AVX2Parity(t *testing.T) {
 	convey.Convey("Given ConvPatchDotF32AVX2", t, func() {
 		for _, length := range parity.Lengths {
 			convey.Convey(fmt.Sprintf("It should match ConvPatchDotScalar for N=%d", length), func() {
-				weight, patch := randomConvPatchDotInputs(length, 0x2500+int64(length))
+				weight, patch := randomConvolutionFloat32Pair(length, 0x2500+int64(length))
 				want := ConvPatchDotScalar(weight, patch, length)
 				got := ConvPatchDotF32AVX2(&weight[0], &patch[0], length)
 
@@ -37,7 +37,7 @@ func TestConvPatchDotF32SSE2Parity(t *testing.T) {
 	convey.Convey("Given ConvPatchDotF32SSE2", t, func() {
 		for _, length := range parity.Lengths {
 			convey.Convey(fmt.Sprintf("It should match ConvPatchDotScalar for N=%d", length), func() {
-				weight, patch := randomConvPatchDotInputs(length, 0x2510+int64(length))
+				weight, patch := randomConvolutionFloat32Pair(length, 0x2510+int64(length))
 				want := ConvPatchDotScalar(weight, patch, length)
 				got := ConvPatchDotF32SSE2(&weight[0], &patch[0], length)
 

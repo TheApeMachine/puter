@@ -15,6 +15,18 @@ func FreeEnergyFloat32Native(likelihood, posterior, prior []float32) float32 {
 		)
 	}
 
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		return FreeEnergyF32AVX2(
+			&likelihood[0], &posterior[0], &prior[0], len(likelihood),
+		)
+	}
+
+	if cpu.X86.HasSSE2 {
+		return FreeEnergyF32SSE2(
+			&likelihood[0], &posterior[0], &prior[0], len(likelihood),
+		)
+	}
+
 	return FreeEnergyFloat32Scalar(likelihood, posterior, prior)
 }
 
@@ -27,6 +39,20 @@ func ExpectedFreeEnergyFloat32Native(
 
 	if cpu.X86.HasAVX512F {
 		return ExpectedFreeEnergyF32AVX512(
+			&predictedObs[0], &preferredObs[0], &predictedState[0],
+			len(predictedObs), len(predictedState),
+		)
+	}
+
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		return ExpectedFreeEnergyF32AVX2(
+			&predictedObs[0], &preferredObs[0], &predictedState[0],
+			len(predictedObs), len(predictedState),
+		)
+	}
+
+	if cpu.X86.HasSSE2 {
+		return ExpectedFreeEnergyF32SSE2(
 			&predictedObs[0], &preferredObs[0], &predictedState[0],
 			len(predictedObs), len(predictedState),
 		)
@@ -45,6 +71,16 @@ func BeliefUpdateFloat32Native(likelihood, prior, output []float32) {
 		return
 	}
 
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		BeliefUpdateF32AVX2(&likelihood[0], &prior[0], &output[0], len(likelihood))
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		BeliefUpdateF32SSE2(&likelihood[0], &prior[0], &output[0], len(likelihood))
+		return
+	}
+
 	BeliefUpdateFloat32Scalar(likelihood, prior, output)
 }
 
@@ -55,6 +91,16 @@ func PrecisionWeightFloat32Native(errors, precision, output []float32) {
 
 	if cpu.X86.HasAVX512F {
 		PrecisionWeightF32AVX512(&errors[0], &precision[0], &output[0], len(errors))
+		return
+	}
+
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA {
+		PrecisionWeightF32AVX2(&errors[0], &precision[0], &output[0], len(errors))
+		return
+	}
+
+	if cpu.X86.HasSSE2 {
+		PrecisionWeightF32SSE2(&errors[0], &precision[0], &output[0], len(errors))
 		return
 	}
 
