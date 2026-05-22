@@ -82,8 +82,6 @@ func (generator *Generator) MetalArgs(source string) []string {
 		source,
 		"-o",
 		generator.AirPath(source),
-		"-fmetal-math-mode=safe",
-		"-ffp-contract=off",
 	}
 }
 

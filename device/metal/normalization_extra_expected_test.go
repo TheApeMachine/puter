@@ -174,13 +174,13 @@ func applyGroupNormExpected(
 	channelsPerGroup int,
 	spatial int,
 ) {
-	mean := normalizationMean64ForTest(input)
-	variance := normalizationVariance64ForTest(input, mean)
-	invStdDev := normInvStdDev64(variance)
+	mean := normalizationMeanForTest(input)
+	variance := normalizationVarianceForTest(input, mean)
+	invStdDev := normInvStdDev(variance)
 
 	for channelIndex := range channelsPerGroup {
 		start := channelIndex * spatial
-		applyNorm3DExpectedRow64(
+		applyNorm3DExpectedRow(
 			input[start:start+spatial],
 			out[start:start+spatial],
 			scale[channelIndex],

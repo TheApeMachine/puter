@@ -139,19 +139,19 @@ func attentionTensorsForTest(
 	testingObject.Helper()
 
 	query := uploadDTypeTensorForTest(
-		testingObject, backend, mustShapeForTest(testingObject, []int{seqQ, depth}),
+		testingObject, backend, mustShapeForTest(testingObject, []int{seqQ, 1, depth}),
 		storageDType, fixture.queryBytes,
 	)
 	key := uploadDTypeTensorForTest(
-		testingObject, backend, mustShapeForTest(testingObject, []int{seqK, depth}),
+		testingObject, backend, mustShapeForTest(testingObject, []int{seqK, 1, depth}),
 		storageDType, fixture.keyBytes,
 	)
 	value := uploadDTypeTensorForTest(
-		testingObject, backend, mustShapeForTest(testingObject, []int{seqK, valueDim}),
+		testingObject, backend, mustShapeForTest(testingObject, []int{seqK, 1, valueDim}),
 		storageDType, fixture.valueBytes,
 	)
 	out := emptyTensorForTest(
-		testingObject, backend, mustShapeForTest(testingObject, []int{seqQ, valueDim}),
+		testingObject, backend, mustShapeForTest(testingObject, []int{seqQ, 1, valueDim}),
 		storageDType,
 	)
 

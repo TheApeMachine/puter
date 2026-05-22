@@ -133,22 +133,20 @@ func attentionVariantTensorsForTest(
 ) (tensor.Tensor, tensor.Tensor, tensor.Tensor, tensor.Tensor) {
 	testingObject.Helper()
 
-	queryFeatures := numHeads * headDim
-	kvFeatures := variant.kvHeads * headDim
 	query := uploadDTypeTensorForTest(
-		testingObject, backend, mustShapeForTest(testingObject, []int{seqQ, queryFeatures}),
+		testingObject, backend, mustShapeForTest(testingObject, []int{seqQ, numHeads, headDim}),
 		storageDType, fixture.queryBytes,
 	)
 	key := uploadDTypeTensorForTest(
-		testingObject, backend, mustShapeForTest(testingObject, []int{seqK, kvFeatures}),
+		testingObject, backend, mustShapeForTest(testingObject, []int{seqK, variant.kvHeads, headDim}),
 		storageDType, fixture.keyBytes,
 	)
 	value := uploadDTypeTensorForTest(
-		testingObject, backend, mustShapeForTest(testingObject, []int{seqK, kvFeatures}),
+		testingObject, backend, mustShapeForTest(testingObject, []int{seqK, variant.kvHeads, headDim}),
 		storageDType, fixture.valueBytes,
 	)
 	out := emptyTensorForTest(
-		testingObject, backend, mustShapeForTest(testingObject, []int{seqQ, queryFeatures}),
+		testingObject, backend, mustShapeForTest(testingObject, []int{seqQ, numHeads, headDim}),
 		storageDType,
 	)
 

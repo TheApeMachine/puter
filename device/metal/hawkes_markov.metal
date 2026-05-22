@@ -36,6 +36,13 @@ struct BFloat16HawkesMarkovStorage {
     }
 };
 
+static inline float hawkes_kahan_add(float sum, float addend, thread float* compensation) {
+    float y = addend - *compensation;
+    float t = sum + y;
+    *compensation = (t - sum) - y;
+    return t;
+}
+
 static inline float hawkes_markov_reduce(threadgroup float* reduction, uint threadIndex) {
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
@@ -190,7 +197,7 @@ static inline void hawkes_log_likelihood_partial_kernel(
         if (threadIndex == 0) {
             float intensity = mu + alphaValue * reducedHistory;
             float compensator = (alphaValue / betaValue) *
-                (1.0f - metal_hawkes_exp32(-betaValue * (totalTimeValue - eventTime)));
+                (1.0f - exp(-betaValue * (totalTimeValue - eventTime)));
 
             scratch[eventIndex] = log(hawkes_markov_safe_positive(intensity)) - compensator;
         }
@@ -209,17 +216,20 @@ static inline void hawkes_log_likelihood_finalize_kernel(
     constant uint& eventCount,
     uint threadIndex
 ) {
-    float localValue = 0.0f;
+    float localSum = 0.0f;
+    float localCompensation = 0.0f;
 
     for (uint index = threadIndex; index < eventCount; index += hawkesMarkovThreadCount) {
-        localValue += scratch[index];
+        localSum = hawkes_kahan_add(localSum, scratch[index], &localCompensation);
     }
 
-    reduction[threadIndex] = localValue;
+    reduction[threadIndex] = localSum;
     float sum = hawkes_markov_reduce(reduction, threadIndex);
 
     if (threadIndex == 0) {
-        Storage::store(out, 0, sum - Storage::load(baseline, 0) * Storage::load(totalTime, 0));
+        float baselineValue = Storage::load(baseline, 0);
+        float totalTimeValue = Storage::load(totalTime, 0);
+        Storage::store(out, 0, sum - baselineValue * totalTimeValue);
     }
 }
 

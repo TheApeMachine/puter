@@ -86,19 +86,42 @@ mask_apply_done:
 // func CausalMaskFloat32NEONAsm(output *float32, seqQ, seqK int)
 TEXT ·CausalMaskFloat32NEONAsm(SB), NOSPLIT, $0-24
 	MOVD output+0(FP), R0
-	MOVD seqK+16(FP), R2
+	MOVD seqQ+8(FP), R16
+	MOVD R16, R10
+	MOVD seqK+16(FP), R5
 	MOVD $maskZero<>(SB), R11
-	MOVD $0, R8
+
+causal_row:
+	CBZ  R10, causal_done
+
+	MOVD R16, R7
+	SUB  R10, R7, R7
+	MOVD R5, R6
 
 causal_col:
-	CMP  R8, R2
-	BGE  causal_done
+	CBZ  R6, causal_row_done
+
+	MOVD R5, R4
+	SUB  R6, R4, R8
+	CMP  R8, R7
+	BGT  causal_inf_cell
 
 	FMOVS (R11), F0
 	FMOVS F0, (R0)
+	B    causal_col_next
+
+causal_inf_cell:
+	MOVD $0xFF800000, R12
+	MOVW R12, (R0)
+
+causal_col_next:
 	ADD  $4, R0
-	ADD  $1, R8
+	SUB  $1, R6
 	B    causal_col
+
+causal_row_done:
+	SUB  $1, R10
+	B    causal_row
 
 causal_done:
 	RET

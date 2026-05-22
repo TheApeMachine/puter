@@ -689,111 +689,11 @@ BATCHNORM_DENORM_KERNEL(batchnorm_denorm_float32, Float32NormStorage, float)
 BATCHNORM_DENORM_KERNEL(batchnorm_denorm_float16, Float16NormStorage, half)
 BATCHNORM_DENORM_KERNEL(batchnorm_denorm_bfloat16, BFloat16NormStorage, ushort)
 
-kernel void groupnorm_float32(
-    device const float* input [[buffer(0)]],
-    device const float* scale [[buffer(1)]],
-    device const float* bias [[buffer(2)]],
-    device float* out [[buffer(3)]],
-    constant uint& channels [[buffer(4)]],
-    constant uint& spatial [[buffer(5)]],
-    constant uint& groups [[buffer(6)]],
-    uint row [[threadgroup_position_in_grid]],
-    uint threadIndex [[thread_position_in_threadgroup]]
-) {
-    threadgroup float stats[3];
-    uint groupIndex = row % groups;
-    uint batchIndex = row / groups;
-    uint channelsPerGroup = channels / groups;
-    uint channelStart = groupIndex * channelsPerGroup;
-    uint groupSize = channelsPerGroup * spatial;
-    uint groupOffset = (batchIndex * channels + channelStart) * spatial;
-
-    if (threadIndex == 0) {
-        float2 sum = float2(0.0f, 0.0f);
-
-        for (uint offset = 0; offset < groupSize; offset++) {
-            sum = ds_add_float(sum, input[groupOffset + offset]);
-        }
-
-        float2 mean = ds_div_count(sum, groupSize);
-        float2 variance = float2(0.0f, 0.0f);
-
-        for (uint offset = 0; offset < groupSize; offset++) {
-            float2 delta = ds_sub_from_float(input[groupOffset + offset], mean);
-            variance = ds_add_pair(variance, ds_mul_pair(delta, delta));
-        }
-
-        float2 varianceMean = ds_div_count(variance, groupSize);
-        stats[0] = mean.x;
-        stats[1] = mean.y;
-        stats[2] = ds_inv_sqrt(varianceMean, layerNormEpsilonMetal);
-    }
-
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-
-    float2 mean = float2(stats[0], stats[1]);
-    float invStdDev = stats[2];
-
-    for (uint offset = threadIndex; offset < groupSize; offset += normalizationThreadCount) {
-        uint channel = channelStart + offset / spatial;
-        float2 centered = ds_sub_from_float(input[groupOffset + offset], mean);
-        float normalized = ds_to_float(ds_mul_float(centered, invStdDev));
-        out[groupOffset + offset] = fma(normalized, scale[channel], bias[channel]);
-    }
-}
-
+GROUPNORM_KERNEL(groupnorm_float32, Float32NormStorage, float)
 GROUPNORM_KERNEL(groupnorm_float16, Float16NormStorage, half)
 GROUPNORM_KERNEL(groupnorm_bfloat16, BFloat16NormStorage, ushort)
 
-kernel void instancenorm_float32(
-    device const float* input [[buffer(0)]],
-    device const float* scale [[buffer(1)]],
-    device const float* bias [[buffer(2)]],
-    device float* out [[buffer(3)]],
-    constant uint& channels [[buffer(4)]],
-    constant uint& spatial [[buffer(5)]],
-    uint row [[threadgroup_position_in_grid]],
-    uint threadIndex [[thread_position_in_threadgroup]]
-) {
-    threadgroup float stats[3];
-    uint channel = row % channels;
-    uint rowOffset = row * spatial;
-
-    if (threadIndex == 0) {
-        float2 sum = float2(0.0f, 0.0f);
-
-        for (uint offset = 0; offset < spatial; offset++) {
-            sum = ds_add_float(sum, input[rowOffset + offset]);
-        }
-
-        float2 mean = ds_div_count(sum, spatial);
-        float2 variance = float2(0.0f, 0.0f);
-
-        for (uint offset = 0; offset < spatial; offset++) {
-            float2 delta = ds_sub_from_float(input[rowOffset + offset], mean);
-            variance = ds_add_pair(variance, ds_mul_pair(delta, delta));
-        }
-
-        float2 varianceMean = ds_div_count(variance, spatial);
-        stats[0] = mean.x;
-        stats[1] = mean.y;
-        stats[2] = ds_inv_sqrt(varianceMean, layerNormEpsilonMetal);
-    }
-
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-
-    float2 mean = float2(stats[0], stats[1]);
-    float invStdDev = stats[2];
-    float channelScale = scale[channel];
-    float channelBias = bias[channel];
-
-    for (uint offset = threadIndex; offset < spatial; offset += normalizationThreadCount) {
-        float2 centered = ds_sub_from_float(input[rowOffset + offset], mean);
-        float normalized = ds_to_float(ds_mul_float(centered, invStdDev));
-        out[rowOffset + offset] = fma(normalized, channelScale, channelBias);
-    }
-}
-
+INSTANCENORM_KERNEL(instancenorm_float32, Float32NormStorage, float)
 INSTANCENORM_KERNEL(instancenorm_float16, Float16NormStorage, half)
 INSTANCENORM_KERNEL(instancenorm_bfloat16, BFloat16NormStorage, ushort)
 

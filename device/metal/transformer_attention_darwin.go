@@ -345,10 +345,10 @@ func requireMetalAttentionDims(config *metalAttentionConfig) error {
 
 	seqQ := config.query.shape.Len() / (queryDims[len(queryDims)-2] * queryDims[len(queryDims)-1])
 	seqK := config.key.shape.Len() / (keyDims[len(keyDims)-2] * keyDims[len(keyDims)-1])
-	depth := queryDims[len(queryDims)-2]
+	depth := queryDims[len(queryDims)-1]
 	valueDim := valueDims[len(valueDims)-1]
 
-	if keyDims[len(keyDims)-1] != queryDims[len(queryDims)-1] {
+	if keyDims[len(keyDims)-1] != depth {
 		fmt.Printf("requireMetalAttentionDims: headDim mismatch: q=%v, k=%v\n", queryDims, keyDims)
 		return tensor.ErrShapeMismatch
 	}
