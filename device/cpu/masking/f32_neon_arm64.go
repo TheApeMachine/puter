@@ -2,14 +2,16 @@
 
 package masking
 
+import "unsafe"
+
 //go:noescape
 func ApplyMaskFloat32NEONAsm(input, mask, output *float32, count int)
 
 //go:noescape
-func CausalMaskFloat32NEONAsm(output *float32, seqQ, seqK int)
+func causalMaskFloat32NEONFillAsm(rowOutput *float32, zeroCount, infCount int)
 
 //go:noescape
-func ALiBiBiasFloat32NEONAsm(scores, slope, output *float32, seqQ, seqK int)
+func alibiBiasFloat32NEONElemAsm(score, slope, output *float32, distance int)
 
 func ApplyMaskF32NEON(input, mask, output *float32, count int) {
 	if count == 0 {
@@ -24,7 +26,19 @@ func CausalMaskF32NEON(output *float32, seqQ, seqK int) {
 		return
 	}
 
-	CausalMaskFloat32NEONAsm(output, seqQ, seqK)
+	for rowIndex := 0; rowIndex < seqQ; rowIndex++ {
+		zeroCount := rowIndex + 1
+		if zeroCount > seqK {
+			zeroCount = seqK
+		}
+
+		infCount := seqK - zeroCount
+		rowOutput := (*float32)(unsafe.Add(
+			unsafe.Pointer(output),
+			rowIndex*seqK*4,
+		))
+		causalMaskFloat32NEONFillAsm(rowOutput, zeroCount, infCount)
+	}
 }
 
 func ALiBiBiasF32NEON(scores, slope, output *float32, seqQ, seqK int) {
@@ -32,5 +46,13 @@ func ALiBiBiasF32NEON(scores, slope, output *float32, seqQ, seqK int) {
 		return
 	}
 
-	ALiBiBiasFloat32NEONAsm(scores, slope, output, seqQ, seqK)
+	for rowIndex := 0; rowIndex < seqQ; rowIndex++ {
+		for colIndex := 0; colIndex < seqK; colIndex++ {
+			index := rowIndex*seqK + colIndex
+			distance := rowIndex - colIndex
+			score := (*float32)(unsafe.Add(unsafe.Pointer(scores), index*4))
+			out := (*float32)(unsafe.Add(unsafe.Pointer(output), index*4))
+			alibiBiasFloat32NEONElemAsm(score, slope, out, distance)
+		}
+	}
 }

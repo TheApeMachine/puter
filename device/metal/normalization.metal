@@ -445,7 +445,7 @@ static inline void instancenorm_rows(
         }
 
         reduction[0] = mean;
-        reduction[1] = 1.0f / precise::sqrt(variance / float(spatial) + layerNormEpsilonMetal);
+        reduction[1] = 1.0f / sqrt(variance / float(spatial) + layerNormEpsilonMetal);
     }
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
@@ -475,14 +475,14 @@ static inline void batchnorm_eval_rows(
 ) {
     uint channel = row % channels;
     uint rowOffset = row * spatial;
-    float invStdDev = 1.0f / sqrt(Storage::load(variance, channel) + layerNormEpsilonMetal);
+    float invStdDev = 1.0f / precise::sqrt(Storage::load(variance, channel) + layerNormEpsilonMetal);
     float channelMean = Storage::load(mean, channel);
     float channelScale = Storage::load(scale, channel);
     float channelBias = Storage::load(bias, channel);
 
     for (uint offset = threadIndex; offset < spatial; offset += normalizationThreadCount) {
-        float normalized = (Storage::load(input, rowOffset + offset) - channelMean) * invStdDev;
-        Storage::store(out, rowOffset + offset, normalized * channelScale + channelBias);
+        float centered = Storage::load(input, rowOffset + offset) - channelMean;
+        Storage::store(out, rowOffset + offset, fma(centered * invStdDev, channelScale, channelBias));
     }
 }
 
@@ -667,8 +667,8 @@ kernel void layernorm_float32(
     float invStdDev = stats[1];
 
     for (uint col = threadIndex; col < cols; col += normalizationThreadCount) {
-        float normalized = (input[rowOffset + col] - mean) * invStdDev;
-        out[rowOffset + col] = normalized * scale[col] + bias[col];
+        float centered = input[rowOffset + col] - mean;
+        out[rowOffset + col] = fma(centered * invStdDev, scale[col], bias[col]);
     }
 }
 
@@ -730,7 +730,7 @@ kernel void groupnorm_float32(
         }
 
         stats[0] = mean;
-        stats[1] = 1.0f / sqrt(variance / float(groupSize) + layerNormEpsilonMetal);
+        stats[1] = 1.0f / precise::sqrt(variance / float(groupSize) + layerNormEpsilonMetal);
     }
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
@@ -740,8 +740,8 @@ kernel void groupnorm_float32(
 
     for (uint offset = threadIndex; offset < groupSize; offset += normalizationThreadCount) {
         uint channel = channelStart + offset / spatial;
-        float normalized = (input[groupOffset + offset] - mean) * invStdDev;
-        out[groupOffset + offset] = normalized * scale[channel] + bias[channel];
+        float centered = input[groupOffset + offset] - mean;
+        out[groupOffset + offset] = fma(centered * invStdDev, scale[channel], bias[channel]);
     }
 }
 
@@ -778,7 +778,7 @@ kernel void instancenorm_float32(
         }
 
         stats[0] = mean;
-        stats[1] = 1.0f / sqrt(variance / float(spatial) + layerNormEpsilonMetal);
+        stats[1] = 1.0f / precise::sqrt(variance / float(spatial) + layerNormEpsilonMetal);
     }
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
@@ -787,8 +787,8 @@ kernel void instancenorm_float32(
     float invStdDev = stats[1];
 
     for (uint offset = threadIndex; offset < spatial; offset += normalizationThreadCount) {
-        float normalized = (input[rowOffset + offset] - mean) * invStdDev;
-        out[rowOffset + offset] = normalized * scale[channel] + bias[channel];
+        float centered = input[rowOffset + offset] - mean;
+        out[rowOffset + offset] = fma(centered * invStdDev, scale[channel], bias[channel]);
     }
 }
 

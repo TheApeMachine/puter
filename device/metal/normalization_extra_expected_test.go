@@ -216,7 +216,10 @@ func applyNorm3DExpectedRow(
 	invStdDev float32,
 ) {
 	for index, value := range input {
-		out[index] = (value-mean)*invStdDev*scale + bias
+		centered := value - mean
+		out[index] = float32(
+			math.FMA(float64(centered*invStdDev), float64(scale), float64(bias)),
+		)
 	}
 }
 

@@ -74,8 +74,8 @@ static inline float metal_hawkes_exp32(float value) {
     poly = fma(fraction, poly, 1.0f);
     poly = fma(fraction, poly, 1.0f);
 
-    int exponentInt = int(roundedK);
-    uint scaleBits = uint(exponentInt + 127) << 23;
+    int32_t exponentInt = int32_t(roundedK);
+    uint scaleBits = as_type<uint>(exponentInt + 127) << 23;
 
     return poly * as_type<float>(scaleBits);
 }

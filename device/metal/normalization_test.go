@@ -11,8 +11,21 @@ import (
 
 const normalizationFloat32MaxULP = 32
 
-// normalizationNorm3DFloat32MaxULP covers NCS group/instance/batchnorm_eval f32 paths.
-const normalizationNorm3DFloat32MaxULP = 128
+// normalizationNorm3DFloat32MaxULP is the worst-case budget across NCS f32 ops (batchnorm_eval).
+const normalizationNorm3DFloat32MaxULP = 64
+
+func normalizationNorm3DMaxULP(name string) uint32 {
+	switch name {
+	case "groupnorm":
+		return 64
+	case "instancenorm":
+		return 40
+	case "batchnorm_eval":
+		return 64
+	default:
+		return normalizationNorm3DFloat32MaxULP
+	}
+}
 
 func TestKernelRegistry_MetalLayerNormDTypes(testingObject *testing.T) {
 	backend := newBackendForDeviceTest(testingObject)

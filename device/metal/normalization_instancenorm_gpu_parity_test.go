@@ -36,13 +36,13 @@ func TestInstanceNormGPUVersusSerialReference(t *testing.T) {
 	inputStored := decodeDTypeBytesToFloat32(fixture.inputBytes, dtype.Float32)
 	scaleStored := decodeDTypeBytesToFloat32(fixture.scaleBytes, dtype.Float32)
 	biasStored := decodeDTypeBytesToFloat32(fixture.biasBytes, dtype.Float32)
-	serial := instanceNormMetalSerialReference(
-		inputStored, scaleStored, biasStored, batch, channels, spatial,
+	serial := expectedInstanceNormValuesMetalSqrt(
+		t, backend, inputStored, scaleStored, biasStored, batch, channels, spatial,
 	)
 	actual := decodeDTypeBytesToFloat32(actualBytes, dtype.Float32)
 
 	maxDistance, maxIndex := maxNormalizationFloat32ULPDistance(actual, serial)
-	if maxDistance > normalizationNorm3DFloat32MaxULP {
+	if maxDistance > normalizationNorm3DMaxULP("instancenorm") {
 		t.Fatalf(
 			"GPU vs serial at %d: got %08x (%g), want %08x (%g), distance %d > %d",
 			maxIndex,
@@ -51,34 +51,7 @@ func TestInstanceNormGPUVersusSerialReference(t *testing.T) {
 			math.Float32bits(serial[maxIndex]),
 			serial[maxIndex],
 			maxDistance,
-			normalizationNorm3DFloat32MaxULP,
+			normalizationNorm3DMaxULP("instancenorm"),
 		)
 	}
-}
-
-func instanceNormMetalSerialReference(
-	input []float32,
-	scale []float32,
-	bias []float32,
-	batch int,
-	channels int,
-	spatial int,
-) []float32 {
-	out := make([]float32, len(input))
-
-	for batchIndex := range batch {
-		for channelIndex := range channels {
-			start := (batchIndex*channels + channelIndex) * spatial
-			row := input[start : start+spatial]
-			mean := normalizationMeanForTest(row)
-			variance := normalizationVarianceForTest(row, mean)
-			invStdDev := normInvStdDev(variance)
-			applyNorm3DExpectedRow(
-				row, out[start:start+spatial],
-				scale[channelIndex], bias[channelIndex], mean, invStdDev,
-			)
-		}
-	}
-
-	return out
 }

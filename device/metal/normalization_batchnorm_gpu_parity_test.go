@@ -38,13 +38,15 @@ func TestBatchNormEvalGPUVersusSerialReference(t *testing.T) {
 	biasStored := decodeDTypeBytesToFloat32(fixture.biasBytes, dtype.Float32)
 	meanStored := decodeDTypeBytesToFloat32(fixture.meanBytes, dtype.Float32)
 	varianceStored := decodeDTypeBytesToFloat32(fixture.varianceBytes, dtype.Float32)
-	serial := batchNormEvalMetalSerialReference(
-		inputStored, scaleStored, biasStored, meanStored, varianceStored, batch, channels, spatial,
+	serial := expectedBatchNormEvalValuesMetalSqrt(
+		t, backend,
+		inputStored, scaleStored, biasStored, meanStored, varianceStored,
+		batch, channels, spatial,
 	)
 	actual := decodeDTypeBytesToFloat32(actualBytes, dtype.Float32)
 
 	maxDistance, maxIndex := maxNormalizationFloat32ULPDistance(actual, serial)
-	if maxDistance > normalizationNorm3DFloat32MaxULP {
+	if maxDistance > normalizationNorm3DMaxULP("batchnorm_eval") {
 		t.Fatalf(
 			"GPU vs serial at %d: got %08x (%g), want %08x (%g), distance %d > %d",
 			maxIndex,
@@ -53,7 +55,7 @@ func TestBatchNormEvalGPUVersusSerialReference(t *testing.T) {
 			math.Float32bits(serial[maxIndex]),
 			serial[maxIndex],
 			maxDistance,
-			normalizationNorm3DFloat32MaxULP,
+			normalizationNorm3DMaxULP("batchnorm_eval"),
 		)
 	}
 }

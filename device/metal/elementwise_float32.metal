@@ -179,8 +179,8 @@ struct RecipFloat32 {
 };
 
 struct SqrtFloat32 {
-    float4 operator()(float4 value) const { return sqrt(value); }
-    float operator()(float value) const { return sqrt(value); }
+    float4 operator()(float4 value) const { return precise::sqrt(value); }
+    float operator()(float value) const { return precise::sqrt(value); }
 };
 
 struct SignFloat32 {

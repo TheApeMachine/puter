@@ -160,9 +160,10 @@ func assertNormalizationNorm3DBytesForTest(
 	input tensor.Tensor,
 	storageDType dtype.DType,
 	expectedBytes []byte,
+	opName string,
 ) {
 	assertNormalizationBytesWithinULPForTest(
-		testingObject, backend, input, storageDType, expectedBytes, normalizationNorm3DFloat32MaxULP,
+		testingObject, backend, input, storageDType, expectedBytes, normalizationNorm3DMaxULP(opName),
 	)
 }
 

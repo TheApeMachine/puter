@@ -13,7 +13,7 @@ static inline float metal_fast_exp32(float value) {
     }
 
     float z = value * 1.4426950408889634f;
-    int exponentK = int(z);
+    int32_t exponentK = int32_t(z);
 
     if (z < 0.0f) {
         exponentK--;
@@ -30,7 +30,7 @@ static inline float metal_fast_exp32(float value) {
         )
     );
 
-    uint bits = as_type<uint>(poly) + uint(exponentK) * 8388608u;
+    uint bits = as_type<uint>(poly) + (as_type<uint>(exponentK) << 23);
     return as_type<float>(bits);
 }
 

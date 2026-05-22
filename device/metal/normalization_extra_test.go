@@ -108,7 +108,10 @@ func runGroupNormParityCase(
 
 	err := lookupNorm3DKernel(testingObject, "groupnorm", storageDType).Run(input, scale, bias, out)
 	convey.So(err, convey.ShouldBeNil)
-	assertNormalizationNorm3DBytesForTest(testingObject, backend, out, storageDType, fixture.groupBytes)
+	expectedBytes := norm3DExpectedBytesForTest(
+		testingObject, backend, storageDType, fixture, batch, channels, spatial, "groupnorm",
+	)
+	assertNormalizationNorm3DBytesForTest(testingObject, backend, out, storageDType, expectedBytes, "groupnorm")
 }
 
 func runInstanceNormParityCase(
@@ -126,7 +129,10 @@ func runInstanceNormParityCase(
 
 	err := lookupNorm3DKernel(testingObject, "instancenorm", storageDType).Run(input, scale, bias, out)
 	convey.So(err, convey.ShouldBeNil)
-	assertNormalizationNorm3DBytesForTest(testingObject, backend, out, storageDType, fixture.instanceBytes)
+	expectedBytes := norm3DExpectedBytesForTest(
+		testingObject, backend, storageDType, fixture, batch, channels, spatial, "instancenorm",
+	)
+	assertNormalizationNorm3DBytesForTest(testingObject, backend, out, storageDType, expectedBytes, "instancenorm")
 }
 
 func runBatchNormEvalParityCase(
@@ -144,7 +150,10 @@ func runBatchNormEvalParityCase(
 
 	err := lookupBatchNormEvalKernel(testingObject, storageDType).Run(input, scale, bias, mean, variance, out)
 	convey.So(err, convey.ShouldBeNil)
-	assertNormalizationNorm3DBytesForTest(testingObject, backend, out, storageDType, fixture.batchBytes)
+	expectedBytes := norm3DExpectedBytesForTest(
+		testingObject, backend, storageDType, fixture, batch, channels, spatial, "batchnorm_eval",
+	)
+	assertNormalizationNorm3DBytesForTest(testingObject, backend, out, storageDType, expectedBytes, "batchnorm_eval")
 }
 
 func lookupNorm3DKernel(testingObject testing.TB, name string, storageDType dtype.DType) kernels.Kernel {

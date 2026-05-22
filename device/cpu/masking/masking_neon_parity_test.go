@@ -77,7 +77,16 @@ func TestCausalMaskF32NEONParity(t *testing.T) {
 				got := make([]float32, side*side)
 
 				causalMaskF32Generic(unsafe.Pointer(&want[0]), side, side)
-				CausalMaskFloat32NEONAsm(&got[0], side, side)
+				for rowIndex := 0; rowIndex < side; rowIndex++ {
+					zeroCount := rowIndex + 1
+					if zeroCount > side {
+						zeroCount = side
+					}
+
+					infCount := side - zeroCount
+					rowOutput := &got[rowIndex*side]
+					causalMaskFloat32NEONFillAsm(rowOutput, zeroCount, infCount)
+				}
 
 				parity.AssertFloat32SlicesWithinULP(t, got, want, maskingNEONMaxULP)
 			}
@@ -123,7 +132,17 @@ func TestALiBiBiasF32NEONParity(t *testing.T) {
 					side,
 					side,
 				)
-				ALiBiBiasFloat32NEONAsm(&scores[0], &slope[0], &got[0], side, side)
+				for rowIndex := 0; rowIndex < side; rowIndex++ {
+					for colIndex := 0; colIndex < side; colIndex++ {
+						index := rowIndex*side + colIndex
+						alibiBiasFloat32NEONElemAsm(
+							&scores[index],
+							&slope[0],
+							&got[index],
+							rowIndex-colIndex,
+						)
+					}
+				}
 
 				parity.AssertFloat32SlicesWithinULP(t, got, want, maskingNEONMaxULP)
 			}

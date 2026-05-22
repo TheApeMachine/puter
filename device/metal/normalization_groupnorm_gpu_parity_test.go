@@ -17,7 +17,6 @@ func TestGroupNormGPUVersusSerialReference(t *testing.T) {
 
 	spatial := 7
 	batch, channels := norm3DShape()
-	groups := metalDefaultGroupNormGroups
 	fixture := norm3DFixtureForTest(batch, channels, spatial, dtype.Float32)
 	input, scale, bias, out := norm3DAffineTensorsForTest(
 		t, backend, dtype.Float32, batch, channels, spatial, fixture,
@@ -37,13 +36,13 @@ func TestGroupNormGPUVersusSerialReference(t *testing.T) {
 	inputStored := decodeDTypeBytesToFloat32(fixture.inputBytes, dtype.Float32)
 	scaleStored := decodeDTypeBytesToFloat32(fixture.scaleBytes, dtype.Float32)
 	biasStored := decodeDTypeBytesToFloat32(fixture.biasBytes, dtype.Float32)
-	serial := groupNormMetalSerialReference(
-		inputStored, scaleStored, biasStored, batch, channels, spatial, groups,
+	serial := expectedGroupNormValuesMetalSqrt(
+		t, backend, inputStored, scaleStored, biasStored, batch, channels, spatial,
 	)
 	actual := decodeDTypeBytesToFloat32(actualBytes, dtype.Float32)
 
 	maxDistance, maxIndex := maxNormalizationFloat32ULPDistance(actual, serial)
-	if maxDistance > normalizationNorm3DFloat32MaxULP {
+	if maxDistance > normalizationNorm3DMaxULP("groupnorm") {
 		t.Fatalf(
 			"GPU vs serial at %d: got %08x (%g), want %08x (%g), distance %d > %d",
 			maxIndex,
@@ -52,7 +51,7 @@ func TestGroupNormGPUVersusSerialReference(t *testing.T) {
 			math.Float32bits(serial[maxIndex]),
 			serial[maxIndex],
 			maxDistance,
-			normalizationNorm3DFloat32MaxULP,
+			normalizationNorm3DMaxULP("groupnorm"),
 		)
 	}
 }
