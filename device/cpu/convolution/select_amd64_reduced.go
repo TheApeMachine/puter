@@ -1,4 +1,4 @@
-//go:build arm64
+//go:build amd64
 
 package convolution
 
@@ -6,6 +6,7 @@ import (
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
+	"golang.org/x/sys/cpu"
 )
 
 func Conv2DBFloat16Native(
@@ -15,8 +16,9 @@ func Conv2DBFloat16Native(
 	outChannels, kernelHeight, kernelWidth,
 	outHeight, outWidth int,
 ) {
-	if conv2DConfigNEONEligible(config) {
-		conv2DBFloat16Stride1RowNative(
+	if !cpu.X86.HasAVX512F {
+		Conv2DTypedScalar(
+			dtype.BFloat16,
 			config,
 			input, weight, bias, output,
 			batch, inChannels, inHeight, inWidth,
@@ -27,7 +29,19 @@ func Conv2DBFloat16Native(
 		return
 	}
 
-	conv2DBFloat16GeneralNative(
+	if conv2DConfigNEONEligible(config) {
+		conv2DBFloat16Stride1RowAVX512Native(
+			config,
+			input, weight, bias, output,
+			batch, inChannels, inHeight, inWidth,
+			outChannels, kernelHeight, kernelWidth,
+			outHeight, outWidth,
+		)
+
+		return
+	}
+
+	conv2DBFloat16GeneralAVX512Native(
 		config,
 		input, weight, bias, output,
 		batch, inChannels, inHeight, inWidth,
@@ -43,8 +57,9 @@ func Conv2DFloat16Native(
 	outChannels, kernelHeight, kernelWidth,
 	outHeight, outWidth int,
 ) {
-	if conv2DConfigNEONEligible(config) {
-		conv2DFloat16Stride1RowNative(
+	if !cpu.X86.HasAVX512F {
+		Conv2DTypedScalar(
+			dtype.Float16,
 			config,
 			input, weight, bias, output,
 			batch, inChannels, inHeight, inWidth,
@@ -55,7 +70,19 @@ func Conv2DFloat16Native(
 		return
 	}
 
-	conv2DFloat16GeneralNative(
+	if conv2DConfigNEONEligible(config) {
+		conv2DFloat16Stride1RowAVX512Native(
+			config,
+			input, weight, bias, output,
+			batch, inChannels, inHeight, inWidth,
+			outChannels, kernelHeight, kernelWidth,
+			outHeight, outWidth,
+		)
+
+		return
+	}
+
+	conv2DFloat16GeneralAVX512Native(
 		config,
 		input, weight, bias, output,
 		batch, inChannels, inHeight, inWidth,
@@ -64,7 +91,7 @@ func Conv2DFloat16Native(
 	)
 }
 
-func conv2DBFloat16Stride1RowNative(
+func conv2DBFloat16Stride1RowAVX512Native(
 	config Conv2DConfig,
 	input, weight, bias, output unsafe.Pointer,
 	batch, inChannels, inHeight, inWidth,
@@ -92,7 +119,7 @@ func conv2DBFloat16Stride1RowNative(
 				blockCols := outWidth &^ 3
 
 				if blockCols > 0 {
-					Conv2dStride1RowBF16NEONAsm(
+					Conv2dStride1RowBF16AVX512Asm(
 						(*uint16)(unsafe.Add(output, uintptr(outputChannelOffset+outRow*outWidth)*2)),
 						(*uint16)(unsafe.Add(input, uintptr(inputBatchOffset)*2)),
 						(*uint16)(unsafe.Add(weight, uintptr(weightChannelOffset)*2)),
@@ -125,7 +152,7 @@ func conv2DBFloat16Stride1RowNative(
 	}
 }
 
-func conv2DFloat16Stride1RowNative(
+func conv2DFloat16Stride1RowAVX512Native(
 	config Conv2DConfig,
 	input, weight, bias, output unsafe.Pointer,
 	batch, inChannels, inHeight, inWidth,
@@ -153,7 +180,7 @@ func conv2DFloat16Stride1RowNative(
 				blockCols := outWidth &^ 3
 
 				if blockCols > 0 {
-					Conv2dStride1RowFP16NEONAsm(
+					Conv2dStride1RowFP16AVX512Asm(
 						(*uint16)(unsafe.Add(output, uintptr(outputChannelOffset+outRow*outWidth)*2)),
 						(*uint16)(unsafe.Add(input, uintptr(inputBatchOffset)*2)),
 						(*uint16)(unsafe.Add(weight, uintptr(weightChannelOffset)*2)),
@@ -186,7 +213,7 @@ func conv2DFloat16Stride1RowNative(
 	}
 }
 
-func conv2DBFloat16GeneralNative(
+func conv2DBFloat16GeneralAVX512Native(
 	config Conv2DConfig,
 	input, weight, bias, output unsafe.Pointer,
 	batch, inChannels, inHeight, inWidth,
@@ -200,11 +227,11 @@ func conv2DBFloat16GeneralNative(
 		outChannels, kernelHeight, kernelWidth,
 		outHeight, outWidth,
 		dtype.BFloat16,
-		Conv2dPatchDotBF16NEONAsm,
+		Conv2dPatchDotBF16AVX512Asm,
 	)
 }
 
-func conv2DFloat16GeneralNative(
+func conv2DFloat16GeneralAVX512Native(
 	config Conv2DConfig,
 	input, weight, bias, output unsafe.Pointer,
 	batch, inChannels, inHeight, inWidth,
@@ -218,7 +245,7 @@ func conv2DFloat16GeneralNative(
 		outChannels, kernelHeight, kernelWidth,
 		outHeight, outWidth,
 		dtype.Float16,
-		Conv2dPatchDotFP16NEONAsm,
+		Conv2dPatchDotFP16AVX512Asm,
 	)
 }
 
@@ -227,7 +254,7 @@ func Conv1DBFloat16Native(
 	input, weight, bias, output unsafe.Pointer,
 	batch, inChannels, inLength, outChannels, kernelLength, outLength int,
 ) {
-	if !conv1DConfigNEONEligible(config) {
+	if !cpu.X86.HasAVX512F || !conv1DConfigNEONEligible(config) {
 		Conv1DTypedScalar(dtype.BFloat16, config, input, weight, bias, output,
 			batch, inChannels, inLength, outChannels, kernelLength, outLength)
 
@@ -253,7 +280,7 @@ func Conv1DBFloat16Native(
 			blockCols := outLength &^ 3
 
 			if blockCols > 0 {
-				Conv2dStride1RowBF16NEONAsm(
+				Conv2dStride1RowBF16AVX512Asm(
 					(*uint16)(unsafe.Add(output, uintptr(outputChannelOffset)*2)),
 					(*uint16)(unsafe.Add(input, uintptr(inputBatchOffset)*2)),
 					(*uint16)(unsafe.Add(weight, uintptr(weightChannelOffset)*2)),
@@ -287,7 +314,7 @@ func Conv1DFloat16Native(
 	input, weight, bias, output unsafe.Pointer,
 	batch, inChannels, inLength, outChannels, kernelLength, outLength int,
 ) {
-	if !conv1DConfigNEONEligible(config) {
+	if !cpu.X86.HasAVX512F || !conv1DConfigNEONEligible(config) {
 		Conv1DTypedScalar(dtype.Float16, config, input, weight, bias, output,
 			batch, inChannels, inLength, outChannels, kernelLength, outLength)
 
@@ -313,7 +340,7 @@ func Conv1DFloat16Native(
 			blockCols := outLength &^ 3
 
 			if blockCols > 0 {
-				Conv2dStride1RowFP16NEONAsm(
+				Conv2dStride1RowFP16AVX512Asm(
 					(*uint16)(unsafe.Add(output, uintptr(outputChannelOffset)*2)),
 					(*uint16)(unsafe.Add(input, uintptr(inputBatchOffset)*2)),
 					(*uint16)(unsafe.Add(weight, uintptr(weightChannelOffset)*2)),
@@ -348,12 +375,19 @@ func Conv3DBFloat16Native(
 	batch, inChannels, inD, inH, inW,
 	outChannels, kD, kH, kW, outD, outH, outW int,
 ) {
+	if !cpu.X86.HasAVX512F {
+		Conv3DTypedScalar(dtype.BFloat16, config, input, weight, bias, output,
+			batch, inChannels, inD, inH, inW, outChannels, kD, kH, kW, outD, outH, outW)
+
+		return
+	}
+
 	conv3DReducedNative(
 		config, input, weight, bias, output,
 		batch, inChannels, inD, inH, inW,
 		outChannels, kD, kH, kW, outD, outH, outW,
 		dtype.BFloat16,
-		Conv2dPatchDotBF16NEONAsm,
+		Conv2dPatchDotBF16AVX512Asm,
 	)
 }
 
@@ -363,12 +397,19 @@ func Conv3DFloat16Native(
 	batch, inChannels, inD, inH, inW,
 	outChannels, kD, kH, kW, outD, outH, outW int,
 ) {
+	if !cpu.X86.HasAVX512F {
+		Conv3DTypedScalar(dtype.Float16, config, input, weight, bias, output,
+			batch, inChannels, inD, inH, inW, outChannels, kD, kH, kW, outD, outH, outW)
+
+		return
+	}
+
 	conv3DReducedNative(
 		config, input, weight, bias, output,
 		batch, inChannels, inD, inH, inW,
 		outChannels, kD, kH, kW, outD, outH, outW,
 		dtype.Float16,
-		Conv2dPatchDotFP16NEONAsm,
+		Conv2dPatchDotFP16AVX512Asm,
 	)
 }
 
@@ -379,7 +420,7 @@ func ConvTranspose2DBFloat16Native(
 	outChannels, kernelHeight, kernelWidth,
 	outHeight, outWidth int,
 ) {
-	if !ConvTranspose2DConfigNEONEligible(config) {
+	if !cpu.X86.HasAVX512F || !ConvTranspose2DConfigNEONEligible(config) {
 		ConvTranspose2DTypedScalar(dtype.BFloat16, config, input, weight, bias, output,
 			batch, inChannels, inHeight, inWidth, outChannels, kernelHeight, kernelWidth, outHeight, outWidth)
 
@@ -392,7 +433,7 @@ func ConvTranspose2DBFloat16Native(
 		outChannels, kernelHeight, kernelWidth,
 		outHeight, outWidth,
 		dtype.BFloat16,
-		ConvTranspose2dStride1RowBF16NEON,
+		ConvTranspose2dStride1RowBF16AVX512,
 	)
 }
 
@@ -403,7 +444,7 @@ func ConvTranspose2DFloat16Native(
 	outChannels, kernelHeight, kernelWidth,
 	outHeight, outWidth int,
 ) {
-	if !ConvTranspose2DConfigNEONEligible(config) {
+	if !cpu.X86.HasAVX512F || !ConvTranspose2DConfigNEONEligible(config) {
 		ConvTranspose2DTypedScalar(dtype.Float16, config, input, weight, bias, output,
 			batch, inChannels, inHeight, inWidth, outChannels, kernelHeight, kernelWidth, outHeight, outWidth)
 
@@ -416,6 +457,6 @@ func ConvTranspose2DFloat16Native(
 		outChannels, kernelHeight, kernelWidth,
 		outHeight, outWidth,
 		dtype.Float16,
-		ConvTranspose2dStride1RowFP16NEON,
+		ConvTranspose2dStride1RowFP16AVX512,
 	)
 }

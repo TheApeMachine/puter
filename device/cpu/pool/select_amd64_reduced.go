@@ -1,4 +1,4 @@
-//go:build arm64
+//go:build amd64
 
 package pool
 
@@ -6,6 +6,7 @@ import (
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
+	"golang.org/x/sys/cpu"
 )
 
 func Pool2DBFloat16Native(
@@ -14,8 +15,8 @@ func Pool2DBFloat16Native(
 	batch, channels, inHeight, inWidth, outHeight, outWidth int,
 	useMax bool,
 ) {
-	if poolConfigNEONEligible(config) {
-		pool2DBFloat16FastRowNative(
+	if poolConfigNEONEligible(config) && cpu.X86.HasAVX512F {
+		pool2DBFloat16FastRowAVX512Native(
 			config, input, output,
 			batch, channels, inHeight, inWidth, outHeight, outWidth,
 			useMax,
@@ -39,8 +40,8 @@ func Pool2DFloat16Native(
 	batch, channels, inHeight, inWidth, outHeight, outWidth int,
 	useMax bool,
 ) {
-	if poolConfigNEONEligible(config) {
-		pool2DFloat16FastRowNative(
+	if poolConfigNEONEligible(config) && cpu.X86.HasAVX512F && (cpu.X86.HasAVX2 || cpu.X86.HasAVX512F) {
+		pool2DFloat16FastRowAVX512Native(
 			config, input, output,
 			batch, channels, inHeight, inWidth, outHeight, outWidth,
 			useMax,
@@ -58,7 +59,7 @@ func Pool2DFloat16Native(
 	)
 }
 
-func pool2DBFloat16FastRowNative(
+func pool2DBFloat16FastRowAVX512Native(
 	config PoolConfig,
 	input, output unsafe.Pointer,
 	batch, channels, inHeight, inWidth, outHeight, outWidth int,
@@ -77,7 +78,7 @@ func pool2DBFloat16FastRowNative(
 				ihStart := outRow*config.StrideH - config.PaddingH
 
 				if blockCols > 0 && strideTwo && useMax {
-					MaxPool2x2Stride2RowBF16NEONAsm(
+					MaxPool2x2Stride2RowBF16AVX512Asm(
 						(*uint16)(unsafe.Add(output, uintptr(channelOffsetOut+outRow*outWidth)*2)),
 						(*uint16)(unsafe.Add(input, uintptr(channelOffsetIn)*2)),
 						blockCols, inWidth, ihStart,
@@ -85,7 +86,7 @@ func pool2DBFloat16FastRowNative(
 				}
 
 				if blockCols > 0 && strideTwo && !useMax {
-					AvgPool2x2Stride2RowBF16NEONAsm(
+					AvgPool2x2Stride2RowBF16AVX512Asm(
 						(*uint16)(unsafe.Add(output, uintptr(channelOffsetOut+outRow*outWidth)*2)),
 						(*uint16)(unsafe.Add(input, uintptr(channelOffsetIn)*2)),
 						blockCols, inWidth, ihStart,
@@ -94,7 +95,7 @@ func pool2DBFloat16FastRowNative(
 
 				if blockCols > 0 && !strideTwo {
 					if useMax {
-						MaxPool2DStride1RowBF16NEONAsm(
+						MaxPool2DStride1RowBF16AVX512Asm(
 							(*uint16)(unsafe.Add(output, uintptr(channelOffsetOut+outRow*outWidth)*2)),
 							(*uint16)(unsafe.Add(input, uintptr(channelOffsetIn)*2)),
 							blockCols,
@@ -104,7 +105,7 @@ func pool2DBFloat16FastRowNative(
 					}
 
 					if !useMax {
-						AvgPool2DStride1RowBF16NEONAsm(
+						AvgPool2DStride1RowBF16AVX512Asm(
 							(*uint16)(unsafe.Add(output, uintptr(channelOffsetOut+outRow*outWidth)*2)),
 							(*uint16)(unsafe.Add(input, uintptr(channelOffsetIn)*2)),
 							blockCols,
@@ -130,7 +131,7 @@ func pool2DBFloat16FastRowNative(
 	}
 }
 
-func pool2DFloat16FastRowNative(
+func pool2DFloat16FastRowAVX512Native(
 	config PoolConfig,
 	input, output unsafe.Pointer,
 	batch, channels, inHeight, inWidth, outHeight, outWidth int,
@@ -149,7 +150,7 @@ func pool2DFloat16FastRowNative(
 				ihStart := outRow*config.StrideH - config.PaddingH
 
 				if blockCols > 0 && strideTwo && useMax {
-					MaxPool2x2Stride2RowFP16NEONAsm(
+					MaxPool2x2Stride2RowFP16AVX512Asm(
 						(*uint16)(unsafe.Add(output, uintptr(channelOffsetOut+outRow*outWidth)*2)),
 						(*uint16)(unsafe.Add(input, uintptr(channelOffsetIn)*2)),
 						blockCols, inWidth, ihStart,
@@ -157,7 +158,7 @@ func pool2DFloat16FastRowNative(
 				}
 
 				if blockCols > 0 && strideTwo && !useMax {
-					AvgPool2x2Stride2RowFP16NEONAsm(
+					AvgPool2x2Stride2RowFP16AVX512Asm(
 						(*uint16)(unsafe.Add(output, uintptr(channelOffsetOut+outRow*outWidth)*2)),
 						(*uint16)(unsafe.Add(input, uintptr(channelOffsetIn)*2)),
 						blockCols, inWidth, ihStart,
@@ -166,7 +167,7 @@ func pool2DFloat16FastRowNative(
 
 				if blockCols > 0 && !strideTwo {
 					if useMax {
-						MaxPool2DStride1RowFP16NEONAsm(
+						MaxPool2DStride1RowFP16AVX512Asm(
 							(*uint16)(unsafe.Add(output, uintptr(channelOffsetOut+outRow*outWidth)*2)),
 							(*uint16)(unsafe.Add(input, uintptr(channelOffsetIn)*2)),
 							blockCols,
@@ -176,7 +177,7 @@ func pool2DFloat16FastRowNative(
 					}
 
 					if !useMax {
-						AvgPool2DStride1RowFP16NEONAsm(
+						AvgPool2DStride1RowFP16AVX512Asm(
 							(*uint16)(unsafe.Add(output, uintptr(channelOffsetOut+outRow*outWidth)*2)),
 							(*uint16)(unsafe.Add(input, uintptr(channelOffsetIn)*2)),
 							blockCols,

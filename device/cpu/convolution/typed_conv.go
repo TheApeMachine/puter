@@ -153,6 +153,95 @@ func conv2DPixelTyped(
 	return sum
 }
 
+func conv1DPixelTyped(
+	config Conv1DConfig,
+	input, weight unsafe.Pointer,
+	loadInput, loadWeight elementLoad,
+	inputBatchOffset, weightChannelOffset int,
+	inChannels, inLength, kernelLength, outIndex int,
+	biasValue float32,
+) float32 {
+	sum := biasValue
+
+	for inChIndex := range inChannels {
+		for kernelIndex := range kernelLength {
+			inPos := outIndex*config.Stride + kernelIndex*config.Dilation - config.Padding
+
+			if inPos < 0 || inPos >= inLength {
+				continue
+			}
+
+			inputIndex := inputBatchOffset + inChIndex*inLength + inPos
+			weightIndex := weightChannelOffset + inChIndex*kernelLength + kernelIndex
+
+			sum += loadInput(input, inputIndex) * loadWeight(weight, weightIndex)
+		}
+	}
+
+	return sum
+}
+
+func convTranspose2DPixelTyped(
+	config Conv2DConfig,
+	input, weight unsafe.Pointer,
+	loadInput, loadWeight elementLoad,
+	inputChannelOffset, weightChannelOffset int,
+	inHeight, inWidth, kernelHeight, kernelWidth,
+	outRow, outCol int,
+) float32 {
+	var sum float32
+
+	for kernelRow := range kernelHeight {
+		inputRowNumerator := outRow + config.PaddingH - kernelRow*config.DilationH
+		if inputRowNumerator%config.StrideH != 0 {
+			continue
+		}
+
+		inputRow := inputRowNumerator / config.StrideH
+		if inputRow < 0 || inputRow >= inHeight {
+			continue
+		}
+
+		sum += convTranspose2DPixelRowTyped(
+			config, input, weight,
+			loadInput, loadWeight,
+			inputChannelOffset, weightChannelOffset,
+			inputRow, outCol, inWidth, kernelRow, kernelWidth,
+		)
+	}
+
+	return sum
+}
+
+func convTranspose2DPixelRowTyped(
+	config Conv2DConfig,
+	input, weight unsafe.Pointer,
+	loadInput, loadWeight elementLoad,
+	inputChannelOffset, weightChannelOffset int,
+	inputRow, outCol, inWidth, kernelRow, kernelWidth int,
+) float32 {
+	var sum float32
+
+	for kernelCol := range kernelWidth {
+		inputColNumerator := outCol + config.PaddingW - kernelCol*config.DilationW
+		if inputColNumerator%config.StrideW != 0 {
+			continue
+		}
+
+		inputCol := inputColNumerator / config.StrideW
+		if inputCol < 0 || inputCol >= inWidth {
+			continue
+		}
+
+		inputIndex := inputChannelOffset + inputRow*inWidth + inputCol
+		weightIndex := weightChannelOffset + kernelRow*kernelWidth + kernelCol
+
+		sum += loadInput(input, inputIndex) * loadWeight(weight, weightIndex)
+	}
+
+	return sum
+}
+
 func Conv1DTypedScalar(
 	format dtype.DType,
 	config Conv1DConfig,

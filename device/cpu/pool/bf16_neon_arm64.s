@@ -133,3 +133,84 @@ ap_bf16_kh_done:
 
 ap_bf16_done:
     RET
+
+// func MaxPool2x2Stride2RowBF16NEONAsm(outRow, input *uint16, outCols, inWidth, ihStart int)
+TEXT ·MaxPool2x2Stride2RowBF16NEONAsm(SB), NOSPLIT, $0-40
+    MOVD outRow+0(FP), R0
+    MOVD input+8(FP), R1
+    MOVD outCols+16(FP), R2
+    MOVD inWidth+24(FP), R3
+    MOVD ihStart+32(FP), R4
+
+    VEOR V31.B16, V31.B16, V31.B16
+    LSL  $1, R3, R5
+    MUL  R5, R4, R6
+    ADD  R6, R1, R1
+    ADD  R5, R1, R7
+
+mp22_bf16_col_loop:
+    CMP  $4, R2
+    BLT  mp22_bf16_done
+    VLD2 (R1), [V0.H4, V1.H4]
+    VZIP1 V0.H8, V31.H8, V20.H8
+    VZIP1 V1.H8, V31.H8, V21.H8
+    VFMAX_S4(20, 21, 22)
+    VLD2 (R7), [V0.H4, V1.H4]
+    VZIP1 V0.H8, V31.H8, V20.H8
+    VZIP1 V1.H8, V31.H8, V21.H8
+    VFMAX_S4(20, 21, 23)
+    VFMAX_S4(23, 22, 24)
+    NARROW_BF16_S4_TO_H4(24)
+    VST1 [V12.H4], (R0)
+    ADD  $16, R1
+    ADD  $16, R7
+    ADD  $8, R0
+    SUB  $4, R2
+    B    mp22_bf16_col_loop
+
+mp22_bf16_done:
+    RET
+
+// func AvgPool2x2Stride2RowBF16NEONAsm(outRow, input *uint16, outCols, inWidth, ihStart int)
+TEXT ·AvgPool2x2Stride2RowBF16NEONAsm(SB), NOSPLIT, $0-40
+    MOVD outRow+0(FP), R0
+    MOVD input+8(FP), R1
+    MOVD outCols+16(FP), R2
+    MOVD inWidth+24(FP), R3
+    MOVD ihStart+32(FP), R4
+
+    MOVD $0x3E800000, R8
+    VMOV R8, V30.S[0]
+    VDUP V30.S[0], V30.S4
+
+    VEOR V31.B16, V31.B16, V31.B16
+    LSL  $1, R3, R5
+    MUL  R5, R4, R6
+    ADD  R6, R1, R1
+    ADD  R5, R1, R7
+
+ap22_bf16_col_loop:
+    CMP  $4, R2
+    BLT  ap22_bf16_done
+    VLD2 (R1), [V0.H4, V1.H4]
+    VZIP1 V0.H8, V31.H8, V20.H8
+    VZIP1 V1.H8, V31.H8, V21.H8
+    VLD2 (R7), [V2.H4, V3.H4]
+    VZIP1 V2.H8, V31.H8, V22.H8
+    VZIP1 V3.H8, V31.H8, V23.H8
+    VEOR V4.B16, V4.B16, V4.B16
+    VFADD_S4(20, 4, 4)
+    VFADD_S4(21, 4, 4)
+    VFADD_S4(22, 4, 4)
+    VFADD_S4(23, 4, 4)
+    VFMUL_S4(30, 4, 4)
+    NARROW_BF16_S4_TO_H4(4)
+    VST1 [V12.H4], (R0)
+    ADD  $16, R1
+    ADD  $16, R7
+    ADD  $8, R0
+    SUB  $4, R2
+    B    ap22_bf16_col_loop
+
+ap22_bf16_done:
+    RET
