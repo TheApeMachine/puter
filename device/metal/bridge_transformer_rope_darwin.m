@@ -57,7 +57,7 @@ int metal_dispatch_rope(
     );
 }
 
-int metal_dispatch_flux2_rope(
+int metal_dispatch_multi_axis_rope(
     MetalDeviceRef contextRef,
     int elementDType,
     MetalBufferRef inputRef,
@@ -79,7 +79,7 @@ int metal_dispatch_flux2_rope(
 
     char kernelName[128];
     int nameCode = metal_transformer_kernel_name(
-        kernelName, sizeof(kernelName), "flux2_rope", elementDType, status
+        kernelName, sizeof(kernelName), "multi_axis_rope", elementDType, status
     );
 
     if (nameCode != 0) {

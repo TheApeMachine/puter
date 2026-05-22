@@ -82,6 +82,8 @@ func dispatchNode(
 		err = dispatchModulatedLayerNorm(node, args)
 	} else if kernel == "gated_residual" {
 		err = dispatchGatedResidual(node, args)
+	} else if kernel == "multi_axis_rope" {
+		err = dispatchMultiAxisRoPE(node, args)
 	} else {
 		err = dispatchRegisteredKernel(kernel, location, args)
 	}

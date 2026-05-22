@@ -42,7 +42,7 @@ func outputShapeForNode(
 		return concatOutputShape(node, tensorWorkspace)
 	case "swiglu":
 		return swiGLUOutputShape(node, tensorWorkspace)
-	case "rmsnorm", "layernorm", "modulated_layernorm", "gated_residual", "rope",
+	case "rmsnorm", "layernorm", "modulated_layernorm", "gated_residual", "rope", "multi_axis_rope",
 		"relu", "gelu", "tanh", "sigmoid", "swish", "selu", "leaky_relu",
 		"slice", "transpose",
 		"reshape", "dropout", "softmax":

@@ -657,7 +657,7 @@ int metal_dispatch_rope(
     uint64_t completionToken,
     MetalStatus* status
 );
-int metal_dispatch_flux2_rope(
+int metal_dispatch_multi_axis_rope(
     MetalDeviceRef contextRef,
     int elementDType,
     MetalBufferRef inputRef,

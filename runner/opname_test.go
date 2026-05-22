@@ -20,6 +20,7 @@ func TestKernelName(testingObject *testing.T) {
 			"projection.fused_qkv":         "fused_qkv",
 			"embedding.token":              "embedding_lookup",
 			"positional.rope":              "rope",
+			"positional.multi_axis_rope":   "multi_axis_rope",
 			"positional.alibi":             "alibi_bias",
 			"shape.view_as_heads":          "view_as_heads",
 			"shape.merge_heads":            "merge_heads",

@@ -491,7 +491,7 @@ static inline void rope_kernel(
 }
 
 template <typename Storage, typename Scalar>
-static inline void flux2_rope_kernel(
+static inline void multi_axis_rope_kernel(
     device const Scalar* input,
     device Scalar* out,
     constant uint& seqLen,
@@ -682,7 +682,7 @@ kernel void name( \
     ); \
 }
 
-#define FLUX2_ROPE_KERNEL(name, storage, scalar) \
+#define MULTI_AXIS_ROPE_KERNEL(name, storage, scalar) \
 kernel void name( \
     device const scalar* input [[buffer(0)]], \
     device scalar* out [[buffer(1)]], \
@@ -695,7 +695,7 @@ kernel void name( \
     constant float& theta [[buffer(8)]], \
     uint index [[thread_position_in_grid]] \
 ) { \
-    flux2_rope_kernel<storage, scalar>( \
+    multi_axis_rope_kernel<storage, scalar>( \
         input, out, seqLen, numHeads, headDim, pairCount, latentSeqLen, latentSide, theta, index \
     ); \
 }
@@ -746,6 +746,6 @@ ROPE_KERNEL(rope_float32, Float32TransformerStorage, float)
 ROPE_KERNEL(rope_float16, Float16TransformerStorage, half)
 ROPE_KERNEL(rope_bfloat16, BFloat16TransformerStorage, ushort)
 
-FLUX2_ROPE_KERNEL(flux2_rope_float32, Float32TransformerStorage, float)
-FLUX2_ROPE_KERNEL(flux2_rope_float16, Float16TransformerStorage, half)
-FLUX2_ROPE_KERNEL(flux2_rope_bfloat16, BFloat16TransformerStorage, ushort)
+MULTI_AXIS_ROPE_KERNEL(multi_axis_rope_float32, Float32TransformerStorage, float)
+MULTI_AXIS_ROPE_KERNEL(multi_axis_rope_float16, Float16TransformerStorage, half)
+MULTI_AXIS_ROPE_KERNEL(multi_axis_rope_bfloat16, BFloat16TransformerStorage, ushort)

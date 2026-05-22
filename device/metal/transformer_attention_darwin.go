@@ -229,12 +229,16 @@ func runMetalRoPEWithPosition(
 	return finishMetalTransformerDispatch("rope", token, rc, status)
 }
 
-func runMetalFlux2RoPE(
+type MultiAxisRoPEConfig struct {
+	LatentSeqLen int
+	LatentSide   int
+	Base         float32
+}
+
+func RunMultiAxisRoPE(
 	input tensor.Tensor,
 	out tensor.Tensor,
-	latentSeqLen int,
-	latentSide int,
-	theta float32,
+	multiAxisConfig MultiAxisRoPEConfig,
 ) error {
 	config, err := requireMetalRoPE(input, out)
 	if err != nil {
@@ -251,7 +255,7 @@ func runMetalFlux2RoPE(
 	}
 
 	status := C.MetalStatus{}
-	rc := C.metal_dispatch_flux2_rope(
+	rc := C.metal_dispatch_multi_axis_rope(
 		config.input.bridge.device,
 		C.int(config.elementDType),
 		config.input.buffer,
@@ -260,24 +264,14 @@ func runMetalFlux2RoPE(
 		C.uint32_t(config.numHeads),
 		C.uint32_t(config.headDim),
 		C.uint32_t(config.pairCount),
-		C.uint32_t(latentSeqLen),
-		C.uint32_t(latentSide),
-		C.float(theta),
+		C.uint32_t(multiAxisConfig.LatentSeqLen),
+		C.uint32_t(multiAxisConfig.LatentSide),
+		C.float(multiAxisConfig.Base),
 		C.uint64_t(token),
 		&status,
 	)
 
-	return finishMetalTransformerDispatch("flux2_rope", token, rc, status)
-}
-
-func (backend *Backend) Flux2RoPE(
-	input tensor.Tensor,
-	out tensor.Tensor,
-	latentSeqLen int,
-	latentSide int,
-	theta float32,
-) error {
-	return runMetalFlux2RoPE(input, out, latentSeqLen, latentSide, theta)
+	return finishMetalTransformerDispatch("multi_axis_rope", token, rc, status)
 }
 
 func (backend *Backend) RoPEWithTheta(input tensor.Tensor, out tensor.Tensor, theta float32) error {

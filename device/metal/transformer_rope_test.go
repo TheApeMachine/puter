@@ -63,7 +63,7 @@ func runRoPEParityCase(
 	assertRoPEBytesForTest(testingObject, backend, out, storageDType, fixture)
 }
 
-func TestMetalFlux2RoPE(t *testing.T) {
+func TestMetalMultiAxisRoPE(t *testing.T) {
 	backend := newBackendForDeviceTest(t)
 	defer func() {
 		if err := backend.Close(); err != nil {
@@ -71,17 +71,21 @@ func TestMetalFlux2RoPE(t *testing.T) {
 		}
 	}()
 
-	convey.Convey("Given text and latent tokens with FLUX2 4D RoPE IDs", t, func() {
+	convey.Convey("Given text and latent tokens with multi-axis RoPE IDs", t, func() {
 		seqLen, numHeads, headDim := 6, 1, 128
 		latentSeqLen, latentSide := 4, 2
-		fixture := flux2RoPEFixtureForTest(seqLen, numHeads, headDim, latentSeqLen, latentSide)
+		fixture := multiAxisRoPEFixtureForTest(seqLen, numHeads, headDim, latentSeqLen, latentSide)
 		input, out := ropeTensorsForTest(
 			t, backend, seqLen, numHeads, headDim, dtype.Float32, fixture,
 		)
 		defer closeBenchmarkTensors(input, out)
 
 		convey.Convey("It should match HF axis-wise text and latent positions", func() {
-			err := runMetalFlux2RoPE(input, out, latentSeqLen, latentSide, 2000)
+			err := RunMultiAxisRoPE(input, out, MultiAxisRoPEConfig{
+				LatentSeqLen: latentSeqLen,
+				LatentSide:   latentSide,
+				Base:         2000,
+			})
 
 			convey.So(err, convey.ShouldBeNil)
 			assertRoPEBytesForTest(t, backend, out, dtype.Float32, fixture)
@@ -89,7 +93,7 @@ func TestMetalFlux2RoPE(t *testing.T) {
 	})
 }
 
-func flux2RoPEFixtureForTest(
+func multiAxisRoPEFixtureForTest(
 	seqLen int,
 	numHeads int,
 	headDim int,
@@ -100,7 +104,7 @@ func flux2RoPEFixtureForTest(
 		ropeInputValues(seqLen*numHeads*headDim), dtype.Float32,
 	)
 	inputStored := decodeDTypeBytesToFloat32(inputBytes, dtype.Float32)
-	expected := flux2RoPEExpectedValues(inputStored, seqLen, numHeads, headDim, latentSeqLen, latentSide)
+	expected := multiAxisRoPEExpectedValues(inputStored, seqLen, numHeads, headDim, latentSeqLen, latentSide)
 
 	return ropeFixture{
 		inputBytes:      inputBytes,
@@ -109,7 +113,7 @@ func flux2RoPEFixtureForTest(
 	}
 }
 
-func flux2RoPEExpectedValues(
+func multiAxisRoPEExpectedValues(
 	input []float32,
 	seqLen int,
 	numHeads int,
@@ -123,7 +127,7 @@ func flux2RoPEExpectedValues(
 	for seqIndex := range seqLen {
 		for headIndex := range numHeads {
 			for pairIndex := range halfDim {
-				flux2RoPEExpectedPair(
+				multiAxisRoPEExpectedPair(
 					input, out, seqIndex, headIndex, pairIndex,
 					numHeads, headDim, latentSeqLen, latentSide,
 				)
@@ -134,7 +138,7 @@ func flux2RoPEExpectedValues(
 	return out
 }
 
-func flux2RoPEExpectedPair(
+func multiAxisRoPEExpectedPair(
 	input []float32,
 	out []float32,
 	seqIndex int,
@@ -150,7 +154,7 @@ func flux2RoPEExpectedPair(
 	axisIndex := pairIndex / axisPairCount
 	localPair := pairIndex - axisIndex*axisPairCount
 	textLen := seqLenFromValues(input, numHeads, headDim) - latentSeqLen
-	position := flux2RoPEPosition(seqIndex, textLen, latentSide, axisIndex)
+	position := multiAxisRoPEPosition(seqIndex, textLen, latentSide, axisIndex)
 	axisDim := axisPairCount * 2
 	exponent := -2 * float64(localPair) / float64(axisDim)
 	theta := float64(position) * math.Pow(2000, exponent)
@@ -163,7 +167,7 @@ func flux2RoPEExpectedPair(
 	out[inputIndex+1] = even*sinTheta + odd*cosTheta
 }
 
-func flux2RoPEPosition(seqIndex int, textLen int, latentSide int, axisIndex int) int {
+func multiAxisRoPEPosition(seqIndex int, textLen int, latentSide int, axisIndex int) int {
 	if seqIndex < textLen {
 		if axisIndex == 3 {
 			return seqIndex

@@ -238,6 +238,36 @@ func TestModulatedLayerNormOutputShapeForNode(testingObject *testing.T) {
 	})
 }
 
+func TestMultiAxisRoPEOutputShapeForNode(testingObject *testing.T) {
+	convey.Convey("Given a multi-axis RoPE node with runtime input shape", testingObject, func() {
+		inputShape, err := tensor.NewShape([]int{1, 5120, 24, 128})
+		convey.So(err, convey.ShouldBeNil)
+
+		staleShape, err := tensor.NewShape([]int{1, 1, 24, 128})
+		convey.So(err, convey.ShouldBeNil)
+
+		inputNode := manifestComputeNode("q", "input", ir.OpInput, inputShape)
+		ropeNode := manifestComputeNode("tb_rope_q_0", "positional.multi_axis_rope", ir.OpFused, staleShape)
+		ropeNode.AddInput(inputNode)
+		setFloat32ValueType(inputNode)
+		setFloat32ValueType(ropeNode)
+
+		input, err := tensor.NewZeroed(inputShape, dtype.Float32)
+		convey.So(err, convey.ShouldBeNil)
+
+		tensorWorkspace := newWorkspace()
+		defer tensorWorkspace.Close()
+		tensorWorkspace.Store("q", input)
+
+		convey.Convey("It should use the actual primary input shape", func() {
+			shape, err := outputShapeForNode(ropeNode, "multi_axis_rope", tensorWorkspace, "", nil, newManifestBindings(nil))
+
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(shape.Dims(), convey.ShouldResemble, []int{1, 5120, 24, 128})
+		})
+	})
+}
+
 func TestRunnerWeightCache(testingObject *testing.T) {
 	convey.Convey("Given a runner and a compute backend", testingObject, func() {
 		devicePool, err := pool.New(context.Background(), nil)
