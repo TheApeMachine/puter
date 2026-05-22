@@ -25,3 +25,27 @@ func AvgPool2DStride1RowFP16SSE2Asm(
 	outRow, input *uint16,
 	outCols, kH, kW, inHStride, ihStart int,
 )
+
+//go:noescape
+func MaxPool2x2Stride2RowBF16SSE2Asm(
+	outRow, input *uint16,
+	outCols, inWidth, ihStart int,
+)
+
+//go:noescape
+func AvgPool2x2Stride2RowBF16SSE2Asm(
+	outRow, input *uint16,
+	outCols, inWidth, ihStart int,
+)
+
+//go:noescape
+func MaxPool2x2Stride2RowFP16SSE2Asm(
+	outRow, input *uint16,
+	outCols, inWidth, ihStart int,
+)
+
+//go:noescape
+func AvgPool2x2Stride2RowFP16SSE2Asm(
+	outRow, input *uint16,
+	outCols, inWidth, ihStart int,
+)

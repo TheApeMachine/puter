@@ -12,19 +12,27 @@ type activationSteerFixture struct {
 	expectedBytes    []byte
 }
 
-func activationSteerFixtureForTest(elementCount int) activationSteerFixture {
+func activationSteerFixtureForTest(elementCount int, storageDType dtype.DType) activationSteerFixture {
 	base := activationSteerValuesForTest(elementCount, 3)
 	direction := activationSteerValuesForTest(elementCount, 11)
 	coefficient := float32(0.375)
 
+	baseBytes := encodeLossValuesAsDType(base, storageDType)
+	directionBytes := encodeLossValuesAsDType(direction, storageDType)
+
+	storedBase := decodeDTypeBytesToFloat32(baseBytes, storageDType)
+	storedDirection := decodeDTypeBytesToFloat32(directionBytes, storageDType)
+
 	destination := make([]float32, elementCount)
-	cpuinterpretability.ActivationSteerFloat32Scalar(destination, base, direction, coefficient)
+	cpuinterpretability.ActivationSteerFloat32Scalar(
+		destination, storedBase, storedDirection, coefficient,
+	)
 
 	return activationSteerFixture{
-		baseBytes:        encodeLossValuesAsDType(base, dtype.Float32),
-		directionBytes:   encodeLossValuesAsDType(direction, dtype.Float32),
+		baseBytes:        baseBytes,
+		directionBytes:   directionBytes,
 		coefficientBytes: encodeLossValuesAsDType([]float32{coefficient}, dtype.Float32),
-		expectedBytes:    encodeLossValuesAsDType(destination, dtype.Float32),
+		expectedBytes:    encodeLossValuesAsDType(destination, storageDType),
 	}
 }
 

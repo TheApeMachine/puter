@@ -54,8 +54,12 @@ func init() {
 	if cpu.X86.HasSSE2 {
 		maxPoolStride1RowBF16 = MaxPool2DStride1RowBF16SSE2Asm
 		avgPoolStride1RowBF16 = AvgPool2DStride1RowBF16SSE2Asm
+		maxPool2x2RowBF16 = MaxPool2x2Stride2RowBF16SSE2Asm
+		avgPool2x2RowBF16 = AvgPool2x2Stride2RowBF16SSE2Asm
 
 		maxPoolStride1RowFP16 = MaxPool2DStride1RowFP16SSE2Asm
 		avgPoolStride1RowFP16 = AvgPool2DStride1RowFP16SSE2Asm
+		maxPool2x2RowFP16 = MaxPool2x2Stride2RowFP16SSE2Asm
+		avgPool2x2RowFP16 = AvgPool2x2Stride2RowFP16SSE2Asm
 	}
 }

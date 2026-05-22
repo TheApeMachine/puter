@@ -11,18 +11,24 @@ type weightGraftFixture struct {
 	expectedBytes  []byte
 }
 
-func weightGraftFixtureForTest(elementCount int) weightGraftFixture {
+func weightGraftFixtureForTest(elementCount int, storageDType dtype.DType) weightGraftFixture {
 	weights := weightGraftValuesForTest(elementCount, 5)
 	injection := weightGraftValuesForTest(elementCount, 17)
 
+	weightsBytes := encodeLossValuesAsDType(weights, storageDType)
+	injectionBytes := encodeLossValuesAsDType(injection, storageDType)
+
+	storedWeights := decodeDTypeBytesToFloat32(weightsBytes, storageDType)
+	storedInjection := decodeDTypeBytesToFloat32(injectionBytes, storageDType)
+
 	want := make([]float32, elementCount)
-	copy(want, weights)
-	cpumodelediting.WeightGraftAddFloat32Scalar(want, injection)
+	copy(want, storedWeights)
+	cpumodelediting.WeightGraftAddFloat32Scalar(want, storedInjection)
 
 	return weightGraftFixture{
-		weightsBytes:   encodeLossValuesAsDType(weights, dtype.Float32),
-		injectionBytes: encodeLossValuesAsDType(injection, dtype.Float32),
-		expectedBytes:  encodeLossValuesAsDType(want, dtype.Float32),
+		weightsBytes:   weightsBytes,
+		injectionBytes: injectionBytes,
+		expectedBytes:  encodeLossValuesAsDType(want, storageDType),
 	}
 }
 

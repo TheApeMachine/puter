@@ -18,5 +18,7 @@ func DropoutFloat32Native(
 
 var dropoutF32Funcs = []f32DropoutKernelImpl{
 	{DropoutF32AVX512, "avx512", cpu.X86.HasAVX512F},
+	{DropoutF32AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+	{DropoutF32SSE2, "sse2", cpu.X86.HasSSE2},
 	{DropoutF32Generic, "generic", true},
 }

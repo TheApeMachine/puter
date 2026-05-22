@@ -19,14 +19,15 @@ import (
 )
 
 type metalActivationSteerConfig struct {
-	destination *metalTensor
-	base        *metalTensor
-	direction   *metalTensor
-	coefficient *metalTensor
-	count       uint32
+	destination  *metalTensor
+	base         *metalTensor
+	direction    *metalTensor
+	coefficient  *metalTensor
+	elementDType metalElementDType
+	count        uint32
 }
 
-func runMetalActivationSteerFloat32(
+func runMetalActivationSteer(
 	base tensor.Tensor,
 	direction tensor.Tensor,
 	coefficient tensor.Tensor,
@@ -52,8 +53,9 @@ func runMetalActivationSteerFloat32(
 	}
 
 	status := C.MetalStatus{}
-	rc := C.metal_dispatch_activation_steer_float32(
+	rc := C.metal_dispatch_activation_steer(
 		config.base.bridge.device,
+		C.int(config.elementDType),
 		config.destination.buffer,
 		config.base.buffer,
 		config.direction.buffer,
@@ -63,7 +65,7 @@ func runMetalActivationSteerFloat32(
 		&status,
 	)
 
-	return finishMetalUtilityDispatch("activation_steer_float32", token, rc, status)
+	return finishMetalUtilityDispatch("activation_steer", token, rc, status)
 }
 
 func requireMetalActivationSteer(
@@ -90,10 +92,17 @@ func requireMetalActivationSteer(
 		)
 	}
 
-	if baseTensor.dtype != dtype.Float32 ||
-		directionTensor.dtype != dtype.Float32 ||
-		coefficientTensor.dtype != dtype.Float32 ||
-		destinationTensor.dtype != dtype.Float32 {
+	elementDType, err := metalElementDTypeFor(baseTensor.dtype)
+	if err != nil {
+		return metalActivationSteerConfig{}, err
+	}
+
+	if baseTensor.dtype != directionTensor.dtype ||
+		baseTensor.dtype != destinationTensor.dtype {
+		return metalActivationSteerConfig{}, tensor.ErrDTypeMismatch
+	}
+
+	if coefficientTensor.dtype != dtype.Float32 {
 		return metalActivationSteerConfig{}, tensor.ErrDTypeMismatch
 	}
 
@@ -111,10 +120,11 @@ func requireMetalActivationSteer(
 	}
 
 	return metalActivationSteerConfig{
-		destination: destinationTensor,
-		base:        baseTensor,
-		direction:   directionTensor,
-		coefficient: coefficientTensor,
-		count:       uint32(baseTensor.shape.Len()),
+		destination:  destinationTensor,
+		base:         baseTensor,
+		direction:    directionTensor,
+		coefficient:  coefficientTensor,
+		elementDType: elementDType,
+		count:        uint32(baseTensor.shape.Len()),
 	}, nil
 }

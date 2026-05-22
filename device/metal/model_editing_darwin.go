@@ -13,17 +13,17 @@ import "C"
 import (
 	"math"
 
-	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
 )
 
 type metalWeightGraftConfig struct {
-	weights   *metalTensor
-	injection *metalTensor
-	count     uint32
+	weights      *metalTensor
+	injection    *metalTensor
+	elementDType metalElementDType
+	count        uint32
 }
 
-func runMetalWeightGraftAddFloat32(weights tensor.Tensor, injection tensor.Tensor) error {
+func runMetalWeightGraftAdd(weights tensor.Tensor, injection tensor.Tensor) error {
 	config, err := requireMetalWeightGraft(weights, injection)
 	if err != nil {
 		return err
@@ -39,8 +39,9 @@ func runMetalWeightGraftAddFloat32(weights tensor.Tensor, injection tensor.Tenso
 	}
 
 	status := C.MetalStatus{}
-	rc := C.metal_dispatch_weight_graft_add_float32(
+	rc := C.metal_dispatch_weight_graft_add(
 		config.weights.bridge.device,
+		C.int(config.elementDType),
 		config.weights.buffer,
 		config.injection.buffer,
 		C.uint32_t(config.count),
@@ -48,7 +49,7 @@ func runMetalWeightGraftAddFloat32(weights tensor.Tensor, injection tensor.Tenso
 		&status,
 	)
 
-	return finishMetalUtilityDispatch("weight_graft_add_float32", token, rc, status)
+	return finishMetalUtilityDispatch("weight_graft_add", token, rc, status)
 }
 
 func requireMetalWeightGraft(
@@ -60,7 +61,12 @@ func requireMetalWeightGraft(
 		return metalWeightGraftConfig{}, err
 	}
 
-	if weightTensor.dtype != dtype.Float32 || injectionTensor.dtype != dtype.Float32 {
+	elementDType, err := metalElementDTypeFor(weightTensor.dtype)
+	if err != nil {
+		return metalWeightGraftConfig{}, err
+	}
+
+	if weightTensor.dtype != injectionTensor.dtype {
 		return metalWeightGraftConfig{}, tensor.ErrDTypeMismatch
 	}
 
@@ -73,8 +79,9 @@ func requireMetalWeightGraft(
 	}
 
 	return metalWeightGraftConfig{
-		weights:   weightTensor,
-		injection: injectionTensor,
-		count:     uint32(weightTensor.shape.Len()),
+		weights:      weightTensor,
+		injection:    injectionTensor,
+		elementDType: elementDType,
+		count:        uint32(weightTensor.shape.Len()),
 	}, nil
 }

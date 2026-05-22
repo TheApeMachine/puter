@@ -1315,8 +1315,28 @@ int metal_dispatch_activation_steer_float32(
     uint64_t completionToken,
     MetalStatus* status
 );
+int metal_dispatch_activation_steer(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef destinationRef,
+    MetalBufferRef baseRef,
+    MetalBufferRef directionRef,
+    MetalBufferRef coefficientRef,
+    uint32_t count,
+    uint64_t completionToken,
+    MetalStatus* status
+);
 int metal_dispatch_weight_graft_add_float32(
     MetalDeviceRef contextRef,
+    MetalBufferRef weightsRef,
+    MetalBufferRef injectionRef,
+    uint32_t count,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+int metal_dispatch_weight_graft_add(
+    MetalDeviceRef contextRef,
+    int elementDType,
     MetalBufferRef weightsRef,
     MetalBufferRef injectionRef,
     uint32_t count,

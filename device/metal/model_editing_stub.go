@@ -6,7 +6,7 @@ import (
 	"github.com/theapemachine/manifesto/tensor"
 )
 
-func runMetalWeightGraftAddFloat32(weights tensor.Tensor, injection tensor.Tensor) error {
+func runMetalWeightGraftAdd(weights tensor.Tensor, injection tensor.Tensor) error {
 	_ = weights
 	_ = injection
 

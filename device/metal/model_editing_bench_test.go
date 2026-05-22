@@ -14,13 +14,13 @@ func BenchmarkKernel_RunWeightGraftAddFloat32(benchmark *testing.B) {
 	}()
 
 	elementCount := 8192
-	fixture := weightGraftFixtureForTest(elementCount)
+	fixture := weightGraftFixtureForTest(elementCount, dtype.Float32)
 	shape := mustShapeForTest(benchmark, []int{elementCount})
 	weights := uploadDTypeTensorForTest(benchmark, backend, shape, dtype.Float32, fixture.weightsBytes)
 	injection := uploadDTypeTensorForTest(benchmark, backend, shape, dtype.Float32, fixture.injectionBytes)
 	defer closeBenchmarkTensors(weights, injection)
 
-	kernel := lookupWeightGraftAddFloat32Kernel(benchmark)
+	kernel := lookupWeightGraftAddKernel(benchmark, dtype.Float32)
 	benchmark.SetBytes(int64(elementCount * 8))
 	benchmark.ResetTimer()
 

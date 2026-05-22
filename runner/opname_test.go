@@ -42,7 +42,7 @@ func TestKernelName(testingObject *testing.T) {
 			"train.loss.mse":               "mse_loss",
 			"train.loss.cross_entropy":     "cross_entropy",
 			"stencil.laplacian":            "laplacian",
-			"model.graft":                  "weight_graft_add_float32",
+			"model.graft":                  "weight_graft_add",
 		}
 
 		for operationID, expectedKernel := range cases {

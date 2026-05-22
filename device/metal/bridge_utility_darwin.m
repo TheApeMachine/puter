@@ -251,6 +251,49 @@ int metal_dispatch_activation_steer_float32(
     uint64_t completionToken,
     MetalStatus* status
 ) {
+    return metal_dispatch_activation_steer(
+        contextRef,
+        MetalElementDTypeFloat32,
+        destinationRef,
+        baseRef,
+        directionRef,
+        coefficientRef,
+        count,
+        completionToken,
+        status
+    );
+}
+
+static const char* metal_activation_steer_kernel_name(int elementDType) {
+    switch (elementDType) {
+    case MetalElementDTypeFloat32:
+        return "activation_steer_float32";
+    case MetalElementDTypeFloat16:
+        return "activation_steer_float16";
+    case MetalElementDTypeBFloat16:
+        return "activation_steer_bfloat16";
+    default:
+        return NULL;
+    }
+}
+
+int metal_dispatch_activation_steer(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef destinationRef,
+    MetalBufferRef baseRef,
+    MetalBufferRef directionRef,
+    MetalBufferRef coefficientRef,
+    uint32_t count,
+    uint64_t completionToken,
+    MetalStatus* status
+) {
+    const char* kernelName = metal_activation_steer_kernel_name(elementDType);
+    if (kernelName == NULL) {
+        metal_utility_status_set(status, -2, "unsupported activation steer dtype");
+        return -2;
+    }
+
     if (destinationRef == NULL || baseRef == NULL || directionRef == NULL || coefficientRef == NULL) {
         metal_utility_status_set(status, -2, "nil Metal buffer");
         return -2;
@@ -258,7 +301,7 @@ int metal_dispatch_activation_steer_float32(
 
     return metal_utility_dispatch(
         contextRef,
-        "activation_steer_float32",
+        kernelName,
         (NSUInteger)((count + 3u) / 4u),
         completionToken,
         status,
@@ -280,6 +323,45 @@ int metal_dispatch_weight_graft_add_float32(
     uint64_t completionToken,
     MetalStatus* status
 ) {
+    return metal_dispatch_weight_graft_add(
+        contextRef,
+        MetalElementDTypeFloat32,
+        weightsRef,
+        injectionRef,
+        count,
+        completionToken,
+        status
+    );
+}
+
+static const char* metal_weight_graft_add_kernel_name(int elementDType) {
+    switch (elementDType) {
+    case MetalElementDTypeFloat32:
+        return "weight_graft_add_float32";
+    case MetalElementDTypeFloat16:
+        return "weight_graft_add_float16";
+    case MetalElementDTypeBFloat16:
+        return "weight_graft_add_bfloat16";
+    default:
+        return NULL;
+    }
+}
+
+int metal_dispatch_weight_graft_add(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef weightsRef,
+    MetalBufferRef injectionRef,
+    uint32_t count,
+    uint64_t completionToken,
+    MetalStatus* status
+) {
+    const char* kernelName = metal_weight_graft_add_kernel_name(elementDType);
+    if (kernelName == NULL) {
+        metal_utility_status_set(status, -2, "unsupported weight graft dtype");
+        return -2;
+    }
+
     if (weightsRef == NULL || injectionRef == NULL) {
         metal_utility_status_set(status, -2, "nil Metal buffer");
         return -2;
@@ -287,7 +369,7 @@ int metal_dispatch_weight_graft_add_float32(
 
     return metal_utility_dispatch(
         contextRef,
-        "weight_graft_add_float32",
+        kernelName,
         (NSUInteger)((count + 3u) / 4u),
         completionToken,
         status,

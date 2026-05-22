@@ -32,8 +32,8 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 		Convey("It should match expected AVX2 and SSE2 registration counts", func() {
 			counts := summarize(matrix)
 
-			So(counts[ISAPathAVX2], ShouldEqual, 6)
-			So(counts[ISAPathSSE2], ShouldEqual, 8)
+			So(counts[ISAPathAVX2], ShouldEqual, 9)
+			So(counts[ISAPathSSE2], ShouldEqual, 11)
 		})
 
 		Convey("It should match expected NEON registration counts", func() {
@@ -46,7 +46,7 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 			avx2Domains := domainNamesWith(matrix, ISAPathAVX2)
 
 			So(avx2Domains, ShouldResemble, []string{
-				"activation", "dot", "elementwise", "matmul", "pospop", "reduction",
+				"activation", "dot", "dropout", "elementwise", "layernorm", "losses", "matmul", "pospop", "reduction",
 			})
 		})
 
@@ -54,7 +54,7 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 			sse2Domains := domainNamesWith(matrix, ISAPathSSE2)
 
 			So(sse2Domains, ShouldResemble, []string{
-				"activation", "convolution", "dot", "elementwise", "matmul",
+				"activation", "convolution", "dot", "dropout", "elementwise", "layernorm", "losses", "matmul",
 				"pool", "pospop", "reduction",
 			})
 		})
@@ -125,8 +125,8 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 			So(row.Scalar, ShouldEqual, ISARegistered)
 			So(row.AVX512, ShouldEqual, ISARegistered)
 			So(row.NEON, ShouldEqual, ISARegistered)
-			So(row.AVX2, ShouldEqual, ISANotRegistered)
-			So(row.SSE2, ShouldEqual, ISANotRegistered)
+			So(row.AVX2, ShouldEqual, ISARegistered)
+			So(row.SSE2, ShouldEqual, ISARegistered)
 		})
 
 		Convey("It should register AVX-512 and NEON on losses", func() {
@@ -135,8 +135,8 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 			So(row.Scalar, ShouldEqual, ISARegistered)
 			So(row.AVX512, ShouldEqual, ISARegistered)
 			So(row.NEON, ShouldEqual, ISARegistered)
-			So(row.AVX2, ShouldEqual, ISANotRegistered)
-			So(row.SSE2, ShouldEqual, ISANotRegistered)
+			So(row.AVX2, ShouldEqual, ISARegistered)
+			So(row.SSE2, ShouldEqual, ISARegistered)
 		})
 
 		Convey("It should register AVX-512 and NEON on convolution", func() {
@@ -175,8 +175,8 @@ func TestBuildCPUDispatchMatrix(t *testing.T) {
 			So(row.Scalar, ShouldEqual, ISARegistered)
 			So(row.AVX512, ShouldEqual, ISARegistered)
 			So(row.NEON, ShouldEqual, ISARegistered)
-			So(row.AVX2, ShouldEqual, ISANotRegistered)
-			So(row.SSE2, ShouldEqual, ISANotRegistered)
+			So(row.AVX2, ShouldEqual, ISARegistered)
+			So(row.SSE2, ShouldEqual, ISARegistered)
 		})
 
 		Convey("It should register AVX-512 on normalization", func() {

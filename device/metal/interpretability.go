@@ -6,31 +6,39 @@ import (
 	"github.com/theapemachine/puter/kernels"
 )
 
-func init() {
-	registerMetalActivationSteerFloat32Kernel()
+var metalActivationSteerStorageDTypes = []dtype.DType{
+	dtype.Float32,
+	dtype.Float16,
+	dtype.BFloat16,
 }
 
-func registerMetalActivationSteerFloat32Kernel() {
+func init() {
+	for _, storageDType := range metalActivationSteerStorageDTypes {
+		registerMetalActivationSteerKernel(storageDType)
+	}
+}
+
+func registerMetalActivationSteerKernel(storageDType dtype.DType) {
 	kernels.Default.Register(kernels.Kernel{
-		Name: "activation_steer_float32",
+		Name: "activation_steer",
 		Signature: kernels.Signature{
 			Layout: tensor.LayoutDense,
 			Inputs: []dtype.DType{
-				dtype.Float32,
-				dtype.Float32,
+				storageDType,
+				storageDType,
 				dtype.Float32,
 			},
-			Outputs: []dtype.DType{dtype.Float32},
+			Outputs: []dtype.DType{storageDType},
 		},
 		Locations: []tensor.Location{tensor.Metal},
-		Run:       runMetalActivationSteerFloat32Kernel,
+		Run:       runMetalActivationSteerKernel,
 	})
 }
 
-func runMetalActivationSteerFloat32Kernel(args ...tensor.Tensor) error {
+func runMetalActivationSteerKernel(args ...tensor.Tensor) error {
 	if len(args) != 4 {
 		return tensor.ErrShapeMismatch
 	}
 
-	return runMetalActivationSteerFloat32(args[0], args[1], args[2], args[3])
+	return runMetalActivationSteer(args[0], args[1], args[2], args[3])
 }

@@ -6,7 +6,7 @@ import (
 	"github.com/theapemachine/manifesto/tensor"
 )
 
-func runMetalActivationSteerFloat32(
+func runMetalActivationSteer(
 	base tensor.Tensor,
 	direction tensor.Tensor,
 	coefficient tensor.Tensor,

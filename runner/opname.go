@@ -70,7 +70,7 @@ var manifestKernelNames = map[string]string{
 	"positional.alibi":         "alibi_bias",
 	"causal.do_calculus":       "do_intervene",
 	"shape.split":              "split2",
-	"model.graft":              "weight_graft_add_float32",
+	"model.graft":              "weight_graft_add",
 	"model.freeze":             "weight_freeze_mask",
 	"model.lora":               "lora_apply",
 }

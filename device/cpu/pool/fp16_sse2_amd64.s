@@ -147,3 +147,107 @@ ap_sse2_fp16_kh_done:
 
 ap_sse2_fp16_done:
 	RET
+
+DATA poolQuarterFP16SSE2<>+0(SB)/4, $0x3E800000
+GLOBL poolQuarterFP16SSE2<>(SB), RODATA|NOPTR, $4
+
+#define WIDEN_FP16_4H_TO_X4(srcPtr, dstX) \
+	VMOVDQU X2, (srcPtr); \
+	VCVTPH2PS X2, dstX
+
+#define NARROW_FP16_X1_TO_2H(dstPtr) \
+	MOVAPS X1, X0; \
+	VCVTPS2PH_X0_X2; \
+	MOVL  X2, AX; \
+	MOVW  AX, (dstPtr); \
+	PEXTRW $1, X2, AX; \
+	MOVW  AX, 2(dstPtr)
+
+#define POOL22_SSE2_FP16_PAIR_MAX() \
+	VSHUFPS $0xB1, X0, X0, X2; \
+	VMAXPS  X0, X2, X3; \
+	VSHUFPS $0xB1, X1, X1, X2; \
+	VMAXPS  X1, X2, X4; \
+	VMAXPS  X3, X4, X5; \
+	VSHUFPS $0x88, X5, X5, X1
+
+#define POOL22_SSE2_FP16_PAIR_SUM() \
+	VSHUFPS $0xB1, X0, X0, X2; \
+	VADDPS  X0, X2, X3; \
+	VSHUFPS $0xB1, X1, X1, X2; \
+	VADDPS  X1, X2, X4; \
+	VADDPS  X3, X4, X5; \
+	VSHUFPS $0x88, X5, X5, X1
+
+// func MaxPool2x2Stride2RowFP16SSE2Asm(
+//     outRow, input *uint16,
+//     outCols, inWidth, ihStart int,
+// )
+TEXT ·MaxPool2x2Stride2RowFP16SSE2Asm(SB), NOSPLIT, $0-40
+	MOVQ outRow+0(FP), AX
+	MOVQ input+8(FP), BX
+	MOVQ outCols+16(FP), CX
+	MOVQ inWidth+24(FP), DX
+	MOVQ ihStart+32(FP), R8
+
+	SHLQ $1, DX, R9
+	IMULQ R8, R9
+	ADDQ R9, BX
+	MOVQ BX, R10
+	ADDQ R9, R10
+
+mp22_sse2_fp16_col_loop:
+	CMPQ CX, $2
+	JL   mp22_sse2_fp16_done
+
+	WIDEN_FP16_4H_TO_X4(BX, X0)
+	WIDEN_FP16_4H_TO_X4(R10, X1)
+	POOL22_SSE2_FP16_PAIR_MAX()
+	NARROW_FP16_X1_TO_2H(AX)
+
+	ADDQ $8, BX
+	ADDQ $8, R10
+	ADDQ $4, AX
+	SUBQ $2, CX
+	JMP  mp22_sse2_fp16_col_loop
+
+mp22_sse2_fp16_done:
+	RET
+
+// func AvgPool2x2Stride2RowFP16SSE2Asm(
+//     outRow, input *uint16,
+//     outCols, inWidth, ihStart int,
+// )
+TEXT ·AvgPool2x2Stride2RowFP16SSE2Asm(SB), NOSPLIT, $0-40
+	MOVQ outRow+0(FP), AX
+	MOVQ input+8(FP), BX
+	MOVQ outCols+16(FP), CX
+	MOVQ inWidth+24(FP), DX
+	MOVQ ihStart+32(FP), R8
+
+	SHLQ $1, DX, R9
+	IMULQ R8, R9
+	ADDQ R9, BX
+	MOVQ BX, R10
+	ADDQ R9, R10
+
+	VBROADCASTSS poolQuarterFP16SSE2<>(SB), X15
+
+ap22_sse2_fp16_col_loop:
+	CMPQ CX, $2
+	JL   ap22_sse2_fp16_done
+
+	WIDEN_FP16_4H_TO_X4(BX, X0)
+	WIDEN_FP16_4H_TO_X4(R10, X1)
+	POOL22_SSE2_FP16_PAIR_SUM()
+	VMULPS  X15, X1, X1
+	NARROW_FP16_X1_TO_2H(AX)
+
+	ADDQ $8, BX
+	ADDQ $8, R10
+	ADDQ $4, AX
+	SUBQ $2, CX
+	JMP  ap22_sse2_fp16_col_loop
+
+ap22_sse2_fp16_done:
+	RET

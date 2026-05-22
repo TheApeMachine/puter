@@ -8,7 +8,7 @@
 
 **Audit date:** 2026-05-22  
 **Machine-checkable registration:** `device/cpu/dispatchaudit/` (`go test ./device/cpu/dispatchaudit/...`)  
-**Full test sweep (arm64):** `go test ./device/cpu/...` — **31/32 packages pass**; **`optimizer` fails** (Adam/AdamW NEON parity, see §6).
+**Full test sweep (arm64):** `go test ./device/cpu/...` — **32/32 packages pass** (optimizer Adam/AdamW NEON parity fixed 2026-05-22).
 
 ---
 
@@ -18,21 +18,21 @@
 |-------------|--------------------------------------:|--------------:|---------------------------------------------------------------------------------|
 | Scalar (Go) |                                    32 |            32 | None at domain level                                                            |
 | AVX-512     |                                    32 |            32 | **File-level registration only** — many ops/configs still scalar inside domains |
-| AVX2        |            2 (`activation`, `pospop`) |            32 | **30 domains: entire ISA missing**                                              |
-| SSE2        |            2 (`activation`, `pospop`) |            32 | **30 domains: entire ISA missing**                                              |
+| AVX2        |                                    6 |            32 | **26 domains: entire ISA missing**                                              |
+| SSE2        |                                    8 |            32 | **24 domains: entire ISA missing**                                              |
 | NEON        |                                    20 |            32 | **12 domains: no arm64 SIMD at all**                                            |
 
-**Only `activation` and `pospop` have a full amd64 ladder (AVX-512 → AVX2 → SSE2 → generic).**  
-**`matmul` is the only other domain with any AVX2/SSE2**, and only for **BF16/FP16** row kernels — not f32.
+**Full amd64 ladder (AVX-512 → AVX2 → SSE2 → scalar):** `activation`, `pospop`, `dot`, `elementwise`, `matmul`, `reduction`.  
+**Partial amd64 ladder (AVX-512/AVX2 ymm alias + SSE2 xmm, or SSE2-only on some ops):** `pool` (bf16/fp16 **stride-1 + 2×2 SSE2**; AVX-512/AVX2 ymm for fast paths), `convolution` (stride-1 + patch-dot bf16/fp16 SSE2; general/transpose AVX-512/AVX2 only).
 
 **Largest structural gaps:**
 
-1. **AVX2 + SSE2** for 30/32 domains (all except `activation`, `pospop`, plus partial `matmul` reduced types).
+1. **AVX2 + SSE2** for 26/32 domains (all except the six full-ladder domains plus partial `pool`/`convolution`).
 2. **NEON** for 12 domains that are AVX-512 + scalar only on arm64.
-3. **amd64 f32** for many domains: AVX-512 exists but dispatch falls back to scalar for common configs (convolution “NEON-eligible” shapes, optimizers without AVX-512, sparse matmul, most attention/MHA, etc.).
-4. **BF16/FP16 on amd64**: mostly `*TypedScalar` or generic loops; NEON often has real kernels where amd64 does not.
-5. **Correctness debt**: scalar “reference” paths use `math.Fast*` approximations; several parity suites allow **ULP > 1**; **optimizer NEON Adam/AdamW fails at 2 ULP** against a 1 ULP test bound.
-6. **Dtype coverage is uneven**: most domains vectorize **f32 only** on amd64; **bf16/fp16** often have NEON but not AVX2/SSE2/AVX-512; **f64**, **int8**, **int4**, and **fp8** are missing or partial on many ops (see §2.1–§2.3).
+3. **amd64 f32** for many domains: AVX-512 exists but dispatch falls back to scalar for common configs (convolution f32 “NEON-eligible” shapes on amd64, sparse matmul, most attention/MHA, etc.).
+4. **BF16/FP16 on amd64**: hot paths (`dot`, `elementwise`, `matmul`, `reduction`, `pool` stride-1 + 2×2, `conv` stride-1) have AVX-512/AVX2/SSE2; adaptive pool, conv-transpose SSE2, conv 2×2 SSE2 still open.
+5. **Correctness debt**: scalar “reference” paths use `math.Fast*` approximations in activations; several parity suites allow **ULP > 1**; ~~optimizer NEON Adam/AdamW fails~~ **fixed** (explicit f32 mul/add reference + NEON mul/add).
+6. **Dtype coverage is uneven**: most domains vectorize **f32 only** on amd64; **f64**, **int4**, and **fp8** are missing or partial on many ops (see §2.1–§2.3).
 
 ---
 
@@ -44,10 +44,10 @@ For **each** public CPU op (see §4) and **each** supported dtype:
 |-----------------------------------------------------------|--------------------------------------------------------------|
 | Go scalar reference (exact op definition)                 | Present everywhere; **not always exact math** (see §5)       |
 | `*_avx512_amd64.s` kernel using zmm                       | Partial — 32 domains have files; op coverage varies          |
-| `*_avx2_amd64.s` kernel using ymm                         | **2 domains only**                                           |
-| `*_sse2_amd64.s` kernel using xmm                         | **2 domains only**                                           |
+| `*_avx2_amd64.s` kernel using ymm                         | **6 domains** (activation, dot, elementwise, matmul, pospop, reduction) |
+| `*_sse2_amd64.s` kernel using xmm                         | **8 domains** (+ convolution, pool)                                    |
 | `*_neon_arm64.s` kernel using v0–v31                      | **20 domains**; op coverage varies                           |
-| `select_*` ladder: AVX512 → AVX2 → SSE2 → scalar (amd64)  | **`activation`, `pospop` only**                              |
+| `select_*` ladder: AVX512 → AVX2 → SSE2 → scalar (amd64)  | **6 full** + **2 partial** (pool, convolution)                         |
 | `select_arm64` ladder: NEON → scalar                      | Most NEON domains; 12 domains scalar-only                    |
 | Parity tests, max **1 ULP** vs scalar at standard lengths | **Violated** in multiple places (§5–§6)                      |
 | Benchmark per kernel                                      | Present for many hot paths; not exhaustively verified per op |
@@ -79,15 +79,15 @@ Legend: **Y** = dedicated SIMD for that dtype on at least one ISA; **P** = parti
 | Domain | f32 | f64 | fp16 | bf16 | int8 | int4 | fp8 | Notes |
 |--------|-----|-----|------|------|------|------|-----|-------|
 | activation | Y | — | S | S | — | — | — | bf16/fp16: per-lane LUT, not vector |
-| elementwise | Y | P | P | P | — | — | P | amd64: f32 SIMD; f64/bf16/fp16 generic; arm64 NEON all; fp8 NEON widen |
-| matmul | Y | P | P | P | — | — | — | amd64 f32 AVX512 only; bf16/fp16 AVX512/2/SSE2; f64/sparse scalar |
-| dot | Y | — | P | P | P | — | — | amd64: f32 SIMD; reduced types generic |
-| reduction | Y | — | P | P | — | — | — | amd64 bf16/fp16 generic |
-| convolution | P | — | P | P | — | — | — | Many configs scalar; reduced WIP |
-| pool | P | — | P | P | — | — | — | Adaptive/non-fast scalar |
-| dropout | Y | X | X | X | — | — | — | **panic** on non-f32 |
-| losses | P | — | S | S | — | — | — | Huber/BCE/KL/CE scalar |
-| layernorm | Y | — | S | S | — | — | — | Reduced dtypes scalar loops |
+| elementwise | Y | P | P | P | — | — | P | amd64 f32 AVX512; bf16/fp16 **AVX512→AVX2→SSE2→generic**; arm64 NEON all |
+| matmul | Y | P | P | P | — | — | — | amd64 f32 **AVX512→AVX2→SSE2→scalar**; bf16/fp16 full ladder; f64/sparse scalar |
+| dot | Y | — | P | P | P | — | — | amd64 f32 AVX512→generic; bf16/fp16/int8 **AVX512→AVX2→SSE2→generic** |
+| reduction | Y | — | P | P | — | — | — | amd64 f32 **AVX512→AVX2→SSE2→generic**; bf16/fp16 sum AVX512→AVX2→SSE2 |
+| convolution | P | — | P | P | — | — | — | bf16/fp16 stride-1 + patch-dot SSE2; f32 eligible configs scalar on amd64 |
+| pool | P | — | P | P | — | — | — | bf16/fp16 **stride-1 + 2×2 SSE2**; AVX-512/AVX2 fast; adaptive scalar |
+| dropout | Y | X | X | X | — | — | — | f32 **AVX512→AVX2→SSE2→generic**; **panic** on non-f32 |
+| losses | P | — | S | S | — | — | — | f32 MSE/MAE **AVX512→AVX2→SSE2→generic**; Huber/BCE/KL/CE scalar |
+| layernorm | Y | — | S | S | — | — | — | f32 **AVX512→AVX2→SSE2→generic**; reduced dtypes scalar |
 | attention | Y | — | — | — | — | — | — | f32-oriented |
 | embedding | Y | — | S | S | — | — | — | Bag reduced scalar |
 | normalization | Y | — | S | S | — | — | — | Full pass largely scalar |
@@ -121,15 +121,15 @@ Counts: `*_avx512_amd64.s` / `*_avx2_amd64.s` / `*_sse2_amd64.s` / `*_neon_arm64
 |-------------------|--------:|-----:|-----:|-----:|------------------------------------------------------------------------------------|------------------------------------------------|
 | activation        |       7 |    8 |    7 |    7 | **AVX512→AVX2→SSE2→generic**                                                       | **NEON→generic**                               |
 | pospop            |       1 |    1 |    1 |    1 | **AVX512→AVX2→SSE2→generic**                                                       | **NEON→generic**                               |
-| matmul            |       3 |    2 |    2 |    5 | f32: **AVX512→scalar**; bf16/fp16: **AVX512→AVX2→SSE2→scalar**; f64/sparse: scalar | NEON f32/f64/sparse + reduced bf16/fp16        |
-| elementwise       |       2 |    0 |    0 |    8 | f32: **AVX512→generic**; f64/bf16/fp16: **generic**                                | NEON all reduced types                         |
-| convolution       |       5 |    0 |    0 |    8 | f32: eligible configs → **scalar**; else AVX512; bf16/fp16: AVX512 or TypedScalar  | NEON fast + TypedScalar tails                  |
-| pool              |       3 |    0 |    0 |    3 | f32 fast: AVX512; else scalar; bf16/fp16: AVX512 or TypedScalar                    | NEON fast + TypedScalar                        |
-| dot               |       1 |    0 |    0 |    4 | f32: AVX512→generic; bf16/fp16/int8: **generic**                                   | NEON all                                       |
-| reduction         |       1 |    0 |    0 |    7 | f32: AVX512→generic; bf16/fp16: **generic**                                        | NEON                                           |
-| dropout           |       1 |    0 |    0 |    1 | AVX512→generic                                                                     | NEON→generic                                   |
-| losses            |       1 |    0 |    0 |    1 | MSE/MAE: AVX512→generic; **Huber/BCE/KL/CE: scalar**                               | MSE/MAE: NEON→generic; **others scalar**       |
-| layernorm         |       1 |    0 |    0 |    1 | AVX512→generic                                                                     | NEON→generic                                   |
+| matmul            |       3 |    3 |    3 |    5 | f32/bf16/fp16: **AVX512→AVX2→SSE2→scalar**; f64/sparse: scalar | NEON f32/f64/sparse + reduced bf16/fp16        |
+| elementwise       |       2 |    1 |    2 |    8 | f32: **AVX512→generic**; bf16/fp16: **AVX512→AVX2→SSE2→generic** | NEON all reduced types                         |
+| convolution       |       5 |    0 |    2 |    8 | f32: eligible → **scalar**; bf16/fp16: AVX512/AVX2 + **SSE2 stride-1** | NEON fast + TypedScalar tails                  |
+| pool              |       3 |    0 |    2 |    3 | f32 fast: AVX512; bf16/fp16: AVX512/AVX2 + **SSE2 stride-1 + 2×2** | NEON fast + TypedScalar                        |
+| dot               |       1 |    1 |    3 |    4 | f32: AVX512→generic; bf16/fp16/int8: **AVX512→AVX2→SSE2→generic** | NEON all                                       |
+| reduction         |       1 |    2 |    4 |    7 | f32: **AVX512→AVX2→SSE2→generic**; bf16/fp16 sum: **AVX512→AVX2→SSE2→generic** | NEON                                           |
+| dropout           |       1 |    1 |    1 |    1 | f32: **AVX512→AVX2→SSE2→generic**                                                 | NEON→generic                                   |
+| losses            |       1 |    1 |    1 |    1 | f32 MSE/MAE: **AVX512→AVX2→SSE2→generic**; **Huber/BCE/KL/CE: scalar**            | MSE/MAE: NEON→generic; **others scalar**       |
+| layernorm         |       1 |    1 |    1 |    1 | f32: **AVX512→AVX2→SSE2→generic**                                                 | NEON→generic                                   |
 | attention         |       1 |    0 |    0 |    1 | **Partial** AVX512 (flash blocks); rest scalar                                     | **Partial** NEON + scalar orchestration        |
 | causal            |       1 |    0 |    0 |    1 | **Partial** AVX512; Cholesky/IV/etc. scalar                                        | **Partial** NEON                               |
 | dequant           |       2 |    0 |    0 |    2 | AVX512→generic                                                                     | NEON                                           |
@@ -193,9 +193,9 @@ Below, **Missing** means no dedicated vector kernel on that ISA for that op (dty
 
 | ISA     | Missing                                     |
 |---------|---------------------------------------------|
-| AVX2    | **All ops, all dtypes**                     |
-| SSE2    | **All ops, all dtypes**                     |
 | AVX-512 | **f64, bf16, fp16** (f32 only)              |
+| AVX2    | **f64** (bf16/fp16 via ymm alias of AVX-512) |
+| SSE2    | **f64** (bf16/fp16 present)                 |
 | NEON    | **Complete for f32/f64/bf16/fp16** on arm64 |
 
 ---
@@ -206,10 +206,9 @@ Below, **Missing** means no dedicated vector kernel on that ISA for that op (dty
 
 | ISA         | Missing                                                                                           |
 |-------------|---------------------------------------------------------------------------------------------------|
-| AVX2 / SSE2 | **f32 matmul** (entire ISA)                                                                       |
 | AVX-512     | **f64 matmul**, **sparse CSR**                                                                    |
 | NEON        | **sparse CSR** (verify; dense f32/f64/bf16/fp16 have kernels)                                     |
-| All         | **BF16/FP16 on amd64** need AVX2/SSE2 completion only for reduced — **f32 still needs AVX2/SSE2** |
+| All         | **f64 matmul** on all ISAs; sparse CSR SIMD                                                       |
 
 ---
 
@@ -219,9 +218,8 @@ Below, **Missing** means no dedicated vector kernel on that ISA for that op (dty
 
 | ISA         | Missing                       |
 |-------------|-------------------------------|
-| AVX2 / SSE2 | **All dtypes**                |
-| AVX-512     | **bf16, fp16, int8**          |
-| NEON        | Present for all listed dtypes |
+| AVX-512     | **bf16, fp16, int8** (f32 only in avx512 file; reduced via AVX2 alias + SSE2) |
+| All         | **f32 dot AVX2/SSE2** (optional; currently AVX512→generic) |
 
 ---
 
@@ -231,9 +229,9 @@ Below, **Missing** means no dedicated vector kernel on that ISA for that op (dty
 
 | ISA         | Missing                                                             |
 |-------------|---------------------------------------------------------------------|
-| AVX2 / SSE2 | **All ops**                                                         |
-| AVX-512     | **bf16, fp16** sum (and other ops if not in avx512 file)            |
-| NEON        | **Prod, Min, Max, L1** — verify each has `.s` (sum bf16/fp16 exist) |
+| AVX-512     | **bf16, fp16** prod/min/max/L1 (sum has full ladder)                |
+| AVX2 / SSE2 | **bf16, fp16** prod/min/max/L1                                      |
+| NEON        | Verify prod/min/max/L1 each has `.s` (sum bf16/fp16 exist)        |
 
 ---
 
@@ -243,10 +241,10 @@ Below, **Missing** means no dedicated vector kernel on that ISA for that op (dty
 
 | ISA         | Missing                                                                                                          |
 |-------------|------------------------------------------------------------------------------------------------------------------|
-| AVX2 / SSE2 | **All ops, all dtypes**                                                                                          |
-| AVX-512     | **f32 “NEON-eligible” configs** deliberately use **scalar** on amd64; general f32 uses AVX512; bf16/fp16 partial |
-| NEON        | **f32** full config coverage; bf16/fp16 general/transpose partial (WIP in tree)                                  |
-| All         | **Conv3D f32** vector kernel (patch-dot NEON exists; full 3D volume SIMD incomplete)                             |
+| AVX2        | **bf16/fp16** (ymm alias of AVX-512 where applicable)                                                            |
+| SSE2        | **f32 all configs**; **conv-transpose** bf16/fp16; **2×2 pool** bf16/fp16                                        |
+| AVX-512     | **f32 “NEON-eligible” configs** deliberately use **scalar** on amd64                                             |
+| All         | **Conv3D f32** vector kernel; **conv-transpose** SSE2                                                            |
 
 ---
 
@@ -256,19 +254,20 @@ Below, **Missing** means no dedicated vector kernel on that ISA for that op (dty
 
 | ISA            | Missing                                                                                              |
 |----------------|------------------------------------------------------------------------------------------------------|
-| AVX2 / SSE2    | **All ops**                                                                                          |
-| AVX-512 / NEON | **Adaptive** pools (scalar); **non-fast** f32 configs (scalar); bf16/fp16 **non-fast** (TypedScalar) |
+| AVX2           | **bf16/fp16** (ymm alias); **f32** non-fast configs                                                  |
+| SSE2           | **2×2 max/avg** bf16/fp16; **f32**; **adaptive** pools (all dtypes)                                  |
+| AVX-512 / NEON | **Adaptive** pools (scalar); **non-fast** f32 configs (scalar)                                       |
 
 ---
 
 ### 4.9 `dropout`
 
-**Ops:** Dropout (f32 only implemented).
+**Ops:** Dropout (f32 SIMD ladder; non-f32 still unimplemented).
 
 | ISA         | Missing                                                |
 |-------------|--------------------------------------------------------|
-| AVX2 / SSE2 | Dropout                                                |
-| NEON        | —                                                      |
+| AVX2 / SSE2 | — (f32 **shipped**)                                    |
+| NEON        | — (f32)                                                |
 | All         | **bf16, fp16, f64** not implemented (panic on non-f32) |
 
 ---
@@ -279,7 +278,7 @@ Below, **Missing** means no dedicated vector kernel on that ISA for that op (dty
 
 | ISA            | Missing                                              |
 |----------------|------------------------------------------------------|
-| AVX2 / SSE2    | **All**                                              |
+| AVX2 / SSE2    | **Huber, BCE, KL, CrossEntropy** (f32 MSE/MAE **shipped**) |
 | AVX-512 / NEON | **Huber, BCE, KL, CrossEntropy** (scalar typed only) |
 | All            | **bf16/fp16** reductions for MSE/MAE                 |
 
@@ -291,7 +290,7 @@ Below, **Missing** means no dedicated vector kernel on that ISA for that op (dty
 
 | ISA            | Missing                                                |
 |----------------|--------------------------------------------------------|
-| AVX2 / SSE2    | **All**                                                |
+| AVX2 / SSE2    | — (f32 **shipped**)                                    |
 | AVX-512 / NEON | **bf16/fp16** (scalar loops); vector path f32-oriented |
 
 ---
@@ -573,18 +572,14 @@ These items violate or weaken the AGENTS.md rule that SIMD must match the **exac
 
 ### 5.4 Known failing tests (arm64, 2026-05-22)
 
-```
-go test ./device/cpu/optimizer/... 
-  FAIL TestAdamStepSlicesNEONParity   (ulp=2 at N=64,1024,8192)
-  FAIL TestAdamWStepSlicesNEONParity  (same class)
-```
+**None** — `go test ./device/cpu/...` passes after Adam/AdamW NEON parity fix (`f32_reference.go` + mul/add NEON sequence).
 
 ### 5.5 Dispatch paths that bypass SIMD (performance + contract)
 
 | Path                                    | Location                                       | Issue                                                  |
 |-----------------------------------------|------------------------------------------------|--------------------------------------------------------|
 | Conv2D f32 “NEON-eligible” on **amd64** | `convolution/select_amd64.go`                  | Routes to **`Conv2DFloat32Scalar`** instead of AVX-512 |
-| Matmul f32 without AVX-512F             | `matmul/select_amd64.go`                       | **Scalar only** — need AVX2/SSE2 ladder                |
+| Matmul f32 without AVX-512F             | `matmul/select_amd64.go`                       | **AVX2→SSE2→scalar** ✓                                           |
 | Optimizer without AVX-512 / NEON block  | `optimizer/select_amd64.go`, `select_arm64.go` | **Scalar**                                             |
 | SGD Nesterov                            | `optimizer/select_amd64.go`                    | **Always scalar**                                      |
 | Sparse matmul                           | `matmul/select_amd64.go`                       | **Always scalar**                                      |
@@ -596,15 +591,15 @@ go test ./device/cpu/optimizer/...
 
 Use as implementation backlog. Each cell is “add full vector kernel + select hook + 1 ULP parity + benchmark”.
 
-### AVX2 — missing in 30 domains
+### AVX2 — missing in 26 domains
 
-`active_inference`, `attention`, `causal`, `checkpoint`, `convolution`, `dequant`, `dot`, `dropout`, `elementwise`, `embedding`, `hawkes`, `interpretability`, `layernorm`, `losses`, `masking`, `math`, `matmul` (f32), `model_editing`, `normalization`, `optimizer`, `physics`, `pool`, `predictive_coding`, `quant`, `reduction`, `rope`, `sampling`, `shape`, `tokenizer`, `vsa`.
+`active_inference`, `attention`, `causal`, `checkpoint`, `convolution` (partial — ymm alias only), `dequant`, `dropout`, `embedding`, `hawkes`, `interpretability`, `layernorm`, `losses`, `masking`, `math`, `model_editing`, `normalization`, `optimizer`, `physics`, `pool` (partial), `predictive_coding`, `quant`, `rope`, `sampling`, `shape`, `tokenizer`, `vsa`.
 
-**Exception:** `matmul` needs AVX2 for **f32**; already has AVX2 for **bf16/fp16** only.
+**Full ladder complete:** `activation`, `dot`, `elementwise`, `matmul`, `pospop`, `reduction`.
 
-### SSE2 — same 30 domains as AVX2
+### SSE2 — missing in 24 domains
 
-Same list as AVX2.
+Same as AVX2 minus `convolution` and `pool` (partial SSE2 for bf16/fp16 stride-1).
 
 ### NEON — missing in 12 domains
 
@@ -616,13 +611,12 @@ Same list as AVX2.
 
 Priority weights **correctness** first, then **coverage of hot paths**, then **ISA breadth**.
 
-1. **Fix optimizer NEON Adam/AdamW** — failing 2 ULP vs 1 ULP bound; then tighten optimizer AVX-512 parity from 2 → 1 ULP.
+1. ~~**Fix optimizer NEON Adam/AdamW**~~ **Done** — mul/add reference + NEON sequence; 1 ULP at N ∈ {1,7,64,1024,8192}.
 2. **Define exact vs approximate** for activation family; align scalar reference with SIMD for Exp/Log/Tanh/Mish/… or document approximate ops.
-3. **amd64 AVX2/SSE2 ladders** for: `elementwise`, `matmul` (f32), `dot`, `reduction`, `pool`, `convolution` (f32 all configs), `losses` (MSE/MAE first).
-4. **NEON for 12 zero-NEON domains** — start with `embedding`, `masking`, `shape` (3 kernels each), `math`, `sampling`.
-5. **Complete partial domains:** `attention` (full flash/MHA), `losses` (Huber, CE), `normalization` (full vector norm), `physics` (FFT).
-6. **BF16/FP16 on amd64** — match arm64 NEON coverage domain by domain.
-7. **Tighten all parity suites** to ≤1 ULP; remove hawkes/conv3d **4 ULP** bands.
+3. **amd64 AVX2/SSE2 ladders** for remaining 24 domains — next hot paths: `losses` (MSE/MAE), `dropout`, `layernorm`, `optimizer`, `quant`/`dequant`.
+4. **Complete partial domains:** `pool`/`conv` (conv-transpose SSE2, conv f32 all configs), `reduction` (bf16/fp16 prod/min/max/L1), `attention` (full flash/MHA).
+5. **NEON for 12 zero-NEON domains** — start with `embedding`, `masking`, `shape` (3 kernels each), `math`, `sampling`.
+6. **Tighten all parity suites** to ≤1 ULP; remove hawkes/conv3d **4 ULP** bands.
 
 ---
 
@@ -646,7 +640,7 @@ go test ./device/cpu/optimizer/... -run 'TestAdam.*NEON' -v -count=1
 ## 9. Related docs
 
 - [METAL_KERNEL_GAPS.md](./METAL_KERNEL_GAPS.md) — Metal GPU kernel and dtype gaps (same op surface).
-- `device/cpu/dispatchaudit/matrix_test.go` — expected registration counts (32 AVX-512, 2 AVX2, 2 SSE2, 20 NEON).
+- `device/cpu/dispatchaudit/matrix_test.go` — expected registration counts (32 AVX-512, **6 AVX2**, **8 SSE2**, 20 NEON).
 - `device/cpu/parity/parity.go` — shared ULP helpers and standard lengths.
 - `caramba/AGENTS.md` — backend implementation contract.
 

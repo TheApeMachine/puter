@@ -14,7 +14,7 @@ func BenchmarkKernel_RunActivationSteerFloat32(benchmark *testing.B) {
 	}()
 
 	elementCount := 8192
-	fixture := activationSteerFixtureForTest(elementCount)
+	fixture := activationSteerFixtureForTest(elementCount, dtype.Float32)
 	vectorShape := mustShapeForTest(benchmark, []int{elementCount})
 	coefficientShape := mustShapeForTest(benchmark, []int{1})
 	base := uploadDTypeTensorForTest(benchmark, backend, vectorShape, dtype.Float32, fixture.baseBytes)
@@ -25,7 +25,7 @@ func BenchmarkKernel_RunActivationSteerFloat32(benchmark *testing.B) {
 	out := emptyTensorForTest(benchmark, backend, vectorShape, dtype.Float32)
 	defer closeBenchmarkTensors(base, direction, coefficient, out)
 
-	kernel := lookupActivationSteerFloat32Kernel(benchmark)
+	kernel := lookupActivationSteerKernel(benchmark, dtype.Float32)
 	benchmark.SetBytes(int64(elementCount * 12))
 	benchmark.ResetTimer()
 

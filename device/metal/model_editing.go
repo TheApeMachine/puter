@@ -6,30 +6,38 @@ import (
 	"github.com/theapemachine/puter/kernels"
 )
 
-func init() {
-	registerMetalWeightGraftAddFloat32Kernel()
+var metalWeightGraftStorageDTypes = []dtype.DType{
+	dtype.Float32,
+	dtype.Float16,
+	dtype.BFloat16,
 }
 
-func registerMetalWeightGraftAddFloat32Kernel() {
+func init() {
+	for _, storageDType := range metalWeightGraftStorageDTypes {
+		registerMetalWeightGraftAddKernel(storageDType)
+	}
+}
+
+func registerMetalWeightGraftAddKernel(storageDType dtype.DType) {
 	kernels.Default.Register(kernels.Kernel{
-		Name: "weight_graft_add_float32",
+		Name: "weight_graft_add",
 		Signature: kernels.Signature{
 			Layout: tensor.LayoutDense,
 			Inputs: []dtype.DType{
-				dtype.Float32,
-				dtype.Float32,
+				storageDType,
+				storageDType,
 			},
-			Outputs: []dtype.DType{dtype.Float32},
+			Outputs: []dtype.DType{storageDType},
 		},
 		Locations: []tensor.Location{tensor.Metal},
-		Run:       runMetalWeightGraftAddFloat32Kernel,
+		Run:       runMetalWeightGraftAddKernel,
 	})
 }
 
-func runMetalWeightGraftAddFloat32Kernel(args ...tensor.Tensor) error {
+func runMetalWeightGraftAddKernel(args ...tensor.Tensor) error {
 	if len(args) != 2 {
 		return tensor.ErrShapeMismatch
 	}
 
-	return runMetalWeightGraftAddFloat32(args[0], args[1])
+	return runMetalWeightGraftAdd(args[0], args[1])
 }
