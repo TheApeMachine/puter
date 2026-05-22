@@ -605,6 +605,10 @@ int metal_dispatch_rope(
     uint32_t headDim,
     uint32_t pairCount,
     float theta,
+    float ropeFactor,
+    float lowFreqFactor,
+    float highFreqFactor,
+    uint32_t originalContext,
     uint64_t completionToken,
     MetalStatus* status
 );

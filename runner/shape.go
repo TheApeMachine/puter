@@ -32,7 +32,11 @@ func outputShapeForNode(
 		return viewAsHeadsOutputShape(node, tensorWorkspace)
 	case "merge_heads":
 		return mergeHeadsOutputShape(node, tensorWorkspace)
-	case "rmsnorm", "layernorm", "rope", "add", "mul", "swiglu",
+	case "grouped_query_attention", "multi_head_attention", "flash_attention", "attention":
+		return primaryFloatInputShape(node, tensorWorkspace)
+	case "add", "mul":
+		return binaryFloatOutputShape(node, tensorWorkspace)
+	case "rmsnorm", "layernorm", "rope", "swiglu",
 		"relu", "gelu", "tanh", "sigmoid", "swish", "selu", "leaky_relu",
 		"slice", "concat", "transpose",
 		"reshape", "dropout", "softmax":
@@ -134,6 +138,42 @@ func mergeHeadsOutputShape(
 	hiddenSize := inputDims[2] * inputDims[3]
 
 	return tensor.NewShape([]int{inputDims[0], inputDims[1], hiddenSize})
+}
+
+func binaryFloatOutputShape(
+	node *ir.Node,
+	tensorWorkspace *workspace,
+) (tensor.Shape, error) {
+	floatShapes := make([]tensor.Shape, 0, len(node.Inputs()))
+
+	for _, inputNode := range node.Inputs() {
+		value, ok := tensorWorkspace.Load(inputNode.ID())
+
+		if !ok || !value.DType().IsFloat() {
+			continue
+		}
+
+		floatShapes = append(floatShapes, value.Shape())
+	}
+
+	if len(floatShapes) == 0 {
+		return node.Shape(), nil
+	}
+
+	referenceShape := floatShapes[0]
+
+	for index := 1; index < len(floatShapes); index++ {
+		if !referenceShape.Equal(floatShapes[index]) {
+			return tensor.Shape{}, fmt.Errorf(
+				"runner: node %q input shape %v != %v",
+				node.ID(),
+				referenceShape.Dims(),
+				floatShapes[index].Dims(),
+			)
+		}
+	}
+
+	return referenceShape, nil
 }
 
 func nodeIntAttribute(node *ir.Node, key string) (int, error) {

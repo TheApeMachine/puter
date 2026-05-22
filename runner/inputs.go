@@ -7,6 +7,7 @@ import (
 
 	"github.com/theapemachine/manifesto/ast"
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/manifesto/dtype/convert"
 	"github.com/theapemachine/manifesto/ir"
 	"github.com/theapemachine/manifesto/tensor"
 	"github.com/theapemachine/manifesto/weights"
@@ -176,20 +177,24 @@ func downloadFloat32Vector(memory tensor.Backend, value tensor.Tensor) ([]float3
 		return nil, err
 	}
 
-	if storageDType != dtype.Float32 {
-		return nil, fmt.Errorf("expected float32 output, got %s", storageDType)
+	if storageDType == dtype.Float32 {
+		elementCount := len(raw) / 4
+		elements := make([]float32, elementCount)
+
+		for index := range elementCount {
+			elements[index] = math.Float32frombits(
+				binary.LittleEndian.Uint32(raw[index*4 : index*4+4]),
+			)
+		}
+
+		return elements, nil
 	}
 
-	elementCount := len(raw) / 4
-	elements := make([]float32, elementCount)
-
-	for index := range elementCount {
-		elements[index] = math.Float32frombits(
-			binary.LittleEndian.Uint32(raw[index*4 : index*4+4]),
-		)
+	if storageDType.IsFloat() {
+		return convert.BytesToFloat32(storageDType, raw)
 	}
 
-	return elements, nil
+	return nil, fmt.Errorf("expected float output, got %s", storageDType)
 }
 
 func weightTensorName(node *ir.Node) string {

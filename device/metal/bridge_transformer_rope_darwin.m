@@ -13,6 +13,10 @@ int metal_dispatch_rope(
     uint32_t headDim,
     uint32_t pairCount,
     float theta,
+    float ropeFactor,
+    float lowFreqFactor,
+    float highFreqFactor,
+    uint32_t originalContext,
     uint64_t completionToken,
     MetalStatus* status
 ) {
@@ -41,6 +45,10 @@ int metal_dispatch_rope(
             [encoder setBytes:&headDim length:sizeof(headDim) atIndex:4];
             [encoder setBytes:&pairCount length:sizeof(pairCount) atIndex:5];
             [encoder setBytes:&theta length:sizeof(theta) atIndex:6];
+            [encoder setBytes:&ropeFactor length:sizeof(ropeFactor) atIndex:7];
+            [encoder setBytes:&lowFreqFactor length:sizeof(lowFreqFactor) atIndex:8];
+            [encoder setBytes:&highFreqFactor length:sizeof(highFreqFactor) atIndex:9];
+            [encoder setBytes:&originalContext length:sizeof(originalContext) atIndex:10];
         }
     );
 }

@@ -73,6 +73,8 @@ func dispatchNode(
 
 	if location == tensor.Host {
 		err = dispatchHostKernel(kernel, args)
+	} else if kernel == "rope" {
+		err = dispatchRoPE(node, args)
 	} else {
 		err = dispatchRegisteredKernel(kernel, location, args)
 	}

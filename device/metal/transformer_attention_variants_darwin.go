@@ -218,7 +218,6 @@ func requireMetalMultiHeadAttentionDims(config *metalMultiHeadAttentionConfig) e
 func (config *metalMultiHeadAttentionConfig) applyVariant() {
 	switch config.variant {
 	case metalMultiHeadAttentionVariantGrouped:
-		config.kvHeads = config.numHeads / 4
 		config.causal = 1
 	case metalMultiHeadAttentionVariantSliding:
 		config.causal = 1

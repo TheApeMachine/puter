@@ -313,6 +313,140 @@ func ropeExpectedPair(
 	out[inputIndex+1] = even*sinTheta + odd*cosTheta
 }
 
+func TestMetalLlama3RoPE(t *testing.T) {
+	backend := newBackendForDeviceTest(t)
+	defer func() {
+		if err := backend.Close(); err != nil {
+			t.Fatalf("Close failed: %v", err)
+		}
+	}()
+
+	convey.Convey("Given Llama 3 scaled RoPE parameters", t, func() {
+		seqLen, numHeads, headDim := 4, 2, 64
+		fixture := llama3RoPEFixtureForTest(seqLen, numHeads, headDim, dtype.Float32)
+		input, out := ropeTensorsForTest(
+			t, backend, seqLen, numHeads, headDim, dtype.Float32, fixture,
+		)
+		defer closeBenchmarkTensors(input, out)
+
+		convey.Convey("It should match llama3 frequency scaling", func() {
+			config := RoPEConfig{
+				Base:            500000,
+				Type:            "llama3",
+				Factor:          32,
+				LowFreqFactor:   1,
+				HighFreqFactor:  4,
+				OriginalContext: 8192,
+			}
+			err := RunRoPE(input, out, config)
+
+			convey.So(err, convey.ShouldBeNil)
+			assertRoPEBytesForTest(t, backend, out, dtype.Float32, fixture)
+		})
+	})
+}
+
+func llama3RoPEFixtureForTest(
+	seqLen int,
+	numHeads int,
+	headDim int,
+	storageDType dtype.DType,
+) ropeFixture {
+	inputBytes := encodeProjectionValuesAsDType(
+		ropeInputValues(seqLen*numHeads*headDim), storageDType,
+	)
+	inputStored := decodeDTypeBytesToFloat32(inputBytes, storageDType)
+	expected := llama3RoPEExpectedValues(inputStored, seqLen, numHeads, headDim)
+
+	return ropeFixture{
+		inputBytes:      inputBytes,
+		expectedBytes:   encodeProjectionValuesAsDType(expected, storageDType),
+		expectedFloat32: expected,
+	}
+}
+
+func llama3RoPEExpectedValues(
+	input []float32,
+	seqLen int,
+	numHeads int,
+	headDim int,
+) []float32 {
+	out := make([]float32, len(input))
+	halfDim := headDim / 2
+	const (
+		base            = 500000.0
+		factor          = 32.0
+		lowFreqFactor   = 1.0
+		highFreqFactor  = 4.0
+		originalContext = 8192.0
+	)
+
+	for seqIndex := range seqLen {
+		for headIndex := range numHeads {
+			for pairIndex := range halfDim {
+				llama3RoPEExpectedPair(
+					input, out, seqIndex, headIndex, pairIndex, numHeads, headDim,
+					base, factor, lowFreqFactor, highFreqFactor, originalContext,
+				)
+			}
+		}
+	}
+
+	return out
+}
+
+func llama3ScaledInvFreq(
+	invFreq float64,
+	originalContext float64,
+	factor float64,
+	lowFreqFactor float64,
+	highFreqFactor float64,
+) float64 {
+	wavelen := (2 * math.Pi) / invFreq
+	lowFreqWavelen := originalContext / lowFreqFactor
+	highFreqWavelen := originalContext / highFreqFactor
+
+	if wavelen > lowFreqWavelen {
+		return invFreq / factor
+	}
+
+	if wavelen < highFreqWavelen {
+		return invFreq
+	}
+
+	smooth := (originalContext/wavelen - lowFreqFactor) / (highFreqFactor - lowFreqFactor)
+
+	return (1-smooth)*(invFreq/factor) + smooth*invFreq
+}
+
+func llama3RoPEExpectedPair(
+	input []float32,
+	out []float32,
+	seqIndex int,
+	headIndex int,
+	pairIndex int,
+	numHeads int,
+	headDim int,
+	base float64,
+	factor float64,
+	lowFreqFactor float64,
+	highFreqFactor float64,
+	originalContext float64,
+) {
+	inputIndex := (seqIndex*numHeads+headIndex)*headDim + pairIndex*2
+	exponent := -2 * float64(pairIndex) / float64(headDim)
+	invFreq := math.Pow(base, exponent)
+	invFreq = llama3ScaledInvFreq(invFreq, originalContext, factor, lowFreqFactor, highFreqFactor)
+	angle := float64(seqIndex) * invFreq
+	cosTheta := float32(math.Cos(angle))
+	sinTheta := float32(math.Sin(angle))
+	even := input[inputIndex]
+	odd := input[inputIndex+1]
+
+	out[inputIndex] = even*cosTheta - odd*sinTheta
+	out[inputIndex+1] = even*sinTheta + odd*cosTheta
+}
+
 func assertRoPEBytesForTest(
 	testingObject testing.TB,
 	backend *Backend,

@@ -478,6 +478,31 @@ static inline void multi_head_attention_online(
     }
 }
 
+static inline float llama3_scaled_inv_freq(
+    float invFreq,
+    uint originalContext,
+    float factor,
+    float lowFreqFactor,
+    float highFreqFactor
+) {
+    float wavelen = (2.0f * M_PI_F) / invFreq;
+    float lowFreqWavelen = float(originalContext) / lowFreqFactor;
+    float highFreqWavelen = float(originalContext) / highFreqFactor;
+
+    if (wavelen > lowFreqWavelen) {
+        return invFreq / factor;
+    }
+
+    if (wavelen < highFreqWavelen) {
+        return invFreq;
+    }
+
+    float smooth = (float(originalContext) / wavelen - lowFreqFactor) /
+        (highFreqFactor - lowFreqFactor);
+
+    return (1.0f - smooth) * (invFreq / factor) + smooth * invFreq;
+}
+
 template <typename Storage, typename Scalar>
 static inline void rope_kernel(
     device const Scalar* input,
@@ -487,6 +512,10 @@ static inline void rope_kernel(
     constant uint& headDim,
     constant uint& pairCount,
     constant float& ropeTheta,
+    constant float& ropeFactor,
+    constant float& lowFreqFactor,
+    constant float& highFreqFactor,
+    constant uint& originalContext,
     uint index
 ) {
     if (index >= pairCount) {
@@ -499,9 +528,17 @@ static inline void rope_kernel(
     uint seqIndex = index / (halfDim * numHeads);
     uint inputIndex = (seqIndex * numHeads + headIndex) * headDim + pairIndex * 2;
     float exponent = -2.0f * float(pairIndex) / float(headDim);
-    float theta = float(seqIndex) * pow(ropeTheta, exponent);
-    float cosTheta = cos(theta);
-    float sinTheta = sin(theta);
+    float invFreq = pow(ropeTheta, exponent);
+
+    if (ropeFactor > 1.0f) {
+        invFreq = llama3_scaled_inv_freq(
+            invFreq, originalContext, ropeFactor, lowFreqFactor, highFreqFactor
+        );
+    }
+
+    float angle = float(seqIndex) * invFreq;
+    float cosTheta = cos(angle);
+    float sinTheta = sin(angle);
     float even = Storage::load(input, inputIndex);
     float odd = Storage::load(input, inputIndex + 1);
 
@@ -720,9 +757,16 @@ kernel void name( \
     constant uint& headDim [[buffer(4)]], \
     constant uint& pairCount [[buffer(5)]], \
     constant float& ropeTheta [[buffer(6)]], \
+    constant float& ropeFactor [[buffer(7)]], \
+    constant float& lowFreqFactor [[buffer(8)]], \
+    constant float& highFreqFactor [[buffer(9)]], \
+    constant uint& originalContext [[buffer(10)]], \
     uint index [[thread_position_in_grid]] \
 ) { \
-    rope_kernel<storage, scalar>(input, out, seqLen, numHeads, headDim, pairCount, ropeTheta, index); \
+    rope_kernel<storage, scalar>( \
+        input, out, seqLen, numHeads, headDim, pairCount, ropeTheta, \
+        ropeFactor, lowFreqFactor, highFreqFactor, originalContext, index \
+    ); \
 }
 
 #define FLUX2_ROPE_KERNEL(name, storage, scalar) \

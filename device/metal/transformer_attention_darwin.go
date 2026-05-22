@@ -139,10 +139,14 @@ func runMetalFlashAttention(
 }
 
 func runMetalRoPE(input tensor.Tensor, out tensor.Tensor) error {
-	return runMetalRoPEWithTheta(input, out, 10000)
+	return runMetalRoPEConfigured(input, out, DefaultRoPEConfig())
 }
 
-func runMetalRoPEWithTheta(input tensor.Tensor, out tensor.Tensor, theta float32) error {
+func runMetalRoPEConfigured(
+	input tensor.Tensor,
+	out tensor.Tensor,
+	ropeConfig RoPEConfig,
+) error {
 	config, err := requireMetalRoPE(input, out)
 	if err != nil {
 		return err
@@ -150,6 +154,23 @@ func runMetalRoPEWithTheta(input tensor.Tensor, out tensor.Tensor, theta float32
 
 	if config.pairCount == 0 {
 		return nil
+	}
+
+	theta := ropeConfig.Base
+	if theta <= 0 {
+		theta = DefaultRoPEConfig().Base
+	}
+
+	ropeFactor := float32(0)
+	lowFreqFactor := float32(1)
+	highFreqFactor := float32(4)
+	originalContext := uint32(8192)
+
+	if ropeConfig.Type == "llama3" && ropeConfig.Factor > 1 {
+		ropeFactor = ropeConfig.Factor
+		lowFreqFactor = ropeConfig.LowFreqFactor
+		highFreqFactor = ropeConfig.HighFreqFactor
+		originalContext = ropeConfig.OriginalContext
 	}
 
 	token, err := metalCompletions.Begin(config.out, config.input)
@@ -168,6 +189,10 @@ func runMetalRoPEWithTheta(input tensor.Tensor, out tensor.Tensor, theta float32
 		C.uint32_t(config.headDim),
 		C.uint32_t(config.pairCount),
 		C.float(theta),
+		C.float(ropeFactor),
+		C.float(lowFreqFactor),
+		C.float(highFreqFactor),
+		C.uint32_t(originalContext),
 		C.uint64_t(token),
 		&status,
 	)
@@ -227,7 +252,10 @@ func (backend *Backend) Flux2RoPE(
 }
 
 func (backend *Backend) RoPEWithTheta(input tensor.Tensor, out tensor.Tensor, theta float32) error {
-	return runMetalRoPEWithTheta(input, out, theta)
+	config := DefaultRoPEConfig()
+	config.Base = theta
+
+	return runMetalRoPEConfigured(input, out, config)
 }
 
 func requireMetalAttention(
