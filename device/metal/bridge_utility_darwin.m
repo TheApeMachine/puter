@@ -431,6 +431,56 @@ int metal_dispatch_swiglu(
     );
 }
 
+static const char* metal_swiglu_packed_kernel_name(int elementDType) {
+    switch (elementDType) {
+    case MetalElementDTypeFloat32:
+        return "swiglu_packed_float32";
+    case MetalElementDTypeFloat16:
+        return "swiglu_packed_float16";
+    case MetalElementDTypeBFloat16:
+        return "swiglu_packed_bfloat16";
+    default:
+        return NULL;
+    }
+}
+
+int metal_dispatch_swiglu_packed(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef destinationRef,
+    MetalBufferRef packedRef,
+    uint32_t inner,
+    uint32_t count,
+    uint64_t completionToken,
+    MetalStatus* status
+) {
+    const char* kernelName = metal_swiglu_packed_kernel_name(elementDType);
+
+    if (destinationRef == NULL || packedRef == NULL) {
+        metal_utility_status_set(status, -2, "nil Metal buffer");
+        return -2;
+    }
+
+    if (kernelName == NULL) {
+        metal_utility_status_set(status, -6, "unknown Metal packed swiglu dtype");
+        return -6;
+    }
+
+    return metal_utility_dispatch(
+        contextRef,
+        kernelName,
+        (NSUInteger)((count + 3u) / 4u),
+        completionToken,
+        status,
+        ^(id<MTLComputeCommandEncoder> encoder) {
+            [encoder setBuffer:(__bridge id<MTLBuffer>)destinationRef offset:0 atIndex:0];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)packedRef offset:0 atIndex:1];
+            [encoder setBytes:&inner length:sizeof(inner) atIndex:2];
+            [encoder setBytes:&count length:sizeof(count) atIndex:3];
+        }
+    );
+}
+
 static const char* metal_geglu_kernel_name(int elementDType) {
     switch (elementDType) {
     case MetalElementDTypeFloat32:

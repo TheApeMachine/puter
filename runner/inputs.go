@@ -109,6 +109,10 @@ func residentInputTensor(
 		return uploadInt32Indices(memory, typed)
 	case []int32:
 		return uploadInt32Slice(memory, typed)
+	case float32:
+		return uploadFloat32Slice(memory, node.Shape(), []float32{typed})
+	case float64:
+		return uploadFloat32Slice(memory, node.Shape(), []float32{float32(typed)})
 	case []float32:
 		return uploadFloat32Slice(memory, node.Shape(), typed)
 	case []float64:
@@ -177,7 +181,18 @@ func uploadFloat32Slice(
 		binary.LittleEndian.PutUint32(buffer[index*4:], math.Float32bits(value))
 	}
 
-	return memory.Upload(shape, dtype.Float32, buffer)
+	resident, err := memory.Upload(shape, dtype.Float32, buffer)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"upload float32 slice shape=%v shape_len=%d values=%d: %w",
+			shape.Dims(),
+			shape.Len(),
+			len(values),
+			err,
+		)
+	}
+
+	return resident, nil
 }
 
 func collectProgramOutputs(
@@ -269,6 +284,16 @@ func weightsPath(manifestGraph *ast.Graph) string {
 	}
 
 	return weightsPathValue
+}
+
+func weightFilePath(node *ir.Node, fallbackPath string) string {
+	metadata := node.Metadata()
+
+	if weightFile, ok := metadata["weight_file"].(string); ok && weightFile != "" {
+		return weightFile
+	}
+
+	return fallbackPath
 }
 
 func readWeightBytes(path string, tensorName string) ([]byte, weights.TensorMeta, error) {

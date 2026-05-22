@@ -130,6 +130,74 @@ func TestRunnerCallGraphRequiresComputeGraph(testingObject *testing.T) {
 	})
 }
 
+func TestConcatOutputShapeForNode(testingObject *testing.T) {
+	convey.Convey("Given a concat node with two same-rank float inputs", testingObject, func() {
+		inputShape, err := tensor.NewShape([]int{1, 8, 9728})
+		convey.So(err, convey.ShouldBeNil)
+
+		outputShape, err := tensor.NewShape([]int{1, 8, 19456})
+		convey.So(err, convey.ShouldBeNil)
+
+		leftNode := manifestComputeNode("gate", "input", ir.OpInput, inputShape)
+		rightNode := manifestComputeNode("up", "input", ir.OpInput, inputShape)
+		concatNode := manifestComputeNode("gate_up_0", "shape.concat", ir.OpFused, outputShape)
+		concatNode.SetAttribute("dim", ir.IntAttribute(2))
+		concatNode.AddInput(leftNode)
+		concatNode.AddInput(rightNode)
+		setFloat32ValueType(leftNode)
+		setFloat32ValueType(rightNode)
+		setFloat32ValueType(concatNode)
+
+		left, err := tensor.NewZeroed(inputShape, dtype.Float32)
+		convey.So(err, convey.ShouldBeNil)
+
+		right, err := tensor.NewZeroed(inputShape, dtype.Float32)
+		convey.So(err, convey.ShouldBeNil)
+
+		tensorWorkspace := newWorkspace()
+		defer tensorWorkspace.Close()
+		tensorWorkspace.Store("gate", left)
+		tensorWorkspace.Store("up", right)
+
+		convey.Convey("It should allocate the concatenated shape", func() {
+			shape, err := outputShapeForNode(concatNode, "concat", tensorWorkspace, "", nil, newManifestBindings(nil))
+
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(shape.Dims(), convey.ShouldResemble, []int{1, 8, 19456})
+		})
+	})
+}
+
+func TestPackedSwiGLUOutputShapeForNode(testingObject *testing.T) {
+	convey.Convey("Given a packed swiglu node with one float input", testingObject, func() {
+		inputShape, err := tensor.NewShape([]int{1, 8, 19456})
+		convey.So(err, convey.ShouldBeNil)
+
+		outputShape, err := tensor.NewShape([]int{1, 8, 9728})
+		convey.So(err, convey.ShouldBeNil)
+
+		inputNode := manifestComputeNode("gate_up", "input", ir.OpInput, inputShape)
+		swigluNode := manifestComputeNode("swiglu_0", "activation.swiglu", ir.OpFused, outputShape)
+		swigluNode.AddInput(inputNode)
+		setFloat32ValueType(inputNode)
+		setFloat32ValueType(swigluNode)
+
+		input, err := tensor.NewZeroed(inputShape, dtype.Float32)
+		convey.So(err, convey.ShouldBeNil)
+
+		tensorWorkspace := newWorkspace()
+		defer tensorWorkspace.Close()
+		tensorWorkspace.Store("gate_up", input)
+
+		convey.Convey("It should halve the packed final dimension", func() {
+			shape, err := outputShapeForNode(swigluNode, "swiglu", tensorWorkspace, "", nil, newManifestBindings(nil))
+
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(shape.Dims(), convey.ShouldResemble, []int{1, 8, 9728})
+		})
+	})
+}
+
 func TestRunnerWeightCache(testingObject *testing.T) {
 	convey.Convey("Given a runner and a compute backend", testingObject, func() {
 		devicePool, err := pool.New(context.Background(), nil)

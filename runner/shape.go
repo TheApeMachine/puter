@@ -36,14 +36,116 @@ func outputShapeForNode(
 		return primaryFloatInputShape(node, tensorWorkspace)
 	case "add", "mul":
 		return binaryFloatOutputShape(node, tensorWorkspace)
-	case "rmsnorm", "layernorm", "rope", "swiglu",
+	case "concat":
+		return concatOutputShape(node, tensorWorkspace)
+	case "swiglu":
+		return swiGLUOutputShape(node, tensorWorkspace)
+	case "rmsnorm", "layernorm", "rope",
 		"relu", "gelu", "tanh", "sigmoid", "swish", "selu", "leaky_relu",
-		"slice", "concat", "transpose",
+		"slice", "transpose",
 		"reshape", "dropout", "softmax":
 		return primaryFloatInputShape(node, tensorWorkspace)
 	default:
 		return node.Shape(), nil
 	}
+}
+
+func swiGLUOutputShape(
+	node *ir.Node,
+	tensorWorkspace *workspace,
+) (tensor.Shape, error) {
+	floatShapes := make([]tensor.Shape, 0, len(node.Inputs()))
+
+	for _, inputNode := range node.Inputs() {
+		value, ok := tensorWorkspace.Load(inputNode.ID())
+
+		if !ok || !value.DType().IsFloat() {
+			continue
+		}
+
+		floatShapes = append(floatShapes, value.Shape())
+	}
+
+	if len(floatShapes) != 1 {
+		return primaryFloatInputShape(node, tensorWorkspace)
+	}
+
+	dims := append([]int(nil), floatShapes[0].Dims()...)
+
+	if len(dims) == 0 || dims[len(dims)-1]%2 != 0 {
+		return tensor.Shape{}, fmt.Errorf("runner: packed swiglu node %q requires even final dimension", node.ID())
+	}
+
+	dims[len(dims)-1] /= 2
+
+	return tensor.NewShape(dims)
+}
+
+func concatOutputShape(
+	node *ir.Node,
+	tensorWorkspace *workspace,
+) (tensor.Shape, error) {
+	floatShapes := make([]tensor.Shape, 0, len(node.Inputs()))
+
+	for _, inputNode := range node.Inputs() {
+		value, ok := tensorWorkspace.Load(inputNode.ID())
+
+		if !ok || !value.DType().IsFloat() {
+			continue
+		}
+
+		floatShapes = append(floatShapes, value.Shape())
+	}
+
+	if len(floatShapes) == 0 {
+		return node.Shape(), nil
+	}
+
+	dims := append([]int(nil), floatShapes[0].Dims()...)
+	axis, err := nodeIntAttribute(node, "dim")
+
+	if err != nil {
+		axis, err = nodeIntAttribute(node, "axis")
+	}
+
+	if err != nil {
+		axis = len(dims) - 1
+	}
+
+	if axis < 0 {
+		axis += len(dims)
+	}
+
+	if axis < 0 || axis >= len(dims) {
+		return tensor.Shape{}, fmt.Errorf("runner: concat node %q axis %d out of range", node.ID(), axis)
+	}
+
+	for index := 1; index < len(floatShapes); index++ {
+		inputDims := floatShapes[index].Dims()
+
+		if len(inputDims) != len(dims) {
+			return tensor.Shape{}, fmt.Errorf("runner: concat node %q rank mismatch", node.ID())
+		}
+
+		for dimensionIndex, dimension := range inputDims {
+			if dimensionIndex == axis {
+				dims[axis] += dimension
+				continue
+			}
+
+			if dims[dimensionIndex] != dimension {
+				return tensor.Shape{}, fmt.Errorf(
+					"runner: concat node %q dim %d shape %d != %d",
+					node.ID(),
+					dimensionIndex,
+					dims[dimensionIndex],
+					dimension,
+				)
+			}
+		}
+	}
+
+	return tensor.NewShape(dims)
 }
 
 func linearOutputShape(
@@ -288,8 +390,10 @@ func embeddingHiddenSize(
 		weightName = weightTensorName(node)
 	}
 
-	if weightName != "" && checkpointPath != "" && weights != nil {
-		weight, err := weights.Tensor(checkpointPath, weightName)
+	weightPath := weightFilePath(node, checkpointPath)
+
+	if weightName != "" && weightPath != "" && weights != nil {
+		weight, err := weights.Tensor(weightPath, weightName)
 
 		if err == nil {
 			weightDims := weight.Shape().Dims()

@@ -90,6 +90,55 @@ int metal_dispatch_concat_bytes(
     );
 }
 
+int metal_dispatch_concat_last_dim_bytes(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef leftRef,
+    MetalBufferRef rightRef,
+    MetalBufferRef outRef,
+    uint32_t leftRowBytes,
+    uint32_t rightRowBytes,
+    uint32_t rowBytes,
+    uint32_t totalBytes,
+    uint64_t completionToken,
+    MetalStatus* status
+) {
+    if (leftRef == NULL || rightRef == NULL || outRef == NULL) {
+        metal_shape_status_set(status, -2, "nil Metal buffer");
+        return -2;
+    }
+
+    char kernelName[128];
+    int nameCode = metal_shape_kernel_name(
+        kernelName,
+        sizeof(kernelName),
+        "concat_last_dim",
+        elementDType,
+        status
+    );
+
+    if (nameCode != 0) {
+        return nameCode;
+    }
+
+    return metal_shape_dispatch(
+        contextRef,
+        kernelName,
+        (NSUInteger)((totalBytes + 15) / 16),
+        completionToken,
+        status,
+        ^(id<MTLComputeCommandEncoder> encoder) {
+            [encoder setBuffer:(__bridge id<MTLBuffer>)leftRef offset:0 atIndex:0];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)rightRef offset:0 atIndex:1];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:2];
+            [encoder setBytes:&leftRowBytes length:sizeof(leftRowBytes) atIndex:3];
+            [encoder setBytes:&rightRowBytes length:sizeof(rightRowBytes) atIndex:4];
+            [encoder setBytes:&rowBytes length:sizeof(rowBytes) atIndex:5];
+            [encoder setBytes:&totalBytes length:sizeof(totalBytes) atIndex:6];
+        }
+    );
+}
+
 int metal_dispatch_split2_bytes(
     MetalDeviceRef contextRef,
     int elementDType,

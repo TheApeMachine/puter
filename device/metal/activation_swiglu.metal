@@ -56,6 +56,13 @@ static inline ushort swiglu_float_to_bf16(float value) {
     return ushort(as_type<uint>(value) >> 16);
 }
 
+static inline uint swiglu_packed_source_index(uint outputIndex, uint inner, uint sideOffset) {
+    uint row = outputIndex / inner;
+    uint column = outputIndex - row * inner;
+
+    return row * inner * 2u + sideOffset + column;
+}
+
 static inline void swiglu_write_tail(
     device float* destination,
     uint offset,
@@ -116,6 +123,41 @@ kernel void swiglu_float32(
     swiglu_float32_kernel(destination, gateVector, upVector, count, index);
 }
 
+kernel void swiglu_packed_float32(
+    device float4* destination [[buffer(0)]],
+    device const float* packed [[buffer(1)]],
+    constant uint& inner [[buffer(2)]],
+    constant uint& count [[buffer(3)]],
+    uint index [[thread_position_in_grid]]
+) {
+    device float* destinationScalar = (device float*)destination;
+    uint offset = index * 4u;
+
+    if (offset >= count) {
+        return;
+    }
+
+    float4 gateVec;
+    float4 upVec;
+
+    for (uint lane = 0; lane < 4u; lane++) {
+        uint outputIndex = offset + lane;
+
+        if (outputIndex >= count) {
+            break;
+        }
+
+        uint gateIndex = swiglu_packed_source_index(outputIndex, inner, 0u);
+        gateVec[lane] = packed[gateIndex];
+        upVec[lane] = packed[gateIndex + inner];
+    }
+
+    float4 result = swiglu_float4(gateVec, upVec);
+    uint tail = min(4u, count - offset);
+
+    swiglu_write_tail(destinationScalar, offset, tail, result);
+}
+
 static inline void swiglu_float16_kernel(
     device half4* destination [[buffer(0)]],
     device const half4* gateVector [[buffer(1)]],
@@ -167,6 +209,43 @@ kernel void swiglu_float16(
     uint index [[thread_position_in_grid]]
 ) {
     swiglu_float16_kernel(destination, gateVector, upVector, count, index);
+}
+
+kernel void swiglu_packed_float16(
+    device half4* destination [[buffer(0)]],
+    device const half* packed [[buffer(1)]],
+    constant uint& inner [[buffer(2)]],
+    constant uint& count [[buffer(3)]],
+    uint index [[thread_position_in_grid]]
+) {
+    device half* destinationScalar = (device half*)destination;
+    uint offset = index * 4u;
+
+    if (offset >= count) {
+        return;
+    }
+
+    float4 gateVec;
+    float4 upVec;
+
+    for (uint lane = 0; lane < 4u; lane++) {
+        uint outputIndex = offset + lane;
+
+        if (outputIndex >= count) {
+            break;
+        }
+
+        uint gateIndex = swiglu_packed_source_index(outputIndex, inner, 0u);
+        gateVec[lane] = float(packed[gateIndex]);
+        upVec[lane] = float(packed[gateIndex + inner]);
+    }
+
+    float4 result = swiglu_float4(gateVec, upVec);
+    uint tail = min(4u, count - offset);
+
+    for (uint lane = 0; lane < tail; ++lane) {
+        destinationScalar[offset + lane] = half(result[lane]);
+    }
 }
 
 static inline void swiglu_bfloat16_kernel(
@@ -236,6 +315,43 @@ kernel void swiglu_bfloat16(
     uint index [[thread_position_in_grid]]
 ) {
     swiglu_bfloat16_kernel(destination, gateVector, upVector, count, index);
+}
+
+kernel void swiglu_packed_bfloat16(
+    device ushort4* destination [[buffer(0)]],
+    device const ushort* packed [[buffer(1)]],
+    constant uint& inner [[buffer(2)]],
+    constant uint& count [[buffer(3)]],
+    uint index [[thread_position_in_grid]]
+) {
+    device ushort* destinationScalar = (device ushort*)destination;
+    uint offset = index * 4u;
+
+    if (offset >= count) {
+        return;
+    }
+
+    float4 gateVec;
+    float4 upVec;
+
+    for (uint lane = 0; lane < 4u; lane++) {
+        uint outputIndex = offset + lane;
+
+        if (outputIndex >= count) {
+            break;
+        }
+
+        uint gateIndex = swiglu_packed_source_index(outputIndex, inner, 0u);
+        gateVec[lane] = swiglu_bf16_to_float(packed[gateIndex]);
+        upVec[lane] = swiglu_bf16_to_float(packed[gateIndex + inner]);
+    }
+
+    float4 result = swiglu_float4(gateVec, upVec);
+    uint tail = min(4u, count - offset);
+
+    for (uint lane = 0; lane < tail; ++lane) {
+        destinationScalar[offset + lane] = swiglu_float_to_bf16(result[lane]);
+    }
 }
 
 kernel void swiglu_silu_float32(

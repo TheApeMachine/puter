@@ -194,6 +194,19 @@ int metal_dispatch_concat_bytes(
     uint64_t completionToken,
     MetalStatus* status
 );
+int metal_dispatch_concat_last_dim_bytes(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef leftRef,
+    MetalBufferRef rightRef,
+    MetalBufferRef outRef,
+    uint32_t leftRowBytes,
+    uint32_t rightRowBytes,
+    uint32_t rowBytes,
+    uint32_t totalBytes,
+    uint64_t completionToken,
+    MetalStatus* status
+);
 int metal_dispatch_split2_bytes(
     MetalDeviceRef contextRef,
     int elementDType,
@@ -1432,6 +1445,16 @@ int metal_dispatch_swiglu(
     MetalBufferRef destinationRef,
     MetalBufferRef gateRef,
     MetalBufferRef upRef,
+    uint32_t count,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+int metal_dispatch_swiglu_packed(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef destinationRef,
+    MetalBufferRef packedRef,
+    uint32_t inner,
     uint32_t count,
     uint64_t completionToken,
     MetalStatus* status

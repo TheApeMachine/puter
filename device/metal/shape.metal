@@ -338,6 +338,37 @@ static inline void concat_bytes_kernel(
     }
 }
 
+static inline void concat_last_dim_bytes_kernel(
+    device const uchar* left,
+    device const uchar* right,
+    device uchar* out,
+    constant uint& leftRowBytes,
+    constant uint& rightRowBytes,
+    constant uint& rowBytes,
+    constant uint& totalBytes,
+    uint index
+) {
+    uint base = index * 16;
+
+    for (uint offset = 0; offset < 16; offset++) {
+        uint outIndex = base + offset;
+
+        if (outIndex >= totalBytes) {
+            continue;
+        }
+
+        uint row = outIndex / rowBytes;
+        uint col = outIndex - row * rowBytes;
+
+        if (col < leftRowBytes) {
+            out[outIndex] = left[row * leftRowBytes + col];
+            continue;
+        }
+
+        out[outIndex] = right[row * rightRowBytes + (col - leftRowBytes)];
+    }
+}
+
 static inline void split2_bytes_kernel(
     device const uint4* inputVector,
     device uint4* leftVector,
@@ -529,6 +560,22 @@ kernel void name( \
     uint index [[thread_position_in_grid]] \
 ) { \
     concat_bytes_kernel(leftVector, rightVector, outVector, leftBytes, totalBytes, index); \
+}
+
+#define CONCAT_LAST_DIM_KERNEL(name) \
+kernel void name( \
+    device const uchar* left [[buffer(0)]], \
+    device const uchar* right [[buffer(1)]], \
+    device uchar* out [[buffer(2)]], \
+    constant uint& leftRowBytes [[buffer(3)]], \
+    constant uint& rightRowBytes [[buffer(4)]], \
+    constant uint& rowBytes [[buffer(5)]], \
+    constant uint& totalBytes [[buffer(6)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    concat_last_dim_bytes_kernel( \
+        left, right, out, leftRowBytes, rightRowBytes, rowBytes, totalBytes, index \
+    ); \
 }
 
 #define SPLIT2_KERNEL(name) \
@@ -744,6 +791,10 @@ COPY_KERNEL(copy_bfloat16)
 CONCAT_KERNEL(concat_float32)
 CONCAT_KERNEL(concat_float16)
 CONCAT_KERNEL(concat_bfloat16)
+
+CONCAT_LAST_DIM_KERNEL(concat_last_dim_float32)
+CONCAT_LAST_DIM_KERNEL(concat_last_dim_float16)
+CONCAT_LAST_DIM_KERNEL(concat_last_dim_bfloat16)
 
 SPLIT2_KERNEL(split2_float32)
 SPLIT2_KERNEL(split2_float16)

@@ -32,6 +32,17 @@ func registerMetalSwiGLUKernel(storageDType dtype.DType) {
 		Locations: []tensor.Location{tensor.Metal},
 		Run:       runMetalSwiGLUKernel,
 	})
+
+	kernels.Default.Register(kernels.Kernel{
+		Name: "swiglu",
+		Signature: kernels.Signature{
+			Layout:  tensor.LayoutDense,
+			Inputs:  []dtype.DType{storageDType},
+			Outputs: []dtype.DType{storageDType},
+		},
+		Locations: []tensor.Location{tensor.Metal},
+		Run:       runMetalPackedSwiGLUKernel,
+	})
 }
 
 func runMetalSwiGLUKernel(args ...tensor.Tensor) error {
@@ -40,4 +51,12 @@ func runMetalSwiGLUKernel(args ...tensor.Tensor) error {
 	}
 
 	return runMetalSwiGLU(args[0], args[1], args[2])
+}
+
+func runMetalPackedSwiGLUKernel(args ...tensor.Tensor) error {
+	if len(args) != 2 {
+		return tensor.ErrShapeMismatch
+	}
+
+	return runMetalPackedSwiGLU(args[0], args[1])
 }

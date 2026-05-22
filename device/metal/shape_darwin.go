@@ -86,6 +86,10 @@ func runMetalConcat(left tensor.Tensor, right tensor.Tensor, out tensor.Tensor) 
 		return err
 	}
 
+	if config, ok := buildMetalConcatLastDimConfig(leftTensor, rightTensor, outTensor); ok {
+		return dispatchMetalConcatLastDim(config)
+	}
+
 	token, err := metalCompletions.Begin(outTensor, leftTensor, rightTensor)
 	if err != nil {
 		return err
@@ -106,6 +110,102 @@ func runMetalConcat(left tensor.Tensor, right tensor.Tensor, out tensor.Tensor) 
 
 	if rc != 0 {
 		err := fmt.Errorf("metal concat: %s", metalStatus("dispatch", status))
+		metalCompletions.Fail(token, err)
+		return err
+	}
+
+	return nil
+}
+
+type metalConcatLastDimConfig struct {
+	left          *metalTensor
+	right         *metalTensor
+	out           *metalTensor
+	elementDType  metalElementDType
+	leftRowBytes  uint32
+	rightRowBytes uint32
+	rowBytes      uint32
+	totalBytes    uint32
+}
+
+func buildMetalConcatLastDimConfig(
+	leftTensor *metalTensor,
+	rightTensor *metalTensor,
+	outTensor *metalTensor,
+) (metalConcatLastDimConfig, bool) {
+	leftDims := leftTensor.shape.Dims()
+	rightDims := rightTensor.shape.Dims()
+	outDims := outTensor.shape.Dims()
+
+	if len(leftDims) == 0 || len(leftDims) != len(rightDims) || len(leftDims) != len(outDims) {
+		return metalConcatLastDimConfig{}, false
+	}
+
+	lastIndex := len(leftDims) - 1
+
+	if outDims[lastIndex] != leftDims[lastIndex]+rightDims[lastIndex] {
+		return metalConcatLastDimConfig{}, false
+	}
+
+	rowCount := 1
+
+	for index := range lastIndex {
+		if leftDims[index] != rightDims[index] || leftDims[index] != outDims[index] {
+			return metalConcatLastDimConfig{}, false
+		}
+
+		rowCount *= leftDims[index]
+	}
+
+	elementBytes, err := leftTensor.dtype.Size()
+	if err != nil || rowCount <= 0 {
+		return metalConcatLastDimConfig{}, false
+	}
+
+	elementDType, err := metalShapeElementDType(leftTensor)
+	if err != nil {
+		return metalConcatLastDimConfig{}, false
+	}
+
+	leftRowBytes := leftDims[lastIndex] * elementBytes
+	rightRowBytes := rightDims[lastIndex] * elementBytes
+	rowBytes := outDims[lastIndex] * elementBytes
+
+	return metalConcatLastDimConfig{
+		left:          leftTensor,
+		right:         rightTensor,
+		out:           outTensor,
+		elementDType:  elementDType,
+		leftRowBytes:  uint32(leftRowBytes),
+		rightRowBytes: uint32(rightRowBytes),
+		rowBytes:      uint32(rowBytes),
+		totalBytes:    uint32(outTensor.bytes),
+	}, true
+}
+
+func dispatchMetalConcatLastDim(config metalConcatLastDimConfig) error {
+	token, err := metalCompletions.Begin(config.out, config.left, config.right)
+	if err != nil {
+		return err
+	}
+
+	status := C.MetalStatus{}
+	rc := C.metal_dispatch_concat_last_dim_bytes(
+		config.left.bridge.device,
+		C.int(config.elementDType),
+		config.left.buffer,
+		config.right.buffer,
+		config.out.buffer,
+		C.uint32_t(config.leftRowBytes),
+		C.uint32_t(config.rightRowBytes),
+		C.uint32_t(config.rowBytes),
+		C.uint32_t(config.totalBytes),
+		C.uint64_t(token),
+		&status,
+	)
+
+	if rc != 0 {
+		err := fmt.Errorf("metal concat_last_dim: %s", metalStatus("dispatch", status))
 		metalCompletions.Fail(token, err)
 		return err
 	}

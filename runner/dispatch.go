@@ -121,7 +121,7 @@ func nodeArguments(
 	}
 
 	if weightName != "" {
-		weight, err := weights.Tensor(checkpointPath, weightName)
+		weight, err := weights.Tensor(weightFilePath(node, checkpointPath), weightName)
 
 		if err != nil {
 			return nil, err
@@ -134,7 +134,7 @@ func nodeArguments(
 		bias, err := resolveBiasTensor(
 			node,
 			memory,
-			checkpointPath,
+			weightFilePath(node, checkpointPath),
 			weights,
 			bindings,
 			storageDType,
@@ -209,7 +209,12 @@ func dispatchRegisteredKernel(
 	registered, ok := kernels.Default.LookupLocation(kernel, signature, location)
 
 	if !ok {
-		return fmt.Errorf("kernel %q not registered for %s", kernel, location)
+		return fmt.Errorf("kernel %q signature inputs=%v outputs=%v not registered for %s",
+			kernel,
+			signature.Inputs,
+			signature.Outputs,
+			location,
+		)
 	}
 
 	return registered.Run(args...)
@@ -283,11 +288,13 @@ func weightStorageDType(
 		weightName = weightTensorName(node)
 	}
 
-	if weightName == "" || checkpointPath == "" || weights == nil {
+	weightPath := weightFilePath(node, checkpointPath)
+
+	if weightName == "" || weightPath == "" || weights == nil {
 		return dtype.Invalid
 	}
 
-	weight, err := weights.Tensor(checkpointPath, weightName)
+	weight, err := weights.Tensor(weightPath, weightName)
 
 	if err != nil {
 		return dtype.Invalid
