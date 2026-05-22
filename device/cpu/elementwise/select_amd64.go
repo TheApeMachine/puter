@@ -430,27 +430,93 @@ var (
 		{AxpyF32AVX512, "avx512", cpu.X86.HasAVX512F},
 		{AxpyF32Generic, "generic", true},
 	}
-	addF64Funcs   = []f64BinaryKernelImpl{{AddF64Generic, "generic", true}}
-	addF16Funcs   = []uint16BinaryKernelImpl{{AddF16Generic, "generic", true}}
-	subF16Funcs   = []uint16BinaryKernelImpl{{SubF16Generic, "generic", true}}
-	mulF16Funcs   = []uint16BinaryKernelImpl{{MulF16Generic, "generic", true}}
-	divF16Funcs   = []uint16BinaryKernelImpl{{DivF16Generic, "generic", true}}
-	maxF16Funcs   = []uint16BinaryKernelImpl{{MaxF16Generic, "generic", true}}
-	minF16Funcs   = []uint16BinaryKernelImpl{{MinF16Generic, "generic", true}}
-	absF16Funcs   = []uint16UnaryKernelImpl{{AbsF16Generic, "generic", true}}
-	negF16Funcs   = []uint16UnaryKernelImpl{{NegF16Generic, "generic", true}}
-	sqrtF16Funcs  = []uint16UnaryKernelImpl{{SqrtF16Generic, "generic", true}}
-	reluF16Funcs  = []uint16UnaryKernelImpl{{ReluF16Generic, "generic", true}}
-	axpyF16Funcs  = []uint16AxpyKernelImpl{{AxpyF16Generic, "generic", true}}
-	addBF16Funcs  = []uint16BinaryKernelImpl{{AddBF16Generic, "generic", true}}
-	subBF16Funcs  = []uint16BinaryKernelImpl{{SubBF16Generic, "generic", true}}
-	mulBF16Funcs  = []uint16BinaryKernelImpl{{MulBF16Generic, "generic", true}}
-	divBF16Funcs  = []uint16BinaryKernelImpl{{DivBF16Generic, "generic", true}}
-	maxBF16Funcs  = []uint16BinaryKernelImpl{{MaxBF16Generic, "generic", true}}
-	minBF16Funcs  = []uint16BinaryKernelImpl{{MinBF16Generic, "generic", true}}
-	absBF16Funcs  = []uint16UnaryKernelImpl{{AbsBF16Generic, "generic", true}}
-	negBF16Funcs  = []uint16UnaryKernelImpl{{NegBF16Generic, "generic", true}}
-	sqrtBF16Funcs = []uint16UnaryKernelImpl{{SqrtBF16Generic, "generic", true}}
-	reluBF16Funcs = []uint16UnaryKernelImpl{{ReluBF16Generic, "generic", true}}
-	axpyBF16Funcs = []uint16AxpyKernelImpl{{AxpyBF16Generic, "generic", true}}
+	addF64Funcs = []f64BinaryKernelImpl{{AddF64Generic, "generic", true}}
+	addF16Funcs = []uint16BinaryKernelImpl{
+		{AddF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{AddF16Generic, "generic", true},
+	}
+	subF16Funcs = []uint16BinaryKernelImpl{
+		{SubF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{SubF16Generic, "generic", true},
+	}
+	mulF16Funcs = []uint16BinaryKernelImpl{
+		{MulF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{MulF16Generic, "generic", true},
+	}
+	divF16Funcs = []uint16BinaryKernelImpl{
+		{DivF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{DivF16Generic, "generic", true},
+	}
+	maxF16Funcs = []uint16BinaryKernelImpl{
+		{MaxF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{MaxF16Generic, "generic", true},
+	}
+	minF16Funcs = []uint16BinaryKernelImpl{
+		{MinF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{MinF16Generic, "generic", true},
+	}
+	absF16Funcs = []uint16UnaryKernelImpl{
+		{AbsF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{AbsF16Generic, "generic", true},
+	}
+	negF16Funcs = []uint16UnaryKernelImpl{
+		{NegF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{NegF16Generic, "generic", true},
+	}
+	sqrtF16Funcs = []uint16UnaryKernelImpl{
+		{SqrtF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{SqrtF16Generic, "generic", true},
+	}
+	reluF16Funcs = []uint16UnaryKernelImpl{
+		{ReluF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{ReluF16Generic, "generic", true},
+	}
+	axpyF16Funcs = []uint16AxpyKernelImpl{
+		{AxpyF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{AxpyF16Generic, "generic", true},
+	}
+	addBF16Funcs = []uint16BinaryKernelImpl{
+		{AddBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{AddBF16Generic, "generic", true},
+	}
+	subBF16Funcs = []uint16BinaryKernelImpl{
+		{SubBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{SubBF16Generic, "generic", true},
+	}
+	mulBF16Funcs = []uint16BinaryKernelImpl{
+		{MulBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{MulBF16Generic, "generic", true},
+	}
+	divBF16Funcs = []uint16BinaryKernelImpl{
+		{DivBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{DivBF16Generic, "generic", true},
+	}
+	maxBF16Funcs = []uint16BinaryKernelImpl{
+		{MaxBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{MaxBF16Generic, "generic", true},
+	}
+	minBF16Funcs = []uint16BinaryKernelImpl{
+		{MinBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{MinBF16Generic, "generic", true},
+	}
+	absBF16Funcs = []uint16UnaryKernelImpl{
+		{AbsBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{AbsBF16Generic, "generic", true},
+	}
+	negBF16Funcs = []uint16UnaryKernelImpl{
+		{NegBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{NegBF16Generic, "generic", true},
+	}
+	sqrtBF16Funcs = []uint16UnaryKernelImpl{
+		{SqrtBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{SqrtBF16Generic, "generic", true},
+	}
+	reluBF16Funcs = []uint16UnaryKernelImpl{
+		{ReluBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{ReluBF16Generic, "generic", true},
+	}
+	axpyBF16Funcs = []uint16AxpyKernelImpl{
+		{AxpyBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{AxpyBF16Generic, "generic", true},
+	}
 )

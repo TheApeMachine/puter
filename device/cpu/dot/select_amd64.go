@@ -67,12 +67,15 @@ var (
 		{DotF32Generic, "generic", true},
 	}
 	dotBF16Funcs = []bf16DotKernelImpl{
+		{DotBF16AVX512, "avx512", cpu.X86.HasAVX512F},
 		{DotBF16Generic, "generic", true},
 	}
 	dotFP16Funcs = []fp16DotKernelImpl{
+		{DotFP16AVX512, "avx512", cpu.X86.HasAVX512F},
 		{DotFP16Generic, "generic", true},
 	}
 	dotInt8Funcs = []int8DotKernelImpl{
+		{DotInt8AVX512, "avx512", cpu.X86.HasAVX512F},
 		{DotInt8Generic, "generic", true},
 	}
 )

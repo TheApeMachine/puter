@@ -115,9 +115,11 @@ var (
 		{L1NormF32Generic, "generic", true},
 	}
 	sumBF16Funcs = []bf16SumKernelImpl{
+		{SumBF16AVX512, "avx512", cpu.X86.HasAVX512F},
 		{SumBF16Generic, "generic", true},
 	}
 	sumFP16Funcs = []fp16SumKernelImpl{
+		{SumFP16AVX512, "avx512", cpu.X86.HasAVX512F},
 		{SumFP16Generic, "generic", true},
 	}
 )
