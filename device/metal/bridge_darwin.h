@@ -1263,6 +1263,8 @@ int metal_dispatch_fft1d(
     MetalBufferRef imagInRef,
     MetalBufferRef realOutRef,
     MetalBufferRef imagOutRef,
+    MetalBufferRef twiddleRealRef,
+    MetalBufferRef twiddleImagRef,
     uint32_t count,
     bool inverse,
     uint64_t completionToken,

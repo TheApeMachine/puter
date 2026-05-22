@@ -140,6 +140,8 @@ static int metal_fft_encode_naive(
     MetalBufferRef imagInRef,
     MetalBufferRef realOutRef,
     MetalBufferRef imagOutRef,
+    MetalBufferRef twiddleRealRef,
+    MetalBufferRef twiddleImagRef,
     uint32_t count,
     bool inverse,
     MetalStatus* status
@@ -147,6 +149,11 @@ static int metal_fft_encode_naive(
     id<MTLComputePipelineState> pipeline = metal_fft_pipeline(context, elementDType, "dft_naive", status);
     if (pipeline == nil) {
         return status != NULL && status->code != 0 ? status->code : -7;
+    }
+
+    if (twiddleRealRef == NULL || twiddleImagRef == NULL) {
+        metal_fft_status_set(status, -2, "nil Metal FFT twiddle buffer");
+        return -2;
     }
 
     id<MTLComputeCommandEncoder> encoder = nil;
@@ -160,8 +167,10 @@ static int metal_fft_encode_naive(
     [encoder setBuffer:(__bridge id<MTLBuffer>)imagInRef offset:0 atIndex:1];
     [encoder setBuffer:(__bridge id<MTLBuffer>)realOutRef offset:0 atIndex:2];
     [encoder setBuffer:(__bridge id<MTLBuffer>)imagOutRef offset:0 atIndex:3];
-    [encoder setBytes:&count length:sizeof(count) atIndex:4];
-    [encoder setBytes:&inverseValue length:sizeof(inverseValue) atIndex:5];
+    [encoder setBuffer:(__bridge id<MTLBuffer>)twiddleRealRef offset:0 atIndex:4];
+    [encoder setBuffer:(__bridge id<MTLBuffer>)twiddleImagRef offset:0 atIndex:5];
+    [encoder setBytes:&count length:sizeof(count) atIndex:6];
+    [encoder setBytes:&inverseValue length:sizeof(inverseValue) atIndex:7];
     metal_fft_dispatch(encoder, pipeline, (NSUInteger)count);
     [encoder endEncoding];
     return 0;
@@ -251,6 +260,8 @@ int metal_dispatch_fft1d(
     MetalBufferRef imagInRef,
     MetalBufferRef realOutRef,
     MetalBufferRef imagOutRef,
+    MetalBufferRef twiddleRealRef,
+    MetalBufferRef twiddleImagRef,
     uint32_t count,
     bool inverse,
     uint64_t completionToken,
@@ -289,7 +300,8 @@ int metal_dispatch_fft1d(
         } else {
             encodeCode = metal_fft_encode_naive(
                 context, commandBuffer, elementDType, realInRef, imagInRef,
-                realOutRef, imagOutRef, count, inverse, status
+                realOutRef, imagOutRef, twiddleRealRef, twiddleImagRef,
+                count, inverse, status
             );
         }
 

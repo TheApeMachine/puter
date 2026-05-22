@@ -143,7 +143,7 @@ func fftMetalNaiveBinReference(
 	index uint32,
 	inverse bool,
 ) (float32, float32) {
-	sign := float32(-1)
+	sign := float64(-1)
 	if inverse {
 		sign = 1
 	}
@@ -152,9 +152,9 @@ func fftMetalNaiveBinReference(
 	var sumImag float32
 
 	for source := uint32(0); source < count; source++ {
-		angle := sign * 2 * physicsPi * float32(index) * float32(source) / float32(count)
-		cosine := float32(math.Cos(float64(angle)))
-		sine := float32(math.Sin(float64(angle)))
+		angle := sign * 2 * math.Pi * float64(index) * float64(source) / float64(count)
+		cosine := float32(math.Cos(angle))
+		sine := float32(math.Sin(angle))
 		realValue := realIn[source]
 		imagValue := imagIn[source]
 		sumReal += realValue*cosine - imagValue*sine
@@ -168,4 +168,25 @@ func fftMetalNaiveBinReference(
 	}
 
 	return sumReal, sumImag
+}
+
+func naiveFFTTwiddles(count int, inverse bool) ([]float32, []float32) {
+	twiddleReal := make([]float32, count*count)
+	twiddleImag := make([]float32, count*count)
+	sign := float64(-1)
+
+	if inverse {
+		sign = 1
+	}
+
+	for index := range count {
+		for source := range count {
+			angle := sign * 2 * math.Pi * float64(index) * float64(source) / float64(count)
+			offset := index*count + source
+			twiddleReal[offset] = float32(math.Cos(angle))
+			twiddleImag[offset] = float32(math.Sin(angle))
+		}
+	}
+
+	return twiddleReal, twiddleImag
 }

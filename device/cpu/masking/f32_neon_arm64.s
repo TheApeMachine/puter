@@ -83,27 +83,22 @@ mask_apply_scalar_loop:
 mask_apply_done:
 	RET
 
-// func CausalMaskArgProbeAsm(output *float32, seqQ, seqK int)
-TEXT ·CausalMaskArgProbeAsm(SB), NOSPLIT, $0-24
-	MOVD output+0(FP), R0
-	MOVD seqQ+8(FP), R1
-	MOVD seqK+16(FP), R2
-	SCVTFWS R1, F0
-	FMOVS F0, (R0)
-	SCVTFWS R2, F0
-	FMOVS F0, 4(R0)
-	RET
-
 // func CausalMaskFloat32NEONAsm(output *float32, seqQ, seqK int)
 TEXT ·CausalMaskFloat32NEONAsm(SB), NOSPLIT, $0-24
 	MOVD output+0(FP), R0
-	MOVD seqQ+8(FP), R10
-	MOVD seqQ+8(FP), R16
 	MOVD seqK+16(FP), R2
 	MOVD $maskZero<>(SB), R11
-	CBZ  R10, causal_done
-	FMOVS $0, F0
+	MOVD $0, R8
+
+causal_col:
+	CMP  R8, R2
+	BGE  causal_done
+
+	FMOVS (R11), F0
 	FMOVS F0, (R0)
+	ADD  $4, R0
+	ADD  $1, R8
+	B    causal_col
 
 causal_done:
 	RET
@@ -115,15 +110,16 @@ TEXT ·ALiBiBiasFloat32NEONAsm(SB), NOSPLIT, $0-40
 	MOVD output+16(FP), R2
 	MOVD seqQ+24(FP), R3
 	MOVD seqK+32(FP), R4
-	MOVD $0, R5
+	MOVD seqQ+24(FP), R16
 	MOVD $maskIotaF32<>(SB), R10
 	VLD1 (R10), [V14.S4]
 	VEOR V9.B16, V9.B16, V9.B16
 
 alibi_row:
-	CMP  R5, R3
-	BGE  alibi_done
+	CBZ  R3, alibi_done
 
+	MOVD R16, R5
+	SUB  R3, R5, R5
 	FMOVS (R1), F31
 	VDUP  V31.S[0], V31.S4
 	VMOV  R5, V13.S[0]
@@ -131,7 +127,8 @@ alibi_row:
 	MOVD  $0, R6
 
 alibi_col:
-	SUB  R6, R4, R7
+	MOVD R4, R7
+	SUB  R6, R7, R7
 	CBZ  R7, alibi_row_done
 
 	CMP  $4, R7
@@ -175,7 +172,7 @@ alibi_keep_score:
 	CBNZ R7, alibi_col_scalar_loop
 
 alibi_row_done:
-	ADD  $1, R5
+	SUB  $1, R3
 	B    alibi_row
 
 alibi_done:

@@ -2,6 +2,9 @@
 
 using namespace metal;
 
+#pragma METAL fp math_mode(safe)
+#pragma METAL fp contract(off)
+
 constant float physicsPi = 3.14159265358979323846f;
 
 static inline float physics_bf16_to_float(ushort value) {
@@ -305,6 +308,8 @@ static inline void dft_naive_kernel(
     device const Scalar* imagIn,
     device Scalar* realOut,
     device Scalar* imagOut,
+    device const float* twiddleReal,
+    device const float* twiddleImag,
     constant uint& count,
     constant uint& inverseValue,
     uint index
@@ -313,14 +318,13 @@ static inline void dft_naive_kernel(
         return;
     }
 
-    float sign = inverseValue != 0u ? 1.0f : -1.0f;
     float sumReal = 0.0f;
     float sumImag = 0.0f;
 
     for (uint source = 0; source < count; source++) {
-        float angle = sign * 2.0f * physicsPi * float(index) * float(source) / float(count);
-        float c = cos(angle);
-        float s = sin(angle);
+        uint twiddleIndex = index * count + source;
+        float c = twiddleReal[twiddleIndex];
+        float s = twiddleImag[twiddleIndex];
         float realValue = Storage::load(realIn, source);
         float imagValue = Storage::load(imagIn, source);
         sumReal += realValue * c - imagValue * s;
@@ -409,11 +413,15 @@ kernel void prefix##_dft_naive( \
     device const scalar* imagIn [[buffer(1)]], \
     device scalar* realOut [[buffer(2)]], \
     device scalar* imagOut [[buffer(3)]], \
-    constant uint& count [[buffer(4)]], \
-    constant uint& inverseValue [[buffer(5)]], \
+    device const float* twiddleReal [[buffer(4)]], \
+    device const float* twiddleImag [[buffer(5)]], \
+    constant uint& count [[buffer(6)]], \
+    constant uint& inverseValue [[buffer(7)]], \
     uint index [[thread_position_in_grid]] \
 ) { \
-    dft_naive_kernel<storage, scalar>(realIn, imagIn, realOut, imagOut, count, inverseValue, index); \
+    dft_naive_kernel<storage, scalar>( \
+        realIn, imagIn, realOut, imagOut, twiddleReal, twiddleImag, count, inverseValue, index \
+    ); \
 }
 
 PHYSICS_LAPLACIAN_KERNEL(laplacian_float32, Float32PhysicsStorage, float)

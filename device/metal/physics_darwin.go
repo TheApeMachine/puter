@@ -13,6 +13,8 @@ import "C"
 import (
 	"fmt"
 
+	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/manifesto/dtype/convert"
 	"github.com/theapemachine/manifesto/tensor"
 )
 
@@ -113,10 +115,59 @@ func runMetalFFT(
 		return err
 	}
 
+	twiddleRealBuffer := C.MetalBufferRef(nil)
+	twiddleImagBuffer := C.MetalBufferRef(nil)
+	twiddleTensors := make([]*metalTensor, 0, 2)
+
+	if !physicsIsPowerOfTwo(int(config.count)) {
+		twiddleRealValues, twiddleImagValues := naiveFFTTwiddles(int(config.count), inverse)
+		twiddleShape, shapeErr := tensor.NewShape([]int{int(config.count) * int(config.count)})
+
+		if shapeErr != nil {
+			metalCompletions.Fail(token, shapeErr)
+
+			return shapeErr
+		}
+
+		twiddleRealUploaded, uploadErr := config.realIn.bridge.upload(
+			twiddleShape, dtype.Float32, convert.Float32ToBytes(twiddleRealValues),
+		)
+
+		if uploadErr != nil {
+			metalCompletions.Fail(token, uploadErr)
+
+			return uploadErr
+		}
+
+		twiddleImagUploaded, uploadErr := config.realIn.bridge.upload(
+			twiddleShape, dtype.Float32, convert.Float32ToBytes(twiddleImagValues),
+		)
+
+		if uploadErr != nil {
+			_ = twiddleRealUploaded.Close()
+			metalCompletions.Fail(token, uploadErr)
+
+			return uploadErr
+		}
+
+		twiddleRealTensor := twiddleRealUploaded.(*metalTensor)
+		twiddleImagTensor := twiddleImagUploaded.(*metalTensor)
+		twiddleTensors = append(twiddleTensors, twiddleRealTensor, twiddleImagTensor)
+		twiddleRealBuffer = twiddleRealTensor.buffer
+		twiddleImagBuffer = twiddleImagTensor.buffer
+	}
+
+	defer func() {
+		for _, twiddleTensor := range twiddleTensors {
+			_ = twiddleTensor.Close()
+		}
+	}()
+
 	status := C.MetalStatus{}
 	rc := C.metal_dispatch_fft1d(
 		config.realIn.bridge.device, C.int(config.elementDType), config.realIn.buffer,
 		config.imagIn.buffer, config.realOut.buffer, config.imagOut.buffer,
+		twiddleRealBuffer, twiddleImagBuffer,
 		C.uint32_t(config.count), C.bool(inverse), C.uint64_t(token), &status,
 	)
 
