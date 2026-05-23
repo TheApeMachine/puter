@@ -289,3 +289,279 @@ func TestExpectedFreeEnergyBF16SSE2Parity(t *testing.T) {
 		}
 	}
 }
+
+func TestBeliefUpdateFP16AVX512Parity(t *testing.T) {
+	if !avx512ActiveInferenceBF16Available() {
+		t.Skip("AVX-512F required")
+	}
+
+	for _, length := range parity.Lengths {
+		likelihood := make([]dtype.F16, length)
+		prior := make([]dtype.F16, length)
+		want := make([]dtype.F16, length)
+		got := make([]dtype.F16, length)
+		for index := range likelihood {
+			likelihood[index] = dtype.Fromfloat32(float32(index%17+1) * 0.1)
+			prior[index] = dtype.Fromfloat32(float32(index%11+1) * 0.08)
+		}
+		BeliefUpdateFloat16Scalar(likelihood, prior, want)
+		BeliefUpdateFP16AVX512(likelihood, prior, got)
+		for index := range got {
+			if got[index] != want[index] {
+				t.Fatalf("N=%d i=%d got=%v want=%v", length, index, got[index], want[index])
+			}
+		}
+	}
+}
+
+func TestBeliefUpdateFP16AVX2Parity(t *testing.T) {
+	if !avx2ActiveInferenceAvailable() {
+		t.Skip("AVX2+FMA required")
+	}
+
+	for _, length := range parity.Lengths {
+		likelihood := make([]dtype.F16, length)
+		prior := make([]dtype.F16, length)
+		want := make([]dtype.F16, length)
+		got := make([]dtype.F16, length)
+		for index := range likelihood {
+			likelihood[index] = dtype.Fromfloat32(float32(index%17+1) * 0.1)
+			prior[index] = dtype.Fromfloat32(float32(index%11+1) * 0.08)
+		}
+		BeliefUpdateFloat16Scalar(likelihood, prior, want)
+		BeliefUpdateFP16AVX2(likelihood, prior, got)
+		for index := range got {
+			if got[index] != want[index] {
+				t.Fatalf("N=%d i=%d got=%v want=%v", length, index, got[index], want[index])
+			}
+		}
+	}
+}
+
+func TestBeliefUpdateFP16SSE2Parity(t *testing.T) {
+	if !sse2ActiveInferenceAvailable() {
+		t.Skip("SSE2 required")
+	}
+
+	for _, length := range parity.Lengths {
+		likelihood := make([]dtype.F16, length)
+		prior := make([]dtype.F16, length)
+		want := make([]dtype.F16, length)
+		got := make([]dtype.F16, length)
+		for index := range likelihood {
+			likelihood[index] = dtype.Fromfloat32(float32(index%17+1) * 0.1)
+			prior[index] = dtype.Fromfloat32(float32(index%11+1) * 0.08)
+		}
+		BeliefUpdateFloat16Scalar(likelihood, prior, want)
+		BeliefUpdateFP16SSE2(likelihood, prior, got)
+		for index := range got {
+			if got[index] != want[index] {
+				t.Fatalf("N=%d i=%d got=%v want=%v", length, index, got[index], want[index])
+			}
+		}
+	}
+}
+
+func TestPrecisionWeightFP16AVX512Parity(t *testing.T) {
+	if !avx512ActiveInferenceBF16Available() {
+		t.Skip("AVX-512F required")
+	}
+
+	for _, length := range parity.Lengths {
+		errorsVec := make([]dtype.F16, length)
+		precision := make([]dtype.F16, length)
+		want := make([]dtype.F16, length)
+		got := make([]dtype.F16, length)
+		for index := range errorsVec {
+			errorsVec[index] = dtype.Fromfloat32(float32(index%7+1) * 0.2)
+			precision[index] = dtype.Fromfloat32(float32(index%5+1) * 0.3)
+		}
+		PrecisionWeightFloat16Scalar(errorsVec, precision, want)
+		PrecisionWeightFP16AVX512(errorsVec, precision, got)
+		for index := range got {
+			if got[index] != want[index] {
+				t.Fatalf("N=%d i=%d got=%v want=%v", length, index, got[index], want[index])
+			}
+		}
+	}
+}
+
+func TestPrecisionWeightFP16AVX2Parity(t *testing.T) {
+	if !avx2ActiveInferenceAvailable() {
+		t.Skip("AVX2+FMA required")
+	}
+
+	for _, length := range parity.Lengths {
+		errorsVec := make([]dtype.F16, length)
+		precision := make([]dtype.F16, length)
+		want := make([]dtype.F16, length)
+		got := make([]dtype.F16, length)
+		for index := range errorsVec {
+			errorsVec[index] = dtype.Fromfloat32(float32(index%7+1) * 0.2)
+			precision[index] = dtype.Fromfloat32(float32(index%5+1) * 0.3)
+		}
+		PrecisionWeightFloat16Scalar(errorsVec, precision, want)
+		PrecisionWeightFP16AVX2(errorsVec, precision, got)
+		for index := range got {
+			if got[index] != want[index] {
+				t.Fatalf("N=%d i=%d got=%v want=%v", length, index, got[index], want[index])
+			}
+		}
+	}
+}
+
+func TestPrecisionWeightFP16SSE2Parity(t *testing.T) {
+	if !sse2ActiveInferenceAvailable() {
+		t.Skip("SSE2 required")
+	}
+
+	for _, length := range parity.Lengths {
+		errorsVec := make([]dtype.F16, length)
+		precision := make([]dtype.F16, length)
+		want := make([]dtype.F16, length)
+		got := make([]dtype.F16, length)
+		for index := range errorsVec {
+			errorsVec[index] = dtype.Fromfloat32(float32(index%7+1) * 0.2)
+			precision[index] = dtype.Fromfloat32(float32(index%5+1) * 0.3)
+		}
+		PrecisionWeightFloat16Scalar(errorsVec, precision, want)
+		PrecisionWeightFP16SSE2(errorsVec, precision, got)
+		for index := range got {
+			if got[index] != want[index] {
+				t.Fatalf("N=%d i=%d got=%v want=%v", length, index, got[index], want[index])
+			}
+		}
+	}
+}
+
+func TestFreeEnergyFP16AVX512Parity(t *testing.T) {
+	if !avx512ActiveInferenceBF16Available() {
+		t.Skip("AVX-512F required")
+	}
+
+	for _, length := range parity.Lengths {
+		likelihood := make([]dtype.F16, length)
+		posterior := make([]dtype.F16, length)
+		prior := make([]dtype.F16, length)
+		for index := range likelihood {
+			likelihood[index] = dtype.Fromfloat32(float32(index%17+1) * 0.1)
+			posterior[index] = dtype.Fromfloat32(float32(index%13+1) * 0.09)
+			prior[index] = dtype.Fromfloat32(float32(index%11+1) * 0.08)
+		}
+		want := FreeEnergyFloat16Scalar(likelihood, posterior, prior)
+		got := FreeEnergyFP16AVX512(likelihood, posterior, prior)
+		if got != want {
+			t.Fatalf("N=%d got=%v want=%v", length, got, want)
+		}
+	}
+}
+
+func TestFreeEnergyFP16AVX2Parity(t *testing.T) {
+	if !avx2ActiveInferenceAvailable() {
+		t.Skip("AVX2+FMA required")
+	}
+
+	for _, length := range parity.Lengths {
+		likelihood := make([]dtype.F16, length)
+		posterior := make([]dtype.F16, length)
+		prior := make([]dtype.F16, length)
+		for index := range likelihood {
+			likelihood[index] = dtype.Fromfloat32(float32(index%17+1) * 0.1)
+			posterior[index] = dtype.Fromfloat32(float32(index%13+1) * 0.09)
+			prior[index] = dtype.Fromfloat32(float32(index%11+1) * 0.08)
+		}
+		want := FreeEnergyFloat16Scalar(likelihood, posterior, prior)
+		got := FreeEnergyFP16AVX2(likelihood, posterior, prior)
+		if got != want {
+			t.Fatalf("N=%d got=%v want=%v", length, got, want)
+		}
+	}
+}
+
+func TestFreeEnergyFP16SSE2Parity(t *testing.T) {
+	if !sse2ActiveInferenceAvailable() {
+		t.Skip("SSE2 required")
+	}
+
+	for _, length := range parity.Lengths {
+		likelihood := make([]dtype.F16, length)
+		posterior := make([]dtype.F16, length)
+		prior := make([]dtype.F16, length)
+		for index := range likelihood {
+			likelihood[index] = dtype.Fromfloat32(float32(index%17+1) * 0.1)
+			posterior[index] = dtype.Fromfloat32(float32(index%13+1) * 0.09)
+			prior[index] = dtype.Fromfloat32(float32(index%11+1) * 0.08)
+		}
+		want := FreeEnergyFloat16Scalar(likelihood, posterior, prior)
+		got := FreeEnergyFP16SSE2(likelihood, posterior, prior)
+		if got != want {
+			t.Fatalf("N=%d got=%v want=%v", length, got, want)
+		}
+	}
+}
+
+func TestExpectedFreeEnergyFP16AVX512Parity(t *testing.T) {
+	if !avx512ActiveInferenceBF16Available() {
+		t.Skip("AVX-512F required")
+	}
+
+	for _, length := range parity.Lengths {
+		predictedObs := make([]dtype.F16, length)
+		preferredObs := make([]dtype.F16, length)
+		predictedState := make([]dtype.F16, length)
+		for index := range predictedObs {
+			predictedObs[index] = dtype.Fromfloat32(float32(index%17+1) * 0.1)
+			preferredObs[index] = dtype.Fromfloat32(float32(index%13+1) * 0.09)
+			predictedState[index] = dtype.Fromfloat32(float32(index%11+1) * 0.08)
+		}
+		want := ExpectedFreeEnergyFloat16Scalar(predictedObs, preferredObs, predictedState)
+		got := ExpectedFreeEnergyFP16AVX512(predictedObs, preferredObs, predictedState)
+		if got != want {
+			t.Fatalf("N=%d got=%v want=%v", length, got, want)
+		}
+	}
+}
+
+func TestExpectedFreeEnergyFP16AVX2Parity(t *testing.T) {
+	if !avx2ActiveInferenceAvailable() {
+		t.Skip("AVX2+FMA required")
+	}
+
+	for _, length := range parity.Lengths {
+		predictedObs := make([]dtype.F16, length)
+		preferredObs := make([]dtype.F16, length)
+		predictedState := make([]dtype.F16, length)
+		for index := range predictedObs {
+			predictedObs[index] = dtype.Fromfloat32(float32(index%17+1) * 0.1)
+			preferredObs[index] = dtype.Fromfloat32(float32(index%13+1) * 0.09)
+			predictedState[index] = dtype.Fromfloat32(float32(index%11+1) * 0.08)
+		}
+		want := ExpectedFreeEnergyFloat16Scalar(predictedObs, preferredObs, predictedState)
+		got := ExpectedFreeEnergyFP16AVX2(predictedObs, preferredObs, predictedState)
+		if got != want {
+			t.Fatalf("N=%d got=%v want=%v", length, got, want)
+		}
+	}
+}
+
+func TestExpectedFreeEnergyFP16SSE2Parity(t *testing.T) {
+	if !sse2ActiveInferenceAvailable() {
+		t.Skip("SSE2 required")
+	}
+
+	for _, length := range parity.Lengths {
+		predictedObs := make([]dtype.F16, length)
+		preferredObs := make([]dtype.F16, length)
+		predictedState := make([]dtype.F16, length)
+		for index := range predictedObs {
+			predictedObs[index] = dtype.Fromfloat32(float32(index%17+1) * 0.1)
+			preferredObs[index] = dtype.Fromfloat32(float32(index%13+1) * 0.09)
+			predictedState[index] = dtype.Fromfloat32(float32(index%11+1) * 0.08)
+		}
+		want := ExpectedFreeEnergyFloat16Scalar(predictedObs, preferredObs, predictedState)
+		got := ExpectedFreeEnergyFP16SSE2(predictedObs, preferredObs, predictedState)
+		if got != want {
+			t.Fatalf("N=%d got=%v want=%v", length, got, want)
+		}
+	}
+}

@@ -55,16 +55,16 @@ GLOBL aiLogC<>(SB), RODATA|NOPTR, $32
 	VFADD_D2(9, 29, 29)
 
 #define AI_F32_LANE0_F64_ADD_CE \
-	FCVTSD F13, F6 ;\
-	FADDD F6, F14, F14
+	FCVTSD F6, F8 ;\
+	FADDD F8, F14, F14
 
-#define AI_F32_LANE0_V13_F64_ADD_KL \
-	FCVTSD F13, F6 ;\
-	FADDD F6, F15, F15
+#define AI_F32_LANE0_F64_ADD_KL \
+	FCVTSD F6, F8 ;\
+	FADDD F8, F15, F15
 
-#define AI_F32_LANE0_V14_F64_ADD_KL \
-	FCVTSD F14, F6 ;\
-	FADDD F6, F15, F15
+#define AI_F32_LANE0_V7_F64_ADD_KL \
+	FCVTSD F7, F8 ;\
+	FADDD F8, F15, F15
 
 #define AI_LOAD_LOG_MASKS \
 	MOVD $0x007FFFFF, R6 ;\
@@ -146,21 +146,27 @@ GLOBL aiLogC<>(SB), RODATA|NOPTR, $32
 	AI_RELOAD_LOG_POLY ;\
 	AI_NEON_LOG4(5, 12) ;\
 	VEOR V30.B16, V30.B16, V30.B16 ;\
-	VFSUB_S4(10, 30, 13) ;\
-	VFMUL_S4(27, 13, 13) ;\
-	AI_F32X4_TO_F64_ADD_CE(13) ;\
-	VFSUB_S4(12, 11, 14) ;\
-	VFMUL_S4(27, 14, 14) ;\
-	AI_F32X4_TO_F64_ADD_KL(14)
+	VFSUB_S4(10, 30, 6) ;\
+	VFMUL_S4(27, 6, 6) ;\
+	AI_F32X4_TO_F64_ADD_CE(6) ;\
+	VFSUB_S4(12, 11, 7) ;\
+	VFMUL_S4(27, 7, 7) ;\
+	AI_F32X4_TO_F64_ADD_KL(7)
 
 #define AI_FP16_FE_HALF(hlike, hpost, hprior) \
-	AI_FP16_WIDEN_LOW(hlike, 3) ;\
-	AI_FP16_WIDEN_LOW(hpost, 4) ;\
-	AI_FP16_WIDEN_LOW(hprior, 5) ;\
+	AI_FP16_WIDEN_LOW(hlike, 6) ;\
+	AI_FP16_WIDEN_LOW(hpost, 7) ;\
+	AI_FP16_WIDEN_LOW(hprior, 8) ;\
+	VMOV_B16(6, 3) ;\
+	VMOV_B16(7, 4) ;\
+	VMOV_B16(8, 5) ;\
 	AI_FP16_FE_PROCESS4 ;\
-	AI_FP16_WIDEN_HIGH(hlike, 3) ;\
-	AI_FP16_WIDEN_HIGH(hpost, 4) ;\
-	AI_FP16_WIDEN_HIGH(hprior, 5) ;\
+	AI_FP16_WIDEN_HIGH(hlike, 6) ;\
+	AI_FP16_WIDEN_HIGH(hpost, 7) ;\
+	AI_FP16_WIDEN_HIGH(hprior, 8) ;\
+	VMOV_B16(6, 3) ;\
+	VMOV_B16(7, 4) ;\
+	VMOV_B16(8, 5) ;\
 	AI_FP16_FE_PROCESS4
 
 #define AI_FP16_FE_BLOCK8 \
@@ -197,12 +203,12 @@ GLOBL aiLogC<>(SB), RODATA|NOPTR, $32
 	AI_RELOAD_LOG_POLY ;\
 	AI_NEON_LOG4(5, 12) ;\
 	VEOR V30.B16, V30.B16, V30.B16 ;\
-	VFSUB_S4(10, 30, 13) ;\
-	VFMUL_S4(27, 13, 13) ;\
+	VFSUB_S4(10, 30, 6) ;\
+	VFMUL_S4(27, 6, 6) ;\
 	AI_F32_LANE0_F64_ADD_CE ;\
-	VFSUB_S4(12, 11, 14) ;\
-	VFMUL_S4(27, 14, 14) ;\
-	AI_F32_LANE0_V14_F64_ADD_KL ;\
+	VFSUB_S4(12, 11, 7) ;\
+	VFMUL_S4(27, 7, 7) ;\
+	AI_F32_LANE0_V7_F64_ADD_KL ;\
 	ADD  $2, R10 ;\
 	ADD  $2, R11 ;\
 	ADD  $2, R12 ;\
@@ -211,8 +217,10 @@ GLOBL aiLogC<>(SB), RODATA|NOPTR, $32
 #define AI_FP16_EFE_OBS_BLOCK8 \
 	VLD1 (R0), [V3.H8] ;\
 	VLD1 (R1), [V4.H8] ;\
-	AI_FP16_WIDEN_LOW(3, 3) ;\
-	AI_FP16_WIDEN_LOW(4, 4) ;\
+	AI_FP16_WIDEN_LOW(3, 6) ;\
+	AI_FP16_WIDEN_LOW(4, 7) ;\
+	VMOV_B16(6, 3) ;\
+	VMOV_B16(7, 4) ;\
 	VMOV_B16(3, 27) ;\
 	VMAX_S4(31, 3, 3) ;\
 	VMAX_S4(31, 4, 4) ;\
@@ -220,11 +228,15 @@ GLOBL aiLogC<>(SB), RODATA|NOPTR, $32
 	AI_NEON_LOG4(3, 10) ;\
 	AI_RELOAD_LOG_POLY ;\
 	AI_NEON_LOG4(4, 11) ;\
-	VFSUB_S4(11, 10, 13) ;\
-	VFMUL_S4(27, 13, 13) ;\
-	AI_F32X4_TO_F64_ADD_CE(13) ;\
-	AI_FP16_WIDEN_HIGH(3, 3) ;\
-	AI_FP16_WIDEN_HIGH(4, 4) ;\
+	VFSUB_S4(11, 10, 6) ;\
+	VFMUL_S4(27, 6, 6) ;\
+	AI_F32X4_TO_F64_ADD_CE(6) ;\
+	VLD1 (R0), [V3.H8] ;\
+	VLD1 (R1), [V4.H8] ;\
+	AI_FP16_WIDEN_HIGH(3, 6) ;\
+	AI_FP16_WIDEN_HIGH(4, 7) ;\
+	VMOV_B16(6, 3) ;\
+	VMOV_B16(7, 4) ;\
 	VMOV_B16(3, 27) ;\
 	VMAX_S4(31, 3, 3) ;\
 	VMAX_S4(31, 4, 4) ;\
@@ -232,9 +244,9 @@ GLOBL aiLogC<>(SB), RODATA|NOPTR, $32
 	AI_NEON_LOG4(3, 10) ;\
 	AI_RELOAD_LOG_POLY ;\
 	AI_NEON_LOG4(4, 11) ;\
-	VFSUB_S4(11, 10, 13) ;\
-	VFMUL_S4(27, 13, 13) ;\
-	AI_F32X4_TO_F64_ADD_CE(13) ;\
+	VFSUB_S4(11, 10, 6) ;\
+	VFMUL_S4(27, 6, 6) ;\
+	AI_F32X4_TO_F64_ADD_CE(6) ;\
 	ADD  $16, R0 ;\
 	ADD  $16, R1 ;\
 	SUB  $8, R3
@@ -255,8 +267,8 @@ GLOBL aiLogC<>(SB), RODATA|NOPTR, $32
 	AI_NEON_LOG4(3, 10) ;\
 	AI_RELOAD_LOG_POLY ;\
 	AI_NEON_LOG4(4, 11) ;\
-	VFSUB_S4(11, 10, 13) ;\
-	VFMUL_S4(27, 13, 13) ;\
+	VFSUB_S4(11, 10, 6) ;\
+	VFMUL_S4(27, 6, 6) ;\
 	AI_F32_LANE0_F64_ADD_CE ;\
 	ADD  $2, R0 ;\
 	ADD  $2, R1 ;\
@@ -264,24 +276,27 @@ GLOBL aiLogC<>(SB), RODATA|NOPTR, $32
 
 #define AI_FP16_EFE_STATE_BLOCK8 \
 	VLD1 (R2), [V3.H8] ;\
-	AI_FP16_WIDEN_LOW(3, 3) ;\
+	AI_FP16_WIDEN_LOW(3, 6) ;\
+	VMOV_B16(6, 3) ;\
 	VMOV_B16(3, 27) ;\
 	VMAX_S4(31, 3, 3) ;\
 	AI_RELOAD_LOG_POLY ;\
 	AI_NEON_LOG4(3, 10) ;\
 	VEOR V30.B16, V30.B16, V30.B16 ;\
-	VFSUB_S4(10, 30, 13) ;\
-	VFMUL_S4(27, 13, 13) ;\
-	AI_F32X4_TO_F64_ADD_KL(13) ;\
-	AI_FP16_WIDEN_HIGH(3, 3) ;\
+	VFSUB_S4(10, 30, 6) ;\
+	VFMUL_S4(27, 6, 6) ;\
+	AI_F32X4_TO_F64_ADD_KL(6) ;\
+	VLD1 (R2), [V3.H8] ;\
+	AI_FP16_WIDEN_HIGH(3, 6) ;\
+	VMOV_B16(6, 3) ;\
 	VMOV_B16(3, 27) ;\
 	VMAX_S4(31, 3, 3) ;\
 	AI_RELOAD_LOG_POLY ;\
 	AI_NEON_LOG4(3, 10) ;\
 	VEOR V30.B16, V30.B16, V30.B16 ;\
-	VFSUB_S4(10, 30, 13) ;\
-	VFMUL_S4(27, 13, 13) ;\
-	AI_F32X4_TO_F64_ADD_KL(13) ;\
+	VFSUB_S4(10, 30, 6) ;\
+	VFMUL_S4(27, 6, 6) ;\
+	AI_F32X4_TO_F64_ADD_KL(6) ;\
 	ADD  $16, R2 ;\
 	SUB  $8, R4
 
@@ -295,9 +310,9 @@ GLOBL aiLogC<>(SB), RODATA|NOPTR, $32
 	AI_RELOAD_LOG_POLY ;\
 	AI_NEON_LOG4(3, 10) ;\
 	VEOR V30.B16, V30.B16, V30.B16 ;\
-	VFSUB_S4(10, 30, 13) ;\
-	VFMUL_S4(27, 13, 13) ;\
-	AI_F32_LANE0_V13_F64_ADD_KL ;\
+	VFSUB_S4(10, 30, 6) ;\
+	VFMUL_S4(27, 6, 6) ;\
+	AI_F32_LANE0_F64_ADD_KL ;\
 	ADD  $2, R2 ;\
 	SUB  $1, R4
 
@@ -397,11 +412,9 @@ TEXT ·BeliefUpdateFloat16NEONAsm(SB), NOSPLIT, $0-32
 	MOVD count+24(FP), R3
 	CBZ  R3, ai_fp16_bu_done
 
-	FMOVD $0, F14
-
-ai_fp16_bu_loop16:
+ai_fp16_bu_store_loop16:
 	CMP  $16, R3
-	BLT  ai_fp16_bu_loop8
+	BLT  ai_fp16_bu_store_loop8
 
 	VLD1.P 32(R0), [V0.H8, V1.H8]
 	VLD1.P 32(R1), [V2.H8, V3.H8]
@@ -417,21 +430,17 @@ ai_fp16_bu_loop16:
 	VFMUL_S4(9, 5, 5)
 	VFMUL_S4(10, 6, 6)
 	VFMUL_S4(11, 7, 7)
-	AI_F32X4_TO_F64_ADD_F14(4)
-	AI_F32X4_TO_F64_ADD_F14(5)
-	AI_F32X4_TO_F64_ADD_F14(6)
-	AI_F32X4_TO_F64_ADD_F14(7)
 	VFCVTN_4H(4, 12)
 	VFCVTN2_8H(5, 12)
 	VFCVTN_4H(6, 13)
 	VFCVTN2_8H(7, 13)
 	VST1.P [V12.H8, V13.H8], 32(R2)
 	SUB  $16, R3
-	B    ai_fp16_bu_loop16
+	B    ai_fp16_bu_store_loop16
 
-ai_fp16_bu_loop8:
+ai_fp16_bu_store_loop8:
 	CMP  $8, R3
-	BLT  ai_fp16_bu_scalar
+	BLT  ai_fp16_bu_store_scalar
 
 	VLD1.P 16(R0), [V0.H8]
 	VLD1.P 16(R1), [V2.H8]
@@ -441,18 +450,43 @@ ai_fp16_bu_loop8:
 	VFCVTL2_4S(2, 9)
 	VFMUL_S4(8, 4, 4)
 	VFMUL_S4(9, 5, 5)
-	AI_F32X4_TO_F64_ADD_F14(4)
-	AI_F32X4_TO_F64_ADD_F14(5)
 	VFCVTN_4H(4, 12)
 	VFCVTN2_8H(5, 12)
 	VST1.P [V12.H8], 16(R2)
 	SUB  $8, R3
-	B    ai_fp16_bu_loop8
+	B    ai_fp16_bu_store_loop8
 
-ai_fp16_bu_scalar:
+ai_fp16_bu_store_scalar:
+	CBZ  R3, ai_fp16_bu_sum
+
+ai_fp16_bu_store_scalar_loop:
+	MOVHU (R0), R4
+	MOVHU (R1), R5
+	VMOV R4, V0.H[0]
+	VMOV R5, V2.H[0]
+	VFCVTL_4S(0, 4)
+	VFCVTL_4S(2, 8)
+	VMOV V4.S[0], R6
+	VMOV V8.S[0], R7
+	FMOVS R6, F0
+	FMOVS R7, F1
+	FMULS F1, F0, F0
+	AI_FP16_STORE_F32_AS_F16
+	ADD  $2, R0
+	ADD  $2, R1
+	ADD  $2, R2
+	SUB  $1, R3
+	CBNZ R3, ai_fp16_bu_store_scalar_loop
+
+ai_fp16_bu_sum:
+	MOVD likelihood+0(FP), R0
+	MOVD prior+8(FP), R1
+	MOVD count+24(FP), R3
+	FMOVD $0, F25
+
+ai_fp16_bu_sum_loop:
 	CBZ  R3, ai_fp16_bu_normalize
 
-ai_fp16_bu_scalar_loop:
 	MOVHU (R0), R4
 	MOVHU (R1), R5
 	VMOV R4, V0.H[0]
@@ -465,21 +499,19 @@ ai_fp16_bu_scalar_loop:
 	FMOVS R7, F1
 	FMULS F1, F0, F0
 	FCVTSD F0, F6
-	FADDD F6, F14, F14
-	AI_FP16_STORE_F32_AS_F16
+	FADDD F6, F25, F25
 	ADD  $2, R0
 	ADD  $2, R1
-	ADD  $2, R2
 	SUB  $1, R3
-	CBNZ R3, ai_fp16_bu_scalar_loop
+	B    ai_fp16_bu_sum_loop
 
 ai_fp16_bu_normalize:
 	FMOVD $0, F15
-	FCMPD F14, F15
+	FCMPD F25, F15
 	BEQ  ai_fp16_bu_done
 
 	FMOVD $1.0, F3
-	FDIVD F14, F3, F3
+	FDIVD F25, F3, F3
 	FCVTDS F3, F3
 	FMOVS F3, R6
 	VMOV R6, V24.S[0]

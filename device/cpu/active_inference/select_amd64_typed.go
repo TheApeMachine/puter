@@ -31,15 +31,27 @@ var (
 	}
 
 	freeEnergyFP16Funcs = []fp16FreeEnergyKernelImpl{
+		{FreeEnergyFP16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{FreeEnergyFP16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{FreeEnergyFP16SSE2, "sse2", cpu.X86.HasSSE2},
 		{FreeEnergyFloat16Generic, "generic", true},
 	}
 	expectedFreeEnergyFP16Funcs = []fp16ExpectedFreeEnergyKernelImpl{
+		{ExpectedFreeEnergyFP16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{ExpectedFreeEnergyFP16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{ExpectedFreeEnergyFP16SSE2, "sse2", cpu.X86.HasSSE2},
 		{ExpectedFreeEnergyFloat16Generic, "generic", true},
 	}
 	beliefUpdateFP16Funcs = []fp16BeliefUpdateKernelImpl{
+		{BeliefUpdateFP16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{BeliefUpdateFP16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{BeliefUpdateFP16SSE2, "sse2", cpu.X86.HasSSE2},
 		{BeliefUpdateFloat16Generic, "generic", true},
 	}
 	precisionWeightFP16Funcs = []fp16PrecisionWeightKernelImpl{
+		{PrecisionWeightFP16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{PrecisionWeightFP16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{PrecisionWeightFP16SSE2, "sse2", cpu.X86.HasSSE2},
 		{PrecisionWeightFloat16Generic, "generic", true},
 	}
 )

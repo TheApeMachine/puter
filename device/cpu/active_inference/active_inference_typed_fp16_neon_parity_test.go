@@ -48,3 +48,42 @@ func TestPrecisionWeightFP16NEONParity(t *testing.T) {
 		}
 	}
 }
+
+func TestFreeEnergyFP16NEONParity(t *testing.T) {
+	for _, length := range parity.Lengths {
+		likelihood := make([]dtype.F16, length)
+		posterior := make([]dtype.F16, length)
+		prior := make([]dtype.F16, length)
+		for index := range likelihood {
+			likelihood[index] = dtype.Fromfloat32(float32(index%13+1) * 0.05)
+			posterior[index] = dtype.Fromfloat32(float32(index%9+1) * 0.07)
+			prior[index] = dtype.Fromfloat32(float32(index%11+1) * 0.06)
+		}
+		want := FreeEnergyFP16F32LogRef(likelihood, posterior, prior)
+		got := FreeEnergyFP16NEON(likelihood, posterior, prior)
+		if got != want {
+			t.Fatalf("N=%d got=%v want=%v", length, got, want)
+		}
+	}
+}
+
+func TestExpectedFreeEnergyFP16NEONParity(t *testing.T) {
+	for _, obsCount := range parity.Lengths {
+		stateCount := obsCount/2 + 1
+		predictedObs := make([]dtype.F16, obsCount)
+		preferredObs := make([]dtype.F16, obsCount)
+		predictedState := make([]dtype.F16, stateCount)
+		for index := range predictedObs {
+			predictedObs[index] = dtype.Fromfloat32(float32(index%17+1) * 0.04)
+			preferredObs[index] = dtype.Fromfloat32(float32(index%13+1) * 0.05)
+		}
+		for index := range predictedState {
+			predictedState[index] = dtype.Fromfloat32(float32(index%7+1) * 0.06)
+		}
+		want := ExpectedFreeEnergyFP16F32LogRef(predictedObs, preferredObs, predictedState)
+		got := ExpectedFreeEnergyFP16NEON(predictedObs, preferredObs, predictedState)
+		if got != want {
+			t.Fatalf("obs=%d state=%d got=%v want=%v", obsCount, stateCount, got, want)
+		}
+	}
+}

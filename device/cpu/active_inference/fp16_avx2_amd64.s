@@ -1,0 +1,669 @@
+#include "textflag.h"
+
+#define VCVTPS2PH_Y0_X2 WORD $0xC4E3; WORD $0x7D1D; BYTE $0xD8; BYTE $0x00
+#define VCVTPS2PH_X0_X2 WORD $0xC4E3; WORD $0x7D1D; BYTE $0xD0; BYTE $0x00
+
+#define WIDEN_FP16_8H(baseReg, dstY) \
+	VMOVDQU X1, (baseReg); \
+	VCVTPH2PS X1, dstY; \
+	VPSRLDQ $8, X1, X2; \
+	VCVTPH2PS X2, X5; \
+	VINSERTF128 $1, X5, dstY, dstY
+
+#define WIDEN_FP16_4H(baseReg, dstY) \
+	VMOVDQU X2, (baseReg); \
+	VCVTPH2PS X2, dstY
+
+#define NARROW_FP16_Y8(dstReg) \
+	VCVTPS2PH_Y0_X2; \
+	VMOVDQU X2, (dstReg); \
+	VEXTRACTF128 $1, Y0, X0; \
+	VCVTPS2PH_X0_X2; \
+	VMOVDQU X2, 8(dstReg)
+
+#define NARROW_FP16_Y4(dstReg) \
+	VCVTPS2PH_Y0_X2; \
+	VMOVDQU X2, (dstReg)
+
+#define AI_FP16_ACCUM_F64_Y(prodY, accumY) \
+	VEXTRACTF128 $0, prodY, X8; \
+	VCVTPS2PD X8, Y9; \
+	VADDPD accumY, Y9, accumY; \
+	VEXTRACTF128 $1, prodY, X8; \
+	VCVTPS2PD X8, Y9; \
+	VADDPD accumY, Y9, accumY
+
+#define AI_FP16_ACCUM_F64_X(prodX, accumX) \
+	VCVTPS2PD prodX, X8; \
+	VADDPD X8, accumX; \
+	MOVAPS prodX, X9; \
+	SHUFPS $0xEE, prodX, X9; \
+	VCVTPS2PD X9, X8; \
+	VADDPD X8, accumX
+
+#define AI_FP16_AVX2_LOAD_LOG_POLY \
+	MOVQ $aiLogC<>(SB), AX; \
+	VMOVSS 4(AX), X9; \
+	VBROADCASTSS X9, Y9; \
+	VMOVSS 8(AX), X10; \
+	VBROADCASTSS X10, Y10; \
+	VMOVSS 12(AX), X11; \
+	VBROADCASTSS X11, Y11; \
+	VMOVSS 16(AX), X12; \
+	VBROADCASTSS X12, Y12; \
+	VMOVSS 20(AX), X13; \
+	VBROADCASTSS X13, Y13; \
+	VMOVSS 24(AX), X14; \
+	VBROADCASTSS X14, Y14; \
+	VMOVSS 28(AX), X15; \
+	VBROADCASTSS X15, Y15
+
+#define AI_FP16_AVX2_STORE_RESULT \
+	VADDPD Y0, Y1, Y0; \
+	VHADDPD Y1, Y0, Y0; \
+	VEXTRACTF128 $0, Y0, X0; \
+	CVTSD2SS X0, X0; \
+	VMOVAPS X0, X0; \
+	VCVTPS2PH_X0_X2; \
+	MOVL X2, AX; \
+	MOVW AX, ret+32(FP)
+
+#define AI_FP16_AVX2_STORE_EFE_RESULT \
+	VADDPD Y0, Y1, Y0; \
+	VHADDPD Y1, Y0, Y0; \
+	VEXTRACTF128 $0, Y0, X0; \
+	CVTSD2SS X0, X0; \
+	VMOVAPS X0, X0; \
+	VCVTPS2PH_X0_X2; \
+	MOVL X2, AX; \
+	MOVW AX, ret+40(FP)
+
+// func PrecisionWeightFloat16AVX2Asm(errors, precision, output *uint16, count int)
+TEXT ·PrecisionWeightFloat16AVX2Asm(SB), NOSPLIT, $0-32
+	MOVQ errors+0(FP), SI
+	MOVQ precision+8(FP), DX
+	MOVQ output+16(FP), DI
+	MOVQ count+24(FP), CX
+
+	TESTQ CX, CX
+	JZ   ai_fp16_avx2_pw_done
+
+ai_fp16_avx2_pw_w8:
+	CMPQ CX, $8
+	JL   ai_fp16_avx2_pw_w4
+
+	WIDEN_FP16_8H(SI, Y0)
+	WIDEN_FP16_8H(DX, Y1)
+	VMULPS Y1, Y0, Y0
+	NARROW_FP16_Y8(DI)
+
+	ADDQ $16, SI
+	ADDQ $16, DX
+	ADDQ $16, DI
+	SUBQ $8, CX
+	JMP  ai_fp16_avx2_pw_w8
+
+ai_fp16_avx2_pw_w4:
+	CMPQ CX, $4
+	JL   ai_fp16_avx2_pw_tail
+
+	WIDEN_FP16_4H(SI, Y0)
+	WIDEN_FP16_4H(DX, Y1)
+	VMULPS Y1, Y0, Y0
+	NARROW_FP16_Y4(DI)
+
+	ADDQ $8, SI
+	ADDQ $8, DX
+	ADDQ $8, DI
+	SUBQ $4, CX
+	JMP  ai_fp16_avx2_pw_w4
+
+ai_fp16_avx2_pw_tail:
+	TESTQ CX, CX
+	JZ   ai_fp16_avx2_pw_done
+
+ai_fp16_avx2_pw_scalar:
+	MOVWLZX (SI), AX
+	VMOVD X2, AX
+	VCVTPH2PS X2, X2
+	MOVWLZX (DX), AX
+	VMOVD X3, AX
+	VCVTPH2PS X3, X3
+	VMULSS X3, X2, X2
+	VMOVAPS X2, X0
+	VCVTPS2PH_X0_X2
+	MOVL X2, AX
+	MOVW AX, (DI)
+	ADDQ $2, SI
+	ADDQ $2, DX
+	ADDQ $2, DI
+	DECQ CX
+	JNZ  ai_fp16_avx2_pw_scalar
+
+ai_fp16_avx2_pw_done:
+	RET
+
+// func BeliefUpdateFloat16AVX2Asm(likelihood, prior, output *uint16, count int)
+TEXT ·BeliefUpdateFloat16AVX2Asm(SB), NOSPLIT, $0-32
+	MOVQ likelihood+0(FP), SI
+	MOVQ prior+8(FP), DX
+	MOVQ output+16(FP), DI
+	MOVQ count+24(FP), CX
+
+	TESTQ CX, CX
+	JZ   ai_fp16_avx2_bu_done
+
+ai_fp16_avx2_bu_store_w8:
+	CMPQ CX, $8
+	JL   ai_fp16_avx2_bu_store_w4
+
+	WIDEN_FP16_8H(SI, Y1)
+	WIDEN_FP16_8H(DX, Y2)
+	VMULPS Y2, Y1, Y0
+	NARROW_FP16_Y8(DI)
+
+	ADDQ $16, SI
+	ADDQ $16, DX
+	ADDQ $16, DI
+	SUBQ $8, CX
+	JMP  ai_fp16_avx2_bu_store_w8
+
+ai_fp16_avx2_bu_store_w4:
+	CMPQ CX, $4
+	JL   ai_fp16_avx2_bu_store_tail
+
+	WIDEN_FP16_4H(SI, Y0)
+	WIDEN_FP16_4H(DX, Y1)
+	VMULPS Y1, Y0, Y0
+	NARROW_FP16_Y4(DI)
+
+	ADDQ $8, SI
+	ADDQ $8, DX
+	ADDQ $8, DI
+	SUBQ $4, CX
+	JMP  ai_fp16_avx2_bu_store_w4
+
+ai_fp16_avx2_bu_store_tail:
+	TESTQ CX, CX
+	JZ   ai_fp16_avx2_bu_sum
+
+ai_fp16_avx2_bu_store_scalar:
+	MOVWLZX (SI), AX
+	VMOVD X2, AX
+	VCVTPH2PS X2, X2
+	MOVWLZX (DX), AX
+	VMOVD X3, AX
+	VCVTPH2PS X3, X3
+	VMULSS X3, X2, X2
+	VMOVAPS X2, X0
+	VCVTPS2PH_X0_X2
+	MOVL X2, AX
+	MOVW AX, (DI)
+	ADDQ $2, SI
+	ADDQ $2, DX
+	ADDQ $2, DI
+	DECQ CX
+	JNZ  ai_fp16_avx2_bu_store_scalar
+
+ai_fp16_avx2_bu_sum:
+	MOVQ likelihood+0(FP), SI
+	MOVQ prior+8(FP), DX
+	MOVQ count+24(FP), CX
+	VXORPD Y7, Y7, Y7
+
+ai_fp16_avx2_bu_sum_loop:
+	TESTQ CX, CX
+	JZ   ai_fp16_avx2_bu_reduce
+
+	MOVWLZX (SI), AX
+	VMOVD X2, AX
+	VCVTPH2PS X2, X2
+	MOVWLZX (DX), AX
+	VMOVD X3, AX
+	VCVTPH2PS X3, X3
+	VMULSS X3, X2, X2
+	CVTSS2SD X2, X2
+	VADDSD X2, X7, X7
+	ADDQ $2, SI
+	ADDQ $2, DX
+	DECQ CX
+	JMP  ai_fp16_avx2_bu_sum_loop
+
+ai_fp16_avx2_bu_reduce:
+	VHADDPD Y1, Y7, Y7
+	VHADDPD Y1, Y1, Y1
+	VEXTRACTF128 $0, Y1, X0
+	CVTSD2SS X0, X0
+
+	XORPS X1, X1
+	UCOMISS X0, X1
+	JZ    ai_fp16_avx2_bu_done
+
+	MOVSS aiOneBits<>(SB), X3
+	DIVSS X2, X3
+	VBROADCASTSS X3, Y4
+
+	MOVQ output+16(FP), DI
+	MOVQ count+24(FP), CX
+
+ai_fp16_avx2_bu_scale_w8:
+	CMPQ CX, $8
+	JL   ai_fp16_avx2_bu_scale_w4
+
+	WIDEN_FP16_8H(DI, Y0)
+	VMULPS Y4, Y0, Y0
+	NARROW_FP16_Y8(DI)
+
+	ADDQ $16, DI
+	SUBQ $8, CX
+	JMP  ai_fp16_avx2_bu_scale_w8
+
+ai_fp16_avx2_bu_scale_w4:
+	CMPQ CX, $4
+	JL   ai_fp16_avx2_bu_scale_tail
+
+	WIDEN_FP16_4H(DI, Y0)
+	VMULPS Y4, Y0, Y0
+	NARROW_FP16_Y4(DI)
+
+	ADDQ $8, DI
+	SUBQ $4, CX
+	JMP  ai_fp16_avx2_bu_scale_w4
+
+ai_fp16_avx2_bu_scale_tail:
+	TESTQ CX, CX
+	JZ   ai_fp16_avx2_bu_done
+
+ai_fp16_avx2_bu_scale_scalar:
+	MOVWLZX (DI), AX
+	VMOVD X2, AX
+	VCVTPH2PS X2, X2
+	VMULSS X3, X2, X2
+	VMOVAPS X2, X0
+	VCVTPS2PH_X0_X2
+	MOVL X2, AX
+	MOVW AX, (DI)
+	ADDQ $2, DI
+	DECQ CX
+	JNZ  ai_fp16_avx2_bu_scale_scalar
+
+ai_fp16_avx2_bu_done:
+	RET
+
+// func FreeEnergyFloat16AVX2Asm(likelihood, posterior, prior *uint16, count int) uint16
+TEXT ·FreeEnergyFloat16AVX2Asm(SB), NOSPLIT, $96-34
+	MOVQ likelihood+0(FP), SI
+	MOVQ posterior+8(FP), DX
+	MOVQ prior+16(FP), R8
+	MOVQ count+24(FP), CX
+
+	VXORPD Y0, Y0, Y0
+	VXORPD Y1, Y1, Y1
+
+	VBROADCASTSS aiEps<>(SB), Y2
+
+	MOVQ $aiLogC<>(SB), AX
+	VMOVSS 0(AX), X8
+	VBROADCASTSS X8, Y8
+	VPBROADCASTD aiMantMask<>(SB), Y4
+	VMOVDQA Y4, 0(SP)
+	VPBROADCASTD aiOneBits<>(SB), Y4
+	VMOVDQA Y4, 16(SP)
+	VPBROADCASTD aiBias127<>(SB), Y4
+	VMOVDQA Y4, 32(SP)
+
+	TESTQ CX, CX
+	JZ   ai_fp16_avx2_fe_reduce
+
+ai_fp16_avx2_fe_w8:
+	CMPQ CX, $8
+	JL   ai_fp16_avx2_fe_w4
+
+	WIDEN_FP16_8H(SI, Y3)
+	WIDEN_FP16_8H(DX, Y4)
+	WIDEN_FP16_8H(R8, Y5)
+	VMAXPS Y2, Y3, Y3
+	VMAXPS Y2, Y4, Y4
+	VMAXPS Y2, Y5, Y5
+
+	AI_FP16_AVX2_LOAD_LOG_POLY
+	VMOVAPS Y3, Y0
+	CALL ai_avx2_log8(SB)
+	VMOVAPS Y7, 48(SP)
+
+	AI_FP16_AVX2_LOAD_LOG_POLY
+	VMOVAPS Y4, Y0
+	CALL ai_avx2_log8(SB)
+	VMOVAPS Y7, 64(SP)
+
+	AI_FP16_AVX2_LOAD_LOG_POLY
+	VMOVAPS Y5, Y0
+	CALL ai_avx2_log8(SB)
+	VMOVAPS Y7, 80(SP)
+
+	VMOVAPS 48(SP), Y6
+	VXORPS Y7, Y7, Y7
+	VSUBPS Y6, Y7, Y6
+	VMULPS Y4, Y6, Y6
+	AI_FP16_ACCUM_F64_Y(Y6, Y0)
+
+	VMOVAPS 64(SP), Y6
+	VMOVAPS 80(SP), Y7
+	VSUBPS Y7, Y6, Y6
+	VMULPS Y4, Y6, Y6
+	AI_FP16_ACCUM_F64_Y(Y6, Y1)
+
+	ADDQ $16, SI
+	ADDQ $16, DX
+	ADDQ $16, R8
+	SUBQ $8, CX
+	JMP  ai_fp16_avx2_fe_w8
+
+ai_fp16_avx2_fe_w4:
+	CMPQ CX, $4
+	JL   ai_fp16_avx2_fe_tail
+
+	WIDEN_FP16_4H(SI, Y3)
+	WIDEN_FP16_4H(DX, Y4)
+	WIDEN_FP16_4H(R8, Y5)
+	VMAXPS Y2, Y3, Y3
+	VMAXPS Y2, Y4, Y4
+	VMAXPS Y2, Y5, Y5
+
+	AI_FP16_AVX2_LOAD_LOG_POLY
+	VEXTRACTF128 $0, Y3, X0
+	CALL ai_avx2_log4(SB)
+	VMOVAPS X7, 48(SP)
+
+	AI_FP16_AVX2_LOAD_LOG_POLY
+	VEXTRACTF128 $0, Y4, X0
+	CALL ai_avx2_log4(SB)
+	VMOVAPS X7, 64(SP)
+
+	AI_FP16_AVX2_LOAD_LOG_POLY
+	VEXTRACTF128 $0, Y5, X0
+	CALL ai_avx2_log4(SB)
+	VMOVAPS X7, 80(SP)
+
+	VMOVAPS 48(SP), X6
+	VXORPS X7, X7, X7
+	VSUBPS X6, X7, X6
+	VMULPS X4, X6, X6
+	VCVTPS2PD X6, Y3
+	VADDPD Y0, Y3, Y0
+	MOVAPS X6, X7
+	SHUFPS $0xEE, X6, X7
+	VCVTPS2PD X7, Y3
+	VADDPD Y0, Y3, Y0
+
+	VMOVAPS 64(SP), X6
+	VMOVAPS 80(SP), X7
+	VSUBPS X7, X6, X6
+	VMULPS X4, X6, X6
+	VCVTPS2PD X6, Y3
+	VADDPD Y1, Y3, Y1
+	MOVAPS X6, X7
+	SHUFPS $0xEE, X6, X7
+	VCVTPS2PD X7, Y3
+	VADDPD Y1, Y3, Y1
+
+	ADDQ $8, SI
+	ADDQ $8, DX
+	ADDQ $8, R8
+	SUBQ $4, CX
+	JMP  ai_fp16_avx2_fe_w4
+
+ai_fp16_avx2_fe_tail:
+	TESTQ CX, CX
+	JZ   ai_fp16_avx2_fe_reduce
+
+ai_fp16_avx2_fe_scalar:
+	MOVWLZX (SI), AX
+	VMOVD X3, AX
+	VCVTPH2PS X3, X3
+	MOVWLZX (DX), AX
+	VMOVD X4, AX
+	VCVTPH2PS X4, X4
+	MOVWLZX (R8), AX
+	VMOVD X5, AX
+	VCVTPH2PS X5, X5
+	MAXSS X2, X3
+	MAXSS X2, X4
+	MAXSS X2, X5
+
+	AI_FP16_AVX2_LOAD_LOG_POLY
+	VMOVAPS X3, X0
+	CALL ai_avx2_log1(SB)
+	VMOVSS X7, 48(SP)
+
+	AI_FP16_AVX2_LOAD_LOG_POLY
+	VMOVAPS X4, X0
+	CALL ai_avx2_log1(SB)
+	VMOVSS X7, 64(SP)
+
+	AI_FP16_AVX2_LOAD_LOG_POLY
+	VMOVAPS X5, X0
+	CALL ai_avx2_log1(SB)
+	VMOVSS X7, 80(SP)
+
+	VXORPS X6, X6, X6
+	VMOVSS 48(SP), X7
+	VSUBSS X7, X6, X6
+	VMULSS X4, X6, X6
+	VCVTSS2SD X6, X6, X6
+	VADDSD X6, X0, X0
+
+	VMOVSS 64(SP), X6
+	VMOVSS 80(SP), X7
+	VSUBSS X7, X6, X6
+	VMULSS X4, X6, X6
+	VCVTSS2SD X6, X6, X6
+	VADDSD X6, X1, X1
+
+	ADDQ $2, SI
+	ADDQ $2, DX
+	ADDQ $2, R8
+	DECQ CX
+	JNZ  ai_fp16_avx2_fe_scalar
+
+ai_fp16_avx2_fe_reduce:
+	AI_FP16_AVX2_STORE_RESULT
+	RET
+
+// func ExpectedFreeEnergyFloat16AVX2Asm(
+//     predictedObs, preferredObs, predictedState *uint16,
+//     obsCount, stateCount int,
+// ) uint16
+TEXT ·ExpectedFreeEnergyFloat16AVX2Asm(SB), NOSPLIT, $96-42
+	MOVQ predictedObs+0(FP), SI
+	MOVQ preferredObs+8(FP), DX
+	MOVQ predictedState+16(FP), R8
+	MOVQ obsCount+24(FP), CX
+	MOVQ stateCount+32(FP), R9
+
+	VXORPD Y0, Y0, Y0
+	VXORPD Y1, Y1, Y1
+
+	VBROADCASTSS aiEps<>(SB), Y2
+
+	MOVQ $aiLogC<>(SB), AX
+	VMOVSS 0(AX), X8
+	VBROADCASTSS X8, Y8
+	VPBROADCASTD aiMantMask<>(SB), Y4
+	VMOVDQA Y4, 0(SP)
+	VPBROADCASTD aiOneBits<>(SB), Y4
+	VMOVDQA Y4, 16(SP)
+	VPBROADCASTD aiBias127<>(SB), Y4
+	VMOVDQA Y4, 32(SP)
+
+ai_fp16_avx2_efe_obs_w8:
+	CMPQ CX, $8
+	JL   ai_fp16_avx2_efe_obs_w4
+
+	WIDEN_FP16_8H(SI, Y3)
+	WIDEN_FP16_8H(DX, Y4)
+	VMAXPS Y2, Y3, Y3
+	VMAXPS Y2, Y4, Y4
+
+	AI_FP16_AVX2_LOAD_LOG_POLY
+	VMOVAPS Y3, Y0
+	CALL ai_avx2_log8(SB)
+	VMOVAPS Y7, 48(SP)
+
+	AI_FP16_AVX2_LOAD_LOG_POLY
+	VMOVAPS Y4, Y0
+	CALL ai_avx2_log8(SB)
+
+	VMOVAPS 48(SP), Y6
+	VSUBPS Y7, Y6, Y6
+	VMULPS Y3, Y6, Y6
+	AI_FP16_ACCUM_F64_Y(Y6, Y0)
+
+	ADDQ $16, SI
+	ADDQ $16, DX
+	SUBQ $8, CX
+	JMP  ai_fp16_avx2_efe_obs_w8
+
+ai_fp16_avx2_efe_obs_w4:
+	CMPQ CX, $4
+	JL   ai_fp16_avx2_efe_obs_tail
+
+	WIDEN_FP16_4H(SI, Y3)
+	WIDEN_FP16_4H(DX, Y4)
+	VMAXPS Y2, Y3, Y3
+	VMAXPS Y2, Y4, Y4
+
+	AI_FP16_AVX2_LOAD_LOG_POLY
+	VEXTRACTF128 $0, Y3, X0
+	CALL ai_avx2_log4(SB)
+	VMOVAPS X7, 48(SP)
+
+	AI_FP16_AVX2_LOAD_LOG_POLY
+	VEXTRACTF128 $0, Y4, X0
+	CALL ai_avx2_log4(SB)
+
+	VMOVAPS 48(SP), X6
+	VSUBPS X7, X6, X6
+	VMULPS X3, X6, X6
+	VCVTPS2PD X6, Y3
+	VADDPD Y0, Y3, Y0
+	MOVAPS X6, X7
+	SHUFPS $0xEE, X6, X7
+	VCVTPS2PD X7, Y3
+	VADDPD Y0, Y3, Y0
+
+	ADDQ $8, SI
+	ADDQ $8, DX
+	SUBQ $4, CX
+	JMP  ai_fp16_avx2_efe_obs_w4
+
+ai_fp16_avx2_efe_obs_tail:
+	TESTQ CX, CX
+	JZ   ai_fp16_avx2_efe_obs_done
+
+ai_fp16_avx2_efe_obs_scalar:
+	MOVWLZX (SI), AX
+	VMOVD X3, AX
+	VCVTPH2PS X3, X3
+	MOVWLZX (DX), AX
+	VMOVD X4, AX
+	VCVTPH2PS X4, X4
+	MAXSS X2, X3
+	MAXSS X2, X4
+
+	AI_FP16_AVX2_LOAD_LOG_POLY
+	VMOVAPS X3, X0
+	CALL ai_avx2_log1(SB)
+	VMOVSS X7, 48(SP)
+
+	AI_FP16_AVX2_LOAD_LOG_POLY
+	VMOVAPS X4, X0
+	CALL ai_avx2_log1(SB)
+
+	VMOVSS 48(SP), X6
+	VSUBSS X7, X6, X6
+	VMULSS X3, X6, X6
+	VCVTSS2SD X6, X6, X6
+	VADDSD X6, X0, X0
+
+	ADDQ $2, SI
+	ADDQ $2, DX
+	DECQ CX
+	JNZ  ai_fp16_avx2_efe_obs_scalar
+
+ai_fp16_avx2_efe_obs_done:
+	MOVQ predictedState+16(FP), R8
+	MOVQ stateCount+32(FP), CX
+
+ai_fp16_avx2_efe_state_w8:
+	CMPQ CX, $8
+	JL   ai_fp16_avx2_efe_state_w4
+
+	WIDEN_FP16_8H(R8, Y3)
+	VMAXPS Y2, Y3, Y3
+
+	AI_FP16_AVX2_LOAD_LOG_POLY
+	VMOVAPS Y3, Y0
+	CALL ai_avx2_log8(SB)
+
+	VXORPS Y4, Y4, Y4
+	VSUBPS Y7, Y4, Y4
+	VMULPS Y3, Y4, Y3
+	AI_FP16_ACCUM_F64_Y(Y3, Y1)
+
+	ADDQ $16, R8
+	SUBQ $8, CX
+	JMP  ai_fp16_avx2_efe_state_w8
+
+ai_fp16_avx2_efe_state_w4:
+	CMPQ CX, $4
+	JL   ai_fp16_avx2_efe_state_tail
+
+	WIDEN_FP16_4H(R8, Y3)
+	VMAXPS Y2, Y3, Y3
+
+	AI_FP16_AVX2_LOAD_LOG_POLY
+	VEXTRACTF128 $0, Y3, X0
+	CALL ai_avx2_log4(SB)
+
+	VXORPS X4, X4, X4
+	VSUBPS X7, X4, X4
+	VMULPS X3, X4, X3
+	VCVTPS2PD X3, Y4
+	VADDPD Y1, Y4, Y1
+	MOVAPS X3, X4
+	SHUFPS $0xEE, X3, X4
+	VCVTPS2PD X4, Y3
+	VADDPD Y1, Y3, Y1
+
+	ADDQ $8, R8
+	SUBQ $4, CX
+	JMP  ai_fp16_avx2_efe_state_w4
+
+ai_fp16_avx2_efe_state_tail:
+	TESTQ CX, CX
+	JZ   ai_fp16_avx2_efe_reduce
+
+ai_fp16_avx2_efe_state_scalar:
+	MOVWLZX (R8), AX
+	VMOVD X3, AX
+	VCVTPH2PS X3, X3
+	MAXSS X2, X3
+
+	AI_FP16_AVX2_LOAD_LOG_POLY
+	VMOVAPS X3, X0
+	CALL ai_avx2_log1(SB)
+
+	VXORPS X4, X4, X4
+	VSUBSS X7, X4, X4
+	VMULSS X3, X4, X4
+	VCVTSS2SD X4, X4, X4
+	VADDSD X4, X1, X1
+
+	ADDQ $2, R8
+	DECQ CX
+	JNZ  ai_fp16_avx2_efe_state_scalar
+
+ai_fp16_avx2_efe_reduce:
+	AI_FP16_AVX2_STORE_EFE_RESULT
+	RET
