@@ -69,7 +69,8 @@ int cuda_dispatch_axpy(
     void* yPtr = cuda_buffer_device_ptr(yRef);
     void* xPtr = cuda_buffer_device_ptr(xRef);
     void* args[] = {&yPtr, &xPtr, &count, &alpha};
-    int launchCode = cuda_launch_1d(context, kernel, stream, count, args, sizeof(args), status);
+    uint32_t launchCount = cuda_vector_launch_count(count, elementDType);
+    int launchCode = cuda_launch_1d(context, kernel, stream, launchCount, args, sizeof(args), status);
 
     if (launchCode != 0) {
         return launchCode;

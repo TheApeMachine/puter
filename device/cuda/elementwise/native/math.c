@@ -91,7 +91,8 @@ int cuda_dispatch_unary_math(
     void* inputPtr = cuda_buffer_device_ptr(inputRef);
     void* outputPtr = cuda_buffer_device_ptr(outRef);
     void* args[] = {&inputPtr, &outputPtr, &count};
-    int launchCode = cuda_launch_1d(context, kernel, stream, count, args, sizeof(args), status);
+    uint32_t launchCount = cuda_vector_launch_count(count, elementDType);
+    int launchCode = cuda_launch_1d(context, kernel, stream, launchCount, args, sizeof(args), status);
 
     if (launchCode != 0) {
         return launchCode;

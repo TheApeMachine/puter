@@ -9,6 +9,10 @@ extern "C" {
 
 void cuda_elementwise_status_clear(CUDAStatus* status);
 
+void cuda_elementwise_register_module_source(const char* source);
+
+const char* cuda_elementwise_module_source(void);
+
 void cuda_elementwise_status_set(CUDAStatus* status, int code, const char* message);
 
 const char* cuda_elementwise_element_dtype_suffix(int elementDType);

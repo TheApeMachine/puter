@@ -11,6 +11,10 @@ void cuda_reduction_status_clear(CUDAStatus* status);
 
 void cuda_reduction_status_set(CUDAStatus* status, int code, const char* message);
 
+void cuda_reduction_register_module_source(const char* source);
+
+const char* cuda_reduction_module_source(void);
+
 int cuda_reduction_kernel_name(
     char* out,
     size_t outBytes,

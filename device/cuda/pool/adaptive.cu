@@ -1,2 +1,9 @@
 #include "pool.cuh"
-// CUDA kernels for adaptive — port from metal/adaptive.metal
+
+POOL2D_KERNEL_F32(adaptive_max_pool2d, adaptive_pool2d_max_float32)
+POOL2D_KERNEL_F16(adaptive_max_pool2d, adaptive_pool2d_max_float16)
+POOL2D_KERNEL_BF16(adaptive_max_pool2d, adaptive_pool2d_max_bfloat16)
+
+POOL2D_KERNEL_F32(adaptive_avg_pool2d, adaptive_pool2d_avg_float32)
+POOL2D_KERNEL_F16(adaptive_avg_pool2d, adaptive_pool2d_avg_float16)
+POOL2D_KERNEL_BF16(adaptive_avg_pool2d, adaptive_pool2d_avg_bfloat16)

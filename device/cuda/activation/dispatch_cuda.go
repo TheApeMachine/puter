@@ -29,6 +29,9 @@ import "C"
 //go:embed activation.cuh
 var activationHubSource string
 
+//go:embed softmax_reduce.cuh
+var softmaxReduceSource string
+
 //go:embed standard.cu
 var standardDomainSource string
 
@@ -44,6 +47,7 @@ var gatedDomainSource string
 func moduleSource() string {
 	parts := []string{
 		activationHubSource,
+		softmaxReduceSource,
 		standardDomainSource,
 		parametricDomainSource,
 		softmaxDomainSource,

@@ -7,6 +7,36 @@
 extern "C" {
 #endif
 
+int cuda_dispatch_avg_pool2d(
+    CUDADeviceRef contextRef,
+    int elementDType,
+    CUDABufferRef inputRef,
+    CUDABufferRef outputRef,
+    uint32_t batch,
+    uint32_t channels,
+    uint32_t inHeight,
+    uint32_t inWidth,
+    uint32_t outHeight,
+    uint32_t outWidth,
+    uint64_t completionToken,
+    CUDAStatus* status
+);
+
+int cuda_dispatch_adaptive_avg_pool2d(
+    CUDADeviceRef contextRef,
+    int elementDType,
+    CUDABufferRef inputRef,
+    CUDABufferRef outputRef,
+    uint32_t batch,
+    uint32_t channels,
+    uint32_t inHeight,
+    uint32_t inWidth,
+    uint32_t outHeight,
+    uint32_t outWidth,
+    uint64_t completionToken,
+    CUDAStatus* status
+);
+
 #ifdef __cplusplus
 }
 #endif

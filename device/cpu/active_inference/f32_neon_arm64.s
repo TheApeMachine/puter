@@ -172,18 +172,14 @@ ai_bu_done:
 #define AI_F32X4_TO_F64_ADD_CE(src) \
 	FCVTL_2D(src, 8) ;\
 	FCVTL2_2D(src, 9) ;\
-	FADDD F8, F14, F14 ;\
-	FADDD F9, F14, F14 ;\
-	FADDD F10, F14, F14 ;\
-	FADDD F11, F14, F14
+	VFADD_D2(8, 28, 28) ;\
+	VFADD_D2(9, 28, 28)
 
 #define AI_F32X4_TO_F64_ADD_KL(src) \
 	FCVTL_2D(src, 8) ;\
 	FCVTL2_2D(src, 9) ;\
-	FADDD F8, F15, F15 ;\
-	FADDD F9, F15, F15 ;\
-	FADDD F10, F15, F15 ;\
-	FADDD F11, F15, F15
+	VFADD_D2(8, 29, 29) ;\
+	VFADD_D2(9, 29, 29)
 
 #define AI_F32_LANE0_F64_ADD_CE \
 	FCVTSD F6, F8 ;\
@@ -198,14 +194,49 @@ ai_bu_done:
 	FADDD F8, F15, F15
 
 #define AI_FE_STORE_RESULT \
-	FADDD F15, F14, F0 ;\
+	FADDP_D(28, 0) ;\
+	FADDP_D(29, 1) ;\
+	FADDD F14, F0, F0 ;\
+	FADDD F15, F1, F1 ;\
+	FADDD F1, F0, F0 ;\
 	FCVTDS F0, F0 ;\
 	FMOVS F0, ret+32(FP)
 
 #define AI_EFE_STORE_RESULT \
-	FADDD F15, F14, F0 ;\
+	FADDP_D(28, 0) ;\
+	FADDP_D(29, 1) ;\
+	FADDD F14, F0, F0 ;\
+	FADDD F15, F1, F1 ;\
+	FADDD F1, F0, F0 ;\
 	FCVTDS F0, F0 ;\
 	FMOVS F0, ret+40(FP)
+
+#define AI_FE_RELOAD_CLAMPED_POST \
+	FMOVS (R11), F4 ;\
+	VDUP V4.S[0], V4.S4 ;\
+	VMAX_S4(31, 4, 4)
+
+#define AI_FE_RELOAD_CLAMPED_PRIOR \
+	FMOVS (R12), F5 ;\
+	VDUP V5.S[0], V5.S4 ;\
+	VMAX_S4(31, 5, 5)
+
+#define AI_FE_RELOAD_CLAMPED_POST4 \
+	VLD1 (R11), [V4.S4] ;\
+	VMAX_S4(31, 4, 4)
+
+#define AI_FE_RELOAD_CLAMPED_PRIOR4 \
+	VLD1 (R12), [V5.S4] ;\
+	VMAX_S4(31, 5, 5)
+
+#define AI_EFE_RELOAD_CLAMPED_PREF \
+	FMOVS (R1), F4 ;\
+	VDUP V4.S[0], V4.S4 ;\
+	VMAX_S4(31, 4, 4)
+
+#define AI_EFE_RELOAD_CLAMPED_PREF4 \
+	VLD1 (R1), [V4.S4] ;\
+	VMAX_S4(31, 4, 4)
 
 #define AI_LOAD_LOG_MASKS \
 	MOVD $0x007FFFFF, R6 ;\
@@ -241,12 +272,11 @@ ai_bu_done:
 	AI_RELOAD_LOG_POLY ;\
 	AI_LOAD_LOG_MASKS
 
-// Natural log on four clamped lanes in `in`, result in `out`. Staging in V9 preserves V20 log coefficients.
+// Natural log on four clamped lanes in `in`, result in `out`. Matches activation NEON_LOG_BODY.
 #define AI_NEON_LOG4(in, out) \
-	VMOV_B16(in, 9) ;\
-	VUSHR_S4_BY23(9, 1) ;\
+	VUSHR_S4_BY23(in, 1) ;\
 	VISUB_S4(26, 1, 1) ;\
-	VAND_B16(24, 9, 2) ;\
+	VAND_B16(24, in, 2) ;\
 	VORR_B16(25, 2, 2) ;\
 	VSCVTF_S4(1, 1) ;\
 	VFSUB_S4(17, 2, 3) ;\
@@ -275,8 +305,10 @@ ai_bu_done:
 	AI_LOAD_LOG_CONSTS ;\
 	AI_NEON_LOG4(3, 10) ;\
 	AI_LOAD_LOG_CONSTS ;\
+	AI_FE_RELOAD_CLAMPED_POST4 ;\
 	AI_NEON_LOG4(4, 11) ;\
 	AI_LOAD_LOG_CONSTS ;\
+	AI_FE_RELOAD_CLAMPED_PRIOR4 ;\
 	AI_NEON_LOG4(5, 12) ;\
 	VEOR V30.B16, V30.B16, V30.B16 ;\
 	VFSUB_S4(10, 30, 6) ;\
@@ -304,8 +336,10 @@ ai_bu_done:
 	AI_LOAD_LOG_CONSTS ;\
 	AI_NEON_LOG4(3, 10) ;\
 	AI_LOAD_LOG_CONSTS ;\
+	AI_FE_RELOAD_CLAMPED_POST ;\
 	AI_NEON_LOG4(4, 11) ;\
 	AI_LOAD_LOG_CONSTS ;\
+	AI_FE_RELOAD_CLAMPED_PRIOR ;\
 	AI_NEON_LOG4(5, 12) ;\
 	VEOR V30.B16, V30.B16, V30.B16 ;\
 	VFSUB_S4(10, 30, 6) ;\
@@ -328,6 +362,7 @@ ai_bu_done:
 	AI_LOAD_LOG_CONSTS ;\
 	AI_NEON_LOG4(3, 10) ;\
 	AI_LOAD_LOG_CONSTS ;\
+	AI_EFE_RELOAD_CLAMPED_PREF4 ;\
 	AI_NEON_LOG4(4, 11) ;\
 	VFSUB_S4(11, 10, 6) ;\
 	VFMUL_S4(27, 6, 6) ;\
@@ -347,6 +382,7 @@ ai_bu_done:
 	AI_LOAD_LOG_CONSTS ;\
 	AI_NEON_LOG4(3, 10) ;\
 	AI_LOAD_LOG_CONSTS ;\
+	AI_EFE_RELOAD_CLAMPED_PREF ;\
 	AI_NEON_LOG4(4, 11) ;\
 	VFSUB_S4(11, 10, 6) ;\
 	VFMUL_S4(27, 6, 6) ;\
@@ -462,6 +498,8 @@ TEXT ·FreeEnergyFloat32NEONAsm(SB), NOSPLIT, $0-40
 	VMOV R17, V31.S[0]
 	VDUP V31.S[0], V31.S4
 	AI_LOAD_LOG_CONSTS
+	VEOR V28.B16, V28.B16, V28.B16
+	VEOR V29.B16, V29.B16, V29.B16
 	FMOVD $0, F14
 	FMOVD $0, F15
 	CBZ  R3, ai_fe_store
@@ -499,6 +537,8 @@ TEXT ·ExpectedFreeEnergyFloat32NEONAsm(SB), NOSPLIT, $0-48
 	VMOV R17, V31.S[0]
 	VDUP V31.S[0], V31.S4
 	AI_LOAD_LOG_CONSTS
+	VEOR V28.B16, V28.B16, V28.B16
+	VEOR V29.B16, V29.B16, V29.B16
 	FMOVD $0, F14
 	FMOVD $0, F15
 

@@ -2,4 +2,33 @@
 #include "pool.h"
 #include "../internal/bridge/core_private.h"
 
-// CUDA dispatch for maxpool — NVRTC launch wired in family bridge.
+int cuda_dispatch_max_pool2d(
+    CUDADeviceRef contextRef,
+    int elementDType,
+    CUDABufferRef inputRef,
+    CUDABufferRef outRef,
+    uint32_t batch,
+    uint32_t channels,
+    uint32_t inHeight,
+    uint32_t inWidth,
+    uint32_t outHeight,
+    uint32_t outWidth,
+    uint64_t completionToken,
+    CUDAStatus* status
+) {
+    return cuda_vision_dispatch_pool2d(
+        contextRef,
+        "max_pool2d",
+        elementDType,
+        inputRef,
+        outRef,
+        batch,
+        channels,
+        inHeight,
+        inWidth,
+        outHeight,
+        outWidth,
+        completionToken,
+        status
+    );
+}

@@ -70,6 +70,8 @@ void cuda_track_completion(
     CUDAStatus* status
 );
 
+uint32_t cuda_vector_launch_count(uint32_t count, int elementDType);
+
 const char* cuda_element_dtype_suffix(int elementDType);
 
 int cuda_compose_kernel_name(

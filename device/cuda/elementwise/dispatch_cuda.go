@@ -10,6 +10,7 @@ import (
 )
 
 /*
+#include "elementwise.h"
 #include "math.h"
 #include "arithmetic.h"
 #include "axpy.h"

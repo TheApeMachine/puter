@@ -10,6 +10,8 @@ import (
 	"github.com/theapemachine/puter/device/cuda/activation"
 	"github.com/theapemachine/puter/device/cuda/elementwise"
 	"github.com/theapemachine/puter/device/cuda/layernorm"
+	"github.com/theapemachine/puter/device/cuda/matmul"
+	"github.com/theapemachine/puter/device/cuda/pool"
 )
 
 type ComputeHost struct {
@@ -95,11 +97,45 @@ func (host *ComputeHost) DispatchALiBiBias(scores, slope, output unsafe.Pointer,
 }
 
 func (host *ComputeHost) DispatchAdaptiveAvgPool2D(input, output unsafe.Pointer, batch, channels, inHeight, inWidth, outHeight, outWidth int, format dtype.DType) {
-	host.unavailable()
+	if batch == 0 || channels == 0 || inHeight == 0 || inWidth == 0 || outHeight == 0 || outWidth == 0 {
+		return
+	}
+
+	if err := pool.DispatchAdaptiveAvgPool2D(
+		host.contextRef(),
+		resolveBufferRef(input),
+		resolveBufferRef(output),
+		format,
+		uint32(batch),
+		uint32(channels),
+		uint32(inHeight),
+		uint32(inWidth),
+		uint32(outHeight),
+		uint32(outWidth),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchAdaptiveMaxPool2D(input, output unsafe.Pointer, batch, channels, inHeight, inWidth, outHeight, outWidth int, format dtype.DType) {
-	host.unavailable()
+	if batch == 0 || channels == 0 || inHeight == 0 || inWidth == 0 || outHeight == 0 || outWidth == 0 {
+		return
+	}
+
+	if err := pool.DispatchAdaptiveMaxPool2D(
+		host.contextRef(),
+		resolveBufferRef(input),
+		resolveBufferRef(output),
+		format,
+		uint32(batch),
+		uint32(channels),
+		uint32(inHeight),
+		uint32(inWidth),
+		uint32(outHeight),
+		uint32(outWidth),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchApplyMask(input, mask, output unsafe.Pointer, count int, format dtype.DType) {
@@ -107,7 +143,26 @@ func (host *ComputeHost) DispatchApplyMask(input, mask, output unsafe.Pointer, c
 }
 
 func (host *ComputeHost) DispatchAvgPool2D(config device.PoolConfig, input, output unsafe.Pointer, batch, channels, inHeight, inWidth, outHeight, outWidth int, format dtype.DType) {
-	host.unavailable()
+	_ = config
+
+	if batch == 0 || channels == 0 || inHeight == 0 || inWidth == 0 || outHeight == 0 || outWidth == 0 {
+		return
+	}
+
+	if err := pool.DispatchAvgPool2D(
+		host.contextRef(),
+		resolveBufferRef(input),
+		resolveBufferRef(output),
+		format,
+		uint32(batch),
+		uint32(channels),
+		uint32(inHeight),
+		uint32(inWidth),
+		uint32(outHeight),
+		uint32(outWidth),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchAxpy(y, x unsafe.Pointer, alpha float32, format dtype.DType) {
@@ -294,7 +349,26 @@ func (host *ComputeHost) DispatchMarkovMutualInformation(joint, output unsafe.Po
 }
 
 func (host *ComputeHost) DispatchMaxPool2D(config device.PoolConfig, input, output unsafe.Pointer, batch, channels, inHeight, inWidth, outHeight, outWidth int, format dtype.DType) {
-	host.unavailable()
+	_ = config
+
+	if batch == 0 || channels == 0 || inHeight == 0 || inWidth == 0 || outHeight == 0 || outWidth == 0 {
+		return
+	}
+
+	if err := pool.DispatchMaxPool2D(
+		host.contextRef(),
+		resolveBufferRef(input),
+		resolveBufferRef(output),
+		format,
+		uint32(batch),
+		uint32(channels),
+		uint32(inHeight),
+		uint32(inWidth),
+		uint32(outHeight),
+		uint32(outWidth),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchMultiHeadAttention(config device.MultiHeadAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
@@ -431,7 +505,22 @@ func (host *ComputeHost) LaunchRMSNorm(input, scale, output unsafe.Pointer, rows
 }
 
 func (host *ComputeHost) MatmulLaunch(out, left, right unsafe.Pointer, rows, inner, cols int, format dtype.DType) {
-	host.unavailable()
+	if rows == 0 || inner == 0 || cols == 0 {
+		return
+	}
+
+	if err := matmul.DispatchMatmul(
+		host.contextRef(),
+		resolveBufferRef(left),
+		resolveBufferRef(right),
+		resolveBufferRef(out),
+		format,
+		uint32(rows),
+		uint32(inner),
+		uint32(cols),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) PReLUV(dst, src, slopes unsafe.Pointer, format dtype.DType) {

@@ -12,19 +12,7 @@ const char* cuda_activation_module_source(void) {
 }
 
 uint32_t cuda_activation_vector_launch_count(uint32_t count, int elementDType) {
-    if (count == 0) {
-        return 0;
-    }
-
-    switch (elementDType) {
-    case CUDAElementDTypeFloat32:
-        return (count + 3u) / 4u;
-    case CUDAElementDTypeFloat16:
-    case CUDAElementDTypeBFloat16:
-        return (count + 1u) / 2u;
-    default:
-        return count;
-    }
+    return cuda_vector_launch_count(count, elementDType);
 }
 
 void cuda_activation_status_clear(CUDAStatus* status) {

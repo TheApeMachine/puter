@@ -1,16 +1,86 @@
 #include "activation.cuh"
+#include "softmax_reduce.cuh"
 
 #include <stdint.h>
+
+__device__ __forceinline__ float softmax_tree_reduce256(float* reduction) {
+    for (unsigned int stride = blockDim.x / 2u; stride > 0u; stride >>= 1u) {
+        if (threadIdx.x < stride) {
+            reduction[threadIdx.x] += reduction[threadIdx.x + stride];
+        }
+
+        __syncthreads();
+    }
+
+    return reduction[0];
+}
+
+__device__ __forceinline__ float softmax_tree_reduce256_max(float* reduction) {
+    for (unsigned int stride = blockDim.x / 2u; stride > 0u; stride >>= 1u) {
+        if (threadIdx.x < stride) {
+            reduction[threadIdx.x] = fmaxf(reduction[threadIdx.x], reduction[threadIdx.x + stride]);
+        }
+
+        __syncthreads();
+    }
+
+    return reduction[0];
+}
+
+__device__ __forceinline__ __half softmax_tree_reduce256_h(__half* reduction) {
+    for (unsigned int stride = blockDim.x / 2u; stride > 0u; stride >>= 1u) {
+        if (threadIdx.x < stride) {
+            reduction[threadIdx.x] = __hadd(reduction[threadIdx.x], reduction[threadIdx.x + stride]);
+        }
+
+        __syncthreads();
+    }
+
+    return reduction[0];
+}
+
+__device__ __forceinline__ __half softmax_tree_reduce256_max_h(__half* reduction) {
+    for (unsigned int stride = blockDim.x / 2u; stride > 0u; stride >>= 1u) {
+        if (threadIdx.x < stride) {
+            reduction[threadIdx.x] = __hmax(reduction[threadIdx.x], reduction[threadIdx.x + stride]);
+        }
+
+        __syncthreads();
+    }
+
+    return reduction[0];
+}
+
+__device__ __forceinline__ __nv_bfloat16 softmax_tree_reduce256_bf16(__nv_bfloat16* reduction) {
+    for (unsigned int stride = blockDim.x / 2u; stride > 0u; stride >>= 1u) {
+        if (threadIdx.x < stride) {
+            reduction[threadIdx.x] = __hadd(reduction[threadIdx.x], reduction[threadIdx.x + stride]);
+        }
+
+        __syncthreads();
+    }
+
+    return reduction[0];
+}
+
+__device__ __forceinline__ __nv_bfloat16 softmax_tree_reduce256_max_bf16(__nv_bfloat16* reduction) {
+    for (unsigned int stride = blockDim.x / 2u; stride > 0u; stride >>= 1u) {
+        if (threadIdx.x < stride) {
+            reduction[threadIdx.x] = __hmax(reduction[threadIdx.x], reduction[threadIdx.x + stride]);
+        }
+
+        __syncthreads();
+    }
+
+    return reduction[0];
+}
 
 extern "C" __global__ void softmax_float32(
     const float* input,
     float* output,
     unsigned int cols
 ) {
-    extern __shared__ float sharedScratch[];
-    float* rowMaxScratch = sharedScratch;
-    float* rowSumScratch = sharedScratch + blockDim.x;
-
+    __shared__ float reductionScratch[32];
     unsigned int row = blockIdx.x;
     unsigned int threadIndex = threadIdx.x;
     unsigned int rowOffset = row * cols;
@@ -20,44 +90,14 @@ extern "C" __global__ void softmax_float32(
         localMax = fmaxf(localMax, input[rowOffset + col]);
     }
 
-    rowMaxScratch[threadIndex] = localMax;
-    __syncthreads();
-
-    if (threadIndex == 0) {
-        float rowMax = rowMaxScratch[0];
-
-        for (unsigned int offset = 1; offset < blockDim.x; offset++) {
-            rowMax = fmaxf(rowMax, rowMaxScratch[offset]);
-        }
-
-        rowMaxScratch[0] = rowMax;
-    }
-
-    __syncthreads();
-
-    float rowMax = rowMaxScratch[0];
+    float rowMax = softmax_block_reduce_max(localMax, reductionScratch);
     float localSum = 0.0f;
 
     for (unsigned int col = threadIndex; col < cols; col += blockDim.x) {
         localSum += expf(input[rowOffset + col] - rowMax);
     }
 
-    rowSumScratch[threadIndex] = localSum;
-    __syncthreads();
-
-    if (threadIndex == 0) {
-        float rowSum = rowSumScratch[0];
-
-        for (unsigned int offset = 1; offset < blockDim.x; offset++) {
-            rowSum += rowSumScratch[offset];
-        }
-
-        rowSumScratch[0] = rowSum;
-    }
-
-    __syncthreads();
-
-    float rowSum = rowSumScratch[0];
+    float rowSum = softmax_block_reduce_sum(localSum, reductionScratch);
 
     for (unsigned int col = threadIndex; col < cols; col += blockDim.x) {
         output[rowOffset + col] = expf(input[rowOffset + col] - rowMax) / rowSum;
@@ -85,19 +125,7 @@ extern "C" __global__ void softmax_float16(
     rowMaxScratch[threadIndex] = localMax;
     __syncthreads();
 
-    if (threadIndex == 0) {
-        __half rowMax = rowMaxScratch[0];
-
-        for (unsigned int offset = 1; offset < blockDim.x; offset++) {
-            rowMax = __hmax(rowMax, rowMaxScratch[offset]);
-        }
-
-        rowMaxScratch[0] = rowMax;
-    }
-
-    __syncthreads();
-
-    __half rowMax = rowMaxScratch[0];
+    __half rowMax = softmax_tree_reduce256_max_h(rowMaxScratch);
     __half localSum = activation_zero_h();
 
     for (unsigned int col = threadIndex; col < cols; col += blockDim.x) {
@@ -107,19 +135,7 @@ extern "C" __global__ void softmax_float16(
     rowSumScratch[threadIndex] = localSum;
     __syncthreads();
 
-    if (threadIndex == 0) {
-        __half rowSum = rowSumScratch[0];
-
-        for (unsigned int offset = 1; offset < blockDim.x; offset++) {
-            rowSum = __hadd(rowSum, rowSumScratch[offset]);
-        }
-
-        rowSumScratch[0] = rowSum;
-    }
-
-    __syncthreads();
-
-    __half rowSum = rowSumScratch[0];
+    __half rowSum = softmax_tree_reduce256_h(rowSumScratch);
 
     for (unsigned int col = threadIndex; col < cols; col += blockDim.x) {
         __half numerator = hexp(__hsub(input[rowOffset + col], rowMax));
@@ -148,19 +164,7 @@ extern "C" __global__ void softmax_bfloat16(
     rowMaxScratch[threadIndex] = localMax;
     __syncthreads();
 
-    if (threadIndex == 0) {
-        __nv_bfloat16 rowMax = rowMaxScratch[0];
-
-        for (unsigned int offset = 1; offset < blockDim.x; offset++) {
-            rowMax = __hmax(rowMax, rowMaxScratch[offset]);
-        }
-
-        rowMaxScratch[0] = rowMax;
-    }
-
-    __syncthreads();
-
-    __nv_bfloat16 rowMax = rowMaxScratch[0];
+    __nv_bfloat16 rowMax = softmax_tree_reduce256_max_bf16(rowMaxScratch);
     __nv_bfloat16 localSum = activation_zero_bf16();
 
     for (unsigned int col = threadIndex; col < cols; col += blockDim.x) {
@@ -170,19 +174,7 @@ extern "C" __global__ void softmax_bfloat16(
     rowSumScratch[threadIndex] = localSum;
     __syncthreads();
 
-    if (threadIndex == 0) {
-        __nv_bfloat16 rowSum = rowSumScratch[0];
-
-        for (unsigned int offset = 1; offset < blockDim.x; offset++) {
-            rowSum = __hadd(rowSum, rowSumScratch[offset]);
-        }
-
-        rowSumScratch[0] = rowSum;
-    }
-
-    __syncthreads();
-
-    __nv_bfloat16 rowSum = rowSumScratch[0];
+    __nv_bfloat16 rowSum = softmax_tree_reduce256_bf16(rowSumScratch);
 
     for (unsigned int col = threadIndex; col < cols; col += blockDim.x) {
         __nv_bfloat16 numerator = activation_bf16_exp(__hsub(input[rowOffset + col], rowMax));

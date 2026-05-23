@@ -1,61 +1,25 @@
-#include "elementwise.cuh"
+#include "elementwise_binary_macros.cuh"
+#include "elementwise_ops_f32.cuh"
+#include "elementwise_ops_f16.cuh"
+#include "elementwise_ops_bf16.cuh"
 
-#define ELEMENTWISE_BINARY_KERNEL_F32(name, expr) \
-extern "C" __global__ void name##_float32( \
-    const float* left, \
-    const float* right, \
-    float* output, \
-    unsigned int count \
-) { \
-    unsigned int index = blockIdx.x * blockDim.x + threadIdx.x; \
-    if (index >= count) { \
-        return; \
-    } \
-    float leftValue = left[index]; \
-    float rightValue = right[index]; \
-    output[index] = (expr); \
-}
+ELEMENTWISE_BINARY_KERNEL_F32(add, elementwise_add_f4, elementwise_add_f1)
+ELEMENTWISE_BINARY_KERNEL_F32(sub, elementwise_sub_f4, elementwise_sub_f1)
+ELEMENTWISE_BINARY_KERNEL_F32(mul, elementwise_mul_f4, elementwise_mul_f1)
+ELEMENTWISE_BINARY_KERNEL_F32(div, elementwise_div_f4, elementwise_div_f1)
+ELEMENTWISE_BINARY_KERNEL_F32(max, elementwise_max_f4, elementwise_max_f1)
+ELEMENTWISE_BINARY_KERNEL_F32(min, elementwise_min_f4, elementwise_min_f1)
 
-#define ELEMENTWISE_BINARY_KERNEL_F16(name, expr) \
-extern "C" __global__ void name##_float16( \
-    const __half* left, \
-    const __half* right, \
-    __half* output, \
-    unsigned int count \
-) { \
-    unsigned int index = blockIdx.x * blockDim.x + threadIdx.x; \
-    if (index >= count) { \
-        return; \
-    } \
-    float leftValue = __half2float(left[index]); \
-    float rightValue = __half2float(right[index]); \
-    output[index] = __float2half((expr)); \
-}
+ELEMENTWISE_BINARY_KERNEL_F16(add, elementwise_add_h2, elementwise_add_h1)
+ELEMENTWISE_BINARY_KERNEL_F16(sub, elementwise_sub_h2, elementwise_sub_h1)
+ELEMENTWISE_BINARY_KERNEL_F16(mul, elementwise_mul_h2, elementwise_mul_h1)
+ELEMENTWISE_BINARY_KERNEL_F16(div, elementwise_div_h2, elementwise_div_h1)
+ELEMENTWISE_BINARY_KERNEL_F16(max, elementwise_max_h2, elementwise_max_h1)
+ELEMENTWISE_BINARY_KERNEL_F16(min, elementwise_min_h2, elementwise_min_h1)
 
-#define ELEMENTWISE_BINARY_KERNEL_BF16(name, expr) \
-extern "C" __global__ void name##_bfloat16( \
-    const unsigned short* left, \
-    const unsigned short* right, \
-    unsigned short* output, \
-    unsigned int count \
-) { \
-    unsigned int index = blockIdx.x * blockDim.x + threadIdx.x; \
-    if (index >= count) { \
-        return; \
-    } \
-    float leftValue = elementwise_bf16_to_float(left[index]); \
-    float rightValue = elementwise_bf16_to_float(right[index]); \
-    output[index] = elementwise_float_to_bf16((expr)); \
-}
-
-#define ELEMENTWISE_BINARY_ALL(name, expr) \
-    ELEMENTWISE_BINARY_KERNEL_F32(name, expr) \
-    ELEMENTWISE_BINARY_KERNEL_F16(name, expr) \
-    ELEMENTWISE_BINARY_KERNEL_BF16(name, expr)
-
-ELEMENTWISE_BINARY_ALL(add, leftValue + rightValue)
-ELEMENTWISE_BINARY_ALL(sub, leftValue - rightValue)
-ELEMENTWISE_BINARY_ALL(mul, leftValue * rightValue)
-ELEMENTWISE_BINARY_ALL(div, leftValue / rightValue)
-ELEMENTWISE_BINARY_ALL(max, fmaxf(leftValue, rightValue))
-ELEMENTWISE_BINARY_ALL(min, fminf(leftValue, rightValue))
+ELEMENTWISE_BINARY_KERNEL_BF16(add, elementwise_add_b2, elementwise_add_bf16)
+ELEMENTWISE_BINARY_KERNEL_BF16(sub, elementwise_sub_b2, elementwise_sub_bf16)
+ELEMENTWISE_BINARY_KERNEL_BF16(mul, elementwise_mul_b2, elementwise_mul_bf16)
+ELEMENTWISE_BINARY_KERNEL_BF16(div, elementwise_div_b2, elementwise_div_bf16)
+ELEMENTWISE_BINARY_KERNEL_BF16(max, elementwise_max_b2, elementwise_max_bf16)
+ELEMENTWISE_BINARY_KERNEL_BF16(min, elementwise_min_b2, elementwise_min_bf16)
