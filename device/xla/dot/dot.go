@@ -1,31 +1,42 @@
 package dot
 
+import (
+	"unsafe"
+
+	"github.com/theapemachine/manifesto/dtype"
+)
+
 /*
-Product implements device.Product for the XLA backend.
+Product implements device.Dot for the XLA backend.
 */
 type Product struct {
-    host Host
+	host Host
 }
 
 /*
 Host is the XLA dispatch surface dot operations call into.
 */
 type Host interface {
-    NeedsPlatform()
-    NotImplemented(string)
+	NeedsPlatform()
+	NotImplemented(methodName string)
+	DotProduct(
+		left, right unsafe.Pointer,
+		count int,
+		format dtype.DType,
+	) float32
 }
 
 /*
 New wires a Product receiver to its XLA dispatch host.
 */
 func New(host Host) Product {
-    return Product{host: host}
+	return Product{host: host}
 }
 
-func (receiver *Product) stubHost() {
-    receiver.host.NeedsPlatform()
+func (product *Product) stubHost() {
+	product.host.NeedsPlatform()
 }
 
-func (receiver *Product) unimplemented(methodName string) {
-	receiver.host.NotImplemented(methodName)
+func (product *Product) unimplemented(methodName string) {
+	product.host.NotImplemented(methodName)
 }

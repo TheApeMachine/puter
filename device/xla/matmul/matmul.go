@@ -1,31 +1,42 @@
 package matmul
 
+import (
+	"unsafe"
+
+	"github.com/theapemachine/manifesto/dtype"
+)
+
 /*
-Gemm implements device.Gemm for the XLA backend.
+Gemm implements device.Matmul for the XLA backend.
 */
 type Gemm struct {
-    host Host
+	host Host
 }
 
 /*
 Host is the XLA dispatch surface matmul operations call into.
 */
 type Host interface {
-    NeedsPlatform()
-    NotImplemented(string)
+	NeedsPlatform()
+	NotImplemented(methodName string)
+	MatmulLaunch(
+		out, left, right unsafe.Pointer,
+		rows, inner, cols int,
+		format dtype.DType,
+	)
 }
 
 /*
 New wires a Gemm receiver to its XLA dispatch host.
 */
 func New(host Host) Gemm {
-    return Gemm{host: host}
+	return Gemm{host: host}
 }
 
-func (receiver *Gemm) stubHost() {
-    receiver.host.NeedsPlatform()
+func (gemm *Gemm) stubHost() {
+	gemm.host.NeedsPlatform()
 }
 
-func (receiver *Gemm) unimplemented(methodName string) {
-	receiver.host.NotImplemented(methodName)
+func (gemm *Gemm) unimplemented(methodName string) {
+	gemm.host.NotImplemented(methodName)
 }

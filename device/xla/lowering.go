@@ -134,6 +134,9 @@ func NewDefaultBuilder(target string) *Builder {
 	RegisterParametricActivations(registry)
 	RegisterGatedActivations(registry)
 	RegisterElementwiseLowerings(registry)
+	RegisterReductionLowerings(registry)
+	RegisterDotLowerings(registry)
+	RegisterMatmulLowerings(registry)
 
 	return NewBuilder(NewExecutableCache(), registry, target)
 }

@@ -9,11 +9,11 @@ func PrecisionWeightBFloat16NEONAsm(errors, precision, output *uint16, count int
 func BeliefUpdateBFloat16NEONAsm(likelihood, prior, output *uint16, count int)
 
 //go:noescape
-func freeEnergyBFloat16NEONBridge(likelihood, posterior, prior uintptr, count int) uint16
+func freeEnergyBFloat16NEONBridge(likelihood, posterior, prior *uint16, count int) uint16
 
 //go:noescape
 func expectedFreeEnergyBFloat16NEONBridge(
-	predictedObs, preferredObs, predictedState uintptr,
+	predictedObs, preferredObs, predictedState *uint16,
 	obsCount, stateCount int,
 ) uint16
 
@@ -24,10 +24,10 @@ func PrecisionWeightFloat16NEONAsm(errors, precision, output *uint16, count int)
 func BeliefUpdateFloat16NEONAsm(likelihood, prior, output *uint16, count int)
 
 //go:noescape
-func freeEnergyFloat16NEONBridge(likelihood, posterior, prior uintptr, count int) uint16
+func freeEnergyFloat16NEONBridge(likelihood, posterior, prior *uint16, count int) uint16
 
 //go:noescape
 func expectedFreeEnergyFloat16NEONBridge(
-	predictedObs, preferredObs, predictedState uintptr,
+	predictedObs, preferredObs, predictedState *uint16,
 	obsCount, stateCount int,
 ) uint16

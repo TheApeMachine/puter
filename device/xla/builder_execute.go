@@ -73,6 +73,202 @@ func (builder *Builder) ExecuteBinary(
 	return bridge.executeBinary(C.XLAExecutableRef(executable.handle), left.bufferRef(), right.bufferRef(), output.bufferRef())
 }
 
+/*
+ExecuteReduction compiles (or loads from cache) and executes a vector-to-scalar reduction.
+*/
+func (builder *Builder) ExecuteReduction(
+	bridge *xlaBridge,
+	operationName string,
+	context LoweringContext,
+	input *DeviceTensor,
+	output *DeviceTensor,
+) error {
+	programKey, err := builder.ProgramKeyFor(operationName, context, nil, nil)
+
+	if err != nil {
+		return err
+	}
+
+	executable, err := builder.loadReductionExecutable(bridge, programKey, context)
+
+	if err != nil {
+		return err
+	}
+
+	return bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef())
+}
+
+func (builder *Builder) loadReductionExecutable(
+	bridge *xlaBridge,
+	programKey ProgramKey,
+	context LoweringContext,
+) (*CompiledExecutable, error) {
+	if cached, ok := builder.CachedExecutable(programKey); ok {
+		return cached, nil
+	}
+
+	reductionKind, ok := hlo.ReductionKindFromOperation(programKey.Operation)
+
+	if !ok {
+		return nil, &loweringError{message: "invalid XLA reduction operation: " + programKey.Operation}
+	}
+
+	if len(context.InputShapes) != 1 {
+		return nil, &loweringError{message: "reduction requires one input shape"}
+	}
+
+	hloText, err := hlo.RenderReduction(
+		fmt.Sprintf("puter_%s", programKey.Operation),
+		context.OutputDType,
+		context.InputShapes[0],
+		reductionKind,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	executableRef, err := bridge.compileHLO(hloText)
+
+	if err != nil {
+		return nil, err
+	}
+
+	compiled := &CompiledExecutable{
+		key:    programKey,
+		handle: uintptr(executableRef),
+	}
+	builder.RecordExecutable(programKey, compiled)
+	return compiled, nil
+}
+
+/*
+ExecuteDot compiles (or loads from cache) and executes a vector dot product to scalar.
+*/
+func (builder *Builder) ExecuteDot(
+	bridge *xlaBridge,
+	context LoweringContext,
+	left *DeviceTensor,
+	right *DeviceTensor,
+	output *DeviceTensor,
+) error {
+	programKey, err := builder.ProgramKeyFor("dot", context, nil, nil)
+
+	if err != nil {
+		return err
+	}
+
+	executable, err := builder.loadDotExecutable(bridge, programKey, context)
+
+	if err != nil {
+		return err
+	}
+
+	return bridge.executeBinary(C.XLAExecutableRef(executable.handle), left.bufferRef(), right.bufferRef(), output.bufferRef())
+}
+
+func (builder *Builder) loadDotExecutable(
+	bridge *xlaBridge,
+	programKey ProgramKey,
+	context LoweringContext,
+) (*CompiledExecutable, error) {
+	if cached, ok := builder.CachedExecutable(programKey); ok {
+		return cached, nil
+	}
+
+	if len(context.InputShapes) != 2 {
+		return nil, &loweringError{message: "dot requires two input shapes"}
+	}
+
+	hloText, err := hlo.RenderDotProduct(
+		fmt.Sprintf("puter_%s", programKey.Operation),
+		context.OutputDType,
+		context.InputShapes[0],
+		context.InputShapes[1],
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	executableRef, err := bridge.compileHLO(hloText)
+
+	if err != nil {
+		return nil, err
+	}
+
+	compiled := &CompiledExecutable{
+		key:    programKey,
+		handle: uintptr(executableRef),
+	}
+	builder.RecordExecutable(programKey, compiled)
+	return compiled, nil
+}
+
+/*
+ExecuteMatmul compiles (or loads from cache) and executes a rank-2 matrix multiply.
+*/
+func (builder *Builder) ExecuteMatmul(
+	bridge *xlaBridge,
+	context LoweringContext,
+	left *DeviceTensor,
+	right *DeviceTensor,
+	output *DeviceTensor,
+) error {
+	programKey, err := builder.ProgramKeyFor("matmul", context, nil, nil)
+
+	if err != nil {
+		return err
+	}
+
+	executable, err := builder.loadMatmulExecutable(bridge, programKey, context)
+
+	if err != nil {
+		return err
+	}
+
+	return bridge.executeBinary(C.XLAExecutableRef(executable.handle), left.bufferRef(), right.bufferRef(), output.bufferRef())
+}
+
+func (builder *Builder) loadMatmulExecutable(
+	bridge *xlaBridge,
+	programKey ProgramKey,
+	context LoweringContext,
+) (*CompiledExecutable, error) {
+	if cached, ok := builder.CachedExecutable(programKey); ok {
+		return cached, nil
+	}
+
+	if len(context.InputShapes) != 2 {
+		return nil, &loweringError{message: "matmul requires two input shapes"}
+	}
+
+	hloText, err := hlo.RenderMatmul(
+		fmt.Sprintf("puter_%s", programKey.Operation),
+		context.OutputDType,
+		context.InputShapes[0],
+		context.InputShapes[1],
+		context.OutputShape,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	executableRef, err := bridge.compileHLO(hloText)
+
+	if err != nil {
+		return nil, err
+	}
+
+	compiled := &CompiledExecutable{
+		key:    programKey,
+		handle: uintptr(executableRef),
+	}
+	builder.RecordExecutable(programKey, compiled)
+	return compiled, nil
+}
+
 func (builder *Builder) loadExecutable(
 	bridge *xlaBridge,
 	programKey ProgramKey,
@@ -140,6 +336,35 @@ func ShapeFromCount(count int) (tensor.Shape, error) {
 	}
 
 	return tensor.NewShape([]int{count})
+}
+
+/*
+ShapeFromMatmul builds dense rank-2 shapes for GEMM launches.
+*/
+func ShapeFromMatmul(rows, inner, cols int) (tensor.Shape, tensor.Shape, tensor.Shape, error) {
+	if rows <= 0 || inner <= 0 || cols <= 0 {
+		return tensor.Shape{}, tensor.Shape{}, tensor.Shape{}, &loweringError{message: "invalid XLA matmul dimensions"}
+	}
+
+	leftShape, err := tensor.NewShape([]int{rows, inner})
+
+	if err != nil {
+		return tensor.Shape{}, tensor.Shape{}, tensor.Shape{}, err
+	}
+
+	rightShape, err := tensor.NewShape([]int{inner, cols})
+
+	if err != nil {
+		return tensor.Shape{}, tensor.Shape{}, tensor.Shape{}, err
+	}
+
+	outputShape, err := tensor.NewShape([]int{rows, cols})
+
+	if err != nil {
+		return tensor.Shape{}, tensor.Shape{}, tensor.Shape{}, err
+	}
+
+	return leftShape, rightShape, outputShape, nil
 }
 
 /*
