@@ -8,6 +8,8 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/puter/device"
 	"github.com/theapemachine/puter/device/cuda/activation"
+	"github.com/theapemachine/puter/device/cuda/attention"
+	"github.com/theapemachine/puter/device/cuda/convolution"
 	"github.com/theapemachine/puter/device/cuda/dropout"
 	"github.com/theapemachine/puter/device/cuda/elementwise"
 	"github.com/theapemachine/puter/device/cuda/embedding"
@@ -15,6 +17,8 @@ import (
 	"github.com/theapemachine/puter/device/cuda/matmul"
 	"github.com/theapemachine/puter/device/cuda/normalization"
 	"github.com/theapemachine/puter/device/cuda/pool"
+	"github.com/theapemachine/puter/device/cuda/rope"
+	"github.com/theapemachine/puter/device/cuda/vsa"
 )
 
 type ComputeHost struct {
@@ -96,7 +100,21 @@ func (host *ComputeHost) BinaryElementwise(dst, left, right unsafe.Pointer, form
 }
 
 func (host *ComputeHost) DispatchALiBiBias(scores, slope, output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
-	host.unavailable()
+	if seqQ == 0 || seqK == 0 {
+		return
+	}
+
+	if err := attention.DispatchALiBiBias(
+		host.contextRef(),
+		resolveBufferRef(scores),
+		resolveBufferRef(slope),
+		resolveBufferRef(output),
+		uint32(seqQ),
+		uint32(seqK),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchAdaptiveAvgPool2D(input, output unsafe.Pointer, batch, channels, inHeight, inWidth, outHeight, outWidth int, format dtype.DType) {
@@ -142,7 +160,20 @@ func (host *ComputeHost) DispatchAdaptiveMaxPool2D(input, output unsafe.Pointer,
 }
 
 func (host *ComputeHost) DispatchApplyMask(input, mask, output unsafe.Pointer, count int, format dtype.DType) {
-	host.unavailable()
+	if count == 0 {
+		return
+	}
+
+	if err := attention.DispatchApplyMask(
+		host.contextRef(),
+		resolveBufferRef(input),
+		resolveBufferRef(mask),
+		resolveBufferRef(output),
+		uint32(count),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchAvgPool2D(config device.PoolConfig, input, output unsafe.Pointer, batch, channels, inHeight, inWidth, outHeight, outWidth int, format dtype.DType) {
@@ -218,7 +249,22 @@ func (host *ComputeHost) DispatchBeliefUpdate(likelihood, prior, output unsafe.P
 }
 
 func (host *ComputeHost) DispatchBind(left, right, output unsafe.Pointer, count int, format dtype.DType) {
-	host.unavailable()
+	elementCount := host.elementCount(left, right, output)
+
+	if elementCount == 0 {
+		return
+	}
+
+	if err := vsa.DispatchBind(
+		host.contextRef(),
+		resolveBufferRef(left),
+		resolveBufferRef(right),
+		resolveBufferRef(output),
+		format,
+		elementCount,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchBohmianVelocity(phase, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {
@@ -226,7 +272,22 @@ func (host *ComputeHost) DispatchBohmianVelocity(phase, output unsafe.Pointer, c
 }
 
 func (host *ComputeHost) DispatchBundle(left, right, output unsafe.Pointer, count int, format dtype.DType) {
-	host.unavailable()
+	elementCount := host.elementCount(left, right, output)
+
+	if elementCount == 0 {
+		return
+	}
+
+	if err := vsa.DispatchBundle(
+		host.contextRef(),
+		resolveBufferRef(left),
+		resolveBufferRef(right),
+		resolveBufferRef(output),
+		format,
+		elementCount,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchCATE(treated, control, output unsafe.Pointer, count int, format dtype.DType) {
@@ -234,7 +295,19 @@ func (host *ComputeHost) DispatchCATE(treated, control, output unsafe.Pointer, c
 }
 
 func (host *ComputeHost) DispatchCausalMask(output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
-	host.unavailable()
+	if seqQ == 0 || seqK == 0 {
+		return
+	}
+
+	if err := attention.DispatchCausalMask(
+		host.contextRef(),
+		resolveBufferRef(output),
+		uint32(seqQ),
+		uint32(seqK),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchCholesky(input, output unsafe.Pointer, matrixOrder int, format dtype.DType) {
@@ -245,8 +318,30 @@ func (host *ComputeHost) DispatchConv1D(config device.Conv1DConfig, input, weigh
 	host.unavailable()
 }
 
-func (host *ComputeHost) DispatchConv2D(config device.Conv2DConfig, input, weight, bias, output unsafe.Pointer, batch, inChannels, inHeight, inWidth, outChannels, kernelHeight, kernelWidth, outHeight, outWidth int, format dtype.DType) {
-	host.unavailable()
+func (host *ComputeHost) DispatchConv2D(_ device.Conv2DConfig, input, weight, bias, output unsafe.Pointer, batch, inChannels, inHeight, inWidth, outChannels, kernelHeight, kernelWidth, outHeight, outWidth int, format dtype.DType) {
+	if batch == 0 || inChannels == 0 || outChannels == 0 || kernelHeight == 0 || kernelWidth == 0 {
+		return
+	}
+
+	if err := convolution.DispatchConv2D(
+		host.contextRef(),
+		resolveBufferRef(input),
+		resolveBufferRef(weight),
+		resolveBufferRef(bias),
+		resolveBufferRef(output),
+		uint32(batch),
+		uint32(inChannels),
+		uint32(inHeight),
+		uint32(inWidth),
+		uint32(outChannels),
+		uint32(kernelHeight),
+		uint32(kernelWidth),
+		uint32(outHeight),
+		uint32(outWidth),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchConv3D(config device.Conv3DConfig, input, weight, bias, output unsafe.Pointer, batch, inChannels, inD, inH, inW, outChannels, kD, kH, kW, outD, outH, outW int, format dtype.DType) {
@@ -307,7 +402,26 @@ func (host *ComputeHost) DispatchFFT1D(realIn, imagIn, realOut, imagOut unsafe.P
 }
 
 func (host *ComputeHost) DispatchFlashAttention(config device.FlashAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK, depth, valueDim int, format dtype.DType) {
-	host.unavailable()
+	_ = config
+
+	if seqQ == 0 || seqK == 0 || depth == 0 || valueDim == 0 {
+		return
+	}
+
+	if err := attention.DispatchFlashAttention(
+		host.contextRef(),
+		resolveBufferRef(query),
+		resolveBufferRef(key),
+		resolveBufferRef(value),
+		resolveBufferRef(output),
+		uint32(seqQ),
+		uint32(seqK),
+		uint32(depth),
+		uint32(valueDim),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchFreeEnergy(likelihood, posterior, prior, output unsafe.Pointer, count int, format dtype.DType) {
@@ -384,7 +498,23 @@ func (host *ComputeHost) DispatchInstanceNorm(input, scale, bias, output unsafe.
 }
 
 func (host *ComputeHost) DispatchInversePermute(config device.VSAConfig, input, output unsafe.Pointer, count int, format dtype.DType) {
-	host.unavailable()
+	_ = config
+
+	elementCount := host.elementCount(input, output)
+
+	if elementCount == 0 {
+		return
+	}
+
+	if err := vsa.DispatchInversePermute(
+		host.contextRef(),
+		resolveBufferRef(input),
+		resolveBufferRef(output),
+		format,
+		elementCount,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchLaplacian(input, output unsafe.Pointer, dims []int, spacing float32, format dtype.DType) {
@@ -439,11 +569,43 @@ func (host *ComputeHost) DispatchMaxPool2D(config device.PoolConfig, input, outp
 }
 
 func (host *ComputeHost) DispatchMultiHeadAttention(config device.MultiHeadAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
-	host.unavailable()
+	if seqQ == 0 || seqK == 0 || config.NumHeads == 0 || config.HeadDim == 0 {
+		return
+	}
+
+	if err := attention.DispatchMultiHeadAttention(
+		host.contextRef(),
+		resolveBufferRef(query),
+		resolveBufferRef(key),
+		resolveBufferRef(value),
+		resolveBufferRef(output),
+		config,
+		uint32(seqQ),
+		uint32(seqK),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchPermute(config device.VSAConfig, input, output unsafe.Pointer, count int, format dtype.DType) {
-	host.unavailable()
+	_ = config
+
+	elementCount := host.elementCount(input, output)
+
+	if elementCount == 0 {
+		return
+	}
+
+	if err := vsa.DispatchPermute(
+		host.contextRef(),
+		resolveBufferRef(input),
+		resolveBufferRef(output),
+		format,
+		elementCount,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchPrecisionWeight(errors, precision, output unsafe.Pointer, count int, format dtype.DType) {
@@ -467,15 +629,69 @@ func (host *ComputeHost) DispatchQuantumPotential(density, output unsafe.Pointer
 }
 
 func (host *ComputeHost) DispatchRoPE(config device.RoPEConfig, input, output unsafe.Pointer, seqLen, numHeads, headDim int, format dtype.DType) {
-	host.unavailable()
+	if seqLen == 0 || numHeads == 0 || headDim == 0 || headDim%2 != 0 {
+		return
+	}
+
+	if err := rope.DispatchRoPE(
+		host.contextRef(),
+		resolveBufferRef(input),
+		resolveBufferRef(output),
+		config,
+		uint32(seqLen),
+		uint32(numHeads),
+		uint32(headDim),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchRoPEPairs(output, input, cosBuffer, sinBuffer unsafe.Pointer, halfDim int, format dtype.DType) {
-	host.unavailable()
+	if halfDim == 0 {
+		return
+	}
+
+	if err := rope.DispatchRoPEPairs(
+		host.contextRef(),
+		resolveBufferRef(input),
+		resolveBufferRef(output),
+		resolveBufferRef(cosBuffer),
+		resolveBufferRef(sinBuffer),
+		uint32(halfDim),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchScaledDotProductAttention(config device.FlashAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK, depth, valueDim int, format dtype.DType) {
-	host.unavailable()
+	_ = config
+
+	if seqQ == 0 || seqK == 0 || depth == 0 || valueDim == 0 {
+		return
+	}
+
+	scratchBytes := attentionScoresBytes(seqQ, seqK)
+	scoresBuffer := host.bridge.borrowScratch(scratchBytes)
+
+	defer host.bridge.releaseScratch(scoresBuffer)
+
+	if err := attention.DispatchScaledDotProductAttention(
+		host.contextRef(),
+		resolveBufferRef(query),
+		resolveBufferRef(key),
+		resolveBufferRef(value),
+		scoresBuffer,
+		resolveBufferRef(output),
+		uint32(seqQ),
+		uint32(seqK),
+		uint32(depth),
+		uint32(valueDim),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchUpdateRepresentation(config device.PredictiveCodingConfig, weights, representation, predictionError, output unsafe.Pointer, outDim, inDim int, format dtype.DType) {
@@ -525,7 +741,24 @@ func (host *ComputeHost) GLUTensors(dst, gate, up unsafe.Pointer, format dtype.D
 }
 
 func (host *ComputeHost) LaunchBag(table, indices, offsets, output unsafe.Pointer, vocab, hidden, bagCount, indexCount int, format dtype.DType) {
-	host.unavailable()
+	if vocab == 0 || hidden == 0 || bagCount == 0 || indexCount == 0 {
+		return
+	}
+
+	if err := embedding.DispatchBag(
+		host.contextRef(),
+		resolveBufferRef(table),
+		resolveBufferRef(indices),
+		resolveBufferRef(offsets),
+		resolveBufferRef(output),
+		format,
+		uint32(vocab),
+		uint32(hidden),
+		uint32(indexCount),
+		uint32(bagCount),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) LaunchLayerNorm(input, scale, bias, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {

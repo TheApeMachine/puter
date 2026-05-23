@@ -6,8 +6,6 @@ package sampling
 #cgo cuda CFLAGS: -I${SRCDIR} -I${SRCDIR}/../internal/bridge
 #cgo cuda LDFLAGS: -lcudart -lnvrtc -lcuda -lpthread
 
-#include "native/greedy.c"
-#include "native/nucleus.c"
 #include "native/sampling.c"
 */
 import "C"

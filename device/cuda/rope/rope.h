@@ -7,9 +7,15 @@
 extern "C" {
 #endif
 
-void cuda_transformer_status_set(CUDAStatus* status, int code, const char* message);
+void cuda_rope_register_module_source(const char* source);
 
-int cuda_transformer_kernel_name(
+const char* cuda_rope_module_source(void);
+
+void cuda_rope_status_clear(CUDAStatus* status);
+
+void cuda_rope_status_set(CUDAStatus* status, int code, const char* message);
+
+int cuda_rope_kernel_name(
     char* out,
     size_t outBytes,
     const char* operationName,

@@ -94,6 +94,8 @@ int cuda_memcpy_async_d2d(
 
 CUDAStreamRef cuda_context_upload_stream(CUDADeviceRef device);
 
+CUDAStreamRef cuda_context_default_stream(CUDADeviceRef device);
+
 #ifdef __cplusplus
 }
 #endif

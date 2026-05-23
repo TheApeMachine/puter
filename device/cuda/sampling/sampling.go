@@ -8,7 +8,7 @@ import (
 )
 
 /*
-SamplingKernel selects a Metal sampling kernel.
+SamplingKernel selects a CUDA sampling kernel.
 */
 type SamplingKernel int
 
@@ -19,7 +19,7 @@ const (
 )
 
 /*
-Sampling implements device.Sampling for the Metal backend.
+Sampling implements device.Sampling for the CUDA backend.
 Methods delegate kernel launch to a Host provided by the root Backend.
 */
 type Sampling struct {
@@ -34,7 +34,7 @@ func New(host Host) Sampling {
 }
 
 /*
-Host is the Metal dispatch surface sampling operations call into.
+Host is the CUDA dispatch surface sampling operations call into.
 */
 type Host interface {
 	NeedsPlatform()

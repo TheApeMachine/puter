@@ -1,42 +1,38 @@
 //go:build cuda
 
-package embedding
+package rope
 
 import (
 	_ "embed"
 	"strings"
 
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/puter/device"
 )
 
 /*
-#include "embedding.h"
-#include "lookup.h"
-#include "bag.h"
+#include "rope.h"
+#include "rotate.h"
 */
 import "C"
 
-//go:embed embedding.cuh
-var embeddingHubSource string
+//go:embed rope.cuh
+var ropeHubSource string
 
-//go:embed lookup.cu
-var lookupDomainSource string
-
-//go:embed bag.cu
-var bagDomainSource string
+//go:embed rotate.cu
+var rotateDomainSource string
 
 func moduleSource() string {
 	parts := []string{
-		embeddingHubSource,
-		lookupDomainSource,
-		bagDomainSource,
+		ropeHubSource,
+		rotateDomainSource,
 	}
 	return strings.Join(parts, "\n")
 }
 
 func registerModuleSource() {
 	source := C.CString(moduleSource())
-	C.cuda_embedding_register_module_source(source)
+	C.cuda_rope_register_module_source(source)
 }
 
 func init() {
@@ -74,18 +70,17 @@ func (dispatchError *dispatchError) Error() string {
 	return dispatchError.message
 }
 
-var errUnsupportedDType = &dispatchError{code: -6, message: "unsupported CUDA embedding dtype"}
+var errUnsupportedDType = &dispatchError{code: -6, message: "unsupported CUDA rope dtype"}
 
-func DispatchLookup(
+func DispatchRoPE(
 	contextRef C.CUDADeviceRef,
-	tableBuffer C.CUDABufferRef,
-	indicesBuffer C.CUDABufferRef,
+	inputBuffer C.CUDABufferRef,
 	outputBuffer C.CUDABufferRef,
-	errorFlagBuffer C.CUDABufferRef,
+	config device.RoPEConfig,
+	seqLen uint32,
+	numHeads uint32,
+	headDim uint32,
 	format dtype.DType,
-	vocab uint32,
-	hidden uint32,
-	indexCount uint32,
 ) error {
 	elementFormat := elementDType(format)
 
@@ -93,17 +88,32 @@ func DispatchLookup(
 		return errUnsupportedDType
 	}
 
+	halfDim := headDim / 2
+
+	if halfDim == 0 {
+		return nil
+	}
+
+	pairCount := seqLen * numHeads * halfDim
+	theta := C.float(config.BaseFreq)
+
 	var status C.CUDAStatus
-	code := C.cuda_dispatch_embedding_lookup(
+	code := C.cuda_dispatch_rope(
 		contextRef,
 		elementFormat,
-		tableBuffer,
-		indicesBuffer,
+		inputBuffer,
 		outputBuffer,
-		errorFlagBuffer,
-		C.uint32_t(vocab),
-		C.uint32_t(hidden),
-		C.uint32_t(indexCount),
+		C.uint32_t(seqLen),
+		C.uint32_t(numHeads),
+		C.uint32_t(headDim),
+		C.uint32_t(pairCount),
+		theta,
+		1.0,
+		0.0,
+		0.0,
+		0,
+		0,
+		C.uint32_t(config.StartPosition),
 		0,
 		&status,
 	)
@@ -115,17 +125,14 @@ func DispatchLookup(
 	return nil
 }
 
-func DispatchBag(
+func DispatchRoPEPairs(
 	contextRef C.CUDADeviceRef,
-	tableBuffer C.CUDABufferRef,
-	indicesBuffer C.CUDABufferRef,
-	offsetsBuffer C.CUDABufferRef,
+	inputBuffer C.CUDABufferRef,
 	outputBuffer C.CUDABufferRef,
+	cosBuffer C.CUDABufferRef,
+	sinBuffer C.CUDABufferRef,
+	halfDim uint32,
 	format dtype.DType,
-	vocab uint32,
-	hidden uint32,
-	indexCount uint32,
-	bagCount uint32,
 ) error {
 	elementFormat := elementDType(format)
 
@@ -133,18 +140,19 @@ func DispatchBag(
 		return errUnsupportedDType
 	}
 
+	if halfDim == 0 {
+		return nil
+	}
+
 	var status C.CUDAStatus
-	code := C.cuda_dispatch_embedding_bag(
+	code := C.cuda_dispatch_rope_pairs(
 		contextRef,
 		elementFormat,
-		tableBuffer,
-		indicesBuffer,
-		offsetsBuffer,
+		inputBuffer,
 		outputBuffer,
-		C.uint32_t(vocab),
-		C.uint32_t(hidden),
-		C.uint32_t(indexCount),
-		C.uint32_t(bagCount),
+		cosBuffer,
+		sinBuffer,
+		C.uint32_t(halfDim),
 		0,
 		&status,
 	)

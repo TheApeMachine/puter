@@ -7,7 +7,7 @@ import (
 )
 
 /*
-LossKernel selects a Metal pair-loss kernel.
+LossKernel selects a CUDA pair-loss kernel.
 */
 type LossKernel int
 
@@ -20,7 +20,7 @@ const (
 )
 
 /*
-Losses implements device.Losses for the Metal backend.
+Losses implements device.Losses for the CUDA backend.
 Methods delegate kernel launch to a Host provided by the root Backend.
 */
 type Losses struct {
@@ -28,14 +28,14 @@ type Losses struct {
 }
 
 /*
-New wires a Losses receiver to its Metal dispatch host.
+New wires a Losses receiver to its CUDA dispatch host.
 */
 func New(host Host) Losses {
 	return Losses{host: host}
 }
 
 /*
-Host is the Metal dispatch surface loss operations call into.
+Host is the CUDA dispatch surface loss operations call into.
 */
 type Host interface {
 	NeedsPlatform()

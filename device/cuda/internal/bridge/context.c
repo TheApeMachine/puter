@@ -63,6 +63,16 @@ int cuda_context_prepare(
     return 0;
 }
 
+CUDAStreamRef cuda_context_default_stream(CUDADeviceRef contextRef) {
+    CUDAContext* context = cuda_context_from_ref(contextRef);
+
+    if (context == NULL) {
+        return NULL;
+    }
+
+    return context->defaultStream;
+}
+
 static int cuda_nvrtc_check(
     nvrtcResult result,
     const char* operation,
