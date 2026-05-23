@@ -124,6 +124,72 @@ func attentionScoresBytes(seqQ, seqK int) int64 {
 	return int64(seqQ) * int64(seqK) * 4
 }
 
+func causalIvScratchBytes(count uint32) int64 {
+	partialCount := partialReductionCount(count)
+	return int64(partialCount) * 5 * 4
+}
+
+func causalDagScratchBytes(count uint32) int64 {
+	partialCount := partialReductionCount(count)
+	return int64(partialCount) * 4
+}
+
+func causalScalarBytes(format dtype.DType) int64 {
+	switch format {
+	case dtype.Float32:
+		return 4
+	case dtype.Float16, dtype.BFloat16:
+		return 2
+	default:
+		return 0
+	}
+}
+
+func (bridge *cudaBridge) writeDeviceScalar(bufferRef C.CUDABufferRef, value float32, format dtype.DType) {
+	if bufferRef == nil {
+		panic("cuda: nil scalar buffer")
+	}
+
+	var payload [4]byte
+	var byteCount int64
+
+	switch format {
+	case dtype.Float32:
+		math.Float32bits(value)
+		*(*float32)(unsafe.Pointer(&payload[0])) = value
+		byteCount = 4
+	case dtype.Float16:
+		encoded := dtype.Fromfloat32(value)
+		payload[0] = byte(encoded)
+		payload[1] = byte(encoded >> 8)
+		byteCount = 2
+	case dtype.BFloat16:
+		encoded := dtype.NewBfloat16FromFloat32(value)
+		payload[0] = byte(encoded)
+		payload[1] = byte(encoded >> 8)
+		byteCount = 2
+	default:
+		panic("cuda: unsupported scalar dtype")
+	}
+
+	var status C.CUDAStatus
+	code := C.cuda_memcpy_async_h2d(
+		bufferRef,
+		unsafe.Pointer(&payload[0]),
+		C.longlong(byteCount),
+		bridge.uploadStream,
+		&status,
+	)
+
+	if code != 0 {
+		panic(bridgeStatusError(status))
+	}
+
+	if syncCode := C.cuda_stream_synchronize(bridge.uploadStream, &status); syncCode != 0 {
+		panic(bridgeStatusError(status))
+	}
+}
+
 func ropePairCount(seqLen, numHeads, headDim int) uint32 {
 	halfDim := headDim / 2
 

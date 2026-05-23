@@ -1,2 +1,25 @@
 #include "physics.cuh"
-// CUDA kernels for differential — port from metal/differential.metal
+
+PHYSICS_LAPLACIAN_KERNEL(laplacian_float32, float, physics_load_f32, physics_store_f32, load_f32, store_f32)
+PHYSICS_VECTOR_KERNEL(laplacian4_float32, physics_laplacian4_body, float, load_f32, store_f32)
+PHYSICS_VECTOR_KERNEL(grad1d_float32, physics_grad1d_body, float, load_f32, store_f32)
+PHYSICS_VECTOR_KERNEL(divergence1d_float32, physics_grad1d_body, float, load_f32, store_f32)
+PHYSICS_VECTOR_KERNEL(quantum_potential_float32, physics_quantum_potential_body, float, load_f32, store_f32)
+PHYSICS_VECTOR_KERNEL(bohmian_velocity_float32, physics_bohmian_velocity_body, float, load_f32, store_f32)
+PHYSICS_MADELUNG_KERNEL(madelung_continuity_float32, float, load_f32, store_f32)
+
+PHYSICS_LAPLACIAN_KERNEL(laplacian_float16, __half, physics_load_f16, physics_store_f16, load_f16, store_f16)
+PHYSICS_VECTOR_KERNEL(laplacian4_float16, physics_laplacian4_body, __half, load_f16, store_f16)
+PHYSICS_VECTOR_KERNEL(grad1d_float16, physics_grad1d_body, __half, load_f16, store_f16)
+PHYSICS_VECTOR_KERNEL(divergence1d_float16, physics_grad1d_body, __half, load_f16, store_f16)
+PHYSICS_VECTOR_KERNEL(quantum_potential_float16, physics_quantum_potential_body, __half, load_f16, store_f16)
+PHYSICS_VECTOR_KERNEL(bohmian_velocity_float16, physics_bohmian_velocity_body, __half, load_f16, store_f16)
+PHYSICS_MADELUNG_KERNEL(madelung_continuity_float16, __half, load_f16, store_f16)
+
+PHYSICS_LAPLACIAN_KERNEL(laplacian_bfloat16, __nv_bfloat16, physics_load_bf16, physics_store_bf16, load_bf16, store_bf16)
+PHYSICS_VECTOR_KERNEL(laplacian4_bfloat16, physics_laplacian4_body, __nv_bfloat16, load_bf16, store_bf16)
+PHYSICS_VECTOR_KERNEL(grad1d_bfloat16, physics_grad1d_body, __nv_bfloat16, load_bf16, store_bf16)
+PHYSICS_VECTOR_KERNEL(divergence1d_bfloat16, physics_grad1d_body, __nv_bfloat16, load_bf16, store_bf16)
+PHYSICS_VECTOR_KERNEL(quantum_potential_bfloat16, physics_quantum_potential_body, __nv_bfloat16, load_bf16, store_bf16)
+PHYSICS_VECTOR_KERNEL(bohmian_velocity_bfloat16, physics_bohmian_velocity_body, __nv_bfloat16, load_bf16, store_bf16)
+PHYSICS_MADELUNG_KERNEL(madelung_continuity_bfloat16, __nv_bfloat16, load_bf16, store_bf16)

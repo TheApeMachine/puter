@@ -9,6 +9,7 @@ import (
 	"github.com/theapemachine/puter/device"
 	"github.com/theapemachine/puter/device/cuda/activation"
 	"github.com/theapemachine/puter/device/cuda/attention"
+	"github.com/theapemachine/puter/device/cuda/causal"
 	"github.com/theapemachine/puter/device/cuda/convolution"
 	"github.com/theapemachine/puter/device/cuda/dropout"
 	"github.com/theapemachine/puter/device/cuda/elementwise"
@@ -220,7 +221,22 @@ func (host *ComputeHost) DispatchAxpy(y, x unsafe.Pointer, alpha float32, format
 }
 
 func (host *ComputeHost) DispatchBackdoorAdjustment(conditional, marginalZ, output unsafe.Pointer, xCount, zCount, yCount int, format dtype.DType) {
-	host.unavailable()
+	if xCount == 0 || zCount == 0 || yCount == 0 {
+		return
+	}
+
+	if err := causal.DispatchBackdoor(
+		host.contextRef(),
+		resolveBufferRef(conditional),
+		resolveBufferRef(marginalZ),
+		resolveBufferRef(output),
+		format,
+		uint32(xCount),
+		uint32(zCount),
+		uint32(yCount),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchBatchNormEval(input, scale, bias, mean, variance, output unsafe.Pointer, batch, channels, spatial int, format dtype.DType) {
@@ -292,7 +308,20 @@ func (host *ComputeHost) DispatchBundle(left, right, output unsafe.Pointer, coun
 }
 
 func (host *ComputeHost) DispatchCATE(treated, control, output unsafe.Pointer, count int, format dtype.DType) {
-	host.unavailable()
+	if count == 0 {
+		return
+	}
+
+	if err := causal.DispatchCATE(
+		host.contextRef(),
+		resolveBufferRef(treated),
+		resolveBufferRef(control),
+		resolveBufferRef(output),
+		format,
+		uint32(count),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchCausalMask(output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
@@ -312,7 +341,19 @@ func (host *ComputeHost) DispatchCausalMask(output unsafe.Pointer, seqQ, seqK in
 }
 
 func (host *ComputeHost) DispatchCholesky(input, output unsafe.Pointer, matrixOrder int, format dtype.DType) {
-	host.unavailable()
+	if matrixOrder == 0 {
+		return
+	}
+
+	if err := causal.DispatchCholesky(
+		host.contextRef(),
+		resolveBufferRef(input),
+		resolveBufferRef(output),
+		format,
+		uint32(matrixOrder),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchConv1D(config device.Conv1DConfig, input, weight, bias, output unsafe.Pointer, batch, inChannels, inLength, outChannels, kernelLength, outLength int, format dtype.DType) {
@@ -426,7 +467,28 @@ func (host *ComputeHost) DispatchConvTranspose2D(config device.Conv2DConfig, inp
 }
 
 func (host *ComputeHost) DispatchCounterfactual(observedY, observedX, counterfactualX, output unsafe.Pointer, count int, slope float32, format dtype.DType) {
-	host.unavailable()
+	if count == 0 || host.bridge == nil {
+		return
+	}
+
+	slopeBuffer := host.bridge.borrowScratch(causalScalarBytes(format))
+
+	defer host.bridge.releaseScratch(slopeBuffer)
+
+	host.bridge.writeDeviceScalar(slopeBuffer, slope, format)
+
+	if err := causal.DispatchCounterfactual(
+		host.contextRef(),
+		resolveBufferRef(observedY),
+		resolveBufferRef(observedX),
+		resolveBufferRef(counterfactualX),
+		slopeBuffer,
+		resolveBufferRef(output),
+		format,
+		uint32(count),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchDAGMarkovFactorization(conditionals unsafe.Pointer, conditionalCount int, output unsafe.Pointer, format dtype.DType) {
