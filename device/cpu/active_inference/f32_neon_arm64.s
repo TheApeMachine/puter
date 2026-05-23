@@ -31,7 +31,7 @@ DATA aiLogC<>+16(SB)/4, $0.14285715
 DATA aiLogC<>+20(SB)/4, $0.20000000
 DATA aiLogC<>+24(SB)/4, $0.33333334
 DATA aiLogC<>+28(SB)/4, $2.0
-GLOBL aiLogC<>(SB), RODATA|NOPTR, $32
+GLOBL aiLogC<>(SB), 8, $32
 
 // func PrecisionWeightFloat32NEONAsm(errors, precision, output *float32, count int)
 TEXT ·PrecisionWeightFloat32NEONAsm(SB), NOSPLIT, $0-32
@@ -172,26 +172,40 @@ ai_bu_done:
 #define AI_F32X4_TO_F64_ADD_CE(src) \
 	FCVTL_2D(src, 8) ;\
 	FCVTL2_2D(src, 9) ;\
-	VFADD_D2(8, 28, 28) ;\
-	VFADD_D2(9, 28, 28)
+	FADDD F8, F14, F14 ;\
+	FADDD F9, F14, F14 ;\
+	FADDD F10, F14, F14 ;\
+	FADDD F11, F14, F14
 
 #define AI_F32X4_TO_F64_ADD_KL(src) \
 	FCVTL_2D(src, 8) ;\
 	FCVTL2_2D(src, 9) ;\
-	VFADD_D2(8, 29, 29) ;\
-	VFADD_D2(9, 29, 29)
+	FADDD F8, F15, F15 ;\
+	FADDD F9, F15, F15 ;\
+	FADDD F10, F15, F15 ;\
+	FADDD F11, F15, F15
 
 #define AI_F32_LANE0_F64_ADD_CE \
-	FCVTSD F13, F6 ;\
-	FADDD F6, F14, F14
+	FCVTSD F6, F8 ;\
+	FADDD F8, F14, F14
 
-#define AI_F32_LANE0_V13_F64_ADD_KL \
-	FCVTSD F13, F6 ;\
-	FADDD F6, F15, F15
+#define AI_F32_LANE0_F64_ADD_KL \
+	FCVTSD F6, F8 ;\
+	FADDD F8, F15, F15
 
-#define AI_F32_LANE0_V14_F64_ADD_KL \
-	FCVTSD F14, F6 ;\
-	FADDD F6, F15, F15
+#define AI_F32_LANE0_V7_F64_ADD_KL \
+	FCVTSD F7, F8 ;\
+	FADDD F8, F15, F15
+
+#define AI_FE_STORE_RESULT \
+	FADDD F15, F14, F0 ;\
+	FCVTDS F0, F0 ;\
+	FMOVS F0, ret+32(FP)
+
+#define AI_EFE_STORE_RESULT \
+	FADDD F15, F14, F0 ;\
+	FCVTDS F0, F0 ;\
+	FMOVS F0, ret+40(FP)
 
 #define AI_LOAD_LOG_MASKS \
 	MOVD $0x007FFFFF, R6 ;\
@@ -227,11 +241,12 @@ ai_bu_done:
 	AI_RELOAD_LOG_POLY ;\
 	AI_LOAD_LOG_MASKS
 
-// Natural log on four clamped lanes in `in`, result in `out`. Temporaries v0-v8.
+// Natural log on four clamped lanes in `in`, result in `out`. Staging in V9 preserves V20 log coefficients.
 #define AI_NEON_LOG4(in, out) \
-	VUSHR_S4_BY23(in, 1) ;\
+	VMOV_B16(in, 9) ;\
+	VUSHR_S4_BY23(9, 1) ;\
 	VISUB_S4(26, 1, 1) ;\
-	VAND_B16(24, in, 2) ;\
+	VAND_B16(24, 9, 2) ;\
 	VORR_B16(25, 2, 2) ;\
 	VSCVTF_S4(1, 1) ;\
 	VFSUB_S4(17, 2, 3) ;\
@@ -239,16 +254,11 @@ ai_bu_done:
 	VFDIV_S4(4, 3, 5) ;\
 	VFMUL_S4(5, 5, 6) ;\
 	VMOV_B16(18, 7) ;\
-	VMOV_B16(19, 8) ;\
-	VFMLA_S4(6, 7, 8) ;\
-	VMOV_B16(20, 7) ;\
-	VFMLA_S4(6, 8, 7) ;\
-	VMOV_B16(21, 8) ;\
-	VFMLA_S4(6, 7, 8) ;\
-	VMOV_B16(22, 7) ;\
-	VFMLA_S4(6, 8, 7) ;\
-	VMOV_B16(17, 8) ;\
-	VFMLA_S4(6, 7, 8) ;\
+	VMOV_B16(19, 8) ; VFMLA_S4(6, 7, 8) ;\
+	VMOV_B16(20, 7) ; VFMLA_S4(6, 8, 7) ;\
+	VMOV_B16(21, 8) ; VFMLA_S4(6, 7, 8) ;\
+	VMOV_B16(22, 7) ; VFMLA_S4(6, 8, 7) ;\
+	VMOV_B16(17, 8) ; VFMLA_S4(6, 7, 8) ;\
 	VFMUL_S4(5, 8, 8) ;\
 	VFMUL_S4(23, 8, 8) ;\
 	VFMLA_S4(16, 1, 8) ;\
@@ -262,19 +272,19 @@ ai_bu_done:
 	VMAX_S4(31, 3, 3) ;\
 	VMAX_S4(31, 4, 4) ;\
 	VMAX_S4(31, 5, 5) ;\
-	AI_RELOAD_LOG_POLY ;\
+	AI_LOAD_LOG_CONSTS ;\
 	AI_NEON_LOG4(3, 10) ;\
-	AI_RELOAD_LOG_POLY ;\
+	AI_LOAD_LOG_CONSTS ;\
 	AI_NEON_LOG4(4, 11) ;\
-	AI_RELOAD_LOG_POLY ;\
+	AI_LOAD_LOG_CONSTS ;\
 	AI_NEON_LOG4(5, 12) ;\
 	VEOR V30.B16, V30.B16, V30.B16 ;\
-	VFSUB_S4(10, 30, 13) ;\
-	VFMUL_S4(27, 13, 13) ;\
-	AI_F32X4_TO_F64_ADD_CE(13) ;\
-	VFSUB_S4(12, 11, 14) ;\
-	VFMUL_S4(27, 14, 14) ;\
-	AI_F32X4_TO_F64_ADD_KL(14) ;\
+	VFSUB_S4(10, 30, 6) ;\
+	VFMUL_S4(27, 6, 6) ;\
+	AI_F32X4_TO_F64_ADD_CE(6) ;\
+	VFSUB_S4(12, 11, 7) ;\
+	VFMUL_S4(27, 7, 7) ;\
+	AI_F32X4_TO_F64_ADD_KL(7) ;\
 	ADD  $16, R10 ;\
 	ADD  $16, R11 ;\
 	ADD  $16, R12 ;\
@@ -291,19 +301,19 @@ ai_bu_done:
 	VMAX_S4(31, 3, 3) ;\
 	VMAX_S4(31, 4, 4) ;\
 	VMAX_S4(31, 5, 5) ;\
-	AI_RELOAD_LOG_POLY ;\
+	AI_LOAD_LOG_CONSTS ;\
 	AI_NEON_LOG4(3, 10) ;\
-	AI_RELOAD_LOG_POLY ;\
+	AI_LOAD_LOG_CONSTS ;\
 	AI_NEON_LOG4(4, 11) ;\
-	AI_RELOAD_LOG_POLY ;\
+	AI_LOAD_LOG_CONSTS ;\
 	AI_NEON_LOG4(5, 12) ;\
 	VEOR V30.B16, V30.B16, V30.B16 ;\
-	VFSUB_S4(10, 30, 13) ;\
-	VFMUL_S4(27, 13, 13) ;\
+	VFSUB_S4(10, 30, 6) ;\
+	VFMUL_S4(27, 6, 6) ;\
 	AI_F32_LANE0_F64_ADD_CE ;\
-	VFSUB_S4(12, 11, 14) ;\
-	VFMUL_S4(27, 14, 14) ;\
-	AI_F32_LANE0_V14_F64_ADD_KL ;\
+	VFSUB_S4(12, 11, 7) ;\
+	VFMUL_S4(27, 7, 7) ;\
+	AI_F32_LANE0_V7_F64_ADD_KL ;\
 	ADD  $4, R10 ;\
 	ADD  $4, R11 ;\
 	ADD  $4, R12 ;\
@@ -315,13 +325,13 @@ ai_bu_done:
 	VMOV_B16(3, 27) ;\
 	VMAX_S4(31, 3, 3) ;\
 	VMAX_S4(31, 4, 4) ;\
-	AI_RELOAD_LOG_POLY ;\
+	AI_LOAD_LOG_CONSTS ;\
 	AI_NEON_LOG4(3, 10) ;\
-	AI_RELOAD_LOG_POLY ;\
+	AI_LOAD_LOG_CONSTS ;\
 	AI_NEON_LOG4(4, 11) ;\
-	VFSUB_S4(11, 10, 13) ;\
-	VFMUL_S4(27, 13, 13) ;\
-	AI_F32X4_TO_F64_ADD_CE(13) ;\
+	VFSUB_S4(11, 10, 6) ;\
+	VFMUL_S4(27, 6, 6) ;\
+	AI_F32X4_TO_F64_ADD_CE(6) ;\
 	ADD  $16, R0 ;\
 	ADD  $16, R1 ;\
 	SUB  $4, R3
@@ -334,12 +344,12 @@ ai_bu_done:
 	VMOV_B16(3, 27) ;\
 	VMAX_S4(31, 3, 3) ;\
 	VMAX_S4(31, 4, 4) ;\
-	AI_RELOAD_LOG_POLY ;\
+	AI_LOAD_LOG_CONSTS ;\
 	AI_NEON_LOG4(3, 10) ;\
-	AI_RELOAD_LOG_POLY ;\
+	AI_LOAD_LOG_CONSTS ;\
 	AI_NEON_LOG4(4, 11) ;\
-	VFSUB_S4(11, 10, 13) ;\
-	VFMUL_S4(27, 13, 13) ;\
+	VFSUB_S4(11, 10, 6) ;\
+	VFMUL_S4(27, 6, 6) ;\
 	AI_F32_LANE0_F64_ADD_CE ;\
 	ADD  $4, R0 ;\
 	ADD  $4, R1 ;\
@@ -349,12 +359,12 @@ ai_bu_done:
 	VLD1 (R2), [V3.S4] ;\
 	VMOV_B16(3, 27) ;\
 	VMAX_S4(31, 3, 3) ;\
-	AI_RELOAD_LOG_POLY ;\
+	AI_LOAD_LOG_CONSTS ;\
 	AI_NEON_LOG4(3, 10) ;\
 	VEOR V30.B16, V30.B16, V30.B16 ;\
-	VFSUB_S4(10, 30, 13) ;\
-	VFMUL_S4(27, 13, 13) ;\
-	AI_F32X4_TO_F64_ADD_KL(13) ;\
+	VFSUB_S4(10, 30, 6) ;\
+	VFMUL_S4(27, 6, 6) ;\
+	AI_F32X4_TO_F64_ADD_KL(6) ;\
 	ADD  $16, R2 ;\
 	SUB  $4, R4
 
@@ -363,14 +373,83 @@ ai_bu_done:
 	VDUP V3.S[0], V3.S4 ;\
 	VMOV_B16(3, 27) ;\
 	VMAX_S4(31, 3, 3) ;\
-	AI_RELOAD_LOG_POLY ;\
+	AI_LOAD_LOG_CONSTS ;\
 	AI_NEON_LOG4(3, 10) ;\
 	VEOR V30.B16, V30.B16, V30.B16 ;\
-	VFSUB_S4(10, 30, 13) ;\
-	VFMUL_S4(27, 13, 13) ;\
-	AI_F32_LANE0_V13_F64_ADD_KL ;\
+	VFSUB_S4(10, 30, 6) ;\
+	VFMUL_S4(27, 6, 6) ;\
+	AI_F32_LANE0_F64_ADD_KL ;\
 	ADD  $4, R2 ;\
 	SUB  $1, R4
+
+// AiNeonLogProbeAsm writes natural log of max(x, eps) into out.
+TEXT ·AiNeonLogProbeAsm(SB), NOSPLIT, $0-16
+	MOVD x+0(FP), R10
+	MOVD out+8(FP), R11
+	FMOVS R10, F3
+	VDUP V3.S[0], V3.S4
+	MOVD $0x2b8cbccc, R17
+	VMOV R17, V31.S[0]
+	VDUP V31.S[0], V31.S4
+	VMAX_S4(31, 3, 3)
+	AI_LOAD_LOG_CONSTS
+	AI_NEON_LOG4(3, 10)
+	FMOVS F10, (R11)
+	RET
+
+// AiNeonFeLogLikeProbeAsm runs tail clamp+log on likelihood and writes logLike lane0.
+TEXT ·AiNeonFeLogLikeProbeAsm(SB), NOSPLIT, $0-16
+	MOVD likelihood+0(FP), R10
+	MOVD out+8(FP), R11
+	FMOVS (R10), F3
+	VDUP V3.S[0], V3.S4
+	MOVD $0x2b8cbccc, R17
+	VMOV R17, V31.S[0]
+	VDUP V31.S[0], V31.S4
+	VMAX_S4(31, 3, 3)
+	AI_LOAD_LOG_CONSTS
+	AI_NEON_LOG4(3, 10)
+	FMOVS F10, (R11)
+	RET
+
+// AiNeonFeTailProbeAsm runs one tail element and writes ceAcc and klAcc.
+TEXT ·AiNeonFeTailProbeAsm(SB), NOSPLIT, $0-40
+	MOVD likelihood+0(FP), R10
+	MOVD posterior+8(FP), R11
+	MOVD prior+16(FP), R12
+	MOVD ceAcc+24(FP), R19
+	MOVD klAcc+32(FP), R20
+	FMOVD $0, F14
+	FMOVD $0, F15
+	FMOVS (R10), F3
+	VDUP V3.S[0], V3.S4
+	FMOVS (R11), F4
+	VDUP V4.S[0], V4.S4
+	FMOVS (R12), F5
+	VDUP V5.S[0], V5.S4
+	MOVD $0x2b8cbccc, R17
+	VMOV R17, V31.S[0]
+	VDUP V31.S[0], V31.S4
+	VMOV_B16(4, 27)
+	VMAX_S4(31, 3, 3)
+	VMAX_S4(31, 4, 4)
+	VMAX_S4(31, 5, 5)
+	AI_LOAD_LOG_CONSTS
+	AI_NEON_LOG4(3, 10)
+	AI_LOAD_LOG_CONSTS
+	AI_NEON_LOG4(4, 11)
+	AI_LOAD_LOG_CONSTS
+	AI_NEON_LOG4(5, 12)
+	VEOR V30.B16, V30.B16, V30.B16
+	VFSUB_S4(10, 30, 6)
+	VFMUL_S4(27, 6, 6)
+	AI_F32_LANE0_F64_ADD_CE
+	VFSUB_S4(12, 11, 7)
+	VFMUL_S4(27, 7, 7)
+	AI_F32_LANE0_V7_F64_ADD_KL
+	FMOVD F14, 0(R19)
+	FMOVD F15, 0(R20)
+	RET
 
 // func FreeEnergyFloat32NEONAsm(likelihood, posterior, prior *float32, count int) float32
 TEXT ·FreeEnergyFloat32NEONAsm(SB), NOSPLIT, $0-40
@@ -383,8 +462,6 @@ TEXT ·FreeEnergyFloat32NEONAsm(SB), NOSPLIT, $0-40
 	VMOV R17, V31.S[0]
 	VDUP V31.S[0], V31.S4
 	AI_LOAD_LOG_CONSTS
-	VEOR V28.B16, V28.B16, V28.B16
-	VEOR V29.B16, V29.B16, V29.B16
 	FMOVD $0, F14
 	FMOVD $0, F15
 	CBZ  R3, ai_fe_store
@@ -404,13 +481,7 @@ ai_fe_tail_loop:
 	CBNZ R3, ai_fe_tail_loop
 
 ai_fe_store:
-	FADDP_D(28, 0)
-	FADDP_D(29, 1)
-	FADDD F14, F0, F0
-	FADDD F15, F1, F1
-	FADDD F1, F0, F0
-	FCVTDS F0, F0
-	FMOVS F0, ret+32(FP)
+	AI_FE_STORE_RESULT
 	RET
 
 // func ExpectedFreeEnergyFloat32NEONAsm(
@@ -428,8 +499,6 @@ TEXT ·ExpectedFreeEnergyFloat32NEONAsm(SB), NOSPLIT, $0-48
 	VMOV R17, V31.S[0]
 	VDUP V31.S[0], V31.S4
 	AI_LOAD_LOG_CONSTS
-	VEOR V28.B16, V28.B16, V28.B16
-	VEOR V29.B16, V29.B16, V29.B16
 	FMOVD $0, F14
 	FMOVD $0, F15
 
@@ -466,11 +535,5 @@ ai_efe_state_tail_loop:
 	CBNZ R4, ai_efe_state_tail_loop
 
 ai_efe_store:
-	FADDP_D(28, 0)
-	FADDP_D(29, 1)
-	FADDD F14, F0, F0
-	FADDD F15, F1, F1
-	FADDD F1, F0, F0
-	FCVTDS F0, F0
-	FMOVS F0, ret+40(FP)
+	AI_EFE_STORE_RESULT
 	RET

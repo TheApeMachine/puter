@@ -32,6 +32,13 @@ func ReferenceExp(format dtype.DType) UnaryReference {
 }
 
 /*
+ReferenceGeluTanh returns the production CPU reference kernel for GeluTanh.
+*/
+func ReferenceGeluTanh(format dtype.DType) UnaryReference {
+	return productionUnaryReference(cpuactivation.GeluTanh, format)
+}
+
+/*
 ReferenceGelu returns the production CPU reference kernel for Gelu.
 */
 func ReferenceGelu(format dtype.DType) UnaryReference {

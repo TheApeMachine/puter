@@ -5,6 +5,7 @@
 #define VFSUB_S4(m, n, d) WORD $(0x4EA0D400 | ((m) << 16) | ((n) << 5) | (d))
 #define VFMUL_S4(m, n, d) WORD $(0x6E20DC00 | ((m) << 16) | ((n) << 5) | (d))
 #define VFADD_S4(m, n, d) WORD $(0x4E20D400 | ((m) << 16) | ((n) << 5) | (d))
+#define VFMLA_S4(m, n, d) WORD $(0x4E20CC00 | ((m) << 16) | ((n) << 5) | (d))
 #define VFADD_D2(m, n, d) WORD $(0x4E60D400 | ((m) << 16) | ((n) << 5) | (d))
 #define VFMUL_D2(m, n, d) WORD $(0x6E60DC00 | ((m) << 16) | ((n) << 5) | (d))
 #define FCVTL_2D(n, d)     WORD $(0x0E617800 | ((n) << 5) | (d))

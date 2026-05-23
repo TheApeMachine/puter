@@ -145,7 +145,9 @@ func TestFreeEnergyFloat32NEONAsmBlockParity(t *testing.T) {
 				want := FreeEnergyF32Generic(&likelihood[0], &posterior[0], &prior[0], blockCount)
 				got := FreeEnergyFloat32NEONAsm(&likelihood[0], &posterior[0], &prior[0], blockCount)
 
-				assertScalarSumParityNEON(t, got, want, blockCount)
+				parity.AssertFloat32SlicesWithinULP(
+					t, []float32{got}, []float32{want}, activeInferenceLogMaxULP,
+				)
 			})
 		}
 	})

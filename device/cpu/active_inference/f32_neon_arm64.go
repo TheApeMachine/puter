@@ -12,6 +12,18 @@ func BeliefUpdateFloat32NEONAsm(likelihood, prior, output *float32, count int)
 func FreeEnergyFloat32NEONAsm(likelihood, posterior, prior *float32, count int) float32
 
 //go:noescape
+func AiNeonLogProbeAsm(value float32, out *float32)
+
+//go:noescape
+func AiNeonFeLogLikeProbeAsm(likelihood *float32, out *float32)
+
+//go:noescape
+func AiNeonFeTailProbeAsm(
+	likelihood, posterior, prior *float32,
+	ceAcc, klAcc *float64,
+)
+
+//go:noescape
 func ExpectedFreeEnergyFloat32NEONAsm(
 	predictedObs, preferredObs, predictedState *float32,
 	obsCount, stateCount int,

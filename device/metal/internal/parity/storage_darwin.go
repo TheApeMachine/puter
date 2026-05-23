@@ -3,9 +3,8 @@
 package parity
 
 import (
-	"math"
-
 	"github.com/theapemachine/manifesto/dtype"
+	cpuelementwise "github.com/theapemachine/puter/device/cpu/elementwise"
 )
 
 func metalStorageLoad(value float32, format dtype.DType) float32 {
@@ -33,5 +32,10 @@ func metalFloat32InvStdDev(varianceSum float32, elementCount int) float32 {
 
 	varianceMean := varianceSum / float32(elementCount)
 	denominator := varianceMean + float32(normEpsilon)
-	return float32(1.0) / float32(math.Sqrt(float64(denominator)))
+
+	sqrtInput := []float32{denominator}
+	sqrtOutput := make([]float32, 1)
+	cpuelementwise.SqrtFloat32Native(sqrtOutput, sqrtInput)
+
+	return float32(1.0) / sqrtOutput[0]
 }

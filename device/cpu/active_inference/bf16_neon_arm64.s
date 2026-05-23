@@ -10,7 +10,7 @@ DATA aiLogC<>+16(SB)/4, $0.14285715
 DATA aiLogC<>+20(SB)/4, $0.20000000
 DATA aiLogC<>+24(SB)/4, $0.33333334
 DATA aiLogC<>+28(SB)/4, $2.0
-GLOBL aiLogC<>(SB), RODATA|NOPTR, $32
+GLOBL aiLogC<>(SB), 8, $32
 
 #define VFADD_S4(m, n, d)   WORD $(0x4E20D400 | ((m) << 16) | ((n) << 5) | (d))
 #define VFSUB_S4(m, n, d)   WORD $(0x4EA0D400 | ((m) << 16) | ((n) << 5) | (d))
@@ -34,76 +34,26 @@ GLOBL aiLogC<>(SB), RODATA|NOPTR, $32
 #define BF16_WIDEN_H8_TO_S4_HIGH(src, dst) VZIP2 src, V30.H8, dst
 #define BF16_NARROW_S4_TO_H8(s0, s1, dst)  VUZP2 s1, s0, dst
 
+#define FADDV_S4(n, d) WORD $(0x4E31B800 | ((n) << 5) | (d))
+
 #define AI_BF16_BU_ACCUM_V4 \
-	VMOV R6, V4.S[0] ;\
-	FMOVS R6, F0 ;\
-	FCVTSD F0, F6 ;\
-	FADDD F6, F23, F23 ;\
-	VMOV R6, V4.S[1] ;\
-	FMOVS R6, F0 ;\
-	FCVTSD F0, F6 ;\
-	FADDD F6, F23, F23 ;\
-	VMOV R6, V4.S[2] ;\
-	FMOVS R6, F0 ;\
-	FCVTSD F0, F6 ;\
-	FADDD F6, F23, F23 ;\
-	VMOV R6, V4.S[3] ;\
-	FMOVS R6, F0 ;\
-	FCVTSD F0, F6 ;\
+	FADDV_S4(4, 8) ;\
+	FCVTSD F8, F6 ;\
 	FADDD F6, F23, F23
 
 #define AI_BF16_BU_ACCUM_V5 \
-	VMOV R6, V5.S[0] ;\
-	FMOVS R6, F0 ;\
-	FCVTSD F0, F6 ;\
-	FADDD F6, F23, F23 ;\
-	VMOV R6, V5.S[1] ;\
-	FMOVS R6, F0 ;\
-	FCVTSD F0, F6 ;\
-	FADDD F6, F23, F23 ;\
-	VMOV R6, V5.S[2] ;\
-	FMOVS R6, F0 ;\
-	FCVTSD F0, F6 ;\
-	FADDD F6, F23, F23 ;\
-	VMOV R6, V5.S[3] ;\
-	FMOVS R6, F0 ;\
-	FCVTSD F0, F6 ;\
+	FADDV_S4(5, 8) ;\
+	FCVTSD F8, F6 ;\
 	FADDD F6, F23, F23
 
 #define AI_BF16_BU_ACCUM_V6 \
-	VMOV R6, V6.S[0] ;\
-	FMOVS R6, F0 ;\
-	FCVTSD F0, F6 ;\
-	FADDD F6, F23, F23 ;\
-	VMOV R6, V6.S[1] ;\
-	FMOVS R6, F0 ;\
-	FCVTSD F0, F6 ;\
-	FADDD F6, F23, F23 ;\
-	VMOV R6, V6.S[2] ;\
-	FMOVS R6, F0 ;\
-	FCVTSD F0, F6 ;\
-	FADDD F6, F23, F23 ;\
-	VMOV R6, V6.S[3] ;\
-	FMOVS R6, F0 ;\
-	FCVTSD F0, F6 ;\
+	FADDV_S4(6, 8) ;\
+	FCVTSD F8, F6 ;\
 	FADDD F6, F23, F23
 
 #define AI_BF16_BU_ACCUM_V7 \
-	VMOV R6, V7.S[0] ;\
-	FMOVS R6, F0 ;\
-	FCVTSD F0, F6 ;\
-	FADDD F6, F23, F23 ;\
-	VMOV R6, V7.S[1] ;\
-	FMOVS R6, F0 ;\
-	FCVTSD F0, F6 ;\
-	FADDD F6, F23, F23 ;\
-	VMOV R6, V7.S[2] ;\
-	FMOVS R6, F0 ;\
-	FCVTSD F0, F6 ;\
-	FADDD F6, F23, F23 ;\
-	VMOV R6, V7.S[3] ;\
-	FMOVS R6, F0 ;\
-	FCVTSD F0, F6 ;\
+	FADDV_S4(7, 8) ;\
+	FCVTSD F8, F6 ;\
 	FADDD F6, F23, F23
 
 #define AI_F32X4_TO_F64_ADD_CE(src) \

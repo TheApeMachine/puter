@@ -140,9 +140,15 @@ smexp_avx512_w4_tail:
 	VADDPS Y24, Y5, Y5
 	VMOVDQU32 Y7, K7, (DI)
 smexp_avx512_reduce:
-	VHADDPS Y5, Y5, Y5
-	VHADDPS Y5, Y5, Y5
 	VEXTRACTF128 $0, Y5, X0
+	VEXTRACTF128 $1, Y5, X1
+	VADDPS X1, X0, X0
+	MOVAPS X0, X1
+	SHUFPS $2, X0, X1
+	ADDPS X1, X0
+	MOVAPS X0, X1
+	SHUFPS $1, X0, X1
+	ADDPS X1, X0
 smexp_avx512_done:
 	MOVSS X0, ret+32(FP)
 	RET
@@ -270,8 +276,12 @@ reduce_max_avx512_w4_tail:
 reduce_max_avx512_extract:
 	VEXTRACTF128 $1, Y0, X1
 	VMAXPS X1, X0, X0
-	VHADDPS X0, X0, X0
-	VHADDPS X0, X0, X0
+	MOVAPS X0, X1
+	SHUFPS $2, X0, X1
+	MAXPS X1, X0
+	MOVAPS X0, X1
+	SHUFPS $1, X0, X1
+	MAXPS X1, X0
 reduce_max_avx512_done:
 	MOVSS X0, ret+16(FP)
 	RET

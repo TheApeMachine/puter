@@ -23,7 +23,8 @@
 #define VAND_B16(m, n, d)   WORD $(0x4E201C00 | ((m) << 16) | ((n) << 5) | (d))
 #define VORR_B16(m, n, d)   WORD $(0x4EA01C00 | ((m) << 16) | ((n) << 5) | (d))
 #define VSCVTF_S4(n, d)     WORD $(0x4E21D800 | ((n) << 5) | (d))
-#define VFABS_S4(n, d)      WORD $(0x6EA0F000 | ((n) << 5) | (d))
+#define VFABS_S4(n, d)      WORD $(0x4EA0F800 | ((n) << 5) | (d))
+#define VMVN_B16(n, d)      WORD $(0x4EA01200 | ((n) << 5) | (d))
 #define VMAX_S4(m, n, d)    WORD $(0x6EA0F400 | ((m) << 16) | ((n) << 5) | (d))
 #define VMIN_S4(m, n, d)    WORD $(0x6EA0D400 | ((m) << 16) | ((n) << 5) | (d))
 
@@ -313,88 +314,64 @@ VFNEG_S4(7, 7)
             RET
 
 
-// func GeluF32NEON(dst, src *float32, count int)
+#define NEON_GELU_ERF_BODY(in, out) \
+    VMOV_B16(in, 10) ;\
+    VFMUL_S4(29, in, 11) ;\
+    VFABS_S4(11, 12) ;\
+    VFADD_S4(30, 12, 13) ;\
+    VFDIV_S4(13, 12, 12) ;\
+    VFMUL_S4(11, 11, 15) ;\
+    VFADD_S4(12, 15, 14) ;\
+    VFMUL_S4(14, 12, 14) ;\
+    VFSUB_S4(26, 14, 14) ;\
+    VFCMGT_S4(11, 15, 13) ;\
+    VMVN_B16(13, 13) ;\
+    VFNEG_S4(14, 3) ;\
+    VBSL_B16(13, 3, 14) ;\
+    VFADD_S4(26, 14, 14) ;\
+    VFMUL_S4(10, 14, out) ;\
+    VFMUL_S4(24, out, out)
+
+
+// func GeluF32NEON(dst, src *float32, count int) — 0.5*x*(1+erf(x/sqrt(2)))
 TEXT ·GeluF32NEON(SB), NOSPLIT, $0-24
     MOVD dst+0(FP), R0
     MOVD src+8(FP), R1
     MOVD n+16(FP), R2
 
-MOVD $actExtraExpC(SB), R3
-FMOVS  0(R3), F16
-FMOVS  4(R3), F17
-FMOVS  8(R3), F18
-FMOVS 12(R3), F19
-FMOVS 16(R3), F20
-FMOVS 20(R3), F21
-FMOVS 24(R3), F22
-FMOVS 28(R3), F23
-FMOVS 32(R3), F24
-FMOVS 36(R3), F25
-FMOVS 40(R3), F26
-VFCVTZS_S4(18, 27)
-FMOVS 44(R3), F28
     MOVD $actExtraMiscC(SB), R3
-    FMOVS 32(R3), F24
+    FMOVS 36(R3), F29
+    VDUP V29.S[0], V29.S4
+    FMOVS 0(R3), F30
+    VDUP V30.S[0], V30.S4
+    FMOVS 16(R3), F24
+    VDUP V24.S[0], V24.S4
 
-        loop4:
-            CMP  $4, R2
-            BLT  scalar_tail
-            VLD1.P 16(R1), [V0.S4]
+    MOVD $actExtraExpC(SB), R4
+    FMOVS 40(R4), F26
+    VDUP V26.S[0], V26.S4
 
-VMOV_B16(0, 10)
-FMOVS 36(R3), F29
-VFMUL_S4(29, 0, 11)
-VFABS_S4(11, 12)
-FMOVS 0(R3), F30
-VFADD_S4(30, 12, 13)
-VFDIV_S4(13, 12, 12)
-VFNEG_S4(11, 14)
-VFMUL_S4(14, 14, 15)
-VFMLA_S4(11, 12, 14)
-VFMUL_S4(14, 12, 14)
-VFSUB_S4(26, 14, 14)
-VFCMGT_S4(8, 11, 13)
-VFNEG_S4(14, 15)
-VBSL_B16(13, 15, 14)
-VFADD_S4(26, 14, 14)
-VFMUL_S4(10, 14, 7)
-VFMUL_S4(24, 7, 7)
-
-            VST1.P [V7.S4], 16(R0)
-            SUB  $4, R2
-            B    loop4
-        scalar_tail:
-            CBZ  R2, done
-        scalar_loop:
-            FMOVS (R1), F0
-            VDUP V0.S[0], V0.S4
-
-VMOV_B16(0, 10)
-FMOVS 36(R3), F29
-VFMUL_S4(29, 0, 11)
-VFABS_S4(11, 12)
-FMOVS 0(R3), F30
-VFADD_S4(30, 12, 13)
-VFDIV_S4(13, 12, 12)
-VFNEG_S4(11, 14)
-VFMUL_S4(14, 14, 15)
-VFMLA_S4(11, 12, 14)
-VFMUL_S4(14, 12, 14)
-VFSUB_S4(26, 14, 14)
-VFCMGT_S4(8, 11, 13)
-VFNEG_S4(14, 15)
-VBSL_B16(13, 15, 14)
-VFADD_S4(26, 14, 14)
-VFMUL_S4(10, 14, 7)
-VFMUL_S4(24, 7, 7)
-
-            FMOVS F7, (R0)
-            ADD  $4, R1
-            ADD  $4, R0
-            SUB  $1, R2
-            CBNZ R2, scalar_loop
-        done:
-            RET
+    gelu_loop4:
+        CMP  $4, R2
+        BLT  gelu_scalar_tail
+        VLD1.P 16(R1), [V0.S4]
+        NEON_GELU_ERF_BODY(0, 7)
+        VST1.P [V7.S4], 16(R0)
+        SUB  $4, R2
+        B    gelu_loop4
+    gelu_scalar_tail:
+        CBZ  R2, gelu_done
+    gelu_scalar_loop:
+        FMOVS (R1), F0
+        VDUP V0.S[0], V0.S4
+        NEON_GELU_ERF_BODY(0, 7)
+        FMOVS F7, (R0)
+        ADD  $4, R1
+        ADD  $4, R0
+        SUB  $1, R2
+        CBNZ R2, gelu_scalar_loop
+    gelu_done:
+        RET
 
 
 // func LeakyReLUF32NEON(dst, src *float32, count int)
