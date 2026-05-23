@@ -3,8 +3,6 @@ package xla
 import (
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
-	"github.com/theapemachine/puter/device/xla/activation"
-	"github.com/theapemachine/puter/device/xla/elementwise"
 )
 
 /*
@@ -125,4 +123,15 @@ func (builder *Builder) RecordExecutable(
 	executable *CompiledExecutable,
 ) {
 	builder.cache.Store(programKey, executable)
+}
+
+/*
+NewDefaultBuilder constructs a builder with standard activation and elementwise lowerings.
+*/
+func NewDefaultBuilder(target string) *Builder {
+	registry := NewLoweringRegistry()
+	RegisterStandardActivations(registry)
+	RegisterElementwiseLowerings(registry)
+
+	return NewBuilder(NewExecutableCache(), registry, target)
 }

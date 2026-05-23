@@ -4,18 +4,19 @@ package normalization
 
 import (
 	"unsafe"
-
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/puter/device"
 )
-func (normalization *Normalization) GroupNorm( config GroupNormConfig, input, scale, bias, output unsafe.Pointer, batch, channels, spatial int, format dtype.DType, ) {
+
+func (normalization *Normalization) BatchNormEval(input, scale, bias, mean, variance, output unsafe.Pointer, batch, channels, spatial int, format dtype.DType,) {
 	normalization.stubHost()
 }
 
-func (normalization *Normalization) InstanceNorm( input, scale, bias, output unsafe.Pointer, batch, channels, spatial int, format dtype.DType, ) {
+func (normalization *Normalization) GroupNorm(config device.GroupNormConfig, input, scale, bias, output unsafe.Pointer, batch, channels, spatial int, format dtype.DType,) {
 	normalization.stubHost()
 }
 
-func (normalization *Normalization) BatchNormEval( input, scale, bias, mean, variance, output unsafe.Pointer, batch, channels, spatial int, format dtype.DType, ) {
+func (normalization *Normalization) InstanceNorm(input, scale, bias, output unsafe.Pointer, batch, channels, spatial int, format dtype.DType,) {
 	normalization.stubHost()
 }
 

@@ -12,7 +12,7 @@ Host is the XLA dispatch surface predictive_coding operations call into.
 */
 type Host interface {
     NeedsPlatform()
-    notImplemented(string)
+    NotImplemented(string)
 }
 
 /*
@@ -24,4 +24,8 @@ func New(host Host) PredictiveCoding {
 
 func (receiver *PredictiveCoding) stubHost() {
     receiver.host.NeedsPlatform()
+}
+
+func (receiver *PredictiveCoding) unimplemented(methodName string) {
+	receiver.host.NotImplemented(methodName)
 }

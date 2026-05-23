@@ -12,7 +12,7 @@ Host is the XLA dispatch surface physics operations call into.
 */
 type Host interface {
     NeedsPlatform()
-    notImplemented(string)
+    NotImplemented(string)
 }
 
 /*
@@ -24,4 +24,8 @@ func New(host Host) Physics {
 
 func (receiver *Physics) stubHost() {
     receiver.host.NeedsPlatform()
+}
+
+func (receiver *Physics) unimplemented(methodName string) {
+	receiver.host.NotImplemented(methodName)
 }

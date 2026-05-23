@@ -12,7 +12,7 @@ Host is the XLA dispatch surface attention operations call into.
 */
 type Host interface {
     NeedsPlatform()
-    notImplemented(string)
+    NotImplemented(string)
 }
 
 /*
@@ -24,4 +24,8 @@ func New(host Host) Attention {
 
 func (receiver *Attention) stubHost() {
     receiver.host.NeedsPlatform()
+}
+
+func (receiver *Attention) unimplemented(methodName string) {
+	receiver.host.NotImplemented(methodName)
 }

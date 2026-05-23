@@ -4,18 +4,19 @@ package attention
 
 import (
 	"unsafe"
-
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/puter/device"
 )
-func (attention *Attention) ScaledDotProductAttention( config FlashAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK, depth, valueDim int, format dtype.DType, ) {
+
+func (attention *Attention) ScaledDotProductAttention(config device.FlashAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK, depth, valueDim int, format dtype.DType,) {
 	attention.unimplemented("ScaledDotProductAttention")
 }
 
-func (attention *Attention) FlashAttention( config FlashAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK, depth, valueDim int, format dtype.DType, ) {
+func (attention *Attention) FlashAttention(config device.FlashAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK, depth, valueDim int, format dtype.DType,) {
 	attention.unimplemented("FlashAttention")
 }
 
-func (attention *Attention) MultiHeadAttention( config MultiHeadAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK int, format dtype.DType, ) {
+func (attention *Attention) MultiHeadAttention(config device.MultiHeadAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK int, format dtype.DType,) {
 	attention.unimplemented("MultiHeadAttention")
 }
 

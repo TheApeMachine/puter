@@ -12,7 +12,7 @@ Host is the XLA dispatch surface masking operations call into.
 */
 type Host interface {
     NeedsPlatform()
-    notImplemented(string)
+    NotImplemented(string)
 }
 
 /*
@@ -24,4 +24,8 @@ func New(host Host) Masking {
 
 func (receiver *Masking) stubHost() {
     receiver.host.NeedsPlatform()
+}
+
+func (receiver *Masking) unimplemented(methodName string) {
+	receiver.host.NotImplemented(methodName)
 }

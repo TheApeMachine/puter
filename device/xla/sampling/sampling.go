@@ -12,7 +12,7 @@ Host is the XLA dispatch surface sampling operations call into.
 */
 type Host interface {
     NeedsPlatform()
-    notImplemented(string)
+    NotImplemented(string)
 }
 
 /*
@@ -24,4 +24,8 @@ func New(host Host) Sampling {
 
 func (receiver *Sampling) stubHost() {
     receiver.host.NeedsPlatform()
+}
+
+func (receiver *Sampling) unimplemented(methodName string) {
+	receiver.host.NotImplemented(methodName)
 }

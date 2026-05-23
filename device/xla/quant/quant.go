@@ -12,7 +12,7 @@ Host is the XLA dispatch surface quant operations call into.
 */
 type Host interface {
     NeedsPlatform()
-    notImplemented(string)
+    NotImplemented(string)
 }
 
 /*
@@ -24,4 +24,8 @@ func New(host Host) Quantization {
 
 func (receiver *Quantization) stubHost() {
     receiver.host.NeedsPlatform()
+}
+
+func (receiver *Quantization) unimplemented(methodName string) {
+	receiver.host.NotImplemented(methodName)
 }

@@ -12,7 +12,7 @@ Host is the XLA dispatch surface convolution operations call into.
 */
 type Host interface {
     NeedsPlatform()
-    notImplemented(string)
+    NotImplemented(string)
 }
 
 /*
@@ -24,4 +24,8 @@ func New(host Host) Convolution {
 
 func (receiver *Convolution) stubHost() {
     receiver.host.NeedsPlatform()
+}
+
+func (receiver *Convolution) unimplemented(methodName string) {
+	receiver.host.NotImplemented(methodName)
 }

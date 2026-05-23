@@ -12,7 +12,7 @@ Host is the XLA dispatch surface dequant operations call into.
 */
 type Host interface {
     NeedsPlatform()
-    notImplemented(string)
+    NotImplemented(string)
 }
 
 /*
@@ -24,4 +24,8 @@ func New(host Host) Dequantization {
 
 func (receiver *Dequantization) stubHost() {
     receiver.host.NeedsPlatform()
+}
+
+func (receiver *Dequantization) unimplemented(methodName string) {
+	receiver.host.NotImplemented(methodName)
 }

@@ -2,6 +2,12 @@
 
 package xla
 
+/*
+#cgo CXXFLAGS: -I${SRCDIR}/internal/bridge -std=c++17
+#include "internal/bridge/core.h"
+*/
+import "C"
+
 import (
 	"fmt"
 	"sync"
@@ -12,12 +18,7 @@ import (
 )
 
 /*
-DefaultBuilderTarget is the compile target string for GPU XLA programs.
-*/
-const DefaultBuilderTarget = "gpu"
-
-/*
-ExecuteProgram compiles (or loads from cache) and executes an XLA program.
+ExecuteUnary compiles (or loads from cache) and executes an XLA program.
 */
 func (builder *Builder) ExecuteUnary(
 	bridge *xlaBridge,
@@ -131,10 +132,6 @@ func (compiledExecutable *CompiledExecutable) Close(bridge *xlaBridge) {
 		bridge.releaseExecutable(C.XLAExecutableRef(compiledExecutable.handle))
 		compiledExecutable.handle = 0
 	}
-}
-
-func NewRuntimeBuilder() *Builder {
-	return NewDefaultBuilder(DefaultBuilderTarget)
 }
 
 /*

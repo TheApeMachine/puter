@@ -12,7 +12,7 @@ Host is the XLA dispatch surface vsa operations call into.
 */
 type Host interface {
     NeedsPlatform()
-    notImplemented(string)
+    NotImplemented(string)
 }
 
 /*
@@ -24,4 +24,8 @@ func New(host Host) VSA {
 
 func (receiver *VSA) stubHost() {
     receiver.host.NeedsPlatform()
+}
+
+func (receiver *VSA) unimplemented(methodName string) {
+	receiver.host.NotImplemented(methodName)
 }

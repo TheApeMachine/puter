@@ -46,29 +46,11 @@ func BeliefUpdateFP16AVX512(likelihood, prior, output []dtype.F16) {
 }
 
 func FreeEnergyFP16AVX512(likelihood, posterior, prior []dtype.F16) dtype.F16 {
-	if len(likelihood) == 0 {
-		return 0
-	}
-
-	return dtype.F16(FreeEnergyFloat16AVX512Asm(
-		(*uint16)(&likelihood[0]),
-		(*uint16)(&posterior[0]),
-		(*uint16)(&prior[0]),
-		len(likelihood),
-	))
+	return freeEnergyFloat16F64AMD64(likelihood, posterior, prior)
 }
 
 func ExpectedFreeEnergyFP16AVX512(
 	predictedObs, preferredObs, predictedState []dtype.F16,
 ) dtype.F16 {
-	if len(predictedObs) == 0 {
-		return 0
-	}
-
-	return dtype.F16(ExpectedFreeEnergyFloat16AVX512Asm(
-		(*uint16)(&predictedObs[0]),
-		(*uint16)(&preferredObs[0]),
-		(*uint16)(&predictedState[0]),
-		len(predictedObs), len(predictedState),
-	))
+	return expectedFreeEnergyFloat16F64AMD64(predictedObs, preferredObs, predictedState)
 }

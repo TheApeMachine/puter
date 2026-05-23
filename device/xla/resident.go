@@ -2,6 +2,12 @@
 
 package xla
 
+/*
+#cgo CXXFLAGS: -I${SRCDIR}/internal/bridge -std=c++17
+#include "internal/bridge/core.h"
+*/
+import "C"
+
 import (
 	"unsafe"
 

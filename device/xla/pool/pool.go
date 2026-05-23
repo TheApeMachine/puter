@@ -12,7 +12,7 @@ Host is the XLA dispatch surface pool operations call into.
 */
 type Host interface {
     NeedsPlatform()
-    notImplemented(string)
+    NotImplemented(string)
 }
 
 /*
@@ -24,4 +24,8 @@ func New(host Host) Pool {
 
 func (receiver *Pool) stubHost() {
     receiver.host.NeedsPlatform()
+}
+
+func (receiver *Pool) unimplemented(methodName string) {
+	receiver.host.NotImplemented(methodName)
 }

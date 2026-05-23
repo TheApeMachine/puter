@@ -47,7 +47,7 @@ static void xla_set_pjrt_error(const PJRT_Api* api, PJRT_Error* error, XLAStatus
     messageArgs.message = NULL;
     messageArgs.message_size = 0;
 
-    if (api->PJRT_Error_Message(&messageArgs) == NULL && messageArgs.message != NULL) {
+    if (api->PJRT_Error_Message(&messageArgs), messageArgs.message != NULL) {
         xla_status_set(status, -1, messageArgs.message);
     } else {
         xla_status_set(status, -1, "PJRT error");
@@ -162,7 +162,6 @@ static int xla_query_device_memory(const PJRT_Api* api, PJRT_Device* device, lon
     memoryArgs.bytes_limit = 0;
     memoryArgs.bytes_limit_is_set = false;
     memoryArgs.peak_bytes_in_use_is_set = false;
-    memoryArgs.bytes_in_use_is_set = false;
     memoryArgs.largest_free_block_bytes = 0;
     memoryArgs.largest_free_block_bytes_is_set = false;
     memoryArgs.pool_bytes = 0;
@@ -537,23 +536,9 @@ static int xla_execute_impl(
     }
 
     PJRT_ExecuteOptions executeOptions;
+    memset(&executeOptions, 0, sizeof(executeOptions));
     executeOptions.struct_size = PJRT_ExecuteOptions_STRUCT_SIZE;
     executeOptions.extension_start = NULL;
-    executeOptions.launch_id = 0;
-    executeOptions.non_donatable_input_indices = NULL;
-    executeOptions.num_non_donatable_input_indices = 0;
-    executeOptions.context = NULL;
-    executeOptions.context_size = 0;
-    executeOptions.send_callbacks = NULL;
-    executeOptions.num_send_ops = 0;
-    executeOptions.recv_callbacks = NULL;
-    executeOptions.num_recv_ops = 0;
-    executeOptions.call_location = NULL;
-    executeOptions.num_tasks = 0;
-    executeOptions.task_ids = NULL;
-    executeOptions.incarnation_ids = NULL;
-    executeOptions.multi_slice_config = NULL;
-    executeOptions.use_major_to_minor_data_layout_for_callbacks = false;
 
     PJRT_Buffer* const* argumentList = inputs;
     PJRT_Buffer** outputList = outputs;

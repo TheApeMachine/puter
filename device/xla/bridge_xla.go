@@ -8,6 +8,7 @@ package xla
 
 #include <stdlib.h>
 #include "internal/bridge/core.h"
+#include "internal/bridge/bridge_xla.cc"
 */
 import "C"
 
@@ -127,12 +128,18 @@ func (bridge *xlaBridge) stageUpload(
 
 	dimensions := shapeToCInt64(shape)
 	var status C.XLAStatus
+
+	var dimensionPointer *C.longlong
+	if len(dimensions) > 0 {
+		dimensionPointer = (*C.longlong)(unsafe.Pointer(&dimensions[0]))
+	}
+
 	bufferRef := C.xla_buffer_from_host(
 		bridge.client,
 		unsafeBytes(bytesIn),
 		C.longlong(len(bytesIn)),
 		C.int(elementType),
-		(*C.longlong)(unsafe.Pointer(&dimensions[0])),
+		dimensionPointer,
 		C.int(len(dimensions)),
 		&status,
 	)

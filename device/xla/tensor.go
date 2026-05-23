@@ -2,6 +2,12 @@
 
 package xla
 
+/*
+#cgo CXXFLAGS: -I${SRCDIR}/internal/bridge -std=c++17
+#include "internal/bridge/core.h"
+*/
+import "C"
+
 import (
 	"context"
 	"sync"
@@ -107,6 +113,32 @@ func (deviceTensor *DeviceTensor) Sync(ctx context.Context) error {
 	return nil
 }
 
+func (deviceTensor *DeviceTensor) Ready() <-chan struct{} {
+	ready := make(chan struct{})
+	close(ready)
+	return ready
+}
+
+func (deviceTensor *DeviceTensor) RequiresGrad() bool {
+	return false
+}
+
+func (deviceTensor *DeviceTensor) SetRequiresGrad(yes bool) error {
+	if yes {
+		return tensor.ErrNoAutograd
+	}
+
+	return nil
+}
+
+func (deviceTensor *DeviceTensor) Grad() (tensor.Tensor, error) {
+	return nil, tensor.ErrNoAutograd
+}
+
+func (deviceTensor *DeviceTensor) GradFn() tensor.GradFn {
+	return nil
+}
+
 func (deviceTensor *DeviceTensor) Close() error {
 	if !deviceTensor.closed.CompareAndSwap(false, true) {
 		return nil
@@ -207,11 +239,11 @@ func (deviceTensor *DeviceTensor) Uint8Native() ([]uint8, error) {
 }
 
 func (deviceTensor *DeviceTensor) BoolNative() (tensor.BitVector, error) {
-	return nil, tensor.ErrDTypeMismatch
+	return tensor.BitVector{}, tensor.ErrDTypeMismatch
 }
 
 func (deviceTensor *DeviceTensor) Int4Native() (tensor.Int4Vector, error) {
-	return nil, tensor.ErrDTypeMismatch
+	return tensor.Int4Vector{}, tensor.ErrDTypeMismatch
 }
 
 func (deviceTensor *DeviceTensor) bufferRef() C.XLABufferRef {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/theapemachine/manifesto/dtype"
 )
+
 func (elementwise *Elementwise) Add(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
 	elementwise.stubHost()
 }

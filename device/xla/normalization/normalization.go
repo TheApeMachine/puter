@@ -12,7 +12,7 @@ Host is the XLA dispatch surface normalization operations call into.
 */
 type Host interface {
     NeedsPlatform()
-    notImplemented(string)
+    NotImplemented(string)
 }
 
 /*
@@ -24,4 +24,8 @@ func New(host Host) Normalization {
 
 func (receiver *Normalization) stubHost() {
     receiver.host.NeedsPlatform()
+}
+
+func (receiver *Normalization) unimplemented(methodName string) {
+	receiver.host.NotImplemented(methodName)
 }

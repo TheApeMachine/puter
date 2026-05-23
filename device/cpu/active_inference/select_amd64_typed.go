@@ -6,9 +6,15 @@ import "golang.org/x/sys/cpu"
 
 var (
 	freeEnergyBF16Funcs = []bf16FreeEnergyKernelImpl{
+		{FreeEnergyBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{FreeEnergyBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{FreeEnergyBF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{FreeEnergyBFloat16Generic, "generic", true},
 	}
 	expectedFreeEnergyBF16Funcs = []bf16ExpectedFreeEnergyKernelImpl{
+		{ExpectedFreeEnergyBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{ExpectedFreeEnergyBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{ExpectedFreeEnergyBF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{ExpectedFreeEnergyBFloat16Generic, "generic", true},
 	}
 	beliefUpdateBF16Funcs = []bf16BeliefUpdateKernelImpl{
@@ -25,9 +31,15 @@ var (
 	}
 
 	freeEnergyFP16Funcs = []fp16FreeEnergyKernelImpl{
+		{FreeEnergyFP16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{FreeEnergyFP16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{FreeEnergyFP16SSE2, "sse2", cpu.X86.HasSSE2},
 		{FreeEnergyFloat16Generic, "generic", true},
 	}
 	expectedFreeEnergyFP16Funcs = []fp16ExpectedFreeEnergyKernelImpl{
+		{ExpectedFreeEnergyFP16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{ExpectedFreeEnergyFP16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{ExpectedFreeEnergyFP16SSE2, "sse2", cpu.X86.HasSSE2},
 		{ExpectedFreeEnergyFloat16Generic, "generic", true},
 	}
 	beliefUpdateFP16Funcs = []fp16BeliefUpdateKernelImpl{

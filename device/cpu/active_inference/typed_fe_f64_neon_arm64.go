@@ -3,8 +3,6 @@
 package active_inference
 
 import (
-	"math"
-
 	"github.com/theapemachine/manifesto/dtype"
 )
 
@@ -18,13 +16,13 @@ func freeEnergyBFloat16F64NEON(
 	var crossEntropy, kl float64
 
 	for index, posteriorValue := range posterior {
-		clampedLike := math.Max(activeInferenceEps, float64(loadBF16(likelihood[index])))
-		clampedPosterior := math.Max(activeInferenceEps, float64(loadBF16(posteriorValue)))
-		clampedPrior := math.Max(activeInferenceEps, float64(loadBF16(prior[index])))
 		posteriorFloat := float64(loadBF16(posteriorValue))
+		clampedLike := clampActiveInferenceLog(float64(loadBF16(likelihood[index])))
+		clampedPosterior := clampActiveInferenceLog(float64(loadBF16(posteriorValue)))
+		clampedPrior := clampActiveInferenceLog(float64(loadBF16(prior[index])))
 
-		crossEntropy += -posteriorFloat * math.Log(clampedLike)
-		kl += posteriorFloat * (math.Log(clampedPosterior) - math.Log(clampedPrior))
+		crossEntropy += -posteriorFloat * clampedLike
+		kl += posteriorFloat * (clampedPosterior - clampedPrior)
 	}
 
 	return storeBF16(float32(crossEntropy + kl))
@@ -41,16 +39,16 @@ func expectedFreeEnergyBFloat16F64NEON(
 
 	for index, predicted := range predictedObs {
 		predictedFloat := float64(loadBF16(predicted))
-		predictedClamped := math.Max(activeInferenceEps, predictedFloat)
-		preferredClamped := math.Max(activeInferenceEps, float64(loadBF16(preferredObs[index])))
+		predictedClamped := clampActiveInferenceLog(predictedFloat)
+		preferredClamped := clampActiveInferenceLog(float64(loadBF16(preferredObs[index])))
 
-		pragmatic += predictedFloat * (math.Log(predictedClamped) - math.Log(preferredClamped))
+		pragmatic += predictedFloat * (predictedClamped - preferredClamped)
 	}
 
 	for _, stateValue := range predictedState {
 		stateFloat := float64(loadBF16(stateValue))
-		clamped := math.Max(activeInferenceEps, stateFloat)
-		epistemic += -stateFloat * math.Log(clamped)
+		clamped := clampActiveInferenceLog(stateFloat)
+		epistemic += -stateFloat * clamped
 	}
 
 	return storeBF16(float32(pragmatic + epistemic))
@@ -66,13 +64,13 @@ func freeEnergyFloat16F64NEON(
 	var crossEntropy, kl float64
 
 	for index, posteriorValue := range posterior {
-		clampedLike := math.Max(activeInferenceEps, float64(loadF16(likelihood[index])))
-		clampedPosterior := math.Max(activeInferenceEps, float64(loadF16(posteriorValue)))
-		clampedPrior := math.Max(activeInferenceEps, float64(loadF16(prior[index])))
 		posteriorFloat := float64(loadF16(posteriorValue))
+		clampedLike := clampActiveInferenceLog(float64(loadF16(likelihood[index])))
+		clampedPosterior := clampActiveInferenceLog(float64(loadF16(posteriorValue)))
+		clampedPrior := clampActiveInferenceLog(float64(loadF16(prior[index])))
 
-		crossEntropy += -posteriorFloat * math.Log(clampedLike)
-		kl += posteriorFloat * (math.Log(clampedPosterior) - math.Log(clampedPrior))
+		crossEntropy += -posteriorFloat * clampedLike
+		kl += posteriorFloat * (clampedPosterior - clampedPrior)
 	}
 
 	return storeF16(float32(crossEntropy + kl))
@@ -89,16 +87,16 @@ func expectedFreeEnergyFloat16F64NEON(
 
 	for index, predicted := range predictedObs {
 		predictedFloat := float64(loadF16(predicted))
-		predictedClamped := math.Max(activeInferenceEps, predictedFloat)
-		preferredClamped := math.Max(activeInferenceEps, float64(loadF16(preferredObs[index])))
+		predictedClamped := clampActiveInferenceLog(predictedFloat)
+		preferredClamped := clampActiveInferenceLog(float64(loadF16(preferredObs[index])))
 
-		pragmatic += predictedFloat * (math.Log(predictedClamped) - math.Log(preferredClamped))
+		pragmatic += predictedFloat * (predictedClamped - preferredClamped)
 	}
 
 	for _, stateValue := range predictedState {
 		stateFloat := float64(loadF16(stateValue))
-		clamped := math.Max(activeInferenceEps, stateFloat)
-		epistemic += -stateFloat * math.Log(clamped)
+		clamped := clampActiveInferenceLog(stateFloat)
+		epistemic += -stateFloat * clamped
 	}
 
 	return storeF16(float32(pragmatic + epistemic))

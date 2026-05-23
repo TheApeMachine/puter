@@ -12,7 +12,7 @@ Host is the XLA dispatch surface embedding operations call into.
 */
 type Host interface {
     NeedsPlatform()
-    notImplemented(string)
+    NotImplemented(string)
 }
 
 /*
@@ -24,4 +24,8 @@ func New(host Host) Embedding {
 
 func (receiver *Embedding) stubHost() {
     receiver.host.NeedsPlatform()
+}
+
+func (receiver *Embedding) unimplemented(methodName string) {
+	receiver.host.NotImplemented(methodName)
 }

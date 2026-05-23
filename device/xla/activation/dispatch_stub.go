@@ -7,6 +7,7 @@ import (
 
 	"github.com/theapemachine/manifesto/dtype"
 )
+
 func (activation *Activation) Exp(dst, src unsafe.Pointer, count int, format dtype.DType) {
 	activation.stubHost()
 }

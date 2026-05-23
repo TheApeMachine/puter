@@ -12,7 +12,7 @@ Host is the XLA dispatch surface dot operations call into.
 */
 type Host interface {
     NeedsPlatform()
-    notImplemented(string)
+    NotImplemented(string)
 }
 
 /*
@@ -24,4 +24,8 @@ func New(host Host) Product {
 
 func (receiver *Product) stubHost() {
     receiver.host.NeedsPlatform()
+}
+
+func (receiver *Product) unimplemented(methodName string) {
+	receiver.host.NotImplemented(methodName)
 }

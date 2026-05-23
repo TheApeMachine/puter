@@ -12,7 +12,7 @@ Host is the XLA dispatch surface active_inference operations call into.
 */
 type Host interface {
     NeedsPlatform()
-    notImplemented(string)
+    NotImplemented(string)
 }
 
 /*
@@ -24,4 +24,8 @@ func New(host Host) ActiveInference {
 
 func (receiver *ActiveInference) stubHost() {
     receiver.host.NeedsPlatform()
+}
+
+func (receiver *ActiveInference) unimplemented(methodName string) {
+	receiver.host.NotImplemented(methodName)
 }

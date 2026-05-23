@@ -12,7 +12,7 @@ Host is the XLA dispatch surface matmul operations call into.
 */
 type Host interface {
     NeedsPlatform()
-    notImplemented(string)
+    NotImplemented(string)
 }
 
 /*
@@ -24,4 +24,8 @@ func New(host Host) Gemm {
 
 func (receiver *Gemm) stubHost() {
     receiver.host.NeedsPlatform()
+}
+
+func (receiver *Gemm) unimplemented(methodName string) {
+	receiver.host.NotImplemented(methodName)
 }

@@ -12,7 +12,7 @@ Host is the XLA dispatch surface reduction operations call into.
 */
 type Host interface {
     NeedsPlatform()
-    notImplemented(string)
+    NotImplemented(string)
 }
 
 /*
@@ -24,4 +24,8 @@ func New(host Host) Reduction {
 
 func (receiver *Reduction) stubHost() {
     receiver.host.NeedsPlatform()
+}
+
+func (receiver *Reduction) unimplemented(methodName string) {
+	receiver.host.NotImplemented(methodName)
 }

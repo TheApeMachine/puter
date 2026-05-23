@@ -1,90 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-// bfloat16 typed FreeEnergy / ExpectedFreeEnergy: load bf16 → f64, log, f64 accumulate, bf16 store.
+// bfloat16 typed FreeEnergy / ExpectedFreeEnergy: load bf16 → f64, stdlib log, f64 accumulate, bf16 store.
 #include "textflag.h"
-
-#define VFADD_S4(m, n, d)   WORD $(0x4E20D400 | ((m) << 16) | ((n) << 5) | (d))
-#define VFSUB_S4(m, n, d)   WORD $(0x4EA0D400 | ((m) << 16) | ((n) << 5) | (d))
-#define VFMUL_S4(m, n, d)   WORD $(0x6E20DC00 | ((m) << 16) | ((n) << 5) | (d))
-#define VFDIV_S4(m, n, d)   WORD $(0x6E20FC00 | ((m) << 16) | ((n) << 5) | (d))
-#define VFMLA_S4(m, n, d)   WORD $(0x4E20CC00 | ((m) << 16) | ((n) << 5) | (d))
-#define VUSHR_S4_BY23(n, d) WORD $(0x6F290400 | ((n) << 5) | (d))
-#define VISUB_S4(m, n, d)   WORD $(0x6EA08400 | ((m) << 16) | ((n) << 5) | (d))
-#define VAND_B16(m, n, d)   WORD $(0x4E201C00 | ((m) << 16) | ((n) << 5) | (d))
-#define VORR_B16(m, n, d)   WORD $(0x4EA01C00 | ((m) << 16) | ((n) << 5) | (d))
-#define VSCVTF_S4(n, d)     WORD $(0x4E21D800 | ((n) << 5) | (d))
-#define VMAX_S4(m, n, d)    WORD $(0x4E20F400 | ((m) << 16) | ((n) << 5) | (d))
-#define VMOV_B16(src, dst)  WORD $(0x4EA01C00 | ((src) << 16) | ((src) << 5) | (dst))
-
-DATA aiTypedFeLogCBf16<>+0(SB)/4, $0.6931471805599453
-DATA aiTypedFeLogCBf16<>+4(SB)/4, $1.0
-DATA aiTypedFeLogCBf16<>+8(SB)/4, $0.09090909
-DATA aiTypedFeLogCBf16<>+12(SB)/4, $0.11111111
-DATA aiTypedFeLogCBf16<>+16(SB)/4, $0.14285715
-DATA aiTypedFeLogCBf16<>+20(SB)/4, $0.20000000
-DATA aiTypedFeLogCBf16<>+24(SB)/4, $0.33333334
-DATA aiTypedFeLogCBf16<>+28(SB)/4, $2.0
-GLOBL aiTypedFeLogCBf16<>(SB), RODATA|NOPTR, $32
-
-#define AI_TYPED_LOAD_LOG_MASKS \
-	MOVD $0x007FFFFF, R6 ;\
-	VMOV R6, V24.S[0] ;\
-	VDUP V24.S[0], V24.S4 ;\
-	MOVD $0x3F800000, R6 ;\
-	VMOV R6, V25.S[0] ;\
-	VDUP V25.S[0], V25.S4 ;\
-	MOVD $127, R6 ;\
-	VMOV R6, V26.S[0] ;\
-	VDUP V26.S[0], V26.S4
-
-#define AI_TYPED_RELOAD_LOG_POLY \
-	MOVD $aiTypedFeLogCBf16<>(SB), R13 ;\
-	FMOVS  0(R13), F16 ;\
-	VDUP V16.S[0], V16.S4 ;\
-	FMOVS  4(R13), F17 ;\
-	VDUP V17.S[0], V17.S4 ;\
-	FMOVS  8(R13), F18 ;\
-	VDUP V18.S[0], V18.S4 ;\
-	FMOVS 12(R13), F19 ;\
-	VDUP V19.S[0], V19.S4 ;\
-	FMOVS 16(R13), F20 ;\
-	VDUP V20.S[0], V20.S4 ;\
-	FMOVS 20(R13), F21 ;\
-	VDUP V21.S[0], V21.S4 ;\
-	FMOVS 24(R13), F22 ;\
-	VDUP V22.S[0], V22.S4 ;\
-	FMOVS 28(R13), F23 ;\
-	VDUP V23.S[0], V23.S4
-
-#define AI_TYPED_LOAD_LOG_CONSTS \
-	AI_TYPED_RELOAD_LOG_POLY ;\
-	AI_TYPED_LOAD_LOG_MASKS
-
-#define AI_TYPED_NEON_LOG4(in, out) \
-	VUSHR_S4_BY23(in, 1) ;\
-	VISUB_S4(26, 1, 1) ;\
-	VAND_B16(24, in, 2) ;\
-	VORR_B16(25, 2, 2) ;\
-	VSCVTF_S4(1, 1) ;\
-	VFSUB_S4(17, 2, 3) ;\
-	VFADD_S4(17, 2, 4) ;\
-	VFDIV_S4(4, 3, 5) ;\
-	VFMUL_S4(5, 5, 6) ;\
-	VMOV_B16(18, 7) ;\
-	VMOV_B16(19, 8) ; VFMLA_S4(6, 7, 8) ;\
-	VMOV_B16(20, 7) ; VFMLA_S4(6, 8, 7) ;\
-	VMOV_B16(21, 8) ; VFMLA_S4(6, 7, 8) ;\
-	VMOV_B16(22, 7) ; VFMLA_S4(6, 8, 7) ;\
-	VMOV_B16(17, 8) ; VFMLA_S4(6, 7, 8) ;\
-	VFMUL_S4(5, 8, 8) ;\
-	VFMUL_S4(23, 8, 8) ;\
-	VFMLA_S4(16, 1, 8) ;\
-	VMOV_B16(8, out)
-
-#define AI_TYPED_INIT_LOG \
-	MOVD $0x2b8cbccc, R17 ;\
-	VMOV R17, V31.S[0] ;\
-	VDUP V31.S[0], V31.S4 ;\
-	AI_TYPED_LOAD_LOG_CONSTS
 
 #define AI_BF16_LOAD_F64(ptr, fd) \
 	MOVHU (ptr), R6 ;\
@@ -97,14 +13,46 @@ GLOBL aiTypedFeLogCBf16<>(SB), RODATA|NOPTR, $32
 	FMOVD R6, F2 ;\
 	FMAXD fd, F2, fd
 
-#define AI_F64_LOG_TO(in, out) \
-	FCVTSD in, F1 ;\
-	FMOVS F1, F3 ;\
-	VDUP V3.S[0], V3.S4 ;\
-	VMAX_S4(31, 3, 3) ;\
-	AI_TYPED_NEON_LOG4(3, 10) ;\
-	FMOVS F10, F1 ;\
-	FCVTDS F1, out
+#define AI_SAVE_FE_LOOP_REGS \
+	MOVD R10, 40(RSP) ;\
+	MOVD R11, 48(RSP) ;\
+	MOVD R12, 56(RSP) ;\
+	MOVD R3, 64(RSP)
+
+#define AI_RESTORE_FE_LOOP_REGS \
+	MOVD 40(RSP), R10 ;\
+	MOVD 48(RSP), R11 ;\
+	MOVD 56(RSP), R12 ;\
+	MOVD 64(RSP), R3
+
+#define AI_F64_LOG_CALL(in, out) \
+	FMOVD F14, 72(RSP) ;\
+	FMOVD F15, 80(RSP) ;\
+	FMOVD in, F0 ;\
+	AI_SAVE_FE_LOOP_REGS ;\
+	CALL ·activeInferenceLogF64(SB) ;\
+	AI_RESTORE_FE_LOOP_REGS ;\
+	FMOVD F0, out ;\
+	FMOVD 72(RSP), F14 ;\
+	FMOVD 80(RSP), F15
+
+#define AI_SAVE_EFE_OBS_REGS \
+	MOVD R0, 40(RSP) ;\
+	MOVD R1, 48(RSP) ;\
+	MOVD R3, 64(RSP)
+
+#define AI_RESTORE_EFE_OBS_REGS \
+	MOVD 40(RSP), R0 ;\
+	MOVD 48(RSP), R1 ;\
+	MOVD 64(RSP), R3
+
+#define AI_SAVE_EFE_STATE_REGS \
+	MOVD R2, 40(RSP) ;\
+	MOVD R4, 64(RSP)
+
+#define AI_RESTORE_EFE_STATE_REGS \
+	MOVD 40(RSP), R2 ;\
+	MOVD 64(RSP), R4
 
 #define AI_BF16_STORE_FE_SUM(fd) \
 	FCVTSD fd, F0 ;\
@@ -118,12 +66,11 @@ GLOBL aiTypedFeLogCBf16<>(SB), RODATA|NOPTR, $32
 	LSR  $16, R6, R6 ;\
 	MOVH R6, ret+40(FP)
 
-TEXT ·FreeEnergyBFloat16NEONAsm(SB), NOSPLIT, $0-34
+TEXT ·FreeEnergyBFloat16NEONAsm(SB), $256-34
 	MOVD likelihood+0(FP), R10
 	MOVD posterior+8(FP), R11
 	MOVD prior+16(FP), R12
 	MOVD count+24(FP), R3
-	AI_TYPED_INIT_LOG
 	FMOVD $0, F14
 	FMOVD $0, F15
 	CBZ  R3, ai_bf16_fe_f64_store
@@ -138,9 +85,9 @@ ai_bf16_fe_f64_loop:
 	AI_F64_CLAMP_POS(F12)
 	AI_F64_CLAMP_POS(F11)
 	AI_F64_CLAMP_POS(F13)
-	AI_F64_LOG_TO(F12, F4)
-	AI_F64_LOG_TO(F11, F5)
-	AI_F64_LOG_TO(F13, F6)
+	AI_F64_LOG_CALL(F12, F4)
+	AI_F64_LOG_CALL(F11, F5)
+	AI_F64_LOG_CALL(F13, F6)
 	FNEGD F4, F4
 	FMULD F9, F4, F4
 	FADDD F4, F14, F14
@@ -158,16 +105,13 @@ ai_bf16_fe_f64_store:
 	AI_BF16_STORE_FE_SUM(F14)
 	RET
 
-TEXT ·ExpectedFreeEnergyBFloat16NEONAsm(SB), NOSPLIT, $0-42
+TEXT ·ExpectedFreeEnergyBFloat16NEONAsm(SB), $256-42
 	MOVD predictedObs+0(FP), R0
 	MOVD preferredObs+8(FP), R1
 	MOVD predictedState+16(FP), R2
 	MOVD obsCount+24(FP), R3
 	MOVD stateCount+32(FP), R4
-	AI_TYPED_INIT_LOG
 	FMOVD $0, F14
-
-ai_bf16_efe_f64_obs:
 	CBZ  R3, ai_bf16_efe_f64_state
 
 ai_bf16_efe_f64_obs_loop:
@@ -177,8 +121,20 @@ ai_bf16_efe_f64_obs_loop:
 	FMOVD F9, F13
 	AI_F64_CLAMP_POS(F12)
 	AI_F64_CLAMP_POS(F13)
-	AI_F64_LOG_TO(F12, F4)
-	AI_F64_LOG_TO(F13, F5)
+	FMOVD F12, F0
+	FMOVD F14, 72(RSP)
+	AI_SAVE_EFE_OBS_REGS
+	CALL ·activeInferenceLogF64(SB)
+	AI_RESTORE_EFE_OBS_REGS
+	FMOVD 72(RSP), F14
+	FMOVD F0, F4
+	FMOVD F13, F0
+	FMOVD F14, 72(RSP)
+	AI_SAVE_EFE_OBS_REGS
+	CALL ·activeInferenceLogF64(SB)
+	AI_RESTORE_EFE_OBS_REGS
+	FMOVD 72(RSP), F14
+	FMOVD F0, F5
 	FSUBD F5, F4, F4
 	FMULD F8, F4, F4
 	FADDD F4, F14, F14
@@ -186,7 +142,6 @@ ai_bf16_efe_f64_obs_loop:
 	ADD  $2, R1
 	SUB  $1, R3
 	CBNZ R3, ai_bf16_efe_f64_obs_loop
-	B    ai_bf16_efe_f64_state
 
 ai_bf16_efe_f64_state:
 	MOVD predictedState+16(FP), R2
@@ -198,7 +153,13 @@ ai_bf16_efe_f64_state_loop:
 	FMOVD F8, F9
 	FMOVD F8, F12
 	AI_F64_CLAMP_POS(F12)
-	AI_F64_LOG_TO(F12, F4)
+	FMOVD F12, F0
+	FMOVD F14, 72(RSP)
+	AI_SAVE_EFE_STATE_REGS
+	CALL ·activeInferenceLogF64(SB)
+	AI_RESTORE_EFE_STATE_REGS
+	FMOVD 72(RSP), F14
+	FMOVD F0, F4
 	FNEGD F4, F4
 	FMULD F9, F4, F4
 	FADDD F4, F14, F14

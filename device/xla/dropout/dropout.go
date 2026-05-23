@@ -12,7 +12,7 @@ Host is the XLA dispatch surface dropout operations call into.
 */
 type Host interface {
     NeedsPlatform()
-    notImplemented(string)
+    NotImplemented(string)
 }
 
 /*
@@ -24,4 +24,8 @@ func New(host Host) DropoutLayer {
 
 func (receiver *DropoutLayer) stubHost() {
     receiver.host.NeedsPlatform()
+}
+
+func (receiver *DropoutLayer) unimplemented(methodName string) {
+	receiver.host.NotImplemented(methodName)
 }

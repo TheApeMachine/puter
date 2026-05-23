@@ -12,7 +12,7 @@ Host is the XLA dispatch surface rope operations call into.
 */
 type Host interface {
     NeedsPlatform()
-    notImplemented(string)
+    NotImplemented(string)
 }
 
 /*
@@ -24,4 +24,8 @@ func New(host Host) RotaryEmbedding {
 
 func (receiver *RotaryEmbedding) stubHost() {
     receiver.host.NeedsPlatform()
+}
+
+func (receiver *RotaryEmbedding) unimplemented(methodName string) {
+	receiver.host.NotImplemented(methodName)
 }

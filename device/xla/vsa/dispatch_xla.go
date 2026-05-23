@@ -4,22 +4,28 @@ package vsa
 
 import (
 	"unsafe"
-
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/puter/device"
 )
-func (vSA *VSA) Bind(left, right, output unsafe.Pointer, count int, format dtype.DType) {
-	vSA.unimplemented("Bind")
+
+func (vsa *VSA) Bundle(left, right, output unsafe.Pointer, count int, format dtype.DType) {
+	vsa.unimplemented("Bundle")
 }
 
-func (vSA *VSA) Bundle(left, right, output unsafe.Pointer, count int, format dtype.DType) {
-	vSA.unimplemented("Bundle")
+func (vsa *VSA) Similarity(left, right unsafe.Pointer, count int, format dtype.DType) float32 {
+	vsa.unimplemented("Similarity")
+	return 0
 }
 
-func (vSA *VSA) Permute(config VSAConfig, input, output unsafe.Pointer, count int, format dtype.DType) {
-	vSA.unimplemented("Permute")
+func (vsa *VSA) Bind(left, right, output unsafe.Pointer, count int, format dtype.DType) {
+	vsa.unimplemented("Bind")
 }
 
-func (vSA *VSA) InversePermute(config VSAConfig, input, output unsafe.Pointer, count int, format dtype.DType) {
-	vSA.unimplemented("InversePermute")
+func (vsa *VSA) Permute(config device.VSAConfig, input, output unsafe.Pointer, count int, format dtype.DType) {
+	vsa.unimplemented("Permute")
+}
+
+func (vsa *VSA) InversePermute(config device.VSAConfig, input, output unsafe.Pointer, count int, format dtype.DType) {
+	vsa.unimplemented("InversePermute")
 }
 

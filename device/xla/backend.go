@@ -11,6 +11,7 @@ package xla
 
 import (
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
@@ -44,8 +45,8 @@ import (
 Backend is the XLA Backend implementation.
 */
 type Backend struct {
-	closed atomic.Bool
-	bridge *xlaBridge
+	closed    atomic.Bool
+	bridge    *xlaBridge
 	workspace *Workspace
 	builder   *Builder
 
@@ -223,6 +224,10 @@ func (backend *Backend) Download(input tensor.Tensor) (dtype.DType, []byte, erro
 	}
 
 	return backend.bridge.download(input)
+}
+
+func (backend *Backend) ReLU(dst, src unsafe.Pointer, count int, format dtype.DType) {
+	backend.Activation.ReLU(dst, src, count, format)
 }
 
 var _ tensor.Backend = (*Backend)(nil)
