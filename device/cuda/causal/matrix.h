@@ -71,6 +71,16 @@ int cuda_dispatch_unary_named_float32(
     CUDAStatus* status
 );
 
+int cuda_dispatch_cholesky(
+    CUDADeviceRef contextRef,
+    int elementDType,
+    CUDABufferRef inputRef,
+    CUDABufferRef outRef,
+    uint32_t matrixOrder,
+    uint64_t completionToken,
+    CUDAStatus* status
+);
+
 #ifdef __cplusplus
 }
 #endif

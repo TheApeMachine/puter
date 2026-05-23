@@ -1,2 +1,9 @@
 #include "causal.cuh"
-// CUDA kernels for dag — port from metal/dag.metal
+
+CAUSAL_DAG_PARTIAL_KERNEL(dag_markov_factorization_float32_partial, float, causal_load_f32)
+CAUSAL_DAG_PARTIAL_KERNEL(dag_markov_factorization_float16_partial, __half, causal_load_f16)
+CAUSAL_DAG_PARTIAL_KERNEL(dag_markov_factorization_bfloat16_partial, __nv_bfloat16, causal_load_bf16)
+
+CAUSAL_DAG_FINALIZE_KERNEL(dag_markov_factorization_float32_finalize, float, causal_store_f32)
+CAUSAL_DAG_FINALIZE_KERNEL(dag_markov_factorization_float16_finalize, __half, causal_store_f16)
+CAUSAL_DAG_FINALIZE_KERNEL(dag_markov_factorization_bfloat16_finalize, __nv_bfloat16, causal_store_bf16)

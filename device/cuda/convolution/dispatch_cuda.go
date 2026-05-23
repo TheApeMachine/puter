@@ -12,6 +12,9 @@ import (
 /*
 #include "convolution.h"
 #include "conv2d.h"
+#include "conv1d.h"
+#include "conv3d.h"
+#include "conv_transpose2d.h"
 */
 import "C"
 
@@ -96,6 +99,159 @@ func DispatchConv2D(
 
 	var status C.CUDAStatus
 	code := C.cuda_dispatch_conv2d(
+		contextRef,
+		elementFormat,
+		inputBuffer,
+		weightBuffer,
+		biasBuffer,
+		outputBuffer,
+		C.uint32_t(batch),
+		C.uint32_t(inChannels),
+		C.uint32_t(inHeight),
+		C.uint32_t(inWidth),
+		C.uint32_t(outChannels),
+		C.uint32_t(kernelHeight),
+		C.uint32_t(kernelWidth),
+		C.uint32_t(outHeight),
+		C.uint32_t(outWidth),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		return cudaStatusError(status)
+	}
+
+	return nil
+}
+
+func DispatchConv1D(
+	contextRef C.CUDADeviceRef,
+	inputBuffer C.CUDABufferRef,
+	weightBuffer C.CUDABufferRef,
+	biasBuffer C.CUDABufferRef,
+	outputBuffer C.CUDABufferRef,
+	batch uint32,
+	inChannels uint32,
+	inLength uint32,
+	outChannels uint32,
+	kernelLength uint32,
+	outLength uint32,
+	format dtype.DType,
+) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
+	var status C.CUDAStatus
+	code := C.cuda_dispatch_conv1d(
+		contextRef,
+		elementFormat,
+		inputBuffer,
+		weightBuffer,
+		biasBuffer,
+		outputBuffer,
+		C.uint32_t(batch),
+		C.uint32_t(inChannels),
+		C.uint32_t(inLength),
+		C.uint32_t(outChannels),
+		C.uint32_t(kernelLength),
+		C.uint32_t(outLength),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		return cudaStatusError(status)
+	}
+
+	return nil
+}
+
+func DispatchConv3D(
+	contextRef C.CUDADeviceRef,
+	inputBuffer C.CUDABufferRef,
+	weightBuffer C.CUDABufferRef,
+	biasBuffer C.CUDABufferRef,
+	outputBuffer C.CUDABufferRef,
+	batch uint32,
+	inChannels uint32,
+	inDepth uint32,
+	inHeight uint32,
+	inWidth uint32,
+	outChannels uint32,
+	kernelDepth uint32,
+	kernelHeight uint32,
+	kernelWidth uint32,
+	outDepth uint32,
+	outHeight uint32,
+	outWidth uint32,
+	format dtype.DType,
+) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
+	var status C.CUDAStatus
+	code := C.cuda_dispatch_conv3d(
+		contextRef,
+		elementFormat,
+		inputBuffer,
+		weightBuffer,
+		biasBuffer,
+		outputBuffer,
+		C.uint32_t(batch),
+		C.uint32_t(inChannels),
+		C.uint32_t(inDepth),
+		C.uint32_t(inHeight),
+		C.uint32_t(inWidth),
+		C.uint32_t(outChannels),
+		C.uint32_t(kernelDepth),
+		C.uint32_t(kernelHeight),
+		C.uint32_t(kernelWidth),
+		C.uint32_t(outDepth),
+		C.uint32_t(outHeight),
+		C.uint32_t(outWidth),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		return cudaStatusError(status)
+	}
+
+	return nil
+}
+
+func DispatchConvTranspose2D(
+	contextRef C.CUDADeviceRef,
+	inputBuffer C.CUDABufferRef,
+	weightBuffer C.CUDABufferRef,
+	biasBuffer C.CUDABufferRef,
+	outputBuffer C.CUDABufferRef,
+	batch uint32,
+	inChannels uint32,
+	inHeight uint32,
+	inWidth uint32,
+	outChannels uint32,
+	kernelHeight uint32,
+	kernelWidth uint32,
+	outHeight uint32,
+	outWidth uint32,
+	format dtype.DType,
+) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
+	var status C.CUDAStatus
+	code := C.cuda_dispatch_conv_transpose2d(
 		contextRef,
 		elementFormat,
 		inputBuffer,

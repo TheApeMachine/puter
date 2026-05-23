@@ -134,4 +134,142 @@ CONV2D_KERNEL(conv2d_float32, float, conv_load_f32, conv_store_f32)
 CONV2D_KERNEL(conv2d_float16, __half, conv_load_f16, conv_store_f16)
 CONV2D_KERNEL(conv2d_bfloat16, __nv_bfloat16, conv_load_bf16, conv_store_bf16)
 
+#define CONV1D_KERNEL(name, scalarType, loadFn, storeFn) \
+extern "C" __global__ void name( \
+    const scalarType* input, \
+    const scalarType* weight, \
+    const scalarType* bias, \
+    scalarType* out, \
+    unsigned int batch, \
+    unsigned int inChannels, \
+    unsigned int inLength, \
+    unsigned int outChannels, \
+    unsigned int kernelLength, \
+    unsigned int outLength \
+) { \
+    unsigned int index = blockIdx.x * blockDim.x + threadIdx.x; \
+    unsigned int count = batch * outChannels * outLength; \
+    if (index >= count) { return; } \
+    unsigned int outPosition = index % outLength; \
+    unsigned int outChannel = (index / outLength) % outChannels; \
+    unsigned int batchIndex = index / (outLength * outChannels); \
+    float accumulator = loadFn(bias, outChannel); \
+    for (unsigned int inChannel = 0; inChannel < inChannels; inChannel++) { \
+        for (unsigned int kernelPosition = 0; kernelPosition < kernelLength; kernelPosition++) { \
+            unsigned int inputPosition = outPosition + kernelPosition; \
+            if (inputPosition >= inLength) { continue; } \
+            unsigned int inputIndex = (batchIndex * inChannels + inChannel) * inLength + inputPosition; \
+            unsigned int weightIndex = (outChannel * inChannels + inChannel) * kernelLength + kernelPosition; \
+            accumulator += loadFn(input, inputIndex) * loadFn(weight, weightIndex); \
+        } \
+    } \
+    storeFn(out, index, accumulator); \
+}
+
+#define CONV3D_KERNEL(name, scalarType, loadFn, storeFn) \
+extern "C" __global__ void name( \
+    const scalarType* input, \
+    const scalarType* weight, \
+    const scalarType* bias, \
+    scalarType* out, \
+    unsigned int batch, \
+    unsigned int inChannels, \
+    unsigned int inDepth, \
+    unsigned int inHeight, \
+    unsigned int inWidth, \
+    unsigned int outChannels, \
+    unsigned int kernelDepth, \
+    unsigned int kernelHeight, \
+    unsigned int kernelWidth, \
+    unsigned int outDepth, \
+    unsigned int outHeight, \
+    unsigned int outWidth \
+) { \
+    unsigned int index = blockIdx.x * blockDim.x + threadIdx.x; \
+    unsigned int count = batch * outChannels * outDepth * outHeight * outWidth; \
+    if (index >= count) { return; } \
+    unsigned int outCol = index % outWidth; \
+    unsigned int outRow = (index / outWidth) % outHeight; \
+    unsigned int outPlane = (index / (outWidth * outHeight)) % outDepth; \
+    unsigned int outChannel = (index / (outWidth * outHeight * outDepth)) % outChannels; \
+    unsigned int batchIndex = index / (outWidth * outHeight * outDepth * outChannels); \
+    float accumulator = loadFn(bias, outChannel); \
+    for (unsigned int inChannel = 0; inChannel < inChannels; inChannel++) { \
+        for (unsigned int kernelPlane = 0; kernelPlane < kernelDepth; kernelPlane++) { \
+            unsigned int inPlane = outPlane + kernelPlane; \
+            if (inPlane >= inDepth) { continue; } \
+            for (unsigned int kernelRow = 0; kernelRow < kernelHeight; kernelRow++) { \
+                unsigned int inRow = outRow + kernelRow; \
+                if (inRow >= inHeight) { continue; } \
+                for (unsigned int kernelCol = 0; kernelCol < kernelWidth; kernelCol++) { \
+                    unsigned int inCol = outCol + kernelCol; \
+                    if (inCol >= inWidth) { continue; } \
+                    unsigned int inputIndex = (((batchIndex * inChannels + inChannel) * inDepth + \
+                        inPlane) * inHeight + inRow) * inWidth + inCol; \
+                    unsigned int weightIndex = (((outChannel * inChannels + inChannel) * kernelDepth + \
+                        kernelPlane) * kernelHeight + kernelRow) * kernelWidth + kernelCol; \
+                    accumulator += loadFn(input, inputIndex) * loadFn(weight, weightIndex); \
+                } \
+            } \
+        } \
+    } \
+    storeFn(out, index, accumulator); \
+}
+
+#define CONV_TRANSPOSE2D_KERNEL(name, scalarType, loadFn, storeFn) \
+extern "C" __global__ void name( \
+    const scalarType* input, \
+    const scalarType* weight, \
+    const scalarType* bias, \
+    scalarType* out, \
+    unsigned int batch, \
+    unsigned int inChannels, \
+    unsigned int inHeight, \
+    unsigned int inWidth, \
+    unsigned int outChannels, \
+    unsigned int kernelHeight, \
+    unsigned int kernelWidth, \
+    unsigned int outHeight, \
+    unsigned int outWidth \
+) { \
+    unsigned int index = blockIdx.x * blockDim.x + threadIdx.x; \
+    unsigned int count = batch * outChannels * outHeight * outWidth; \
+    if (index >= count) { return; } \
+    unsigned int outCol = index % outWidth; \
+    unsigned int outRow = (index / outWidth) % outHeight; \
+    unsigned int outChannel = (index / (outWidth * outHeight)) % outChannels; \
+    unsigned int batchIndex = index / (outWidth * outHeight * outChannels); \
+    float accumulator = loadFn(bias, outChannel); \
+    for (unsigned int inChannel = 0; inChannel < inChannels; inChannel++) { \
+        for (unsigned int kernelRow = 0; kernelRow < kernelHeight; kernelRow++) { \
+            if (outRow < kernelRow) { continue; } \
+            unsigned int inRow = outRow - kernelRow; \
+            if (inRow >= inHeight) { continue; } \
+            for (unsigned int kernelCol = 0; kernelCol < kernelWidth; kernelCol++) { \
+                if (outCol < kernelCol) { continue; } \
+                unsigned int inCol = outCol - kernelCol; \
+                if (inCol >= inWidth) { continue; } \
+                unsigned int inputIndex = ((batchIndex * inChannels + inChannel) * inHeight + inRow) * \
+                    inWidth + inCol; \
+                unsigned int weightIndex = ((inChannel * outChannels + outChannel) * kernelHeight + \
+                    kernelRow) * kernelWidth + kernelCol; \
+                accumulator += loadFn(input, inputIndex) * loadFn(weight, weightIndex); \
+            } \
+        } \
+    } \
+    storeFn(out, index, accumulator); \
+}
+
+CONV1D_KERNEL(conv1d_float32, float, conv_load_f32, conv_store_f32)
+CONV1D_KERNEL(conv1d_float16, __half, conv_load_f16, conv_store_f16)
+CONV1D_KERNEL(conv1d_bfloat16, __nv_bfloat16, conv_load_bf16, conv_store_bf16)
+
+CONV3D_KERNEL(conv3d_float32, float, conv_load_f32, conv_store_f32)
+CONV3D_KERNEL(conv3d_float16, __half, conv_load_f16, conv_store_f16)
+CONV3D_KERNEL(conv3d_bfloat16, __nv_bfloat16, conv_load_bf16, conv_store_bf16)
+
+CONV_TRANSPOSE2D_KERNEL(conv_transpose2d_float32, float, conv_load_f32, conv_store_f32)
+CONV_TRANSPOSE2D_KERNEL(conv_transpose2d_float16, __half, conv_load_f16, conv_store_f16)
+CONV_TRANSPOSE2D_KERNEL(conv_transpose2d_bfloat16, __nv_bfloat16, conv_load_bf16, conv_store_bf16)
+
 #endif

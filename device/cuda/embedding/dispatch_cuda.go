@@ -13,6 +13,7 @@ import (
 #include "embedding.h"
 #include "lookup.h"
 #include "bag.h"
+#include "timestep.h"
 */
 import "C"
 
@@ -25,11 +26,15 @@ var lookupDomainSource string
 //go:embed bag.cu
 var bagDomainSource string
 
+//go:embed timestep.cu
+var timestepDomainSource string
+
 func moduleSource() string {
 	parts := []string{
 		embeddingHubSource,
 		lookupDomainSource,
 		bagDomainSource,
+		timestepDomainSource,
 	}
 	return strings.Join(parts, "\n")
 }
@@ -115,6 +120,45 @@ func DispatchLookup(
 	return nil
 }
 
+func DispatchTimestepEmbedding(
+	contextRef C.CUDADeviceRef,
+	timestepsBuffer C.CUDABufferRef,
+	maxPeriodBuffer C.CUDABufferRef,
+	downscaleBuffer C.CUDABufferRef,
+	flipBuffer C.CUDABufferRef,
+	outputBuffer C.CUDABufferRef,
+	format dtype.DType,
+	count uint32,
+	dim uint32,
+) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
+	var status C.CUDAStatus
+	code := C.cuda_dispatch_timestep_embedding(
+		contextRef,
+		elementFormat,
+		timestepsBuffer,
+		maxPeriodBuffer,
+		downscaleBuffer,
+		flipBuffer,
+		outputBuffer,
+		C.uint32_t(count),
+		C.uint32_t(dim),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		return cudaStatusError(status)
+	}
+
+	return nil
+}
+
 func DispatchBag(
 	contextRef C.CUDADeviceRef,
 	tableBuffer C.CUDABufferRef,
@@ -145,6 +189,45 @@ func DispatchBag(
 		C.uint32_t(hidden),
 		C.uint32_t(indexCount),
 		C.uint32_t(bagCount),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		return cudaStatusError(status)
+	}
+
+	return nil
+}
+
+func DispatchTimestepEmbedding(
+	contextRef C.CUDADeviceRef,
+	timestepsBuffer C.CUDABufferRef,
+	maxPeriodBuffer C.CUDABufferRef,
+	downscaleBuffer C.CUDABufferRef,
+	flipBuffer C.CUDABufferRef,
+	outputBuffer C.CUDABufferRef,
+	format dtype.DType,
+	count uint32,
+	dim uint32,
+) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
+	var status C.CUDAStatus
+	code := C.cuda_dispatch_timestep_embedding(
+		contextRef,
+		elementFormat,
+		timestepsBuffer,
+		maxPeriodBuffer,
+		downscaleBuffer,
+		flipBuffer,
+		outputBuffer,
+		C.uint32_t(count),
+		C.uint32_t(dim),
 		0,
 		&status,
 	)

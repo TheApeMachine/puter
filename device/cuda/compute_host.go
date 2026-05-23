@@ -17,6 +17,7 @@ import (
 	"github.com/theapemachine/puter/device/cuda/matmul"
 	"github.com/theapemachine/puter/device/cuda/normalization"
 	"github.com/theapemachine/puter/device/cuda/pool"
+	"github.com/theapemachine/puter/device/cuda/quant"
 	"github.com/theapemachine/puter/device/cuda/rope"
 	"github.com/theapemachine/puter/device/cuda/vsa"
 )
@@ -315,7 +316,28 @@ func (host *ComputeHost) DispatchCholesky(input, output unsafe.Pointer, matrixOr
 }
 
 func (host *ComputeHost) DispatchConv1D(config device.Conv1DConfig, input, weight, bias, output unsafe.Pointer, batch, inChannels, inLength, outChannels, kernelLength, outLength int, format dtype.DType) {
-	host.unavailable()
+	_ = config
+
+	if batch == 0 || inChannels == 0 || outChannels == 0 || kernelLength == 0 {
+		return
+	}
+
+	if err := convolution.DispatchConv1D(
+		host.contextRef(),
+		resolveBufferRef(input),
+		resolveBufferRef(weight),
+		resolveBufferRef(bias),
+		resolveBufferRef(output),
+		uint32(batch),
+		uint32(inChannels),
+		uint32(inLength),
+		uint32(outChannels),
+		uint32(kernelLength),
+		uint32(outLength),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchConv2D(_ device.Conv2DConfig, input, weight, bias, output unsafe.Pointer, batch, inChannels, inHeight, inWidth, outChannels, kernelHeight, kernelWidth, outHeight, outWidth int, format dtype.DType) {
@@ -345,11 +367,62 @@ func (host *ComputeHost) DispatchConv2D(_ device.Conv2DConfig, input, weight, bi
 }
 
 func (host *ComputeHost) DispatchConv3D(config device.Conv3DConfig, input, weight, bias, output unsafe.Pointer, batch, inChannels, inD, inH, inW, outChannels, kD, kH, kW, outD, outH, outW int, format dtype.DType) {
-	host.unavailable()
+	_ = config
+
+	if batch == 0 || inChannels == 0 || outChannels == 0 || kD == 0 || kH == 0 || kW == 0 {
+		return
+	}
+
+	if err := convolution.DispatchConv3D(
+		host.contextRef(),
+		resolveBufferRef(input),
+		resolveBufferRef(weight),
+		resolveBufferRef(bias),
+		resolveBufferRef(output),
+		uint32(batch),
+		uint32(inChannels),
+		uint32(inD),
+		uint32(inH),
+		uint32(inW),
+		uint32(outChannels),
+		uint32(kD),
+		uint32(kH),
+		uint32(kW),
+		uint32(outD),
+		uint32(outH),
+		uint32(outW),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchConvTranspose2D(config device.Conv2DConfig, input, weight, bias, output unsafe.Pointer, batch, inChannels, inHeight, inWidth, outChannels, kernelHeight, kernelWidth, outHeight, outWidth int, format dtype.DType) {
-	host.unavailable()
+	_ = config
+
+	if batch == 0 || inChannels == 0 || outChannels == 0 || kernelHeight == 0 || kernelWidth == 0 {
+		return
+	}
+
+	if err := convolution.DispatchConvTranspose2D(
+		host.contextRef(),
+		resolveBufferRef(input),
+		resolveBufferRef(weight),
+		resolveBufferRef(bias),
+		resolveBufferRef(output),
+		uint32(batch),
+		uint32(inChannels),
+		uint32(inHeight),
+		uint32(inWidth),
+		uint32(outChannels),
+		uint32(kernelHeight),
+		uint32(kernelWidth),
+		uint32(outHeight),
+		uint32(outWidth),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchCounterfactual(observedY, observedX, counterfactualX, output unsafe.Pointer, count int, slope float32, format dtype.DType) {
@@ -361,11 +434,43 @@ func (host *ComputeHost) DispatchDAGMarkovFactorization(conditionals unsafe.Poin
 }
 
 func (host *ComputeHost) DispatchDequant(dst, src unsafe.Pointer, count int, config device.DequantInt8Config, dstFormat, srcFormat dtype.DType) {
-	host.unavailable()
+	_ = dstFormat
+	_ = srcFormat
+
+	if count == 0 {
+		return
+	}
+
+	if err := quant.DispatchDequant(
+		host.contextRef(),
+		resolveBufferRef(src),
+		resolveBufferRef(dst),
+		config.Scale,
+		config.ZeroPoint,
+		uint32(count),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchDequant4(dst, src unsafe.Pointer, pairCount int, config device.DequantInt4Config, dstFormat, srcFormat dtype.DType) {
-	host.unavailable()
+	_ = dstFormat
+	_ = srcFormat
+
+	if pairCount == 0 {
+		return
+	}
+
+	if err := quant.DispatchDequant4(
+		host.contextRef(),
+		resolveBufferRef(src),
+		resolveBufferRef(dst),
+		config.Scale,
+		config.ZeroPoint,
+		uint32(pairCount),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchDivergence1D(input, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {
@@ -621,7 +726,23 @@ func (host *ComputeHost) DispatchPredictionError(observed, predicted, output uns
 }
 
 func (host *ComputeHost) DispatchQuant(dst, src unsafe.Pointer, count int, config device.DequantInt8Config, dstFormat, srcFormat dtype.DType) {
-	host.unavailable()
+	_ = dstFormat
+	_ = srcFormat
+
+	if count == 0 {
+		return
+	}
+
+	if err := quant.DispatchQuant(
+		host.contextRef(),
+		resolveBufferRef(src),
+		resolveBufferRef(dst),
+		config.Scale,
+		config.ZeroPoint,
+		uint32(count),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchQuantumPotential(density, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {

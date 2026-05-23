@@ -1,2 +1,21 @@
 #include "causal.cuh"
-// CUDA kernels for intervention — port from metal/intervention.metal
+
+CAUSAL_DO_INTERVENE_KERNEL(do_intervene_float32, float, causal_load_f32, causal_store_f32)
+CAUSAL_DO_INTERVENE_KERNEL(do_intervene_float16, __half, causal_load_f16, causal_store_f16)
+CAUSAL_DO_INTERVENE_KERNEL(do_intervene_bfloat16, __nv_bfloat16, causal_load_bf16, causal_store_bf16)
+
+CAUSAL_CATE_KERNEL(cate_float32, float, causal_load_f32, causal_store_f32)
+CAUSAL_CATE_KERNEL(cate_float16, __half, causal_load_f16, causal_store_f16)
+CAUSAL_CATE_KERNEL(cate_bfloat16, __nv_bfloat16, causal_load_bf16, causal_store_bf16)
+
+CAUSAL_COUNTERFACTUAL_KERNEL(counterfactual_float32, float, causal_load_f32, causal_store_f32)
+CAUSAL_COUNTERFACTUAL_KERNEL(counterfactual_float16, __half, causal_load_f16, causal_store_f16)
+CAUSAL_COUNTERFACTUAL_KERNEL(counterfactual_bfloat16, __nv_bfloat16, causal_load_bf16, causal_store_bf16)
+
+CAUSAL_IV_PARTIAL_KERNEL(iv_estimate_float32_partial, float, causal_load_f32)
+CAUSAL_IV_PARTIAL_KERNEL(iv_estimate_float16_partial, __half, causal_load_f16)
+CAUSAL_IV_PARTIAL_KERNEL(iv_estimate_bfloat16_partial, __nv_bfloat16, causal_load_bf16)
+
+CAUSAL_IV_FINALIZE_KERNEL(iv_estimate_float32_finalize, float, causal_store_f32)
+CAUSAL_IV_FINALIZE_KERNEL(iv_estimate_float16_finalize, __half, causal_store_f16)
+CAUSAL_IV_FINALIZE_KERNEL(iv_estimate_bfloat16_finalize, __nv_bfloat16, causal_store_bf16)

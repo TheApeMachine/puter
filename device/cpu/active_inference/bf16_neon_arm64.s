@@ -405,7 +405,7 @@ ai_bf16_pw_done:
 	VFADD_D2(13, 28, 28)
 
 // func BeliefUpdateBFloat16NEONAsm(likelihood, prior, output *uint16, count int)
-TEXT ·BeliefUpdateBFloat16NEONAsm(SB), NOSPLIT, $0-32
+TEXT ·BeliefUpdateBFloat16NEONAsm(SB), NOSPLIT, $8-32
 	MOVD likelihood+0(FP), R0
 	MOVD prior+8(FP), R1
 	MOVD output+16(FP), R2
@@ -504,9 +504,9 @@ ai_bf16_bu_normalize:
 	FMOVD $1.0, F3
 	FDIVD F25, F3, F3
 	FCVTDS F3, F3
-	FMOVS F3, R6
-	VMOV R6, V31.S[0]
-	VDUP V31.S[0], V31.S4
+	FMOVS F3, ai_bf16_bu_norm-8(SP)
+	FMOVS ai_bf16_bu_norm-8(SP), F28
+	VDUP V28.S[0], V28.S4
 
 	MOVD output+16(FP), R2
 	MOVD count+24(FP), R3
@@ -521,10 +521,10 @@ ai_bf16_bu_scale_loop16:
 	BF16_WIDEN_H8_TO_S4_HIGH(V0.H8, V5.H8)
 	BF16_WIDEN_H8_TO_S4_LOW(V1.H8, V6.H8)
 	BF16_WIDEN_H8_TO_S4_HIGH(V1.H8, V7.H8)
-	VFMUL_S4(31, 4, 4)
-	VFMUL_S4(31, 5, 5)
-	VFMUL_S4(31, 6, 6)
-	VFMUL_S4(31, 7, 7)
+	VFMUL_S4(28, 4, 4)
+	VFMUL_S4(28, 5, 5)
+	VFMUL_S4(28, 6, 6)
+	VFMUL_S4(28, 7, 7)
 	BF16_NARROW_S4_TO_H8(V4.H8, V5.H8, V12.H8)
 	BF16_NARROW_S4_TO_H8(V6.H8, V7.H8, V13.H8)
 	VST1.P [V12.H8, V13.H8], 32(R2)
@@ -538,8 +538,8 @@ ai_bf16_bu_scale_loop8:
 	VLD1.P 16(R2), [V0.H8]
 	BF16_WIDEN_H8_TO_S4_LOW(V0.H8, V4.H8)
 	BF16_WIDEN_H8_TO_S4_HIGH(V0.H8, V5.H8)
-	VFMUL_S4(31, 4, 4)
-	VFMUL_S4(31, 5, 5)
+	VFMUL_S4(28, 4, 4)
+	VFMUL_S4(28, 5, 5)
 	BF16_NARROW_S4_TO_H8(V4.H8, V5.H8, V12.H8)
 	VST1.P [V12.H8], 16(R2)
 	SUB  $8, R3
