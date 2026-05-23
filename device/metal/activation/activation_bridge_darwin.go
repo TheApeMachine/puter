@@ -8,6 +8,7 @@ package activation
 
 #include "native/activation.m"
 #include "native/gated.m"
+#include "native/lut.m"
 #include "native/parametric.m"
 #include "native/softmax.m"
 #include "native/standard.m"

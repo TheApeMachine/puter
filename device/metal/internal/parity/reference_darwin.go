@@ -83,6 +83,7 @@ GroupNormReference computes the GroupNorm reference matching Metal MSL reduction
 func GroupNormReference(
 	input, scale, bias []float32,
 	batch, channels, spatial, groups int,
+	storageDType dtype.DType,
 ) []float32 {
 	output := make([]float32, len(input))
 	channelsPerGroup := channels / groups
@@ -97,7 +98,7 @@ func GroupNormReference(
 			groupScale := scale[channelStart : channelStart+channelsPerGroup]
 			groupBias := bias[channelStart : channelStart+channelsPerGroup]
 
-			metalGroupNormGroup(groupInput, groupOutput, groupScale, groupBias, channelsPerGroup, spatial)
+			metalGroupNormGroup(groupInput, groupOutput, groupScale, groupBias, channelsPerGroup, spatial, storageDType)
 		}
 	}
 
@@ -110,6 +111,7 @@ LayerNormReference computes the LayerNorm reference matching Metal MSL reduction
 func LayerNormReference(
 	input, scale, bias []float32,
 	rows, cols int,
+	storageDType dtype.DType,
 ) []float32 {
 	output := make([]float32, len(input))
 
@@ -118,7 +120,7 @@ func LayerNormReference(
 		rowInput := input[rowStart : rowStart+cols]
 		rowOutput := output[rowStart : rowStart+cols]
 
-		metalLayerNormRow(rowInput, rowOutput, scale, bias)
+		metalLayerNormRow(rowInput, rowOutput, scale, bias, storageDType)
 	}
 
 	return output

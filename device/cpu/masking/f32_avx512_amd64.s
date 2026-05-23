@@ -267,7 +267,7 @@ alibi_col:
 	CMPQ CX, $16
 	JL   alibi_col_w8
 
-	VMOVUPS Z0, (SI)
+	VMOVUPS (SI), Z0
 	VMOVD R12, X10
 	VPBROADCASTD X10, Z12
 	VPADDD  Z14, Z12, Z12
@@ -277,7 +277,7 @@ alibi_col:
 	VCMPPS  $1, Z10, Z9, K1
 	VMULPS  Z15, Z10, Z16
 	VSUBPS  Z16, Z0, Z1
-	VBLENDMPS Z0, Z1, K1, Z0
+	VBLENDMPS Z1, Z0, K1, Z0
 	VMOVUPS Z0, (DI)
 
 	ADDQ $64, SI
@@ -289,7 +289,7 @@ alibi_col_w8:
 	CMPQ CX, $8
 	JL   alibi_col_w4
 
-	VMOVUPS Y0, (SI)
+	VMOVUPS (SI), Y0
 	VMOVD R12, X10
 	VPBROADCASTD X10, Y12
 	VPADDD  maskIota16<>(SB), Y12, Y12
@@ -299,7 +299,7 @@ alibi_col_w8:
 	VCMPPS  $1, Y10, Y9, K1
 	VMULPS  Y15, Y10, Y16
 	VSUBPS  Y16, Y0, Y1
-	VBLENDMPS Y0, Y1, K1, Y0
+	VBLENDMPS Y1, Y0, K1, Y0
 	VMOVUPS Y0, (DI)
 
 	ADDQ $32, SI
@@ -311,7 +311,7 @@ alibi_col_w4:
 	CMPQ CX, $4
 	JL   alibi_col_w4_tail
 
-	VMOVUPS X0, (SI)
+	VMOVUPS (SI), X0
 	VMOVD R12, X10
 	VPBROADCASTD X10, X11
 	VPADDD  maskIota16<>(SB), X11, X11
@@ -321,7 +321,7 @@ alibi_col_w4:
 	VCMPPS  $1, X10, X9, K1
 	VMULPS  X15, X10, X11
 	VSUBPS  X11, X0, X1
-	VBLENDMPS X0, X1, K1, X0
+	VBLENDMPS X1, X0, K1, X0
 	VMOVUPS X0, (DI)
 
 	ADDQ $16, SI
@@ -350,7 +350,7 @@ alibi_col_w4_tail:
 	KANDW K2, K7, K1
 	VMULPS  X15, X10, X11
 	VSUBPS  X11, X0, X1
-	VBLENDMPS X0, X1, K1, X0
+	VBLENDMPS X1, X0, K1, X0
 	VMOVDQU32 X0, K7, (DI)
 
 alibi_row_done:

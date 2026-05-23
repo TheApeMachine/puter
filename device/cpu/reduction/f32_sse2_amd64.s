@@ -43,7 +43,6 @@ sum_sse2_scalar:
 	JNZ  sum_sse2_scalar
 
 sum_sse2_reduce:
-	ADDSD X0, X0
 	MOVSD X0, X1
 	UNPCKHPD X0, X1
 	ADDSD X1, X0

@@ -1,16 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
-// AVX-512 uint16 LUT gather via VPMOVZXWD index widen and VGATHERDPS table load.
+// AVX-512 uint16 LUT gather: four SSE2-style 4-lane integer gathers per 16 elements.
+// No float32 load, mask, or narrow — uint16 index → uint16 table load → uint16 store.
 #include "textflag.h"
 
-DATA lutGatherMaskAVX512<>+0(SB)/4, $0x0000ffff
-DATA lutGatherMaskAVX512<>+4(SB)/4, $0x0000ffff
-DATA lutGatherMaskAVX512<>+8(SB)/4, $0x0000ffff
-DATA lutGatherMaskAVX512<>+12(SB)/4, $0x0000ffff
-DATA lutGatherMaskAVX512<>+16(SB)/4, $0x0000ffff
-DATA lutGatherMaskAVX512<>+20(SB)/4, $0x0000ffff
-DATA lutGatherMaskAVX512<>+24(SB)/4, $0x0000ffff
-DATA lutGatherMaskAVX512<>+28(SB)/4, $0x0000ffff
-GLOBL lutGatherMaskAVX512<>(SB), 8, $32
+#define LUT_GATHER4(SI, DI, BX, AX, R8, R9, R10, X0, X1) \
+	MOVDQU (SI), X0; \
+	\
+	MOVL X0, AX; \
+	MOVWLZX AX, R8; \
+	LEAQ (BX)(R8*2), R9; \
+	MOVWLZX (R9), R10; \
+	PINSRW $0, R10, X1; \
+	\
+	PEXTRW $1, X0, R8; \
+	LEAQ (BX)(R8*2), R9; \
+	MOVWLZX (R9), R10; \
+	PINSRW $1, R10, X1; \
+	\
+	PEXTRW $2, X0, R8; \
+	LEAQ (BX)(R8*2), R9; \
+	MOVWLZX (R9), R10; \
+	PINSRW $2, R10, X1; \
+	\
+	PEXTRW $3, X0, R8; \
+	LEAQ (BX)(R8*2), R9; \
+	MOVWLZX (R9), R10; \
+	PINSRW $3, R10, X1; \
+	\
+	MOVDQU X1, (DI)
 
 // func ApplyF16LUTAVX512(dst, src *uint16, count int, lut *[65536]uint16)
 TEXT ·ApplyF16LUTAVX512(SB), NOSPLIT, $0-32
@@ -22,21 +39,14 @@ TEXT ·ApplyF16LUTAVX512(SB), NOSPLIT, $0-32
 	TESTQ CX, CX
 	JZ done
 
-	VPBROADCASTD ·lutGatherMaskAVX512<>(SB), Z15
-
 avx512_loop16:
 	CMPQ CX, $16
 	JL avx512_loop8
 
-	VMOVDQU16 (SI), Z0
-	VPMOVZXWD Z0, Z1
-	VPSLLD $1, Z1, Z2
-	KXNORW K1, K1, K1
-	VGATHERDPS (BX)(Z2*1), K1, Z3
-	VPANDD Z3, Z15, Z3
-
-	VPSRLD $0, Z3, Z3
-	VMOVDQU16 Z3, (DI)
+	LUT_GATHER4(SI, DI, BX, AX, R8, R9, R10, X0, X1)
+	LUT_GATHER4(8(SI), 8(DI), BX, AX, R8, R9, R10, X0, X1)
+	LUT_GATHER4(16(SI), 16(DI), BX, AX, R8, R9, R10, X0, X1)
+	LUT_GATHER4(24(SI), 24(DI), BX, AX, R8, R9, R10, X0, X1)
 
 	ADDQ $32, SI
 	ADDQ $32, DI
@@ -47,31 +57,8 @@ avx512_loop8:
 	CMPQ CX, $8
 	JL avx512_loop4
 
-	VMOVDQU (SI), X0
-	VPMOVZXWD X0, Y1
-	VPSLLD $1, Y1, Y2
-	KXNORW K1, K1, K1
-	VGATHERDPS (BX)(Y2*1), K1, Y3
-	VPAND Y3, Y15, Y3
-
-	MOVL X3, AX
-	MOVW AX, (DI)
-	PEXTRD $1, X3, AX
-	MOVW AX, 2(DI)
-	PEXTRD $2, X3, AX
-	MOVW AX, 4(DI)
-	PEXTRD $3, X3, AX
-	MOVW AX, 6(DI)
-
-	VEXTRACTI128 $1, Y3, X4
-	MOVL X4, AX
-	MOVW AX, 8(DI)
-	PEXTRD $1, X4, AX
-	MOVW AX, 10(DI)
-	PEXTRD $2, X4, AX
-	MOVW AX, 12(DI)
-	PEXTRD $3, X4, AX
-	MOVW AX, 14(DI)
+	LUT_GATHER4(SI, DI, BX, AX, R8, R9, R10, X0, X1)
+	LUT_GATHER4(8(SI), 8(DI), BX, AX, R8, R9, R10, X0, X1)
 
 	ADDQ $16, SI
 	ADDQ $16, DI
@@ -82,21 +69,7 @@ avx512_loop4:
 	CMPQ CX, $4
 	JL avx512_scalar_tail
 
-	VMOVDQU (SI), X0
-	VPMOVZXWD X0, Y1
-	VPSLLD $1, Y1, Y2
-	KXNORW K1, K1, K1
-	VGATHERDPS (BX)(X2*1), K1, X3
-	VPAND X3, X15, X3
-
-	MOVL X3, AX
-	MOVW AX, (DI)
-	PEXTRD $1, X3, AX
-	MOVW AX, 2(DI)
-	PEXTRD $2, X3, AX
-	MOVW AX, 4(DI)
-	PEXTRD $3, X3, AX
-	MOVW AX, 6(DI)
+	LUT_GATHER4(SI, DI, BX, AX, R8, R9, R10, X0, X1)
 
 	ADDQ $8, SI
 	ADDQ $8, DI

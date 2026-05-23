@@ -19,7 +19,7 @@ mm_avx2_col_loop:
 	CMPQ DX, $8
 	JL    mm_avx2_col_w4
 
-	VMOVUPS Y0, (DI)
+	VMOVUPS (DI), Y0
 	MOVQ  R12, CX
 	MOVQ  SI, R13
 	MOVQ  BX, R14
@@ -31,7 +31,7 @@ mm_avx2_k8:
 	MOVSS (R13), X1
 	VBROADCASTSS X1, Y1
 	VMOVUPS (R14), Y2
-	VFMADD231PS Y0, Y2, Y1
+	VFMADD231PS Y1, Y2, Y0
 	ADDQ  $4, R13
 	ADDQ  R10, R14
 	DECQ  CX
@@ -51,7 +51,7 @@ mm_avx2_col_w4:
 	CMPQ DX, $4
 	JL    mm_avx2_col_tail
 
-	VMOVUPS X0, (DI)
+	VMOVUPS (DI), X0
 	MOVQ  R12, CX
 	MOVQ  SI, R13
 	MOVQ  BX, R14
@@ -63,7 +63,7 @@ mm_avx2_k4:
 	MOVSS (R13), X1
 	VBROADCASTSS X1, X2
 	VMOVUPS (R14), X3
-	VFMADD231PS X0, X3, X2
+	VFMADD231PS X2, X3, X0
 	ADDQ  $4, R13
 	ADDQ  R10, R14
 	DECQ  CX

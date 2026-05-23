@@ -2,88 +2,45 @@
 
 package parity
 
-import "math"
-
-const normalizationThreadCount = 256
-
-func metalReduceSum(values []float32) float32 {
-	reduction := make([]float32, normalizationThreadCount)
-
-	for threadIndex := 0; threadIndex < normalizationThreadCount; threadIndex++ {
-		reduction[threadIndex] = metalKahanPartialSum(values, threadIndex)
-	}
-
-	return metalTreeReduce256(reduction)
-}
-
-func metalKahanPartialSum(values []float32, threadIndex int) float32 {
-	localSum := float32(0)
-	localCompensation := float32(0)
-
-	for column := threadIndex; column < len(values); column += normalizationThreadCount {
-		value := values[column] - localCompensation
-		nextSum := localSum + value
-		localCompensation = (nextSum - localSum) - value
-		localSum = nextSum
-	}
-
-	return localSum
-}
-
-func metalKahanPartialVariance(values []float32, mean float32, threadIndex int) float32 {
-	localVariance := float32(0)
-	localCompensation := float32(0)
-
-	for column := threadIndex; column < len(values); column += normalizationThreadCount {
-		delta := values[column] - mean
-		value := delta*delta - localCompensation
-		nextVariance := localVariance + value
-		localCompensation = (nextVariance - localVariance) - value
-		localVariance = nextVariance
-	}
-
-	return localVariance
-}
-
-func metalPlainPartialVariance(values []float32, mean float32, threadIndex int) float32 {
-	localVariance := float32(0)
-
-	for offset := threadIndex; offset < len(values); offset += normalizationThreadCount {
-		delta := values[offset] - mean
-		localVariance += delta * delta
-	}
-
-	return localVariance
-}
-
-func metalTreeReduce256(reduction []float32) float32 {
-	for stride := normalizationThreadCount / 2; stride > 0; stride >>= 1 {
-		for index := 0; index < stride; index++ {
-			reduction[index] += reduction[index+stride]
-		}
-	}
-
-	return reduction[0]
-}
+import "github.com/theapemachine/manifesto/dtype"
 
 func metalLayerNormRow(
 	rowInput, rowOutput, scale, bias []float32,
+	storageDType dtype.DType,
 ) {
 	columnCount := len(rowInput)
-	mean := metalReduceSum(rowInput) / float32(columnCount)
+	roundedInput := make([]float32, columnCount)
+	roundedScale := make([]float32, len(scale))
+	roundedBias := make([]float32, len(bias))
+
+	for columnIndex := range roundedInput {
+		roundedInput[columnIndex] = metalStorageLoad(rowInput[columnIndex], storageDType)
+	}
+
+	for columnIndex := range roundedScale {
+		roundedScale[columnIndex] = metalStorageLoad(scale[columnIndex], storageDType)
+		roundedBias[columnIndex] = metalStorageLoad(bias[columnIndex], storageDType)
+	}
+
+	mean := metalReduceSum(roundedInput) / float32(columnCount)
 
 	reduction := make([]float32, normalizationThreadCount)
 
 	for threadIndex := 0; threadIndex < normalizationThreadCount; threadIndex++ {
-		reduction[threadIndex] = metalKahanPartialVariance(rowInput, mean, threadIndex)
+		reduction[threadIndex] = metalKahanPartialVariance(roundedInput, mean, threadIndex)
 	}
 
 	varianceSum := metalTreeReduce256(reduction)
-	invStdDev := float32(1.0) / float32(math.Sqrt(float64(varianceSum/float32(columnCount)+normEpsilon)))
+	invStdDev := metalFloat32InvStdDev(varianceSum, columnCount)
 
 	for columnIndex := 0; columnIndex < columnCount; columnIndex++ {
-		normalized := (rowInput[columnIndex] - mean) * invStdDev
-		rowOutput[columnIndex] = normalized*scale[columnIndex] + bias[columnIndex]
+		loaded := roundedInput[columnIndex]
+		normalized := (loaded - mean) * invStdDev
+		stored := metalStorageStore(
+			normalized*roundedScale[columnIndex]+roundedBias[columnIndex],
+			storageDType,
+		)
+		rowOutput[columnIndex] = stored
 	}
 }
 
@@ -91,22 +48,40 @@ func metalGroupNormGroup(
 	groupInput, groupOutput []float32,
 	scale, bias []float32,
 	channelsPerGroup, spatial int,
+	storageDType dtype.DType,
 ) {
 	groupSize := len(groupInput)
-	mean := metalReduceSum(groupInput) / float32(groupSize)
+	roundedInput := make([]float32, groupSize)
+	roundedScale := make([]float32, len(scale))
+	roundedBias := make([]float32, len(bias))
+
+	for offset := range roundedInput {
+		roundedInput[offset] = metalStorageLoad(groupInput[offset], storageDType)
+	}
+
+	for channelIndex := range roundedScale {
+		roundedScale[channelIndex] = metalStorageLoad(scale[channelIndex], storageDType)
+		roundedBias[channelIndex] = metalStorageLoad(bias[channelIndex], storageDType)
+	}
+
+	mean := metalReduceSum(roundedInput) / float32(groupSize)
 
 	reduction := make([]float32, normalizationThreadCount)
 
 	for threadIndex := 0; threadIndex < normalizationThreadCount; threadIndex++ {
-		reduction[threadIndex] = metalPlainPartialVariance(groupInput, mean, threadIndex)
+		reduction[threadIndex] = metalPlainPartialVariance(roundedInput, mean, threadIndex)
 	}
 
 	varianceSum := metalTreeReduce256(reduction)
-	invStdDev := float32(1.0) / float32(math.Sqrt(float64(varianceSum/float32(groupSize)+normEpsilon)))
+	invStdDev := metalFloat32InvStdDev(varianceSum, groupSize)
 
 	for offset := 0; offset < groupSize; offset++ {
 		channelIndex := offset / spatial
-		normalized := (groupInput[offset] - mean) * invStdDev
-		groupOutput[offset] = normalized*scale[channelIndex] + bias[channelIndex]
+		normalized := (roundedInput[offset] - mean) * invStdDev
+		stored := metalStorageStore(
+			normalized*roundedScale[channelIndex]+roundedBias[channelIndex],
+			storageDType,
+		)
+		groupOutput[offset] = stored
 	}
 }

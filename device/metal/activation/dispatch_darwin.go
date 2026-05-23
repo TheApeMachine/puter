@@ -102,6 +102,12 @@ func DispatchStandardUnary(
 	kernel StandardKernel,
 	count uint32,
 ) error {
+	if format == dtype.Float16 || format == dtype.BFloat16 {
+		if lutTable, ok := productionLUTTable(kernel, format); ok {
+			return DispatchLUTGather(contextRef, dstBuffer, srcBuffer, format, lutTable, count)
+		}
+	}
+
 	operation := standardKernelOperation(kernel)
 
 	if operation < 0 {

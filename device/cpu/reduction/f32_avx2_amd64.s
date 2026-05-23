@@ -59,9 +59,9 @@ sum_avx2_scalar:
 	JNZ  sum_avx2_scalar
 
 sum_avx2_reduce:
-	VHADDPD Y1, Y0, Y0
-	VHADDPD Y1, Y1, Y1
-	VEXTRACTF128 $0, Y1, X0
+	VHADDPD Y0, Y0, Y0
+	VEXTRACTF128 $0, Y0, X0
+	VHADDPD X0, X0, X0
 	CVTSD2SS X0, X0
 	MOVSS X0, ret+16(FP)
 	RET
@@ -114,9 +114,15 @@ prod_avx2_scalar:
 	JNZ  prod_avx2_scalar
 
 prod_avx2_fold:
-	VHADDPS Y0, Y0, Y0
-	VHADDPS Y0, Y0, Y0
 	VEXTRACTF128 $0, Y0, X0
+	VEXTRACTF128 $1, Y0, X1
+	VMULPS  X1, X0, X0
+	MOVAPS  X0, X1
+	SHUFPS  $2, X0, X1
+	MULPS   X1, X0
+	MOVAPS  X0, X1
+	SHUFPS  $1, X0, X1
+	MULPS   X1, X0
 	MOVSS X0, ret+16(FP)
 	RET
 
@@ -171,9 +177,15 @@ max_avx2_scalar:
 	JNZ  max_avx2_scalar
 
 max_avx2_fold:
-	VHADDPS Y0, Y0, Y0
-	VHADDPS Y0, Y0, Y0
 	VEXTRACTF128 $0, Y0, X0
+	VEXTRACTF128 $1, Y0, X1
+	VMAXPS  X1, X0, X0
+	MOVAPS  X0, X1
+	SHUFPS  $2, X0, X1
+	MAXPS   X1, X0
+	MOVAPS  X0, X1
+	SHUFPS  $1, X0, X1
+	MAXPS   X1, X0
 	MOVSS X0, ret+16(FP)
 	RET
 
@@ -228,9 +240,15 @@ min_avx2_scalar:
 	JNZ  min_avx2_scalar
 
 min_avx2_fold:
-	VHADDPS Y0, Y0, Y0
-	VHADDPS Y0, Y0, Y0
 	VEXTRACTF128 $0, Y0, X0
+	VEXTRACTF128 $1, Y0, X1
+	VMINPS  X1, X0, X0
+	MOVAPS  X0, X1
+	SHUFPS  $2, X0, X1
+	MINPS   X1, X0
+	MOVAPS  X0, X1
+	SHUFPS  $1, X0, X1
+	MINPS   X1, X0
 	MOVSS X0, ret+16(FP)
 	RET
 
@@ -294,9 +312,9 @@ l1_avx2_scalar:
 	JNZ  l1_avx2_scalar
 
 l1_avx2_reduce:
-	VHADDPD Y1, Y0, Y0
-	VHADDPD Y1, Y1, Y1
-	VEXTRACTF128 $0, Y1, X0
+	VHADDPD Y0, Y0, Y0
+	VEXTRACTF128 $0, Y0, X0
+	VHADDPD X0, X0, X0
 	CVTSD2SS X0, X0
 	MOVSS X0, ret+16(FP)
 	RET

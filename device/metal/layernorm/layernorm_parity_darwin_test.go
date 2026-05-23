@@ -50,6 +50,7 @@ func TestLayerNormMetalParity(t *testing.T) {
 							bias,
 							config.rows,
 							config.cols,
+							storageDType,
 						)
 
 						inputTensor := harness.UploadVector(input, storageDType)

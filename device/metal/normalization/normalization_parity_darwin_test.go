@@ -55,6 +55,7 @@ func TestGroupNormMetalParity(t *testing.T) {
 									config.channels,
 									spatial,
 									config.groups,
+									storageDType,
 								)
 
 								inputTensor := harness.UploadVector(input, storageDType)
