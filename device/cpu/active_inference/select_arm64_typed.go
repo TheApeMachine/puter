@@ -2,7 +2,11 @@
 
 package active_inference
 
-import "github.com/theapemachine/manifesto/dtype"
+import (
+	"unsafe"
+
+	"github.com/theapemachine/manifesto/dtype"
+)
 
 var (
 	freeEnergyBF16Funcs = []bf16FreeEnergyKernelImpl{
@@ -41,13 +45,31 @@ var (
 )
 
 func FreeEnergyBF16NEON(likelihood, posterior, prior []dtype.BF16) dtype.BF16 {
-	return freeEnergyBFloat16F64NEON(likelihood, posterior, prior)
+	if len(likelihood) == 0 {
+		return 0
+	}
+
+	return dtype.BF16(freeEnergyBFloat16NEONBridge(
+		uintptr(unsafe.Pointer(&likelihood[0])),
+		uintptr(unsafe.Pointer(&posterior[0])),
+		uintptr(unsafe.Pointer(&prior[0])),
+		len(likelihood),
+	))
 }
 
 func ExpectedFreeEnergyBF16NEON(
 	predictedObs, preferredObs, predictedState []dtype.BF16,
 ) dtype.BF16 {
-	return expectedFreeEnergyBFloat16F64NEON(predictedObs, preferredObs, predictedState)
+	if len(predictedObs) == 0 {
+		return 0
+	}
+
+	return dtype.BF16(expectedFreeEnergyBFloat16NEONBridge(
+		uintptr(unsafe.Pointer(&predictedObs[0])),
+		uintptr(unsafe.Pointer(&preferredObs[0])),
+		uintptr(unsafe.Pointer(&predictedState[0])),
+		len(predictedObs), len(predictedState),
+	))
 }
 
 func BeliefUpdateBF16NEON(likelihood, prior, output []dtype.BF16) {
@@ -56,7 +78,10 @@ func BeliefUpdateBF16NEON(likelihood, prior, output []dtype.BF16) {
 	}
 
 	BeliefUpdateBFloat16NEONAsm(
-		&likelihood[0], &prior[0], &output[0], len(likelihood),
+		(*uint16)(unsafe.Pointer(&likelihood[0])),
+		(*uint16)(unsafe.Pointer(&prior[0])),
+		(*uint16)(unsafe.Pointer(&output[0])),
+		len(likelihood),
 	)
 }
 
@@ -66,18 +91,39 @@ func PrecisionWeightBF16NEON(errors, precision, output []dtype.BF16) {
 	}
 
 	PrecisionWeightBFloat16NEONAsm(
-		&errors[0], &precision[0], &output[0], len(errors),
+		(*uint16)(unsafe.Pointer(&errors[0])),
+		(*uint16)(unsafe.Pointer(&precision[0])),
+		(*uint16)(unsafe.Pointer(&output[0])),
+		len(errors),
 	)
 }
 
 func FreeEnergyFP16NEON(likelihood, posterior, prior []dtype.F16) dtype.F16 {
-	return freeEnergyFloat16F64NEON(likelihood, posterior, prior)
+	if len(likelihood) == 0 {
+		return 0
+	}
+
+	return dtype.F16(freeEnergyFloat16NEONBridge(
+		uintptr(unsafe.Pointer(&likelihood[0])),
+		uintptr(unsafe.Pointer(&posterior[0])),
+		uintptr(unsafe.Pointer(&prior[0])),
+		len(likelihood),
+	))
 }
 
 func ExpectedFreeEnergyFP16NEON(
 	predictedObs, preferredObs, predictedState []dtype.F16,
 ) dtype.F16 {
-	return expectedFreeEnergyFloat16F64NEON(predictedObs, preferredObs, predictedState)
+	if len(predictedObs) == 0 {
+		return 0
+	}
+
+	return dtype.F16(expectedFreeEnergyFloat16NEONBridge(
+		uintptr(unsafe.Pointer(&predictedObs[0])),
+		uintptr(unsafe.Pointer(&preferredObs[0])),
+		uintptr(unsafe.Pointer(&predictedState[0])),
+		len(predictedObs), len(predictedState),
+	))
 }
 
 func BeliefUpdateFP16NEON(likelihood, prior, output []dtype.F16) {
@@ -86,7 +132,10 @@ func BeliefUpdateFP16NEON(likelihood, prior, output []dtype.F16) {
 	}
 
 	BeliefUpdateFloat16NEONAsm(
-		&likelihood[0], &prior[0], &output[0], len(likelihood),
+		(*uint16)(unsafe.Pointer(&likelihood[0])),
+		(*uint16)(unsafe.Pointer(&prior[0])),
+		(*uint16)(unsafe.Pointer(&output[0])),
+		len(likelihood),
 	)
 }
 
@@ -96,6 +145,9 @@ func PrecisionWeightFP16NEON(errors, precision, output []dtype.F16) {
 	}
 
 	PrecisionWeightFloat16NEONAsm(
-		&errors[0], &precision[0], &output[0], len(errors),
+		(*uint16)(unsafe.Pointer(&errors[0])),
+		(*uint16)(unsafe.Pointer(&precision[0])),
+		(*uint16)(unsafe.Pointer(&output[0])),
+		len(errors),
 	)
 }

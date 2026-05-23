@@ -12,7 +12,7 @@ import (
 ModuleBuilder renders textual HLO for compile-cache entries.
 */
 type ModuleBuilder struct {
-	moduleName string
+	moduleName  string
 	elementType string
 	dimensions  []int64
 }
@@ -82,6 +82,36 @@ ENTRY main {
 		return moduleBuilder.unaryRoot("negate", "p0"), nil
 	case "sqrt":
 		return moduleBuilder.unaryRoot("sqrt", "p0"), nil
+	case "silu", "swish":
+		return moduleBuilder.renderSilu(), nil
+	case "gelu":
+		return moduleBuilder.renderGeluErf(), nil
+	case "gelu_tanh":
+		return moduleBuilder.renderGeluTanh(), nil
+	case "elu":
+		return moduleBuilder.renderELU(eluAlpha), nil
+	case "celu":
+		return moduleBuilder.renderCELU(celuAlpha), nil
+	case "selu":
+		return moduleBuilder.renderSELU(), nil
+	case "softplus":
+		return moduleBuilder.renderSoftplus(), nil
+	case "mish":
+		return moduleBuilder.renderMish(), nil
+	case "softsign":
+		return moduleBuilder.renderSoftsign(), nil
+	case "hard_sigmoid":
+		return moduleBuilder.renderHardSigmoid(), nil
+	case "hard_swish":
+		return moduleBuilder.renderHardSwish(), nil
+	case "hard_tanh":
+		return moduleBuilder.renderHardTanh(), nil
+	case "hard_gelu":
+		return moduleBuilder.renderHardGelu(), nil
+	case "quick_gelu":
+		return moduleBuilder.renderQuickGelu(), nil
+	case "tanh_shrink":
+		return moduleBuilder.renderTanhShrink(), nil
 	case "leaky_relu":
 		return moduleBuilder.renderLeakyReLU(floatParams)
 	default:

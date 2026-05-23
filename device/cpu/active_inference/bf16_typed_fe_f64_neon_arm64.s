@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-// bfloat16 typed FreeEnergy / ExpectedFreeEnergy: load bf16 → f64, stdlib log, f64 accumulate, bf16 store.
+// bfloat16 typed FreeEnergy / ExpectedFreeEnergy: load bf16 → f64, inline log, f64 accumulate, bf16 store.
 #include "textflag.h"
+#include "log_f64_scalar_neon.inc"
 
 #define AI_BF16_LOAD_F64(ptr, fd) \
 	MOVHU (ptr), R6 ;\
@@ -12,47 +13,6 @@
 	MOVD  $0x3F506024DD2F1AA0, R6 ;\
 	FMOVD R6, F2 ;\
 	FMAXD fd, F2, fd
-
-#define AI_SAVE_FE_LOOP_REGS \
-	MOVD R10, 40(RSP) ;\
-	MOVD R11, 48(RSP) ;\
-	MOVD R12, 56(RSP) ;\
-	MOVD R3, 64(RSP)
-
-#define AI_RESTORE_FE_LOOP_REGS \
-	MOVD 40(RSP), R10 ;\
-	MOVD 48(RSP), R11 ;\
-	MOVD 56(RSP), R12 ;\
-	MOVD 64(RSP), R3
-
-#define AI_F64_LOG_CALL(in, out) \
-	FMOVD F14, 72(RSP) ;\
-	FMOVD F15, 80(RSP) ;\
-	FMOVD in, F0 ;\
-	AI_SAVE_FE_LOOP_REGS ;\
-	CALL ·activeInferenceLogF64(SB) ;\
-	AI_RESTORE_FE_LOOP_REGS ;\
-	FMOVD F0, out ;\
-	FMOVD 72(RSP), F14 ;\
-	FMOVD 80(RSP), F15
-
-#define AI_SAVE_EFE_OBS_REGS \
-	MOVD R0, 40(RSP) ;\
-	MOVD R1, 48(RSP) ;\
-	MOVD R3, 64(RSP)
-
-#define AI_RESTORE_EFE_OBS_REGS \
-	MOVD 40(RSP), R0 ;\
-	MOVD 48(RSP), R1 ;\
-	MOVD 64(RSP), R3
-
-#define AI_SAVE_EFE_STATE_REGS \
-	MOVD R2, 40(RSP) ;\
-	MOVD R4, 64(RSP)
-
-#define AI_RESTORE_EFE_STATE_REGS \
-	MOVD 40(RSP), R2 ;\
-	MOVD 64(RSP), R4
 
 #define AI_BF16_STORE_FE_SUM(fd) \
 	FCVTSD fd, F0 ;\
@@ -66,7 +26,8 @@
 	LSR  $16, R6, R6 ;\
 	MOVH R6, ret+40(FP)
 
-TEXT ·FreeEnergyBFloat16NEONAsm(SB), $256-34
+// func freeEnergyBFloat16NEONBridge(likelihood, posterior, prior uintptr, count int) uint16
+TEXT ·freeEnergyBFloat16NEONBridge(SB), NOSPLIT, $0-34
 	MOVD likelihood+0(FP), R10
 	MOVD posterior+8(FP), R11
 	MOVD prior+16(FP), R12
@@ -85,9 +46,9 @@ ai_bf16_fe_f64_loop:
 	AI_F64_CLAMP_POS(F12)
 	AI_F64_CLAMP_POS(F11)
 	AI_F64_CLAMP_POS(F13)
-	AI_F64_LOG_CALL(F12, F4)
-	AI_F64_LOG_CALL(F11, F5)
-	AI_F64_LOG_CALL(F13, F6)
+	AI_F64_LOG_BF16_FE(F12, F4)
+	AI_F64_LOG_BF16_FE(F11, F5)
+	AI_F64_LOG_BF16_FE(F13, F6)
 	FNEGD F4, F4
 	FMULD F9, F4, F4
 	FADDD F4, F14, F14
@@ -105,7 +66,11 @@ ai_bf16_fe_f64_store:
 	AI_BF16_STORE_FE_SUM(F14)
 	RET
 
-TEXT ·ExpectedFreeEnergyBFloat16NEONAsm(SB), $256-42
+// func expectedFreeEnergyBFloat16NEONBridge(
+//     predictedObs, preferredObs, predictedState uintptr,
+//     obsCount, stateCount int,
+// ) uint16
+TEXT ·expectedFreeEnergyBFloat16NEONBridge(SB), NOSPLIT, $0-42
 	MOVD predictedObs+0(FP), R0
 	MOVD preferredObs+8(FP), R1
 	MOVD predictedState+16(FP), R2
@@ -121,20 +86,8 @@ ai_bf16_efe_f64_obs_loop:
 	FMOVD F9, F13
 	AI_F64_CLAMP_POS(F12)
 	AI_F64_CLAMP_POS(F13)
-	FMOVD F12, F0
-	FMOVD F14, 72(RSP)
-	AI_SAVE_EFE_OBS_REGS
-	CALL ·activeInferenceLogF64(SB)
-	AI_RESTORE_EFE_OBS_REGS
-	FMOVD 72(RSP), F14
-	FMOVD F0, F4
-	FMOVD F13, F0
-	FMOVD F14, 72(RSP)
-	AI_SAVE_EFE_OBS_REGS
-	CALL ·activeInferenceLogF64(SB)
-	AI_RESTORE_EFE_OBS_REGS
-	FMOVD 72(RSP), F14
-	FMOVD F0, F5
+	AI_F64_LOG_BF16_EFE(F12, F4)
+	AI_F64_LOG_BF16_EFE(F13, F5)
 	FSUBD F5, F4, F4
 	FMULD F8, F4, F4
 	FADDD F4, F14, F14
@@ -153,13 +106,7 @@ ai_bf16_efe_f64_state_loop:
 	FMOVD F8, F9
 	FMOVD F8, F12
 	AI_F64_CLAMP_POS(F12)
-	FMOVD F12, F0
-	FMOVD F14, 72(RSP)
-	AI_SAVE_EFE_STATE_REGS
-	CALL ·activeInferenceLogF64(SB)
-	AI_RESTORE_EFE_STATE_REGS
-	FMOVD 72(RSP), F14
-	FMOVD F0, F4
+	AI_F64_LOG_BF16_EFE(F12, F4)
 	FNEGD F4, F4
 	FMULD F9, F4, F4
 	FADDD F4, F14, F14
