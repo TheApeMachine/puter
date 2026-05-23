@@ -1,0 +1,19 @@
+//go:build cuda
+
+package attention
+
+import (
+	"unsafe"
+
+	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/puter/device"
+)
+
+func (attention *Attention) ScaledDotProductAttention(
+	config device.FlashAttentionConfig,
+	query, key, value, output unsafe.Pointer,
+	seqQ, seqK, depth, valueDim int,
+	format dtype.DType,
+) {
+	attention.host.DispatchScaledDotProductAttention(config, query, key, value, output, seqQ, seqK, depth, valueDim, format)
+}

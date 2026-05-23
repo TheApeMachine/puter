@@ -1,0 +1,16 @@
+#include <metal_stdlib>
+#include "active_inference.metal"
+
+using namespace metal;
+
+ACTIVE_SCALAR_PARTIAL_KERNEL(free_energy_float32_partial, free_energy_partial, Float32ActiveStorage, float)
+EXPECTED_FREE_ENERGY_KERNEL(expected_free_energy_float32_partial, Float32ActiveStorage, float)
+ACTIVE_FINALIZE_KERNEL(active_scalar_finalize_float32_value, Float32ActiveStorage, float)
+
+ACTIVE_SCALAR_PARTIAL_KERNEL(free_energy_float16_partial, free_energy_partial, Float16ActiveStorage, half)
+EXPECTED_FREE_ENERGY_KERNEL(expected_free_energy_float16_partial, Float16ActiveStorage, half)
+ACTIVE_FINALIZE_KERNEL(active_scalar_finalize_float16_value, Float16ActiveStorage, half)
+
+ACTIVE_SCALAR_PARTIAL_KERNEL(free_energy_bfloat16_partial, free_energy_partial, BFloat16ActiveStorage, ushort)
+EXPECTED_FREE_ENERGY_KERNEL(expected_free_energy_bfloat16_partial, BFloat16ActiveStorage, ushort)
+ACTIVE_FINALIZE_KERNEL(active_scalar_finalize_bfloat16_value, BFloat16ActiveStorage, ushort)

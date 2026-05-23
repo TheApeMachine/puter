@@ -18,30 +18,61 @@ import (
 
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
+	"github.com/theapemachine/puter/device/cuda/activation"
+	"github.com/theapemachine/puter/device/cuda/active_inference"
+	"github.com/theapemachine/puter/device/cuda/attention"
+	"github.com/theapemachine/puter/device/cuda/causal"
+	"github.com/theapemachine/puter/device/cuda/convolution"
+	"github.com/theapemachine/puter/device/cuda/dequant"
+	"github.com/theapemachine/puter/device/cuda/dot"
+	"github.com/theapemachine/puter/device/cuda/dropout"
+	"github.com/theapemachine/puter/device/cuda/elementwise"
+	"github.com/theapemachine/puter/device/cuda/embedding"
+	"github.com/theapemachine/puter/device/cuda/hawkes"
+	"github.com/theapemachine/puter/device/cuda/layernorm"
+	"github.com/theapemachine/puter/device/cuda/losses"
+	"github.com/theapemachine/puter/device/cuda/matmul"
+	"github.com/theapemachine/puter/device/cuda/normalization"
+	"github.com/theapemachine/puter/device/cuda/physics"
+	"github.com/theapemachine/puter/device/cuda/pool"
+	"github.com/theapemachine/puter/device/cuda/predictive_coding"
+	"github.com/theapemachine/puter/device/cuda/quant"
+	"github.com/theapemachine/puter/device/cuda/reduction"
+	"github.com/theapemachine/puter/device/cuda/rope"
+	"github.com/theapemachine/puter/device/cuda/sampling"
+	"github.com/theapemachine/puter/device/cuda/vsa"
 )
 
 /*
-Backend is the CUDA Backend implementation. The dtype set returned by
-SupportedDTypes depends on the device's compute capability; H100 /
-B200 add FP8E4M3 and FP8E5M2 to the base set.
+Backend is the CUDA Backend implementation.
 */
 type Backend struct {
 	closed atomic.Bool
 	bridge *cudaBridge
-}
 
-/*
-NewBackend constructs a CUDA backend. Returns ErrNeedsPlatformSetup
-if no CUDA-capable device is present or the cgo toolchain is missing.
-*/
-func NewBackend() (*Backend, error) {
-	bridge, err := openCUDABridge()
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &Backend{bridge: bridge}, nil
+	activation.Activation
+	elementwise.Elementwise
+	reduction.Reduction
+	dot.Product
+	matmul.Gemm
+	pool.Pool
+	convolution.Convolution
+	dropout.DropoutLayer
+	losses.Losses
+	sampling.Sampling
+	embedding.Embedding
+	normalization.Normalization
+	layernorm.Norm
+	rope.RotaryEmbedding
+	hawkes.Hawkes
+	physics.Physics
+	causal.Causal
+	attention.Attention
+	vsa.VSA
+	active_inference.ActiveInference
+	predictive_coding.PredictiveCoding
+	dequant.Dequantization
+	quant.Quantization
 }
 
 /*

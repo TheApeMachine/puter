@@ -15,7 +15,7 @@ lives in bridge_real.go behind //go:build cuda.
 */
 type cudaBridge struct{}
 
-func openCUDABridge() (*cudaBridge, error) {
+func openCUDABridge(backend *Backend) (*cudaBridge, error) {
 	return nil, tensor.ErrNeedsPlatformSetup
 }
 

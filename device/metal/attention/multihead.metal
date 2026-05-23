@@ -1,0 +1,16 @@
+#include <metal_stdlib>
+#include "attention.metal"
+
+using namespace metal;
+
+MULTI_HEAD_ATTENTION_KERNEL(multi_head_attention_float32, Float32TransformerStorage, float)
+MULTI_HEAD_ATTENTION_KERNEL(multi_head_attention_float16, Float16TransformerStorage, half)
+MULTI_HEAD_ATTENTION_KERNEL(multi_head_attention_bfloat16, BFloat16TransformerStorage, ushort)
+
+MULTI_HEAD_ATTENTION_KERNEL(grouped_query_attention_float32, Float32TransformerStorage, float)
+MULTI_HEAD_ATTENTION_KERNEL(grouped_query_attention_float16, Float16TransformerStorage, half)
+MULTI_HEAD_ATTENTION_KERNEL(grouped_query_attention_bfloat16, BFloat16TransformerStorage, ushort)
+
+MULTI_HEAD_ATTENTION_KERNEL(sliding_window_attention_float32, Float32TransformerStorage, float)
+MULTI_HEAD_ATTENTION_KERNEL(sliding_window_attention_float16, Float16TransformerStorage, half)
+MULTI_HEAD_ATTENTION_KERNEL(sliding_window_attention_bfloat16, BFloat16TransformerStorage, ushort)

@@ -1,0 +1,16 @@
+#include <metal_stdlib>
+#include "active_inference.metal"
+
+using namespace metal;
+
+BELIEF_PARTIAL_KERNEL(belief_update_float32_partial, Float32ActiveStorage, float)
+BELIEF_NORMALIZE_KERNEL(belief_update_float32_normalize, Float32ActiveStorage, float)
+PRECISION_WEIGHT_KERNEL(precision_weight_float32, Float32ActiveStorage, float)
+
+BELIEF_PARTIAL_KERNEL(belief_update_float16_partial, Float16ActiveStorage, half)
+BELIEF_NORMALIZE_KERNEL(belief_update_float16_normalize, Float16ActiveStorage, half)
+PRECISION_WEIGHT_KERNEL(precision_weight_float16, Float16ActiveStorage, half)
+
+BELIEF_PARTIAL_KERNEL(belief_update_bfloat16_partial, BFloat16ActiveStorage, ushort)
+BELIEF_NORMALIZE_KERNEL(belief_update_bfloat16_normalize, BFloat16ActiveStorage, ushort)
+PRECISION_WEIGHT_KERNEL(precision_weight_bfloat16, BFloat16ActiveStorage, ushort)

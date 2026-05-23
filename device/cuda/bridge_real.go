@@ -3,33 +3,22 @@
 package cuda
 
 /*
-#cgo LDFLAGS: -lcuda -lcudart
+#cgo cuda CFLAGS: -I${SRCDIR}/internal/bridge
+#cgo cuda LDFLAGS: -lcuda -lcudart -lnvrtc -lpthread
 
-#include <stdlib.h>
-#include <string.h>
+#include "internal/bridge/core.h"
 
-// Forward declarations for the CUDA runtime bindings. The full
-// implementation requires linking against libcuda and libcudart and
-// running on a CUDA-capable host. Phase 5 verification needs an H100
-// or B200 (for FP8 paths) or any sm_70+ device for the base set.
-
-typedef void* CUDADeviceRef;
-typedef void* CUDABufferRef;
-typedef void* CUDAStreamRef;
-
-static CUDADeviceRef cuda_open_default_device(void) { return NULL; }
-static long long cuda_total_global_mem(CUDADeviceRef device) { (void)device; return 0; }
-static int cuda_compute_capability_major(CUDADeviceRef device) { (void)device; return 0; }
-static int cuda_compute_capability_minor(CUDADeviceRef device) { (void)device; return 0; }
-static CUDABufferRef cuda_buffer_alloc(CUDADeviceRef device, long long bytes) { (void)device; (void)bytes; return NULL; }
-static void cuda_buffer_release(CUDABufferRef buffer) { (void)buffer; }
-static CUDAStreamRef cuda_stream_create(CUDADeviceRef device) { (void)device; return NULL; }
-static void cuda_stream_destroy(CUDAStreamRef stream) { (void)stream; }
-static int cuda_memcpy_async_h2d(CUDABufferRef dst, void* src, long long bytes, CUDAStreamRef stream) {
-    (void)dst; (void)src; (void)bytes; (void)stream;
-    return 0;
-}
-static void cuda_device_release(CUDADeviceRef device) { (void)device; }
+extern int cuda_open_device(CUDADeviceRef* outDevice, CUDAStatus* status);
+extern void cuda_close_device(CUDADeviceRef device);
+extern long long cuda_device_total_memory(CUDADeviceRef device);
+extern int cuda_device_capability_major(CUDADeviceRef device);
+extern CUDABufferRef cuda_buffer_alloc(CUDADeviceRef device, long long bytes);
+extern void cuda_buffer_release(CUDABufferRef buffer);
+extern int cuda_memcpy_async_h2d(CUDABufferRef dst, const void* src, long long bytes, CUDAStreamRef stream, CUDAStatus* status);
+extern int cuda_memcpy_async_d2h(void* dst, CUDABufferRef src, long long bytes, CUDAStreamRef stream, CUDAStatus* status);
+extern int cuda_stream_synchronize(CUDAStreamRef stream, CUDAStatus* status);
+extern CUDADeviceRef cuda_default_context(void);
+extern CUDAStreamRef cuda_context_upload_stream(CUDADeviceRef device);
 */
 import "C"
 
@@ -38,34 +27,25 @@ import (
 	"github.com/theapemachine/manifesto/tensor"
 )
 
-/*
-cudaBridge wraps a CUDA device handle plus the upload stream. The
-supported-dtype list depends on the device's compute capability; the
-bridge constructs it once on open.
-*/
 type cudaBridge struct {
 	device       C.CUDADeviceRef
 	uploadStream C.CUDAStreamRef
+	backend      *Backend
 	dtypes       []dtype.DType
 	totalMem     int64
 }
 
-func openCUDABridge() (*cudaBridge, error) {
-	device := C.cuda_open_default_device()
+func openCUDABridge(backend *Backend) (*cudaBridge, error) {
+	var device C.CUDADeviceRef
+	var status C.CUDAStatus
+	code := C.cuda_open_device(&device, &status)
 
-	if device == nil {
+	if code != 0 || device == nil {
 		return nil, tensor.ErrNeedsPlatformSetup
 	}
 
-	stream := C.cuda_stream_create(device)
-
-	if stream == nil {
-		C.cuda_device_release(device)
-		return nil, tensor.ErrNeedsPlatformSetup
-	}
-
-	major := int(C.cuda_compute_capability_major(device))
-	totalMem := int64(C.cuda_total_global_mem(device))
+	major := int(C.cuda_device_capability_major(device))
+	totalMem := int64(C.cuda_device_total_memory(device))
 
 	supported := []dtype.DType{
 		dtype.Float32,
@@ -77,16 +57,22 @@ func openCUDABridge() (*cudaBridge, error) {
 	}
 
 	if major >= 9 {
-		// Hopper / Blackwell add native FP8 paths.
 		supported = append(supported, dtype.Float8E4M3, dtype.Float8E5M2)
 	}
 
+	contextUploadStream := C.cuda_context_upload_stream(device)
+
 	return &cudaBridge{
 		device:       device,
-		uploadStream: stream,
+		uploadStream: contextUploadStream,
+		backend:      backend,
 		dtypes:       supported,
 		totalMem:     totalMem,
 	}, nil
+}
+
+func (bridge *cudaBridge) contextRef() C.CUDADeviceRef {
+	return bridge.device
 }
 
 func (bridge *cudaBridge) supportedDTypes() []dtype.DType {
@@ -102,7 +88,17 @@ func (bridge *cudaBridge) upload(
 	sourceDType dtype.DType,
 	bytesIn []byte,
 ) (tensor.Tensor, error) {
-	return nil, tensor.ErrNeedsPlatformSetup
+	tensorValue, err := bridge.uploadAsync(shape, sourceDType, bytesIn)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if waitErr := tensorValue.(*DeviceTensor).WaitReady(); waitErr != nil {
+		return nil, waitErr
+	}
+
+	return tensorValue, nil
 }
 
 func (bridge *cudaBridge) uploadAsync(
@@ -110,23 +106,85 @@ func (bridge *cudaBridge) uploadAsync(
 	sourceDType dtype.DType,
 	bytesIn []byte,
 ) (tensor.Tensor, error) {
-	return nil, tensor.ErrNeedsPlatformSetup
+	return bridge.stageUpload(shape, sourceDType, bytesIn, true)
 }
 
 func (bridge *cudaBridge) download(input tensor.Tensor) (dtype.DType, []byte, error) {
-	return dtype.Invalid, nil, tensor.ErrNeedsPlatformSetup
+	deviceTensor, ok := input.(*DeviceTensor)
+
+	if !ok {
+		return dtype.Invalid, nil, tensor.ErrShapeMismatch
+	}
+
+	bytesOut := make([]byte, deviceTensor.byteCount)
+	var status C.CUDAStatus
+	code := C.cuda_memcpy_async_d2h(
+		unsafeBytes(bytesOut),
+		deviceTensor.bufferRef(),
+		C.longlong(deviceTensor.byteCount),
+		bridge.uploadStream,
+		&status,
+	)
+
+	if code != 0 {
+		return dtype.Invalid, nil, bridgeStatusError(status)
+	}
+
+	if syncCode := C.cuda_stream_synchronize(bridge.uploadStream, &status); syncCode != 0 {
+		return dtype.Invalid, nil, bridgeStatusError(status)
+	}
+
+	return deviceTensor.format(), bytesOut, nil
 }
 
 func (bridge *cudaBridge) close() error {
-	if bridge.uploadStream != nil {
-		C.cuda_stream_destroy(bridge.uploadStream)
-		bridge.uploadStream = nil
-	}
-
 	if bridge.device != nil {
-		C.cuda_device_release(bridge.device)
+		C.cuda_close_device(bridge.device)
 		bridge.device = nil
 	}
 
 	return nil
+}
+
+func (bridge *cudaBridge) stageUpload(
+	shape tensor.Shape,
+	sourceDType dtype.DType,
+	bytesIn []byte,
+	async bool,
+) (tensor.Tensor, error) {
+	buffer := C.cuda_buffer_alloc(bridge.device, C.longlong(len(bytesIn)))
+
+	if buffer == nil {
+		return nil, tensor.ErrNeedsPlatformSetup
+	}
+
+	var status C.CUDAStatus
+	code := C.cuda_memcpy_async_h2d(
+		buffer,
+		unsafeBytes(bytesIn),
+		C.longlong(len(bytesIn)),
+		bridge.uploadStream,
+		&status,
+	)
+
+	if code != 0 {
+		C.cuda_buffer_release(buffer)
+		return nil, bridgeStatusError(status)
+	}
+
+	if !async {
+		if syncCode := C.cuda_stream_synchronize(bridge.uploadStream, &status); syncCode != 0 {
+			C.cuda_buffer_release(buffer)
+			return nil, bridgeStatusError(status)
+		}
+	}
+
+	return newDeviceTensor(
+		bridge.backend,
+		shape,
+		sourceDType,
+		buffer,
+		len(bytesIn),
+		async,
+	), nil
 }

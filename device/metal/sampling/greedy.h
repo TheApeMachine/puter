@@ -1,0 +1,6 @@
+#ifndef PUTER_DEVICE_METAL_SAMPLING_GREEDY_H
+#define PUTER_DEVICE_METAL_SAMPLING_GREEDY_H
+
+#include "sampling.h"
+
+#endif

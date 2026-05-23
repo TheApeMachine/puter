@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -58,16 +59,33 @@ func (generator *Generator) Generate() error {
 }
 
 func (generator *Generator) SourceFiles() ([]string, error) {
-	pattern := filepath.Join(generator.packageDir, "*.metal")
-	sources, err := filepath.Glob(pattern)
-	if err != nil {
-		return nil, err
+	var sources []string
+
+	walkError := filepath.WalkDir(generator.packageDir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if entry.IsDir() {
+			return nil
+		}
+
+		if filepath.Ext(path) != ".metal" {
+			return nil
+		}
+
+		sources = append(sources, path)
+		return nil
+	})
+
+	if walkError != nil {
+		return nil, walkError
 	}
 
 	sort.Strings(sources)
 
 	if len(sources) == 0 {
-		return nil, fmt.Errorf("no Metal source files matched %s", pattern)
+		return nil, fmt.Errorf("no Metal source files under %s", generator.packageDir)
 	}
 
 	return sources, nil
@@ -104,10 +122,15 @@ func (generator *Generator) MetallibArgs(sources []string) []string {
 }
 
 func (generator *Generator) AirPath(source string) string {
-	base := filepath.Base(source)
-	name := strings.TrimSuffix(base, filepath.Ext(base))
+	relativePath, err := filepath.Rel(generator.packageDir, source)
+	if err != nil {
+		relativePath = filepath.Base(source)
+	}
 
-	return filepath.Join(generator.tempDir, name+".air")
+	stem := strings.TrimSuffix(relativePath, filepath.Ext(relativePath))
+	stem = strings.ReplaceAll(stem, string(filepath.Separator), "_")
+
+	return filepath.Join(generator.tempDir, stem+".air")
 }
 
 func (generator *Generator) Run(name string, args ...string) error {

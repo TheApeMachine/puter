@@ -1,0 +1,13 @@
+//go:build !cuda
+
+package hawkes
+
+import (
+	"unsafe"
+
+	"github.com/theapemachine/manifesto/dtype"
+)
+
+func (hawkes *Hawkes) HawkesLogLikelihood(eventTimes unsafe.Pointer, eventCount int, totalT, mu, alpha, beta float32, output unsafe.Pointer, format dtype.DType,) {
+	hawkes.stubHost()
+}

@@ -56,8 +56,45 @@ func TestGenerator_MetallibArgs(t *testing.T) {
 	})
 }
 
+func TestGenerator_AirPath(t *testing.T) {
+	convey.Convey("Given a Metal source path", t, func() {
+		generator := NewGenerator("/workspace/metal", "/tmp/caramba-metal")
+		source := filepath.Join("/workspace/metal", "activation", "standard.metal")
+
+		convey.So(
+			generator.AirPath(source),
+			convey.ShouldEqual,
+			filepath.Join("/tmp/caramba-metal", "activation_standard.air"),
+		)
+	})
+}
+
 func TestGenerator_SourceFiles(t *testing.T) {
-	convey.Convey("Given a package directory with Metal sources", t, func() {
+	convey.Convey("Given a package directory with nested Metal sources", t, func() {
+		packageDir := t.TempDir()
+		generator := NewGenerator(packageDir, "/tmp/caramba-metal")
+
+		activationDir := filepath.Join(packageDir, "activation")
+		err := os.MkdirAll(activationDir, 0700)
+		convey.So(err, convey.ShouldBeNil)
+
+		err = os.WriteFile(filepath.Join(activationDir, "standard.metal"), []byte(""), 0600)
+		convey.So(err, convey.ShouldBeNil)
+
+		err = os.WriteFile(filepath.Join(packageDir, "root.metal"), []byte(""), 0600)
+		convey.So(err, convey.ShouldBeNil)
+
+		sources, err := generator.SourceFiles()
+		convey.So(err, convey.ShouldBeNil)
+		convey.So(sources, convey.ShouldResemble, []string{
+			filepath.Join(activationDir, "standard.metal"),
+			filepath.Join(packageDir, "root.metal"),
+		})
+	})
+}
+
+func TestGenerator_SourceFilesFlat(t *testing.T) {
+	convey.Convey("Given a package directory with flat Metal sources", t, func() {
 		packageDir := t.TempDir()
 		generator := NewGenerator(packageDir, "/tmp/caramba-metal")
 
@@ -73,18 +110,5 @@ func TestGenerator_SourceFiles(t *testing.T) {
 			filepath.Join(packageDir, "alpha.metal"),
 			filepath.Join(packageDir, "zeta.metal"),
 		})
-	})
-}
-
-func TestGenerator_AirPath(t *testing.T) {
-	convey.Convey("Given a Metal source path", t, func() {
-		generator := NewGenerator("/workspace/metal", "/tmp/caramba-metal")
-		source := filepath.Join("/workspace/metal", "elementwise_float32.metal")
-
-		convey.So(
-			generator.AirPath(source),
-			convey.ShouldEqual,
-			filepath.Join("/tmp/caramba-metal", "elementwise_float32.air"),
-		)
 	})
 }
