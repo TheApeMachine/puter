@@ -381,3 +381,33 @@ func (host *ComputeHost) GLUTensors(
 		output,
 	))
 }
+
+func (host *ComputeHost) DispatchAxpy(
+	y, x unsafe.Pointer,
+	alpha float32,
+	format dtype.DType,
+) {
+	count := host.elementCount(y, x)
+
+	if count == 0 {
+		return
+	}
+
+	shape, err := ShapeFromCount(count)
+	host.dispatchError(err)
+
+	context := LoweringContextForBinary(format, shape, shape, shape)
+	yTensor := host.requireDeviceTensor(y)
+	xTensor := host.requireDeviceTensor(x)
+
+	host.dispatchError(host.builder.ExecuteBinary(
+		host.bridge,
+		"axpy",
+		context,
+		[]float64{float64(alpha)},
+		nil,
+		yTensor,
+		xTensor,
+		yTensor,
+	))
+}

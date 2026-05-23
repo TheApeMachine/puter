@@ -47,6 +47,7 @@ type Host interface {
 	NotImplemented(methodName string)
 	UnaryElementwise(dst, src unsafe.Pointer, format dtype.DType, kernel UnaryKernel)
 	BinaryElementwise(dst, left, right unsafe.Pointer, format dtype.DType, kernel BinaryKernel)
+	DispatchAxpy(y, x unsafe.Pointer, alpha float32, format dtype.DType)
 }
 
 /*
