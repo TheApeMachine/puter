@@ -19,6 +19,18 @@ int cuda_transformer_kernel_name(
 
 void cuda_attention_status_clear(CUDAStatus* status);
 
+void cuda_attention_register_module_source(const char* source);
+
+const char* cuda_attention_module_source(void);
+
+int cuda_attention_kernel_name(
+    char* out,
+    size_t outBytes,
+    const char* operationName,
+    int elementDType,
+    CUDAStatus* status
+);
+
 #ifdef __cplusplus
 }
 #endif

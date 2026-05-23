@@ -203,6 +203,35 @@ int cuda_memcpy_async_d2h(
     return 0;
 }
 
+int cuda_memcpy_async_d2d(
+    CUDABufferRef dst,
+    CUDABufferRef src,
+    long long bytes,
+    CUDAStreamRef stream,
+    CUDAStatus* status
+) {
+    CUDAResidentTensor* dstResident = (CUDAResidentTensor*)dst;
+    CUDAResidentTensor* srcResident = (CUDAResidentTensor*)src;
+
+    if (dstResident == NULL || srcResident == NULL) {
+        cuda_status_set(status, -2, "nil CUDA buffer");
+        return -2;
+    }
+
+    if (cudaMemcpyAsync(
+            dstResident->devicePtr,
+            srcResident->devicePtr,
+            (size_t)bytes,
+            cudaMemcpyDeviceToDevice,
+            (cudaStream_t)stream
+        ) != cudaSuccess) {
+        cuda_status_set(status, -7, "cudaMemcpyAsync D2D failed");
+        return -7;
+    }
+
+    return 0;
+}
+
 int cuda_stream_synchronize(CUDAStreamRef stream, CUDAStatus* status) {
     if (cudaStreamSynchronize((cudaStream_t)stream) != cudaSuccess) {
         cuda_status_set(status, -7, "cudaStreamSynchronize failed");

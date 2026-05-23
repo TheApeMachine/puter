@@ -84,6 +84,14 @@ int cuda_compose_kernel_name(
 
 void* cuda_buffer_device_ptr(CUDABufferRef buffer);
 
+int cuda_memcpy_async_d2d(
+    CUDABufferRef dst,
+    CUDABufferRef src,
+    long long bytes,
+    CUDAStreamRef stream,
+    CUDAStatus* status
+);
+
 CUDAStreamRef cuda_context_upload_stream(CUDADeviceRef device);
 
 #ifdef __cplusplus

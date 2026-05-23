@@ -13,6 +13,7 @@ int cuda_dispatch_embedding_lookup(
     CUDABufferRef tableRef,
     CUDABufferRef indicesRef,
     CUDABufferRef outRef,
+    CUDABufferRef errorFlagRef,
     uint32_t vocab,
     uint32_t hidden,
     uint32_t indexCount,

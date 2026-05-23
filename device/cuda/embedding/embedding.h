@@ -9,6 +9,10 @@ extern "C" {
 
 void cuda_transformer_status_set(CUDAStatus* status, int code, const char* message);
 
+void cuda_embedding_register_module_source(const char* source);
+
+const char* cuda_embedding_module_source(void);
+
 int cuda_transformer_kernel_name(
     char* out,
     size_t outBytes,

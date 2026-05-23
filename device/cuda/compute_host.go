@@ -8,9 +8,12 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/puter/device"
 	"github.com/theapemachine/puter/device/cuda/activation"
+	"github.com/theapemachine/puter/device/cuda/dropout"
 	"github.com/theapemachine/puter/device/cuda/elementwise"
+	"github.com/theapemachine/puter/device/cuda/embedding"
 	"github.com/theapemachine/puter/device/cuda/layernorm"
 	"github.com/theapemachine/puter/device/cuda/matmul"
+	"github.com/theapemachine/puter/device/cuda/normalization"
 	"github.com/theapemachine/puter/device/cuda/pool"
 )
 
@@ -189,7 +192,25 @@ func (host *ComputeHost) DispatchBackdoorAdjustment(conditional, marginalZ, outp
 }
 
 func (host *ComputeHost) DispatchBatchNormEval(input, scale, bias, mean, variance, output unsafe.Pointer, batch, channels, spatial int, format dtype.DType) {
-	host.unavailable()
+	if batch == 0 || channels == 0 || spatial == 0 {
+		return
+	}
+
+	if err := normalization.DispatchBatchNormEval(
+		host.contextRef(),
+		resolveBufferRef(input),
+		resolveBufferRef(scale),
+		resolveBufferRef(bias),
+		resolveBufferRef(mean),
+		resolveBufferRef(variance),
+		resolveBufferRef(output),
+		uint32(batch),
+		uint32(channels),
+		uint32(spatial),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchBeliefUpdate(likelihood, prior, output unsafe.Pointer, count int, format dtype.DType) {
@@ -261,7 +282,20 @@ func (host *ComputeHost) DispatchDoIntervene(adjacency, intervened, output unsaf
 }
 
 func (host *ComputeHost) DispatchDropout(dst, src unsafe.Pointer, count int, config device.DropoutConfig, format dtype.DType) {
-	host.unavailable()
+	if count == 0 {
+		return
+	}
+
+	if err := dropout.DispatchDropout(
+		host.contextRef(),
+		resolveBufferRef(src),
+		resolveBufferRef(dst),
+		uint32(count),
+		config,
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchExpectedFreeEnergy(predictedObs, preferredObs, predictedState, output unsafe.Pointer, obsCount, stateCount int, format dtype.DType) {
@@ -289,7 +323,24 @@ func (host *ComputeHost) DispatchGrad1D(input, output unsafe.Pointer, count int,
 }
 
 func (host *ComputeHost) DispatchGroupNorm(config device.GroupNormConfig, input, scale, bias, output unsafe.Pointer, batch, channels, spatial int, format dtype.DType) {
-	host.unavailable()
+	if batch == 0 || channels == 0 || spatial == 0 || config.Groups == 0 {
+		return
+	}
+
+	if err := normalization.DispatchGroupNorm(
+		host.contextRef(),
+		resolveBufferRef(input),
+		resolveBufferRef(scale),
+		resolveBufferRef(bias),
+		resolveBufferRef(output),
+		config,
+		uint32(batch),
+		uint32(channels),
+		uint32(spatial),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchHawkesIntensity(eventTimes, queryTimes, output unsafe.Pointer, eventCount, queryCount int, mu, alpha, beta float32, format dtype.DType) {
@@ -313,7 +364,23 @@ func (host *ComputeHost) DispatchIVEstimate(instrument, treatment, outcome unsaf
 }
 
 func (host *ComputeHost) DispatchInstanceNorm(input, scale, bias, output unsafe.Pointer, batch, channels, spatial int, format dtype.DType) {
-	host.unavailable()
+	if batch == 0 || channels == 0 || spatial == 0 {
+		return
+	}
+
+	if err := normalization.DispatchInstanceNorm(
+		host.contextRef(),
+		resolveBufferRef(input),
+		resolveBufferRef(scale),
+		resolveBufferRef(bias),
+		resolveBufferRef(output),
+		uint32(batch),
+		uint32(channels),
+		uint32(spatial),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchInversePermute(config device.VSAConfig, input, output unsafe.Pointer, count int, format dtype.DType) {
@@ -482,7 +549,23 @@ func (host *ComputeHost) LaunchLayerNorm(input, scale, bias, output unsafe.Point
 }
 
 func (host *ComputeHost) LaunchLookup(table, indices, output unsafe.Pointer, vocab, hidden, indexCount int, format dtype.DType) {
-	host.unavailable()
+	if vocab == 0 || hidden == 0 || indexCount == 0 {
+		return
+	}
+
+	if err := embedding.DispatchLookup(
+		host.contextRef(),
+		resolveBufferRef(table),
+		resolveBufferRef(indices),
+		resolveBufferRef(output),
+		nil,
+		format,
+		uint32(vocab),
+		uint32(hidden),
+		uint32(indexCount),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) LaunchRMSNorm(input, scale, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {
