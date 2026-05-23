@@ -131,6 +131,8 @@ NewDefaultBuilder constructs a builder with standard activation and elementwise 
 func NewDefaultBuilder(target string) *Builder {
 	registry := NewLoweringRegistry()
 	RegisterStandardActivations(registry)
+	RegisterParametricActivations(registry)
+	RegisterGatedActivations(registry)
 	RegisterElementwiseLowerings(registry)
 
 	return NewBuilder(NewExecutableCache(), registry, target)

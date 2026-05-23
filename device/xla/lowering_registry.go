@@ -55,6 +55,42 @@ func RegisterStandardActivations(registry *LoweringRegistry) {
 	}
 }
 
+func RegisterParametricActivations(registry *LoweringRegistry) {
+	unaryParams := []string{
+		"prelu_slope", "leaky_relu_slope", "elu_alpha", "celu_alpha",
+		"threshold", "snake", "hard_shrink", "soft_shrink",
+	}
+	dualParams := []string{"hard_tanh_range", "snake_parametric", "rrelu"}
+	binaryIndexed := []string{"prelu_v"}
+	softmaxOps := []string{"softmax"}
+
+	for _, operationName := range unaryParams {
+		registry.Register(NewUnaryActivationLowering(operationName))
+	}
+
+	for _, operationName := range dualParams {
+		registry.Register(NewUnaryActivationLowering(operationName))
+	}
+
+	for _, operationName := range binaryIndexed {
+		registry.Register(NewBinaryElementwiseLowering(operationName))
+	}
+
+	for _, operationName := range softmaxOps {
+		registry.Register(NewUnaryActivationLowering(operationName))
+	}
+}
+
+func RegisterGatedActivations(registry *LoweringRegistry) {
+	gatedOps := []string{
+		"glu", "geglu", "geglu_tanh", "swiglu", "reglu", "siglu", "linglu", "seglu",
+	}
+
+	for _, operationName := range gatedOps {
+		registry.Register(NewBinaryElementwiseLowering(operationName))
+	}
+}
+
 /*
 UnaryElementwiseLowering describes an XLA unary elementwise compile key.
 */
@@ -147,7 +183,7 @@ func RegisterElementwiseLowerings(registry *LoweringRegistry) {
 		registry.Register(NewUnaryElementwiseLowering(operationName))
 	}
 
-	binaryOperations := []string{"add", "sub", "mul", "div", "max", "min"}
+	binaryOperations := []string{"add", "sub", "mul", "div", "max", "min", "axpy"}
 	for _, operationName := range binaryOperations {
 		registry.Register(NewBinaryElementwiseLowering(operationName))
 	}

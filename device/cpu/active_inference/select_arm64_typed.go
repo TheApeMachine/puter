@@ -45,31 +45,13 @@ var (
 )
 
 func FreeEnergyBF16NEON(likelihood, posterior, prior []dtype.BF16) dtype.BF16 {
-	if len(likelihood) == 0 {
-		return 0
-	}
-
-	return dtype.BF16(freeEnergyBFloat16NEONBridge(
-		uintptr(unsafe.Pointer(&likelihood[0])),
-		uintptr(unsafe.Pointer(&posterior[0])),
-		uintptr(unsafe.Pointer(&prior[0])),
-		len(likelihood),
-	))
+	return freeEnergyBFloat16F64NEON(likelihood, posterior, prior)
 }
 
 func ExpectedFreeEnergyBF16NEON(
 	predictedObs, preferredObs, predictedState []dtype.BF16,
 ) dtype.BF16 {
-	if len(predictedObs) == 0 {
-		return 0
-	}
-
-	return dtype.BF16(expectedFreeEnergyBFloat16NEONBridge(
-		uintptr(unsafe.Pointer(&predictedObs[0])),
-		uintptr(unsafe.Pointer(&preferredObs[0])),
-		uintptr(unsafe.Pointer(&predictedState[0])),
-		len(predictedObs), len(predictedState),
-	))
+	return expectedFreeEnergyBFloat16F64NEON(predictedObs, preferredObs, predictedState)
 }
 
 func BeliefUpdateBF16NEON(likelihood, prior, output []dtype.BF16) {
@@ -99,31 +81,13 @@ func PrecisionWeightBF16NEON(errors, precision, output []dtype.BF16) {
 }
 
 func FreeEnergyFP16NEON(likelihood, posterior, prior []dtype.F16) dtype.F16 {
-	if len(likelihood) == 0 {
-		return 0
-	}
-
-	return dtype.F16(freeEnergyFloat16NEONBridge(
-		uintptr(unsafe.Pointer(&likelihood[0])),
-		uintptr(unsafe.Pointer(&posterior[0])),
-		uintptr(unsafe.Pointer(&prior[0])),
-		len(likelihood),
-	))
+	return freeEnergyFloat16F64NEON(likelihood, posterior, prior)
 }
 
 func ExpectedFreeEnergyFP16NEON(
 	predictedObs, preferredObs, predictedState []dtype.F16,
 ) dtype.F16 {
-	if len(predictedObs) == 0 {
-		return 0
-	}
-
-	return dtype.F16(expectedFreeEnergyFloat16NEONBridge(
-		uintptr(unsafe.Pointer(&predictedObs[0])),
-		uintptr(unsafe.Pointer(&preferredObs[0])),
-		uintptr(unsafe.Pointer(&predictedState[0])),
-		len(predictedObs), len(predictedState),
-	))
+	return expectedFreeEnergyFloat16F64NEON(predictedObs, preferredObs, predictedState)
 }
 
 func BeliefUpdateFP16NEON(likelihood, prior, output []dtype.F16) {

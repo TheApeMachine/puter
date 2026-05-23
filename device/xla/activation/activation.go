@@ -53,8 +53,29 @@ type Host interface {
 	NeedsPlatform()
 	NotImplemented(methodName string)
 	StandardUnary(dst, src unsafe.Pointer, format dtype.DType, kernel StandardKernel)
+	Softmax(dst, src unsafe.Pointer, format dtype.DType)
 	UnaryParam(dst, src unsafe.Pointer, format dtype.DType, kernelName string, param float32)
+	DualParam(dst, src unsafe.Pointer, format dtype.DType, kernelName string, param0, param1 float32)
+	PReLUV(dst, src, slopes unsafe.Pointer, format dtype.DType)
+	GLUPacked(dst, packed unsafe.Pointer, batch, halfCount int, format dtype.DType, variant GLUVariant)
+	GLUTensors(dst, gate, up unsafe.Pointer, format dtype.DType, variant GLUVariant)
 }
+
+/*
+GLUVariant selects a gated linear unit XLA lowering.
+*/
+type GLUVariant int
+
+const (
+	GLU GLUVariant = iota
+	GeGLU
+	GeGLUTanh
+	SwiGLU
+	ReGLU
+	SiGLU
+	LinGLU
+	SeGLU
+)
 
 /*
 New wires an Activation receiver to its XLA dispatch host.

@@ -363,20 +363,20 @@ ai_fp16_efe_log_done:
 
 #define AI_F64_LOG_BF16_FE(in, out) \
 	FMOVD in, F0 ;\
-	CALL  aiNeonLogF64(SB) ;\
+	AI_NEON_LOG_BF16_FE ;\
 	FMOVD F0, out
 
 #define AI_F64_LOG_BF16_EFE(in, out) \
 	FMOVD in, F0 ;\
-	CALL  aiNeonLogF64(SB) ;\
+	AI_NEON_LOG_BF16_EFE ;\
 	FMOVD F0, out
 
 #define AI_F64_LOG_FP16_FE(in, out) \
 	FMOVD in, F0 ;\
-	CALL  aiNeonLogF64(SB) ;\
+	AI_NEON_LOG_FP16_FE ;\
 	FMOVD F0, out
 
 #define AI_F64_LOG_FP16_EFE(in, out) \
 	FMOVD in, F0 ;\
-	CALL  aiNeonLogF64(SB) ;\
+	AI_NEON_LOG_FP16_EFE ;\
 	FMOVD F0, out

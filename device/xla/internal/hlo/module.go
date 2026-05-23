@@ -120,6 +120,42 @@ ENTRY main {
 }
 
 /*
+RenderProgram builds HLO for any registered activation operation.
+*/
+func (moduleBuilder *ModuleBuilder) RenderProgram(
+	operationName string,
+	floatParams []float64,
+	intParams []int64,
+) (string, error) {
+	_ = intParams
+
+	switch operationName {
+	case "softmax":
+		return moduleBuilder.renderSoftmax(), nil
+	case "prelu_v":
+		return moduleBuilder.renderPReLUV(), nil
+	case "glu", "geglu", "geglu_tanh", "swiglu", "reglu", "siglu", "linglu", "seglu":
+		if len(intParams) >= 2 {
+			return moduleBuilder.renderGLUPackedFromParams(operationName, intParams[0], intParams[1])
+		}
+
+		return moduleBuilder.renderGatedBinary(operationName)
+	case "prelu_slope", "leaky_relu_slope", "elu_alpha", "celu_alpha", "threshold", "snake", "hard_shrink", "soft_shrink":
+		return moduleBuilder.renderUnaryParamOp(operationName, floatParams)
+	case "hard_tanh_range", "snake_parametric", "rrelu":
+		return moduleBuilder.renderDualParamOp(operationName, floatParams)
+	case "axpy":
+		return moduleBuilder.renderAxpy(floatParams)
+	default:
+		if text, err := moduleBuilder.RenderUnary(operationName, floatParams); err == nil {
+			return text, nil
+		}
+
+		return moduleBuilder.RenderBinary(operationName)
+	}
+}
+
+/*
 RenderBinary builds HLO for a two-input binary operation with NumPy broadcast.
 */
 func (moduleBuilder *ModuleBuilder) RenderBinary(operationName string) (string, error) {

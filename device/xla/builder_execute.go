@@ -29,7 +29,6 @@ func (builder *Builder) ExecuteUnary(
 	input *DeviceTensor,
 	output *DeviceTensor,
 ) error {
-	_ = intParams
 	programKey, err := builder.ProgramKeyFor(operationName, context, floatParams, intParams)
 
 	if err != nil {
@@ -98,15 +97,13 @@ func (builder *Builder) loadExecutable(
 
 	var hloText string
 
-	if unary {
-		hloText, err = moduleBuilder.RenderUnary(programKey.Operation, floatParams)
-	} else {
-		hloText, err = moduleBuilder.RenderBinary(programKey.Operation)
-	}
+	hloText, err = moduleBuilder.RenderProgram(programKey.Operation, floatParams, intParams)
 
 	if err != nil {
 		return nil, err
 	}
+
+	_ = unary
 
 	executableRef, err := bridge.compileHLO(hloText)
 
