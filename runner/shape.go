@@ -584,7 +584,8 @@ func binaryFloatOutputShape(
 func nodeIntAttribute(node *ir.Node, key string) (int, error) {
 	attribute := node.Attribute(key)
 
-	if attribute.Kind == ir.AttributeInt {
+	switch attribute.Kind {
+	case ir.AttributeInt:
 		parsed, err := strconv.ParseInt(attribute.Value, 10, 64)
 
 		if err != nil {
@@ -592,6 +593,34 @@ func nodeIntAttribute(node *ir.Node, key string) (int, error) {
 		}
 
 		return int(parsed), nil
+	case ir.AttributeFloat:
+		parsed, err := strconv.ParseFloat(attribute.Value, 64)
+
+		if err != nil {
+			return 0, err
+		}
+
+		rounded := int64(parsed)
+
+		if float64(rounded) != parsed {
+			return 0, fmt.Errorf(
+				"runner: node %q attribute %q is not an integral float",
+				node.ID(),
+				key,
+			)
+		}
+
+		return int(rounded), nil
+	case ir.AttributeString:
+		if attribute.Value == "" {
+			break
+		}
+
+		parsed, err := strconv.ParseInt(attribute.Value, 10, 64)
+
+		if err == nil {
+			return int(parsed), nil
+		}
 	}
 
 	if metadata := node.Metadata(); metadata != nil {

@@ -38,4 +38,19 @@ func TestBiasFeatureCount(testingObject *testing.T) {
 			convey.So(featureCount, convey.ShouldEqual, 64)
 		})
 	})
+
+	convey.Convey("Given a view_as_heads node with float num_heads", testingObject, func() {
+		shape, err := tensor.NewShape([]int{1, 8, 3072})
+		convey.So(err, convey.ShouldBeNil)
+
+		node := manifestComputeNode("tb_q_heads_0", "shape.view_as_heads", ir.OpFused, shape)
+		node.SetAttribute("num_heads", ir.FloatAttribute(24))
+
+		convey.Convey("It should read integral float attributes as integers", func() {
+			numHeads, err := nodeIntAttribute(node, "num_heads")
+
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(numHeads, convey.ShouldEqual, 24)
+		})
+	})
 }
