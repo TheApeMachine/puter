@@ -263,3 +263,108 @@ PARAMETRIC_KERNEL_BF16(leaky_relu_slope, param_prelu_bf162, param_prelu_bf16)
 PARAMETRIC_KERNEL_BF16(elu_alpha, param_elu_bf162, param_elu_bf16)
 PARAMETRIC_KERNEL_BF16(celu_alpha, param_celu_bf162, param_celu_bf16)
 PARAMETRIC_KERNEL_BF16(threshold, param_threshold_bf162, param_threshold_bf16)
+
+static __device__ __forceinline__ float param_prelu_v_f1(float value, float slope) {
+    return value > 0.0f ? value : slope * value;
+}
+
+static __device__ __forceinline__ float4 param_prelu_v_f4(float4 value, float4 slopes) {
+    return make_float4(
+        param_prelu_v_f1(value.x, slopes.x),
+        param_prelu_v_f1(value.y, slopes.y),
+        param_prelu_v_f1(value.z, slopes.z),
+        param_prelu_v_f1(value.w, slopes.w)
+    );
+}
+
+static __device__ __forceinline__ __half param_prelu_v_h1(__half value, __half slope) {
+    __half zero = __float2half(0.0f);
+    return __hgt(value, zero) ? value : __hmul(slope, value);
+}
+
+static __device__ __forceinline__ __half2 param_prelu_v_h2(__half2 value, __half2 slopes) {
+    return __halves2half2(
+        param_prelu_v_h1(__low2half(value), __low2half(slopes)),
+        param_prelu_v_h1(__high2half(value), __high2half(slopes))
+    );
+}
+
+static __device__ __forceinline__ __nv_bfloat16 param_prelu_v_bf16(__nv_bfloat16 value, __nv_bfloat16 slope) {
+    __nv_bfloat16 zero = __float2bfloat16(0.0f);
+    return __hgt(value, zero) ? value : __hmul(slope, value);
+}
+
+static __device__ __forceinline__ __nv_bfloat162 param_prelu_v_bf162(__nv_bfloat162 value, __nv_bfloat162 slopes) {
+    return __halves2bfloat162(
+        param_prelu_v_bf16(__low2bfloat16(value), __low2bfloat16(slopes)),
+        param_prelu_v_bf16(__high2bfloat16(value), __high2bfloat16(slopes))
+    );
+}
+
+#define INDEXED_PARAMETRIC_KERNEL_F32(name) \
+extern "C" __global__ void name##_float32( \
+    const float* input, \
+    const float* slopes, \
+    float* output, \
+    unsigned int count \
+) { \
+    const float4* inputVector = reinterpret_cast<const float4*>(input); \
+    const float4* slopeVector = reinterpret_cast<const float4*>(slopes); \
+    float4* outputVector = reinterpret_cast<float4*>(output); \
+    unsigned int vectorIndex = blockIdx.x * blockDim.x + threadIdx.x; \
+    unsigned int base = vectorIndex * 4u; \
+    if (base + 3u < count) { \
+        outputVector[vectorIndex] = param_prelu_v_f4(inputVector[vectorIndex], slopeVector[vectorIndex]); \
+        return; \
+    } \
+    for (unsigned int offset = 0u; offset < 4u; offset++) { \
+        unsigned int scalarIndex = base + offset; \
+        if (scalarIndex < count) { \
+            output[scalarIndex] = param_prelu_v_f1(input[scalarIndex], slopes[scalarIndex]); \
+        } \
+    } \
+}
+
+#define INDEXED_PARAMETRIC_KERNEL_F16(name) \
+extern "C" __global__ void name##_float16( \
+    const __half* input, \
+    const __half* slopes, \
+    __half* output, \
+    unsigned int count \
+) { \
+    unsigned int pairIndex = blockIdx.x * blockDim.x + threadIdx.x; \
+    unsigned int base = pairIndex * 2u; \
+    if (base + 1u < count) { \
+        __half2 value = *reinterpret_cast<const __half2*>(&input[base]); \
+        __half2 slope = *reinterpret_cast<const __half2*>(&slopes[base]); \
+        *reinterpret_cast<__half2*>(&output[base]) = param_prelu_v_h2(value, slope); \
+        return; \
+    } \
+    if (base < count) { \
+        output[base] = param_prelu_v_h1(input[base], slopes[base]); \
+    } \
+}
+
+#define INDEXED_PARAMETRIC_KERNEL_BF16(name) \
+extern "C" __global__ void name##_bfloat16( \
+    const __nv_bfloat16* input, \
+    const __nv_bfloat16* slopes, \
+    __nv_bfloat16* output, \
+    unsigned int count \
+) { \
+    unsigned int pairIndex = blockIdx.x * blockDim.x + threadIdx.x; \
+    unsigned int base = pairIndex * 2u; \
+    if (base + 1u < count) { \
+        __nv_bfloat162 value = *reinterpret_cast<const __nv_bfloat162*>(&input[base]); \
+        __nv_bfloat162 slope = *reinterpret_cast<const __nv_bfloat162*>(&slopes[base]); \
+        *reinterpret_cast<__nv_bfloat162*>(&output[base]) = param_prelu_v_bf162(value, slope); \
+        return; \
+    } \
+    if (base < count) { \
+        output[base] = param_prelu_v_bf16(input[base], slopes[base]); \
+    } \
+}
+
+INDEXED_PARAMETRIC_KERNEL_F32(prelu_v)
+INDEXED_PARAMETRIC_KERNEL_F16(prelu_v)
+INDEXED_PARAMETRIC_KERNEL_BF16(prelu_v)

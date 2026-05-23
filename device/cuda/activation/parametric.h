@@ -19,6 +19,18 @@ int cuda_dispatch_unary_param(
     CUDAStatus* status
 );
 
+int cuda_dispatch_indexed_param(
+    CUDADeviceRef contextRef,
+    const char* operationPrefix,
+    int elementDType,
+    CUDABufferRef inputRef,
+    CUDABufferRef slopesRef,
+    CUDABufferRef outRef,
+    uint32_t count,
+    uint64_t completionToken,
+    CUDAStatus* status
+);
+
 #ifdef __cplusplus
 }
 #endif

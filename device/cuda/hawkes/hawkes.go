@@ -35,4 +35,14 @@ type Host interface {
 		output unsafe.Pointer,
 		format dtype.DType,
 	)
+	DispatchMarkovBlanketPartition(
+		adjacency, internal, output unsafe.Pointer,
+		nodeCount, internalCount int,
+		format dtype.DType,
+	)
+	DispatchMarkovMutualInformation(
+		joint, output unsafe.Pointer,
+		xCount, yCount int,
+		format dtype.DType,
+	)
 }

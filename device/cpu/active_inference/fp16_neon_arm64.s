@@ -481,7 +481,9 @@ ai_fp16_bu_normalize:
 	FMOVD $1.0, F3
 	FDIVD F14, F3, F3
 	FCVTDS F3, F3
-	VDUP V3.S[0], V3.S4
+	FMOVS F3, R6
+	VMOV R6, V24.S[0]
+	VDUP V24.S[0], V24.S4
 
 	MOVD output+16(FP), R2
 	MOVD count+24(FP), R3
@@ -490,20 +492,21 @@ ai_fp16_bu_scale_loop16:
 	CMP  $16, R3
 	BLT  ai_fp16_bu_scale_loop8
 
-	VLD1.P 32(R2), [V0.H8, V1.H8]
+	VLD1 (R2), [V0.H8, V1.H8]
 	VFCVTL_4S(0, 4)
 	VFCVTL2_4S(0, 5)
 	VFCVTL_4S(1, 6)
 	VFCVTL2_4S(1, 7)
-	VFMUL_S4(3, 4, 4)
-	VFMUL_S4(3, 5, 5)
-	VFMUL_S4(3, 6, 6)
-	VFMUL_S4(3, 7, 7)
+	VFMUL_S4(24, 4, 4)
+	VFMUL_S4(24, 5, 5)
+	VFMUL_S4(24, 6, 6)
+	VFMUL_S4(24, 7, 7)
 	VFCVTN_4H(4, 12)
 	VFCVTN2_8H(5, 12)
 	VFCVTN_4H(6, 13)
 	VFCVTN2_8H(7, 13)
-	VST1.P [V12.H8, V13.H8], 32(R2)
+	VST1 [V12.H8, V13.H8], (R2)
+	ADD  $32, R2
 	SUB  $16, R3
 	B    ai_fp16_bu_scale_loop16
 
@@ -511,14 +514,15 @@ ai_fp16_bu_scale_loop8:
 	CMP  $8, R3
 	BLT  ai_fp16_bu_scale_scalar
 
-	VLD1.P 16(R2), [V0.H8]
+	VLD1 (R2), [V0.H8]
 	VFCVTL_4S(0, 4)
 	VFCVTL2_4S(0, 5)
-	VFMUL_S4(3, 4, 4)
-	VFMUL_S4(3, 5, 5)
+	VFMUL_S4(24, 4, 4)
+	VFMUL_S4(24, 5, 5)
 	VFCVTN_4H(4, 12)
 	VFCVTN2_8H(5, 12)
-	VST1.P [V12.H8], 16(R2)
+	VST1 [V12.H8], (R2)
+	ADD  $16, R2
 	SUB  $8, R3
 	B    ai_fp16_bu_scale_loop8
 

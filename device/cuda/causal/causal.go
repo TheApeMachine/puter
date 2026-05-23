@@ -51,4 +51,14 @@ type Host interface {
 		output unsafe.Pointer,
 		format dtype.DType,
 	)
+	DispatchMarkovFlowActive(
+		mutualInformation, partition, output unsafe.Pointer,
+		nodeCount int,
+		format dtype.DType,
+	)
+	DispatchMarkovFlowInternal(
+		mutualInformation, partition, output unsafe.Pointer,
+		nodeCount int,
+		format dtype.DType,
+	)
 }

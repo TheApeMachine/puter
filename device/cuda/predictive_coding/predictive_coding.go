@@ -17,6 +17,16 @@ func New(host Host) PredictiveCoding {
 
 type Host interface {
 	NeedsPlatform()
+	DispatchPrediction(
+		weights, representation, output unsafe.Pointer,
+		outDim, inDim int,
+		format dtype.DType,
+	)
+	DispatchPredictionError(
+		observed, predicted, output unsafe.Pointer,
+		count int,
+		format dtype.DType,
+	)
 	DispatchUpdateRepresentation(
 		config device.PredictiveCodingConfig,
 		weights, representation, predictionError, output unsafe.Pointer,

@@ -8,16 +8,19 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/puter/device"
 	"github.com/theapemachine/puter/device/cuda/activation"
+	"github.com/theapemachine/puter/device/cuda/active_inference"
 	"github.com/theapemachine/puter/device/cuda/attention"
 	"github.com/theapemachine/puter/device/cuda/causal"
 	"github.com/theapemachine/puter/device/cuda/convolution"
 	"github.com/theapemachine/puter/device/cuda/dropout"
 	"github.com/theapemachine/puter/device/cuda/elementwise"
 	"github.com/theapemachine/puter/device/cuda/embedding"
+	"github.com/theapemachine/puter/device/cuda/hawkes"
 	"github.com/theapemachine/puter/device/cuda/layernorm"
 	"github.com/theapemachine/puter/device/cuda/matmul"
 	"github.com/theapemachine/puter/device/cuda/normalization"
 	"github.com/theapemachine/puter/device/cuda/pool"
+	"github.com/theapemachine/puter/device/cuda/predictive_coding"
 	"github.com/theapemachine/puter/device/cuda/quant"
 	"github.com/theapemachine/puter/device/cuda/rope"
 	"github.com/theapemachine/puter/device/cuda/vsa"
@@ -262,7 +265,26 @@ func (host *ComputeHost) DispatchBatchNormEval(input, scale, bias, mean, varianc
 }
 
 func (host *ComputeHost) DispatchBeliefUpdate(likelihood, prior, output unsafe.Pointer, count int, format dtype.DType) {
-	host.unavailable()
+	if count == 0 || host.bridge == nil {
+		return
+	}
+
+	elementCount := uint32(count)
+	scratchBuffer := host.bridge.borrowScratch(reductionScratchBytes(elementCount))
+
+	defer host.bridge.releaseScratch(scratchBuffer)
+
+	if err := active_inference.DispatchBeliefUpdate(
+		host.contextRef(),
+		resolveBufferRef(likelihood),
+		resolveBufferRef(prior),
+		scratchBuffer,
+		resolveBufferRef(output),
+		format,
+		elementCount,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchBind(left, right, output unsafe.Pointer, count int, format dtype.DType) {
@@ -282,10 +304,6 @@ func (host *ComputeHost) DispatchBind(left, right, output unsafe.Pointer, count 
 	); err != nil {
 		host.dispatchError(err)
 	}
-}
-
-func (host *ComputeHost) DispatchBohmianVelocity(phase, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {
-	host.unavailable()
 }
 
 func (host *ComputeHost) DispatchBundle(left, right, output unsafe.Pointer, count int, format dtype.DType) {
@@ -553,10 +571,6 @@ func (host *ComputeHost) DispatchDequant4(dst, src unsafe.Pointer, pairCount int
 	}
 }
 
-func (host *ComputeHost) DispatchDivergence1D(input, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {
-	host.unavailable()
-}
-
 func (host *ComputeHost) DispatchDoIntervene(adjacency, intervened, output unsafe.Pointer, nodeCount, intervenedCount int, format dtype.DType) {
 	if nodeCount == 0 {
 		return
@@ -593,11 +607,30 @@ func (host *ComputeHost) DispatchDropout(dst, src unsafe.Pointer, count int, con
 }
 
 func (host *ComputeHost) DispatchExpectedFreeEnergy(predictedObs, preferredObs, predictedState, output unsafe.Pointer, obsCount, stateCount int, format dtype.DType) {
-	host.unavailable()
-}
+	if (obsCount == 0 && stateCount == 0) || host.bridge == nil {
+		return
+	}
 
-func (host *ComputeHost) DispatchFFT1D(realIn, imagIn, realOut, imagOut unsafe.Pointer, count int, format dtype.DType) {
-	host.unavailable()
+	obsElements := uint32(obsCount)
+	stateElements := uint32(stateCount)
+	scratchBytes := int64(partialReductionCount(obsElements)+partialReductionCount(stateElements)) * 4
+	scratchBuffer := host.bridge.borrowScratch(scratchBytes)
+
+	defer host.bridge.releaseScratch(scratchBuffer)
+
+	if err := active_inference.DispatchExpectedFreeEnergy(
+		host.contextRef(),
+		resolveBufferRef(predictedObs),
+		resolveBufferRef(preferredObs),
+		resolveBufferRef(predictedState),
+		scratchBuffer,
+		resolveBufferRef(output),
+		format,
+		obsElements,
+		stateElements,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchFlashAttention(config device.FlashAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK, depth, valueDim int, format dtype.DType) {
@@ -624,7 +657,27 @@ func (host *ComputeHost) DispatchFlashAttention(config device.FlashAttentionConf
 }
 
 func (host *ComputeHost) DispatchFreeEnergy(likelihood, posterior, prior, output unsafe.Pointer, count int, format dtype.DType) {
-	host.unavailable()
+	if count == 0 || host.bridge == nil {
+		return
+	}
+
+	elementCount := uint32(count)
+	scratchBuffer := host.bridge.borrowScratch(reductionScratchBytes(elementCount))
+
+	defer host.bridge.releaseScratch(scratchBuffer)
+
+	if err := active_inference.DispatchFreeEnergy(
+		host.contextRef(),
+		resolveBufferRef(likelihood),
+		resolveBufferRef(posterior),
+		resolveBufferRef(prior),
+		scratchBuffer,
+		resolveBufferRef(output),
+		format,
+		elementCount,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchFrontdoorAdjustment(mediatorGivenX, outcomeGivenXM, marginalX, output unsafe.Pointer, xCount, mediatorCount, yCount int, format dtype.DType) {
@@ -645,10 +698,6 @@ func (host *ComputeHost) DispatchFrontdoorAdjustment(mediatorGivenX, outcomeGive
 	); err != nil {
 		host.dispatchError(err)
 	}
-}
-
-func (host *ComputeHost) DispatchGrad1D(input, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {
-	host.unavailable()
 }
 
 func (host *ComputeHost) DispatchGroupNorm(config device.GroupNormConfig, input, scale, bias, output unsafe.Pointer, batch, channels, spatial int, format dtype.DType) {
@@ -673,19 +722,101 @@ func (host *ComputeHost) DispatchGroupNorm(config device.GroupNormConfig, input,
 }
 
 func (host *ComputeHost) DispatchHawkesIntensity(eventTimes, queryTimes, output unsafe.Pointer, eventCount, queryCount int, mu, alpha, beta float32, format dtype.DType) {
-	host.unavailable()
+	if eventCount == 0 || queryCount == 0 || host.bridge == nil {
+		return
+	}
+
+	baselineBuffer := host.bridge.borrowScratch(causalScalarBytes(format))
+	alphaBuffer := host.bridge.borrowScratch(causalScalarBytes(format))
+	betaBuffer := host.bridge.borrowScratch(causalScalarBytes(format))
+
+	defer host.bridge.releaseScratch(baselineBuffer)
+	defer host.bridge.releaseScratch(alphaBuffer)
+	defer host.bridge.releaseScratch(betaBuffer)
+
+	host.bridge.writeDeviceScalar(baselineBuffer, mu, format)
+	host.bridge.writeDeviceScalar(alphaBuffer, alpha, format)
+	host.bridge.writeDeviceScalar(betaBuffer, beta, format)
+
+	if err := hawkes.DispatchHawkesIntensity(
+		host.contextRef(),
+		resolveBufferRef(eventTimes),
+		resolveBufferRef(queryTimes),
+		baselineBuffer,
+		alphaBuffer,
+		betaBuffer,
+		resolveBufferRef(output),
+		uint32(eventCount),
+		uint32(queryCount),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchHawkesKernelMatrix(eventTimes, output unsafe.Pointer, eventCount int, alpha, beta float32, format dtype.DType) {
-	host.unavailable()
+	if eventCount == 0 || host.bridge == nil {
+		return
+	}
+
+	alphaBuffer := host.bridge.borrowScratch(causalScalarBytes(format))
+	betaBuffer := host.bridge.borrowScratch(causalScalarBytes(format))
+
+	defer host.bridge.releaseScratch(alphaBuffer)
+	defer host.bridge.releaseScratch(betaBuffer)
+
+	host.bridge.writeDeviceScalar(alphaBuffer, alpha, format)
+	host.bridge.writeDeviceScalar(betaBuffer, beta, format)
+
+	if err := hawkes.DispatchHawkesKernelMatrix(
+		host.contextRef(),
+		resolveBufferRef(eventTimes),
+		alphaBuffer,
+		betaBuffer,
+		resolveBufferRef(output),
+		uint32(eventCount),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchHawkesLogLikelihood(eventTimes unsafe.Pointer, eventCount int, totalT, mu, alpha, beta float32, output unsafe.Pointer, format dtype.DType) {
-	host.unavailable()
-}
+	if eventCount == 0 || host.bridge == nil {
+		return
+	}
 
-func (host *ComputeHost) DispatchIFFT1D(realIn, imagIn, realOut, imagOut unsafe.Pointer, count int, format dtype.DType) {
-	host.unavailable()
+	baselineBuffer := host.bridge.borrowScratch(causalScalarBytes(format))
+	alphaBuffer := host.bridge.borrowScratch(causalScalarBytes(format))
+	betaBuffer := host.bridge.borrowScratch(causalScalarBytes(format))
+	totalTimeBuffer := host.bridge.borrowScratch(causalScalarBytes(format))
+	scratchBuffer := host.bridge.borrowScratch(hawkes.HawkesLogLikelihoodScratchBytes(uint32(eventCount)))
+
+	defer host.bridge.releaseScratch(baselineBuffer)
+	defer host.bridge.releaseScratch(alphaBuffer)
+	defer host.bridge.releaseScratch(betaBuffer)
+	defer host.bridge.releaseScratch(totalTimeBuffer)
+	defer host.bridge.releaseScratch(scratchBuffer)
+
+	host.bridge.writeDeviceScalar(baselineBuffer, mu, format)
+	host.bridge.writeDeviceScalar(alphaBuffer, alpha, format)
+	host.bridge.writeDeviceScalar(betaBuffer, beta, format)
+	host.bridge.writeDeviceScalar(totalTimeBuffer, totalT, format)
+
+	if err := hawkes.DispatchHawkesLogLikelihood(
+		host.contextRef(),
+		resolveBufferRef(eventTimes),
+		totalTimeBuffer,
+		baselineBuffer,
+		alphaBuffer,
+		betaBuffer,
+		scratchBuffer,
+		resolveBufferRef(output),
+		uint32(eventCount),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchIVEstimate(instrument, treatment, outcome unsafe.Pointer, count int, output unsafe.Pointer, format dtype.DType) {
@@ -752,32 +883,82 @@ func (host *ComputeHost) DispatchInversePermute(config device.VSAConfig, input, 
 	}
 }
 
-func (host *ComputeHost) DispatchLaplacian(input, output unsafe.Pointer, dims []int, spacing float32, format dtype.DType) {
-	host.unavailable()
-}
-
-func (host *ComputeHost) DispatchLaplacian4(input, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {
-	host.unavailable()
-}
-
-func (host *ComputeHost) DispatchMadelungContinuity(density, velocity, residual unsafe.Pointer, count int, spacing float32, format dtype.DType) {
-	host.unavailable()
-}
-
 func (host *ComputeHost) DispatchMarkovBlanketPartition(adjacency, internal, output unsafe.Pointer, nodeCount, internalCount int, format dtype.DType) {
-	host.unavailable()
+	if nodeCount == 0 || host.bridge == nil {
+		return
+	}
+
+	if err := hawkes.DispatchMarkovBlanketPartition(
+		host.contextRef(),
+		resolveBufferRef(adjacency),
+		resolveBufferRef(internal),
+		resolveBufferRef(output),
+		uint32(nodeCount),
+		uint32(internalCount),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchMarkovFlowActive(mutualInformation, partition, output unsafe.Pointer, nodeCount int, format dtype.DType) {
-	host.unavailable()
+	if nodeCount == 0 || host.bridge == nil {
+		return
+	}
+
+	if err := hawkes.DispatchMarkovFlow(
+		host.contextRef(),
+		resolveBufferRef(mutualInformation),
+		resolveBufferRef(partition),
+		resolveBufferRef(output),
+		uint32(nodeCount),
+		2,
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchMarkovFlowInternal(mutualInformation, partition, output unsafe.Pointer, nodeCount int, format dtype.DType) {
-	host.unavailable()
+	if nodeCount == 0 || host.bridge == nil {
+		return
+	}
+
+	if err := hawkes.DispatchMarkovFlow(
+		host.contextRef(),
+		resolveBufferRef(mutualInformation),
+		resolveBufferRef(partition),
+		resolveBufferRef(output),
+		uint32(nodeCount),
+		0,
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchMarkovMutualInformation(joint, output unsafe.Pointer, xCount, yCount int, format dtype.DType) {
-	host.unavailable()
+	if xCount == 0 || yCount == 0 || host.bridge == nil {
+		return
+	}
+
+	rows := uint32(xCount)
+	cols := uint32(yCount)
+	scratchBuffer := host.bridge.borrowScratch(hawkes.MarkovMutualInformationScratchBytes(rows, cols))
+
+	defer host.bridge.releaseScratch(scratchBuffer)
+
+	if err := hawkes.DispatchMarkovMutualInformation(
+		host.contextRef(),
+		resolveBufferRef(joint),
+		scratchBuffer,
+		resolveBufferRef(output),
+		rows,
+		cols,
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchMaxPool2D(config device.PoolConfig, input, output unsafe.Pointer, batch, channels, inHeight, inWidth, outHeight, outWidth int, format dtype.DType) {
@@ -844,15 +1025,55 @@ func (host *ComputeHost) DispatchPermute(config device.VSAConfig, input, output 
 }
 
 func (host *ComputeHost) DispatchPrecisionWeight(errors, precision, output unsafe.Pointer, count int, format dtype.DType) {
-	host.unavailable()
+	if count == 0 {
+		return
+	}
+
+	if err := active_inference.DispatchPrecisionWeight(
+		host.contextRef(),
+		resolveBufferRef(errors),
+		resolveBufferRef(precision),
+		resolveBufferRef(output),
+		format,
+		uint32(count),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchPrediction(weights, representation, output unsafe.Pointer, outDim, inDim int, format dtype.DType) {
-	host.unavailable()
+	if outDim == 0 || inDim == 0 {
+		return
+	}
+
+	if err := predictive_coding.DispatchPrediction(
+		host.contextRef(),
+		resolveBufferRef(weights),
+		resolveBufferRef(representation),
+		resolveBufferRef(output),
+		format,
+		uint32(outDim),
+		uint32(inDim),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchPredictionError(observed, predicted, output unsafe.Pointer, count int, format dtype.DType) {
-	host.unavailable()
+	if count == 0 {
+		return
+	}
+
+	if err := predictive_coding.DispatchPredictionError(
+		host.contextRef(),
+		resolveBufferRef(observed),
+		resolveBufferRef(predicted),
+		resolveBufferRef(output),
+		format,
+		uint32(count),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchQuant(dst, src unsafe.Pointer, count int, config device.DequantInt8Config, dstFormat, srcFormat dtype.DType) {
@@ -873,10 +1094,6 @@ func (host *ComputeHost) DispatchQuant(dst, src unsafe.Pointer, count int, confi
 	); err != nil {
 		host.dispatchError(err)
 	}
-}
-
-func (host *ComputeHost) DispatchQuantumPotential(density, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {
-	host.unavailable()
 }
 
 func (host *ComputeHost) DispatchRoPE(config device.RoPEConfig, input, output unsafe.Pointer, seqLen, numHeads, headDim int, format dtype.DType) {
@@ -946,11 +1163,43 @@ func (host *ComputeHost) DispatchScaledDotProductAttention(config device.FlashAt
 }
 
 func (host *ComputeHost) DispatchUpdateRepresentation(config device.PredictiveCodingConfig, weights, representation, predictionError, output unsafe.Pointer, outDim, inDim int, format dtype.DType) {
-	host.unavailable()
+	if outDim == 0 || inDim == 0 {
+		return
+	}
+
+	if err := predictive_coding.DispatchUpdateRepresentation(
+		host.contextRef(),
+		config,
+		resolveBufferRef(weights),
+		resolveBufferRef(representation),
+		resolveBufferRef(predictionError),
+		resolveBufferRef(output),
+		format,
+		uint32(outDim),
+		uint32(inDim),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchUpdateWeights(config device.PredictiveCodingConfig, weights, representation, predictionError, output unsafe.Pointer, outDim, inDim int, format dtype.DType) {
-	host.unavailable()
+	if outDim == 0 || inDim == 0 {
+		return
+	}
+
+	if err := predictive_coding.DispatchUpdateWeights(
+		host.contextRef(),
+		config,
+		resolveBufferRef(weights),
+		resolveBufferRef(representation),
+		resolveBufferRef(predictionError),
+		resolveBufferRef(output),
+		format,
+		uint32(outDim),
+		uint32(inDim),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) GLUPacked(dst, packed unsafe.Pointer, batch, halfCount int, format dtype.DType, variant activation.GLUVariant) {
@@ -1091,7 +1340,23 @@ func (host *ComputeHost) MatmulLaunch(out, left, right unsafe.Pointer, rows, inn
 }
 
 func (host *ComputeHost) PReLUV(dst, src, slopes unsafe.Pointer, format dtype.DType) {
-	host.unavailable()
+	count := host.elementCount(dst, src, slopes)
+
+	if count == 0 {
+		return
+	}
+
+	if err := activation.DispatchIndexedParam(
+		host.contextRef(),
+		resolveBufferRef(dst),
+		resolveBufferRef(src),
+		resolveBufferRef(slopes),
+		format,
+		"prelu_v",
+		count,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) Softmax(dst, src unsafe.Pointer, format dtype.DType) {

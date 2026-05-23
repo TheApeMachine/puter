@@ -90,14 +90,6 @@ func partialCount(count uint32) uint32 {
 	return (count + 255) / 256
 }
 
-func ivEstimateScratchBytes(partialCount uint32) int64 {
-	return int64(partialCount) * 5 * 4
-}
-
-func dagMarkovScratchBytes(partialCount uint32) int64 {
-	return int64(partialCount) * 4
-}
-
 func DispatchBackdoor(
 	contextRef C.CUDADeviceRef,
 	conditionalBuffer C.CUDABufferRef,

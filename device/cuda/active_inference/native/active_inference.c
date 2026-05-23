@@ -66,7 +66,7 @@ int cuda_active_single_kernel_name(
     return cuda_compose_kernel_name(out, outBytes, operationName, suffix, status);
 }
 
-int cuda_active_get_kernel(
+static int cuda_active_get_kernel(
     CUDADeviceRef contextRef,
     const char* kernelName,
     CUDAStatus* status,
@@ -96,7 +96,7 @@ int cuda_active_get_kernel(
     return 0;
 }
 
-int cuda_active_encode_finalize(
+static int cuda_active_encode_finalize(
     CUDAContext* context,
     CUDAStreamRef stream,
     CUDAKernelRef kernel,

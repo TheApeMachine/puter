@@ -218,6 +218,44 @@ func DispatchUnaryParam(
 	return nil
 }
 
+func DispatchIndexedParam(
+	contextRef C.CUDADeviceRef,
+	dstBuffer C.CUDABufferRef,
+	srcBuffer C.CUDABufferRef,
+	slopesBuffer C.CUDABufferRef,
+	format dtype.DType,
+	operationPrefix string,
+	count uint32,
+) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
+	operationName := C.CString(operationPrefix)
+	defer C.free(unsafe.Pointer(operationName))
+
+	var status C.CUDAStatus
+	code := C.cuda_dispatch_indexed_param(
+		contextRef,
+		operationName,
+		elementFormat,
+		srcBuffer,
+		slopesBuffer,
+		dstBuffer,
+		C.uint32_t(count),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		return cudaStatusError(status)
+	}
+
+	return nil
+}
+
 func DispatchSoftmax(
 	contextRef C.CUDADeviceRef,
 	dstBuffer C.CUDABufferRef,

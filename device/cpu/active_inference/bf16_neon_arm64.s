@@ -505,8 +505,8 @@ ai_bf16_bu_normalize:
 	FDIVD F25, F3, F3
 	FCVTDS F3, F3
 	FMOVS F3, R6
-	VMOV R6, V8.S[0]
-	VDUP V8.S[0], V8.S4
+	VMOV R6, V24.S[0]
+	VDUP V24.S[0], V24.S4
 
 	MOVD output+16(FP), R2
 	MOVD count+24(FP), R3
@@ -516,18 +516,19 @@ ai_bf16_bu_scale_loop16:
 	CMP  $16, R3
 	BLT  ai_bf16_bu_scale_loop8
 
-	VLD1.P 32(R2), [V0.H8, V1.H8]
+	VLD1 (R2), [V0.H8, V1.H8]
 	BF16_WIDEN_H8_TO_S4_LOW(V0.H8, V4.H8)
 	BF16_WIDEN_H8_TO_S4_HIGH(V0.H8, V5.H8)
 	BF16_WIDEN_H8_TO_S4_LOW(V1.H8, V6.H8)
 	BF16_WIDEN_H8_TO_S4_HIGH(V1.H8, V7.H8)
-	VFMUL_S4(8, 4, 4)
-	VFMUL_S4(8, 5, 5)
-	VFMUL_S4(8, 6, 6)
-	VFMUL_S4(8, 7, 7)
+	VFMUL_S4(24, 4, 4)
+	VFMUL_S4(24, 5, 5)
+	VFMUL_S4(24, 6, 6)
+	VFMUL_S4(24, 7, 7)
 	BF16_NARROW_S4_TO_H8(V4.H8, V5.H8, V12.H8)
 	BF16_NARROW_S4_TO_H8(V6.H8, V7.H8, V13.H8)
-	VST1.P [V12.H8, V13.H8], 32(R2)
+	VST1 [V12.H8, V13.H8], (R2)
+	ADD  $32, R2
 	SUB  $16, R3
 	B    ai_bf16_bu_scale_loop16
 
@@ -535,13 +536,14 @@ ai_bf16_bu_scale_loop8:
 	CMP  $8, R3
 	BLT  ai_bf16_bu_scale_scalar
 
-	VLD1.P 16(R2), [V0.H8]
+	VLD1 (R2), [V0.H8]
 	BF16_WIDEN_H8_TO_S4_LOW(V0.H8, V4.H8)
 	BF16_WIDEN_H8_TO_S4_HIGH(V0.H8, V5.H8)
-	VFMUL_S4(8, 4, 4)
-	VFMUL_S4(8, 5, 5)
+	VFMUL_S4(24, 4, 4)
+	VFMUL_S4(24, 5, 5)
 	BF16_NARROW_S4_TO_H8(V4.H8, V5.H8, V12.H8)
-	VST1.P [V12.H8], 16(R2)
+	VST1 [V12.H8], (R2)
+	ADD  $16, R2
 	SUB  $8, R3
 	B    ai_bf16_bu_scale_loop8
 

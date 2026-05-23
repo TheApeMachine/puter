@@ -19,3 +19,7 @@ func (activeInference *ActiveInference) ExpectedFreeEnergy(predictedObs, preferr
 func (activeInference *ActiveInference) FreeEnergy(likelihood, posterior, prior, output unsafe.Pointer, count int, format dtype.DType,) {
 	activeInference.stubHost()
 }
+
+func (activeInference *ActiveInference) PrecisionWeight(errors, precision, output unsafe.Pointer, count int, format dtype.DType) {
+	activeInference.stubHost()
+}

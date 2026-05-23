@@ -32,25 +32,6 @@ int cuda_active_single_kernel_name(
     CUDAStatus* status
 );
 
-int cuda_active_get_kernel(
-    CUDADeviceRef contextRef,
-    const char* kernelName,
-    CUDAStatus* status,
-    CUDAContext** context,
-    CUDAStreamRef* stream,
-    CUDAKernelRef* kernel
-);
-
-int cuda_active_encode_finalize(
-    CUDAContext* context,
-    CUDAStreamRef stream,
-    CUDAKernelRef kernel,
-    CUDABufferRef scratchRef,
-    CUDABufferRef outRef,
-    uint32_t partialCount,
-    CUDAStatus* status
-);
-
 #ifdef __cplusplus
 }
 #endif

@@ -27,3 +27,11 @@ func (activeInference *ActiveInference) FreeEnergy(
 ) {
 	activeInference.host.DispatchFreeEnergy(likelihood, posterior, prior, output, count, format)
 }
+
+func (activeInference *ActiveInference) PrecisionWeight(
+	errors, precision, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	activeInference.host.DispatchPrecisionWeight(errors, precision, output, count, format)
+}

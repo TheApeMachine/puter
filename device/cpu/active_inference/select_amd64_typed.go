@@ -2,6 +2,8 @@
 
 package active_inference
 
+import "golang.org/x/sys/cpu"
+
 var (
 	freeEnergyBF16Funcs = []bf16FreeEnergyKernelImpl{
 		{FreeEnergyBFloat16Generic, "generic", true},
@@ -10,9 +12,15 @@ var (
 		{ExpectedFreeEnergyBFloat16Generic, "generic", true},
 	}
 	beliefUpdateBF16Funcs = []bf16BeliefUpdateKernelImpl{
+		{BeliefUpdateBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{BeliefUpdateBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{BeliefUpdateBF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{BeliefUpdateBFloat16Generic, "generic", true},
 	}
 	precisionWeightBF16Funcs = []bf16PrecisionWeightKernelImpl{
+		{PrecisionWeightBF16AVX512, "avx512", cpu.X86.HasAVX512F},
+		{PrecisionWeightBF16AVX2, "avx2", cpu.X86.HasAVX2 && cpu.X86.HasFMA},
+		{PrecisionWeightBF16SSE2, "sse2", cpu.X86.HasSSE2},
 		{PrecisionWeightBFloat16Generic, "generic", true},
 	}
 
