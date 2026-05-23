@@ -154,11 +154,6 @@ struct ModFloat32 {
     float operator()(float left, float right) const { return fmod(left, right); }
 };
 
-struct ReluFloat32 {
-    float4 operator()(float4 value) const { return max(value, float4(0.0)); }
-    float operator()(float value) const { return max(value, 0.0); }
-};
-
 struct AbsFloat32 {
     float4 operator()(float4 value) const { return fabs(value); }
     float operator()(float value) const { return fabs(value); }
@@ -366,16 +361,6 @@ kernel void mod_float32(
     uint stride [[threads_per_grid]]
 ) {
     binary_float32(leftVector, rightVector, outVector, count, index, stride, ModFloat32{});
-}
-
-kernel void relu_float32(
-    device const float4* inputVector [[buffer(0)]],
-    device float4* outVector [[buffer(1)]],
-    constant uint& count [[buffer(2)]],
-    uint index [[thread_position_in_grid]],
-    uint stride [[threads_per_grid]]
-) {
-    unary_float32(inputVector, outVector, count, index, stride, ReluFloat32{});
 }
 
 kernel void abs_float32(
@@ -603,11 +588,6 @@ struct ModFloat16 {
     half operator()(half left, half right) const { return half(fmod(float(left), float(right))); }
 };
 
-struct ReluFloat16 {
-    half4 operator()(half4 value) const { return max(value, half4(0.0h)); }
-    half operator()(half value) const { return max(value, 0.0h); }
-};
-
 struct AbsFloat16 {
     half4 operator()(half4 value) const { return fabs(value); }
     half operator()(half value) const { return fabs(value); }
@@ -691,7 +671,6 @@ BINARY_FLOAT16_KERNEL(pow, PowFloat16)
 BINARY_FLOAT16_KERNEL(atan2, Atan2Float16)
 BINARY_FLOAT16_KERNEL(mod, ModFloat16)
 
-UNARY_FLOAT16_KERNEL(relu, ReluFloat16)
 UNARY_FLOAT16_KERNEL(abs, AbsFloat16)
 UNARY_FLOAT16_KERNEL(neg, NegFloat16)
 UNARY_FLOAT16_KERNEL(square, SquareFloat16)
@@ -881,11 +860,6 @@ struct ModBFloat16 {
     float operator()(float left, float right) const { return fmod(left, right); }
 };
 
-struct ReluBFloat16 {
-    float4 operator()(float4 value) const { return max(value, float4(0.0)); }
-    float operator()(float value) const { return max(value, 0.0); }
-};
-
 struct AbsBFloat16 {
     float4 operator()(float4 value) const { return fabs(value); }
     float operator()(float value) const { return fabs(value); }
@@ -969,7 +943,6 @@ BINARY_BFLOAT16_KERNEL(pow, PowBFloat16)
 BINARY_BFLOAT16_KERNEL(atan2, Atan2BFloat16)
 BINARY_BFLOAT16_KERNEL(mod, ModBFloat16)
 
-UNARY_BFLOAT16_KERNEL(relu, ReluBFloat16)
 UNARY_BFLOAT16_KERNEL(abs, AbsBFloat16)
 UNARY_BFLOAT16_KERNEL(neg, NegBFloat16)
 UNARY_BFLOAT16_KERNEL(square, SquareBFloat16)

@@ -94,42 +94,6 @@ kernel void name( \
     ); \
 }
 
-#define POOL2D_KERNEL(name, storage, scalar) \
-kernel void name( \
-    device const scalar* input [[buffer(0)]], \
-    device scalar* out [[buffer(1)]], \
-    constant uint& batch [[buffer(2)]], \
-    constant uint& channels [[buffer(3)]], \
-    constant uint& inHeight [[buffer(4)]], \
-    constant uint& inWidth [[buffer(5)]], \
-    constant uint& outHeight [[buffer(6)]], \
-    constant uint& outWidth [[buffer(7)]], \
-    constant bool& useMax [[buffer(8)]], \
-    uint index [[thread_position_in_grid]] \
-) { \
-    pool2d_kernel<storage, scalar>( \
-        input, out, batch, channels, inHeight, inWidth, outHeight, outWidth, useMax, index \
-    ); \
-}
-
-#define ADAPTIVE_POOL2D_KERNEL(name, storage, scalar) \
-kernel void name( \
-    device const scalar* input [[buffer(0)]], \
-    device scalar* out [[buffer(1)]], \
-    constant uint& batch [[buffer(2)]], \
-    constant uint& channels [[buffer(3)]], \
-    constant uint& inHeight [[buffer(4)]], \
-    constant uint& inWidth [[buffer(5)]], \
-    constant uint& outHeight [[buffer(6)]], \
-    constant uint& outWidth [[buffer(7)]], \
-    constant bool& useMax [[buffer(8)]], \
-    uint index [[thread_position_in_grid]] \
-) { \
-    adaptive_pool2d_kernel<storage, scalar>( \
-        input, out, batch, channels, inHeight, inWidth, outHeight, outWidth, useMax, index \
-    ); \
-}
-
 CONV1D_KERNEL(conv1d_float32, Float32VisionStorage, float)
 CONV1D_KERNEL(conv1d_float16, Float16VisionStorage, half)
 CONV1D_KERNEL(conv1d_bfloat16, BFloat16VisionStorage, ushort)
@@ -145,17 +109,3 @@ CONV3D_KERNEL(conv3d_bfloat16, BFloat16VisionStorage, ushort)
 CONV_TRANSPOSE2D_KERNEL(conv_transpose2d_float32, Float32VisionStorage, float)
 CONV_TRANSPOSE2D_KERNEL(conv_transpose2d_float16, Float16VisionStorage, half)
 CONV_TRANSPOSE2D_KERNEL(conv_transpose2d_bfloat16, BFloat16VisionStorage, ushort)
-
-POOL2D_KERNEL(max_pool2d_float32, Float32VisionStorage, float)
-POOL2D_KERNEL(max_pool2d_float16, Float16VisionStorage, half)
-POOL2D_KERNEL(max_pool2d_bfloat16, BFloat16VisionStorage, ushort)
-POOL2D_KERNEL(avg_pool2d_float32, Float32VisionStorage, float)
-POOL2D_KERNEL(avg_pool2d_float16, Float16VisionStorage, half)
-POOL2D_KERNEL(avg_pool2d_bfloat16, BFloat16VisionStorage, ushort)
-
-ADAPTIVE_POOL2D_KERNEL(adaptive_avg_pool2d_float32, Float32VisionStorage, float)
-ADAPTIVE_POOL2D_KERNEL(adaptive_avg_pool2d_float16, Float16VisionStorage, half)
-ADAPTIVE_POOL2D_KERNEL(adaptive_avg_pool2d_bfloat16, BFloat16VisionStorage, ushort)
-ADAPTIVE_POOL2D_KERNEL(adaptive_max_pool2d_float32, Float32VisionStorage, float)
-ADAPTIVE_POOL2D_KERNEL(adaptive_max_pool2d_float16, Float16VisionStorage, half)
-ADAPTIVE_POOL2D_KERNEL(adaptive_max_pool2d_bfloat16, BFloat16VisionStorage, ushort)

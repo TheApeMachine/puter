@@ -3,11 +3,10 @@ package metal
 import (
 	"context"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
-	"github.com/theapemachine/qpool"
-	"github.com/theapemachine/puter/device"
 	"github.com/theapemachine/puter/device/metal/activation"
 	"github.com/theapemachine/puter/device/metal/active_inference"
 	"github.com/theapemachine/puter/device/metal/attention"
@@ -31,6 +30,7 @@ import (
 	"github.com/theapemachine/puter/device/metal/rope"
 	"github.com/theapemachine/puter/device/metal/sampling"
 	"github.com/theapemachine/puter/device/metal/vsa"
+	"github.com/theapemachine/qpool"
 )
 
 /*
@@ -197,4 +197,7 @@ func (backend *Backend) Close() error {
 }
 
 var _ tensor.Backend = (*Backend)(nil)
-var _ device.Backend = (*Backend)(nil)
+
+func (backend *Backend) ReLU(dst, src unsafe.Pointer, count int, format dtype.DType) {
+	backend.Activation.ReLU(dst, src, count, format)
+}

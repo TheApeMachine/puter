@@ -328,6 +328,102 @@ func DispatchGLUPacked(
 	return nil
 }
 
+func DispatchStandardUnaryRefs(
+	contextRef uintptr,
+	dstBuffer uintptr,
+	srcBuffer uintptr,
+	format dtype.DType,
+	kernel StandardKernel,
+	count uint32,
+) error {
+	return DispatchStandardUnary(
+		C.MetalDeviceRef(unsafe.Pointer(contextRef)),
+		C.MetalBufferRef(unsafe.Pointer(dstBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(srcBuffer)),
+		format,
+		kernel,
+		count,
+	)
+}
+
+func DispatchUnaryParamRefs(
+	contextRef uintptr,
+	dstBuffer uintptr,
+	srcBuffer uintptr,
+	format dtype.DType,
+	operationPrefix string,
+	param float32,
+	count uint32,
+) error {
+	return DispatchUnaryParam(
+		C.MetalDeviceRef(unsafe.Pointer(contextRef)),
+		C.MetalBufferRef(unsafe.Pointer(dstBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(srcBuffer)),
+		format,
+		operationPrefix,
+		param,
+		count,
+	)
+}
+
+func DispatchSoftmaxRefs(
+	contextRef uintptr,
+	dstBuffer uintptr,
+	srcBuffer uintptr,
+	format dtype.DType,
+	rows uint32,
+	cols uint32,
+) error {
+	return DispatchSoftmax(
+		C.MetalDeviceRef(unsafe.Pointer(contextRef)),
+		C.MetalBufferRef(unsafe.Pointer(dstBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(srcBuffer)),
+		format,
+		rows,
+		cols,
+	)
+}
+
+func DispatchGLUTensorsRefs(
+	contextRef uintptr,
+	dstBuffer uintptr,
+	gateBuffer uintptr,
+	upBuffer uintptr,
+	format dtype.DType,
+	variant GLUVariant,
+	count uint32,
+) error {
+	return DispatchGLUTensors(
+		C.MetalDeviceRef(unsafe.Pointer(contextRef)),
+		C.MetalBufferRef(unsafe.Pointer(dstBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(gateBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(upBuffer)),
+		format,
+		variant,
+		count,
+	)
+}
+
+func DispatchGLUPackedRefs(
+	contextRef uintptr,
+	dstBuffer uintptr,
+	packedBuffer uintptr,
+	format dtype.DType,
+	variant GLUVariant,
+	inner uint32,
+	count uint32,
+) error {
+	return DispatchGLUPacked(
+		C.MetalDeviceRef(unsafe.Pointer(contextRef)),
+		C.MetalBufferRef(unsafe.Pointer(dstBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(packedBuffer)),
+		format,
+		variant,
+		inner,
+		count,
+	)
+}
+
 var (
 	errUnsupportedKernel = errors.New("metal activation: unsupported kernel")
 	errUnsupportedDType  = errors.New("metal activation: unsupported dtype")

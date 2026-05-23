@@ -222,3 +222,50 @@ static inline void cross_entropy_loss_partial(
         scratch[rowIndex] = targetOK ? -(targetLogit - maximum - log(reduction[0])) : 0.0f;
     }
 }
+
+#define PAIR_LOSS_KERNEL(name, storage, scalar, op) \
+kernel void name##_partial( \
+    device const scalar* predictions [[buffer(0)]], \
+    device const scalar* targets [[buffer(1)]], \
+    device float* scratch [[buffer(2)]], \
+    constant uint& count [[buffer(3)]], \
+    uint groupIndex [[threadgroup_position_in_grid]], \
+    uint threadIndex [[thread_position_in_threadgroup]] \
+) { \
+    threadgroup float reduction[256]; \
+    pair_loss_partial<storage, scalar>( \
+        predictions, targets, scratch, reduction, count, groupIndex, threadIndex, op{} \
+    ); \
+}
+
+#define LOSS_FINALIZE_KERNEL(name, storage, scalar) \
+kernel void name( \
+    device const float* scratch [[buffer(0)]], \
+    device scalar* out [[buffer(1)]], \
+    constant uint& partialCount [[buffer(2)]], \
+    constant uint& denominator [[buffer(3)]], \
+    uint threadIndex [[thread_position_in_threadgroup]] \
+) { \
+    threadgroup float reduction[256]; \
+    loss_finalize<storage, scalar>(scratch, out, reduction, partialCount, denominator, threadIndex); \
+}
+
+#define CROSS_ENTROPY_KERNEL(name, storage, scalar) \
+kernel void name##_partial( \
+    device const scalar* logits [[buffer(0)]], \
+    device const int* targets [[buffer(1)]], \
+    device float* scratch [[buffer(2)]], \
+    device atomic_uint* errorFlag [[buffer(3)]], \
+    constant uint& batch [[buffer(4)]], \
+    constant uint& classes [[buffer(5)]], \
+    uint rowIndex [[threadgroup_position_in_grid]], \
+    uint threadIndex [[thread_position_in_threadgroup]] \
+) { \
+    if (rowIndex >= batch) { \
+        return; \
+    } \
+    threadgroup float reduction[256]; \
+    cross_entropy_loss_partial<storage, scalar>( \
+        logits, targets, scratch, errorFlag, reduction, classes, rowIndex, threadIndex \
+    ); \
+}

@@ -108,3 +108,27 @@ static inline void sampling_init_kernel(
     scores[index] = -3.4028234663852886e38f;
     indices[index] = samplingInvalidIndex;
 }
+
+#define GREEDY_SAMPLE_KERNEL(name, storage, scalar) \
+kernel void name( \
+    device const scalar* logits [[buffer(0)]], \
+    device int* out [[buffer(1)]], \
+    constant uint& count [[buffer(2)]], \
+    uint threadIndex [[thread_position_in_threadgroup]] \
+) { \
+    threadgroup float scoreScratch[256]; \
+    threadgroup uint indexScratch[256]; \
+    greedy_sample_kernel<storage, scalar>(logits, out, scoreScratch, indexScratch, count, threadIndex); \
+}
+
+#define SAMPLING_INIT_KERNEL(name, storage, scalar) \
+kernel void name( \
+    device const scalar* logits [[buffer(0)]], \
+    device float* scores [[buffer(1)]], \
+    device uint* indices [[buffer(2)]], \
+    constant uint& count [[buffer(3)]], \
+    constant uint& paddedCount [[buffer(4)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    sampling_init_kernel<storage, scalar>(logits, scores, indices, count, paddedCount, index); \
+}

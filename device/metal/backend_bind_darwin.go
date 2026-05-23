@@ -3,6 +3,7 @@
 package metal
 
 import (
+	"github.com/theapemachine/puter/device"
 	"github.com/theapemachine/puter/device/metal/activation"
 	"github.com/theapemachine/puter/device/metal/active_inference"
 	"github.com/theapemachine/puter/device/metal/attention"
@@ -53,3 +54,5 @@ func (backend *Backend) bindFamilies(computeHost *ComputeHost) {
 	backend.Dequantization = dequant.New(computeHost)
 	backend.Quantization = quant.New(computeHost)
 }
+
+var _ device.Backend = (*Backend)(nil)

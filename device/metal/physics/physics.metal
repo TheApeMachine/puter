@@ -340,3 +340,86 @@ static inline void dft_naive_kernel(
     Storage::store(realOut, index, sumReal);
     Storage::store(imagOut, index, sumImag);
 }
+
+#define PHYSICS_LAPLACIAN_KERNEL(name, storage, scalar) \
+kernel void name( \
+    device const scalar* input [[buffer(0)]], \
+    device const scalar* spacing [[buffer(1)]], \
+    device scalar* out [[buffer(2)]], \
+    constant uint& count [[buffer(3)]], \
+    constant uint& rank [[buffer(4)]], \
+    constant uint& dim0 [[buffer(5)]], \
+    constant uint& dim1 [[buffer(6)]], \
+    constant uint& dim2 [[buffer(7)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    laplacian_kernel<storage, scalar>(input, spacing, out, count, rank, dim0, dim1, dim2, index); \
+}
+
+#define PHYSICS_VECTOR_KERNEL(name, helper, storage, scalar) \
+kernel void name( \
+    device const scalar* input [[buffer(0)]], \
+    device const scalar* spacing [[buffer(1)]], \
+    device scalar* out [[buffer(2)]], \
+    constant uint& count [[buffer(3)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    helper<storage, scalar>(input, spacing, out, count, index); \
+}
+
+#define PHYSICS_MADELUNG_KERNEL(name, storage, scalar) \
+kernel void name( \
+    device const scalar* density [[buffer(0)]], \
+    device const scalar* velocity [[buffer(1)]], \
+    device const scalar* spacing [[buffer(2)]], \
+    device scalar* out [[buffer(3)]], \
+    constant uint& count [[buffer(4)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    madelung_continuity_kernel<storage, scalar>(density, velocity, spacing, out, count, index); \
+}
+
+#define PHYSICS_FFT_KERNELS(prefix, storage, scalar) \
+kernel void prefix##_fft_bit_reverse( \
+    device const scalar* realIn [[buffer(0)]], \
+    device const scalar* imagIn [[buffer(1)]], \
+    device scalar* realOut [[buffer(2)]], \
+    device scalar* imagOut [[buffer(3)]], \
+    constant uint& count [[buffer(4)]], \
+    constant uint& bits [[buffer(5)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    fft_bit_reverse_kernel<storage, scalar>(realIn, imagIn, realOut, imagOut, count, bits, index); \
+} \
+kernel void prefix##_fft_stage( \
+    device scalar* realValues [[buffer(0)]], \
+    device scalar* imagValues [[buffer(1)]], \
+    constant uint& length [[buffer(2)]], \
+    constant uint& inverseValue [[buffer(3)]], \
+    uint butterfly [[thread_position_in_grid]] \
+) { \
+    fft_stage_kernel<storage, scalar>(realValues, imagValues, length, inverseValue, butterfly); \
+} \
+kernel void prefix##_fft_scale( \
+    device scalar* realValues [[buffer(0)]], \
+    device scalar* imagValues [[buffer(1)]], \
+    constant uint& count [[buffer(2)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    fft_scale_kernel<storage, scalar>(realValues, imagValues, count, index); \
+} \
+kernel void prefix##_dft_naive( \
+    device const scalar* realIn [[buffer(0)]], \
+    device const scalar* imagIn [[buffer(1)]], \
+    device scalar* realOut [[buffer(2)]], \
+    device scalar* imagOut [[buffer(3)]], \
+    device const float* twiddleReal [[buffer(4)]], \
+    device const float* twiddleImag [[buffer(5)]], \
+    constant uint& count [[buffer(6)]], \
+    constant uint& inverseValue [[buffer(7)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    dft_naive_kernel<storage, scalar>( \
+        realIn, imagIn, realOut, imagOut, twiddleReal, twiddleImag, count, inverseValue, index \
+    ); \
+}

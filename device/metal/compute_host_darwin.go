@@ -9,6 +9,9 @@ import (
 	"github.com/theapemachine/puter/device"
 	"github.com/theapemachine/puter/device/metal/activation"
 	"github.com/theapemachine/puter/device/metal/elementwise"
+	"github.com/theapemachine/puter/device/metal/losses"
+	"github.com/theapemachine/puter/device/metal/reduction"
+	"github.com/theapemachine/puter/device/metal/sampling"
 )
 
 type ComputeHost struct {
@@ -29,20 +32,23 @@ func (host *ComputeHost) dispatchError(err error) {
 	}
 }
 
-func (host *ComputeHost) contextRef() C.MetalDeviceRef {
+func (host *ComputeHost) contextRef() uintptr {
 	if host.bridge == nil {
-		return nil
+		return 0
 	}
+
 	return host.bridge.contextRef()
 }
 
 func (host *ComputeHost) elementCount(pointers ...unsafe.Pointer) uint32 {
 	for _, pointer := range pointers {
 		deviceTensor := resolveDeviceTensor(pointer)
+
 		if deviceTensor != nil {
 			return uint32(deviceTensor.Len())
 		}
 	}
+
 	return 0
 }
 
@@ -53,13 +59,13 @@ func (host *ComputeHost) matrixRowsCols(pointer unsafe.Pointer) (rows uint32, co
 		return 0, 0
 	}
 
-	shape := deviceTensor.Shape()
+	shapeDims := deviceTensor.Shape().Dims()
 
-	if len(shape) == 0 {
+	if len(shapeDims) == 0 {
 		return 0, 0
 	}
 
-	cols = uint32(shape[len(shape)-1])
+	cols = uint32(shapeDims[len(shapeDims)-1])
 	total := uint32(deviceTensor.Len())
 
 	if cols == 0 {
@@ -318,10 +324,10 @@ func (host *ComputeHost) GLUPacked(dst, packed unsafe.Pointer, batch, halfCount 
 		return
 	}
 
-	if err := activation.DispatchGLUPacked(
+	if err := activation.DispatchGLUPackedRefs(
 		host.contextRef(),
-		resolveBufferRef(dst),
-		resolveBufferRef(packed),
+		uintptr(unsafe.Pointer(resolveBufferRef(dst))),
+		uintptr(unsafe.Pointer(resolveBufferRef(packed))),
 		format,
 		variant,
 		uint32(halfCount),
@@ -338,11 +344,11 @@ func (host *ComputeHost) GLUTensors(dst, gate, up unsafe.Pointer, format dtype.D
 		return
 	}
 
-	if err := activation.DispatchGLUTensors(
+	if err := activation.DispatchGLUTensorsRefs(
 		host.contextRef(),
-		resolveBufferRef(dst),
-		resolveBufferRef(gate),
-		resolveBufferRef(up),
+		uintptr(unsafe.Pointer(resolveBufferRef(dst))),
+		uintptr(unsafe.Pointer(resolveBufferRef(gate))),
+		uintptr(unsafe.Pointer(resolveBufferRef(up))),
 		format,
 		variant,
 		count,
@@ -382,10 +388,10 @@ func (host *ComputeHost) Softmax(dst, src unsafe.Pointer, format dtype.DType) {
 		return
 	}
 
-	if err := activation.DispatchSoftmax(
+	if err := activation.DispatchSoftmaxRefs(
 		host.contextRef(),
-		resolveBufferRef(dst),
-		resolveBufferRef(src),
+		uintptr(unsafe.Pointer(resolveBufferRef(dst))),
+		uintptr(unsafe.Pointer(resolveBufferRef(src))),
 		format,
 		rows,
 		cols,
@@ -399,7 +405,14 @@ func (host *ComputeHost) StandardUnary(dst, src unsafe.Pointer, format dtype.DTy
 	if count == 0 {
 		return
 	}
-	if err := activation.DispatchStandardUnary(host.contextRef(), resolveBufferRef(dst), resolveBufferRef(src), format, kernel, count); err != nil {
+	if err := activation.DispatchStandardUnaryRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(dst))),
+		uintptr(unsafe.Pointer(resolveBufferRef(src))),
+		format,
+		kernel,
+		count,
+	); err != nil {
 		host.dispatchError(err)
 	}
 }
@@ -415,10 +428,10 @@ func (host *ComputeHost) UnaryParam(dst, src unsafe.Pointer, format dtype.DType,
 		return
 	}
 
-	if err := activation.DispatchUnaryParam(
+	if err := activation.DispatchUnaryParamRefs(
 		host.contextRef(),
-		resolveBufferRef(dst),
-		resolveBufferRef(src),
+		uintptr(unsafe.Pointer(resolveBufferRef(dst))),
+		uintptr(unsafe.Pointer(resolveBufferRef(src))),
 		format,
 		kernelName,
 		param,
@@ -426,4 +439,61 @@ func (host *ComputeHost) UnaryParam(dst, src unsafe.Pointer, format dtype.DType,
 	); err != nil {
 		host.dispatchError(err)
 	}
+}
+
+func (host *ComputeHost) ReductionScalar(
+	values unsafe.Pointer,
+	count int,
+	format dtype.DType,
+	kernel reduction.ReductionKernel,
+) float32 {
+	host.unavailable()
+	return 0
+}
+
+func (host *ComputeHost) DotProduct(
+	left, right unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) float32 {
+	host.unavailable()
+	return 0
+}
+
+func (host *ComputeHost) PairLossScalar(
+	predictions, targets unsafe.Pointer,
+	format dtype.DType,
+	kernel losses.LossKernel,
+) float32 {
+	host.unavailable()
+	return 0
+}
+
+func (host *ComputeHost) CrossEntropyScalar(
+	logits, targets unsafe.Pointer,
+	batchSize, classes int,
+	format dtype.DType,
+) float32 {
+	host.unavailable()
+	return 0
+}
+
+func (host *ComputeHost) SamplingIndex(
+	kernel sampling.SamplingKernel,
+	config device.SamplingConfig,
+	logits unsafe.Pointer,
+	vocabSize int,
+	format dtype.DType,
+) int32 {
+	host.unavailable()
+	return 0
+}
+
+func (host *ComputeHost) DispatchSimilarity(
+	left, right unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) float32 {
+	host.unavailable()
+	return 0
 }
