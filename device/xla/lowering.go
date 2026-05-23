@@ -3,7 +3,14 @@ package xla
 import (
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
+	"github.com/theapemachine/puter/device/xla/activation"
+	"github.com/theapemachine/puter/device/xla/elementwise"
 )
+
+/*
+DefaultBuilderTarget is the compile target string for GPU XLA programs.
+*/
+const DefaultBuilderTarget = "gpu"
 
 /*
 LoweringContext carries resident tensor metadata for an XLA lowering pass.

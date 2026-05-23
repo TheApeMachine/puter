@@ -14,6 +14,30 @@ import (
 
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
+	"github.com/theapemachine/puter/device/xla/activation"
+	"github.com/theapemachine/puter/device/xla/active_inference"
+	"github.com/theapemachine/puter/device/xla/attention"
+	"github.com/theapemachine/puter/device/xla/causal"
+	"github.com/theapemachine/puter/device/xla/convolution"
+	"github.com/theapemachine/puter/device/xla/dequant"
+	"github.com/theapemachine/puter/device/xla/dot"
+	"github.com/theapemachine/puter/device/xla/dropout"
+	"github.com/theapemachine/puter/device/xla/elementwise"
+	"github.com/theapemachine/puter/device/xla/embedding"
+	"github.com/theapemachine/puter/device/xla/hawkes"
+	"github.com/theapemachine/puter/device/xla/layernorm"
+	"github.com/theapemachine/puter/device/xla/losses"
+	"github.com/theapemachine/puter/device/xla/masking"
+	"github.com/theapemachine/puter/device/xla/matmul"
+	"github.com/theapemachine/puter/device/xla/normalization"
+	"github.com/theapemachine/puter/device/xla/physics"
+	"github.com/theapemachine/puter/device/xla/pool"
+	"github.com/theapemachine/puter/device/xla/predictive_coding"
+	"github.com/theapemachine/puter/device/xla/quant"
+	"github.com/theapemachine/puter/device/xla/reduction"
+	"github.com/theapemachine/puter/device/xla/rope"
+	"github.com/theapemachine/puter/device/xla/sampling"
+	"github.com/theapemachine/puter/device/xla/vsa"
 )
 
 /*
@@ -22,20 +46,56 @@ Backend is the XLA Backend implementation.
 type Backend struct {
 	closed atomic.Bool
 	bridge *xlaBridge
+	workspace *Workspace
+	builder   *Builder
+
+	activation.Activation
+	elementwise.Elementwise
+	reduction.Reduction
+	dot.Product
+	matmul.Gemm
+	pool.Pool
+	convolution.Convolution
+	dropout.DropoutLayer
+	losses.Losses
+	sampling.Sampling
+	embedding.Embedding
+	normalization.Normalization
+	layernorm.Norm
+	rope.RotaryEmbedding
+	hawkes.Hawkes
+	physics.Physics
+	causal.Causal
+	masking.Masking
+	attention.Attention
+	vsa.VSA
+	active_inference.ActiveInference
+	predictive_coding.PredictiveCoding
+	dequant.Dequantization
+	quant.Quantization
 }
 
 /*
-NewBackend constructs an XLA backend. Returns ErrNeedsPlatformSetup
-if the XLA runtime cannot be opened on the current platform.
+Close releases the bridge.
 */
-func NewBackend() (*Backend, error) {
-	bridge, err := openXLABridge()
-
-	if err != nil {
-		return nil, err
+func (backend *Backend) Close() error {
+	if !backend.closed.CompareAndSwap(false, true) {
+		return nil
 	}
 
-	return &Backend{bridge: bridge}, nil
+	if backend.workspace != nil {
+		backend.releaseWorkspace()
+		backend.workspace.Close()
+		backend.workspace = nil
+	}
+
+	if backend.bridge != nil {
+		err := backend.bridge.close()
+		backend.bridge = nil
+		return err
+	}
+
+	return nil
 }
 
 /*
@@ -163,23 +223,6 @@ func (backend *Backend) Download(input tensor.Tensor) (dtype.DType, []byte, erro
 	}
 
 	return backend.bridge.download(input)
-}
-
-/*
-Close releases the bridge.
-*/
-func (backend *Backend) Close() error {
-	if !backend.closed.CompareAndSwap(false, true) {
-		return nil
-	}
-
-	if backend.bridge != nil {
-		err := backend.bridge.close()
-		backend.bridge = nil
-		return err
-	}
-
-	return nil
 }
 
 var _ tensor.Backend = (*Backend)(nil)

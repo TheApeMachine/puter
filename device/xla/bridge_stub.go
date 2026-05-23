@@ -12,7 +12,7 @@ xlaBridge stub for builds without the 'xla' tag.
 */
 type xlaBridge struct{}
 
-func openXLABridge() (*xlaBridge, error) {
+func openXLABridge(backend *Backend) (*xlaBridge, error) {
 	return nil, tensor.ErrNeedsPlatformSetup
 }
 
