@@ -256,6 +256,46 @@ func DispatchIndexedParam(
 	return nil
 }
 
+func DispatchDualParam(
+	contextRef C.CUDADeviceRef,
+	dstBuffer C.CUDABufferRef,
+	srcBuffer C.CUDABufferRef,
+	format dtype.DType,
+	operationPrefix string,
+	param0 float32,
+	param1 float32,
+	count uint32,
+) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
+	operationName := C.CString(operationPrefix)
+	defer C.free(unsafe.Pointer(operationName))
+
+	var status C.CUDAStatus
+	code := C.cuda_dispatch_dual_param(
+		contextRef,
+		operationName,
+		elementFormat,
+		srcBuffer,
+		dstBuffer,
+		C.uint32_t(count),
+		C.float(param0),
+		C.float(param1),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		return cudaStatusError(status)
+	}
+
+	return nil
+}
+
 func DispatchSoftmax(
 	contextRef C.CUDADeviceRef,
 	dstBuffer C.CUDABufferRef,

@@ -7,6 +7,5 @@ package dequant
 #cgo cuda LDFLAGS: -lcudart -lnvrtc -lcuda -lpthread
 
 #include "native/dequant.c"
-#include "native/int8.c"
 */
 import "C"

@@ -14,6 +14,10 @@ const (
 	paramKernelELUAlpha       = "elu_alpha"
 	paramKernelCELUAlpha      = "celu_alpha"
 	paramKernelThreshold      = "threshold"
+	paramKernelHardTanhRange  = "hard_tanh_range"
+	paramKernelSnake          = "snake"
+	paramKernelSnakeParametric = "snake_parametric"
+	paramKernelRReLU          = "rrelu"
 )
 
 func (activation *Activation) PReLU(
@@ -84,9 +88,7 @@ func (activation *Activation) HardTanhRange(
 	minVal, maxVal float32,
 ) {
 	_ = count
-	_ = minVal
-	_ = maxVal
-	activation.host.StandardUnary(dst, src, format, StandardHardTanh)
+	activation.host.DualParam(dst, src, format, paramKernelHardTanhRange, minVal, maxVal)
 }
 
 func (activation *Activation) Snake(
@@ -96,7 +98,7 @@ func (activation *Activation) Snake(
 	alpha float32,
 ) {
 	_ = count
-	activation.host.UnaryParam(dst, src, format, paramKernelELUAlpha, alpha)
+	activation.host.UnaryParam(dst, src, format, paramKernelSnake, alpha)
 }
 
 func (activation *Activation) SnakeParametric(
@@ -106,8 +108,7 @@ func (activation *Activation) SnakeParametric(
 	alpha, beta float32,
 ) {
 	_ = count
-	_ = beta
-	activation.host.UnaryParam(dst, src, format, paramKernelELUAlpha, alpha)
+	activation.host.DualParam(dst, src, format, paramKernelSnakeParametric, alpha, beta)
 }
 
 func (activation *Activation) HardShrink(
@@ -137,6 +138,5 @@ func (activation *Activation) RReLU(
 	lower, upper float32,
 ) {
 	_ = count
-	_ = upper
-	activation.host.UnaryParam(dst, src, format, paramKernelPReLUSlope, lower)
+	activation.host.DualParam(dst, src, format, paramKernelRReLU, lower, upper)
 }

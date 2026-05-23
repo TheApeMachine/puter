@@ -78,6 +78,7 @@ type Host interface {
 	StandardUnary(dst, src unsafe.Pointer, format dtype.DType, kernel StandardKernel)
 	Softmax(dst, src unsafe.Pointer, format dtype.DType)
 	UnaryParam(dst, src unsafe.Pointer, format dtype.DType, kernelName string, param float32)
+	DualParam(dst, src unsafe.Pointer, format dtype.DType, kernelName string, param0, param1 float32)
 	PReLUV(dst, src, slopes unsafe.Pointer, format dtype.DType)
 	GLUPacked(dst, packed unsafe.Pointer, batch, halfCount int, format dtype.DType, variant GLUVariant)
 	GLUTensors(dst, gate, up unsafe.Pointer, format dtype.DType, variant GLUVariant)

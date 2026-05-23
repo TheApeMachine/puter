@@ -54,9 +54,7 @@ func (dispatchError *dispatchError) Error() string {
 }
 
 const (
-	operationInt8Dequant C.int = 0
-	operationInt4Dequant C.int = 1
-	operationInt8Quant   C.int = 2
+	operationInt8Quant C.int = 2
 )
 
 func dispatchQuantization(
@@ -104,43 +102,5 @@ func DispatchQuant(
 		scale,
 		int32(zeroPoint),
 		count,
-	)
-}
-
-func DispatchDequant(
-	contextRef C.CUDADeviceRef,
-	sourceBuffer C.CUDABufferRef,
-	destinationBuffer C.CUDABufferRef,
-	scale float32,
-	zeroPoint int8,
-	count uint32,
-) error {
-	return dispatchQuantization(
-		contextRef,
-		operationInt8Dequant,
-		sourceBuffer,
-		destinationBuffer,
-		scale,
-		int32(zeroPoint),
-		count,
-	)
-}
-
-func DispatchDequant4(
-	contextRef C.CUDADeviceRef,
-	sourceBuffer C.CUDABufferRef,
-	destinationBuffer C.CUDABufferRef,
-	scale float32,
-	zeroPoint int8,
-	pairCount uint32,
-) error {
-	return dispatchQuantization(
-		contextRef,
-		operationInt4Dequant,
-		sourceBuffer,
-		destinationBuffer,
-		scale,
-		int32(zeroPoint),
-		pairCount,
 	)
 }

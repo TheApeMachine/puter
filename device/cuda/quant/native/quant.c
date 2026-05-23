@@ -13,15 +13,6 @@ const char* cuda_quant_module_source(void) {
     return g_cuda_quant_module_source;
 }
 
-static const char* cuda_quantization_kernel_name(int operation) {
-    switch (operation) {
-    case 0: return "int8_dequant";
-    case 1: return "int4_dequant";
-    case 2: return "int8_quant";
-    default: return NULL;
-    }
-}
-
 int cuda_dispatch_quantization(
     CUDADeviceRef contextRef,
     int operation,
@@ -44,9 +35,7 @@ int cuda_dispatch_quantization(
         return -2;
     }
 
-    const char* kernelName = cuda_quantization_kernel_name(operation);
-
-    if (kernelName == NULL) {
+    if (operation != 2) {
         cuda_status_set(status, -6, "unknown CUDA quantization kernel");
         return -6;
     }
@@ -66,7 +55,7 @@ int cuda_dispatch_quantization(
         return prepareCode;
     }
 
-    CUDAKernelRef kernel = cuda_get_kernel(context, moduleSource, kernelName, status);
+    CUDAKernelRef kernel = cuda_get_kernel(context, moduleSource, "int8_quant", status);
 
     if (kernel == NULL) {
         return status != NULL && status->code != 0 ? status->code : -7;
@@ -74,24 +63,15 @@ int cuda_dispatch_quantization(
 
     void* inputPtr = cuda_buffer_device_ptr(inputRef);
     void* outPtr = cuda_buffer_device_ptr(outRef);
+    void* args[] = {&inputPtr, &outPtr, &count};
+    int launchCode = cuda_launch_1d(context, kernel, stream, count, args, sizeof(args), status);
 
-    if (operation == 2) {
-        void* args[] = {&inputPtr, &outPtr, &count};
-        int launchCode = cuda_launch_1d(context, kernel, stream, count, args, sizeof(args), status);
-
-        if (launchCode != 0) {
-            return launchCode;
-        }
+    if (launchCode != 0) {
+        return launchCode;
     }
 
-    if (operation != 2) {
-        void* args[] = {&outPtr, &inputPtr, &scale, &zeroPoint, &count};
-        int launchCode = cuda_launch_1d(context, kernel, stream, count, args, sizeof(args), status);
-
-        if (launchCode != 0) {
-            return launchCode;
-        }
-    }
+    (void)scale;
+    (void)zeroPoint;
 
     cuda_track_completion(context, stream, completionToken, NULL, status);
     return 0;

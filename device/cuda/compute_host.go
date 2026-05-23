@@ -12,6 +12,7 @@ import (
 	"github.com/theapemachine/puter/device/cuda/attention"
 	"github.com/theapemachine/puter/device/cuda/causal"
 	"github.com/theapemachine/puter/device/cuda/convolution"
+	"github.com/theapemachine/puter/device/cuda/dequant"
 	"github.com/theapemachine/puter/device/cuda/dropout"
 	"github.com/theapemachine/puter/device/cuda/elementwise"
 	"github.com/theapemachine/puter/device/cuda/embedding"
@@ -532,17 +533,17 @@ func (host *ComputeHost) DispatchDAGMarkovFactorization(conditionals unsafe.Poin
 }
 
 func (host *ComputeHost) DispatchDequant(dst, src unsafe.Pointer, count int, config device.DequantInt8Config, dstFormat, srcFormat dtype.DType) {
-	_ = dstFormat
 	_ = srcFormat
 
 	if count == 0 {
 		return
 	}
 
-	if err := quant.DispatchDequant(
+	if err := dequant.DispatchDequant(
 		host.contextRef(),
 		resolveBufferRef(src),
 		resolveBufferRef(dst),
+		dstFormat,
 		config.Scale,
 		config.ZeroPoint,
 		uint32(count),
@@ -552,17 +553,17 @@ func (host *ComputeHost) DispatchDequant(dst, src unsafe.Pointer, count int, con
 }
 
 func (host *ComputeHost) DispatchDequant4(dst, src unsafe.Pointer, pairCount int, config device.DequantInt4Config, dstFormat, srcFormat dtype.DType) {
-	_ = dstFormat
 	_ = srcFormat
 
 	if pairCount == 0 {
 		return
 	}
 
-	if err := quant.DispatchDequant4(
+	if err := dequant.DispatchDequant4(
 		host.contextRef(),
 		resolveBufferRef(src),
 		resolveBufferRef(dst),
+		dstFormat,
 		config.Scale,
 		config.ZeroPoint,
 		uint32(pairCount),
@@ -1421,6 +1422,32 @@ func (host *ComputeHost) UnaryParam(dst, src unsafe.Pointer, format dtype.DType,
 		format,
 		kernelName,
 		param,
+		count,
+	); err != nil {
+		host.dispatchError(err)
+	}
+}
+
+func (host *ComputeHost) DualParam(
+	dst, src unsafe.Pointer,
+	format dtype.DType,
+	kernelName string,
+	param0, param1 float32,
+) {
+	count := host.elementCount(dst, src)
+
+	if count == 0 {
+		return
+	}
+
+	if err := activation.DispatchDualParam(
+		host.contextRef(),
+		resolveBufferRef(dst),
+		resolveBufferRef(src),
+		format,
+		kernelName,
+		param0,
+		param1,
 		count,
 	); err != nil {
 		host.dispatchError(err)
