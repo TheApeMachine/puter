@@ -9,7 +9,6 @@ import (
 
 	"github.com/smartystreets/goconvey/convey"
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	cpulosses "github.com/theapemachine/puter/device/cpu/losses"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
@@ -41,11 +40,11 @@ func TestLossesCUDAParity(t *testing.T) {
 				defer outputTensor.Close()
 
 				if err := DispatchPairLoss(
-					cudadevice.DeviceRef(harness.ContextRef()),
-					cudadevice.BufferRef(predictionsTensor.Ref()),
-					cudadevice.BufferRef(targetsTensor.Ref()),
-					cudadevice.BufferRef(scratchTensor.Ref()),
-					cudadevice.BufferRef(outputTensor.Ref()),
+					parity.DeviceRef(harness.ContextRef()),
+					parity.BufferRef(predictionsTensor.Ref()),
+					parity.BufferRef(targetsTensor.Ref()),
+					parity.BufferRef(scratchTensor.Ref()),
+					parity.BufferRef(outputTensor.Ref()),
 					dtype.Float32,
 					KernelMSE,
 					uint32(count),

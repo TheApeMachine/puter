@@ -10,7 +10,6 @@ import (
 	"github.com/smartystreets/goconvey/convey"
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/dtype/convert"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	cpudequant "github.com/theapemachine/puter/device/cpu/dequant"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
@@ -51,9 +50,9 @@ func TestDequantCUDAParity(t *testing.T) {
 						defer destinationTensor.Close()
 
 						if err := DispatchDequant(
-							cudadevice.DeviceRef(harness.ContextRef()),
-							cudadevice.BufferRef(sourceTensor.Ref()),
-							cudadevice.BufferRef(destinationTensor.Ref()),
+							parity.DeviceRef(harness.ContextRef()),
+							parity.BufferRef(sourceTensor.Ref()),
+							parity.BufferRef(destinationTensor.Ref()),
 							storageDType,
 							scale,
 							zeroPoint,

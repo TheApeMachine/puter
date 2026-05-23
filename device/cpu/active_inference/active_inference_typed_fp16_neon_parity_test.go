@@ -59,7 +59,7 @@ func TestFreeEnergyFP16NEONParity(t *testing.T) {
 			posterior[index] = dtype.Fromfloat32(float32(index%9+1) * 0.07)
 			prior[index] = dtype.Fromfloat32(float32(index%11+1) * 0.06)
 		}
-		want := FreeEnergyFP16F32LogRef(likelihood, posterior, prior)
+		want := FreeEnergyFloat16Scalar(likelihood, posterior, prior)
 		got := FreeEnergyFP16NEON(likelihood, posterior, prior)
 		if got != want {
 			t.Fatalf("N=%d got=%v want=%v", length, got, want)
@@ -80,7 +80,7 @@ func TestExpectedFreeEnergyFP16NEONParity(t *testing.T) {
 		for index := range predictedState {
 			predictedState[index] = dtype.Fromfloat32(float32(index%7+1) * 0.06)
 		}
-		want := ExpectedFreeEnergyFP16F32LogRef(predictedObs, preferredObs, predictedState)
+		want := ExpectedFreeEnergyFloat16Scalar(predictedObs, preferredObs, predictedState)
 		got := ExpectedFreeEnergyFP16NEON(predictedObs, preferredObs, predictedState)
 		if got != want {
 			t.Fatalf("obs=%d state=%d got=%v want=%v", obsCount, stateCount, got, want)

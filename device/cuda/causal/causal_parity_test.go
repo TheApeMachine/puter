@@ -8,7 +8,6 @@ import (
 
 	"github.com/smartystreets/goconvey/convey"
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	cpucausal "github.com/theapemachine/puter/device/cpu/causal"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
@@ -33,10 +32,10 @@ func TestCausalCUDAParity(t *testing.T) {
 				defer outputTensor.Close()
 
 				if err := DispatchCATE(
-					cudadevice.DeviceRef(harness.ContextRef()),
-					cudadevice.BufferRef(treatedTensor.Ref()),
-					cudadevice.BufferRef(controlTensor.Ref()),
-					cudadevice.BufferRef(outputTensor.Ref()),
+					parity.DeviceRef(harness.ContextRef()),
+					parity.BufferRef(treatedTensor.Ref()),
+					parity.BufferRef(controlTensor.Ref()),
+					parity.BufferRef(outputTensor.Ref()),
 					dtype.Float32,
 					uint32(count),
 				); err != nil {

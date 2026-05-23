@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
 
@@ -32,11 +31,11 @@ func BenchmarkRoPECUDAPairs(b *testing.B) {
 
 	for b.Loop() {
 		if err := DispatchRoPEPairs(
-			cudadevice.DeviceRef(harness.ContextRef()),
-			cudadevice.BufferRef(inputTensor.Ref()),
-			cudadevice.BufferRef(outputTensor.Ref()),
-			cudadevice.BufferRef(cosTensor.Ref()),
-			cudadevice.BufferRef(sinTensor.Ref()),
+			parity.DeviceRef(harness.ContextRef()),
+			parity.BufferRef(inputTensor.Ref()),
+			parity.BufferRef(outputTensor.Ref()),
+			parity.BufferRef(cosTensor.Ref()),
+			parity.BufferRef(sinTensor.Ref()),
 			halfDim,
 			dtype.Float32,
 		); err != nil {

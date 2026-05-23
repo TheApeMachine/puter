@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
 
@@ -37,11 +36,11 @@ func BenchmarkEmbeddingCUDALookup(b *testing.B) {
 
 	for b.Loop() {
 		if err := DispatchLookup(
-			cudadevice.DeviceRef(harness.ContextRef()),
-			cudadevice.BufferRef(tableTensor.Ref()),
-			cudadevice.BufferRef(indicesTensor.Ref()),
-			cudadevice.BufferRef(outputTensor.Ref()),
-			cudadevice.BufferRef(errorFlagTensor.Ref()),
+			parity.DeviceRef(harness.ContextRef()),
+			parity.BufferRef(tableTensor.Ref()),
+			parity.BufferRef(indicesTensor.Ref()),
+			parity.BufferRef(outputTensor.Ref()),
+			parity.BufferRef(errorFlagTensor.Ref()),
 			dtype.Float32,
 			vocab,
 			hidden,

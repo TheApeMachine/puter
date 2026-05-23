@@ -8,7 +8,6 @@ import (
 
 	"github.com/smartystreets/goconvey/convey"
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	cpureduction "github.com/theapemachine/puter/device/cpu/reduction"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
@@ -34,11 +33,11 @@ func TestReductionCUDAParity(t *testing.T) {
 				defer outputTensor.Close()
 
 				if err := DispatchReduction(
-					cudadevice.DeviceRef(harness.ContextRef()),
-					cudadevice.BufferRef(sourceTensor.Ref()),
-					cudadevice.BufferRef(scratchA.Ref()),
-					cudadevice.BufferRef(scratchB.Ref()),
-					cudadevice.BufferRef(outputTensor.Ref()),
+					parity.DeviceRef(harness.ContextRef()),
+					parity.BufferRef(sourceTensor.Ref()),
+					parity.BufferRef(scratchA.Ref()),
+					parity.BufferRef(scratchB.Ref()),
+					parity.BufferRef(outputTensor.Ref()),
 					dtype.Float32,
 					KernelSum,
 					uint32(count),

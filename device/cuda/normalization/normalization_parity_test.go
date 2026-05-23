@@ -8,7 +8,6 @@ import (
 
 	"github.com/smartystreets/goconvey/convey"
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
 
@@ -87,11 +86,11 @@ func TestNormalizationCUDAParity(t *testing.T) {
 				defer outputTensor.Close()
 
 				if err := DispatchInstanceNorm(
-					cudadevice.DeviceRef(harness.ContextRef()),
-					cudadevice.BufferRef(inputTensor.Ref()),
-					cudadevice.BufferRef(scaleTensor.Ref()),
-					cudadevice.BufferRef(biasTensor.Ref()),
-					cudadevice.BufferRef(outputTensor.Ref()),
+					parity.DeviceRef(harness.ContextRef()),
+					parity.BufferRef(inputTensor.Ref()),
+					parity.BufferRef(scaleTensor.Ref()),
+					parity.BufferRef(biasTensor.Ref()),
+					parity.BufferRef(outputTensor.Ref()),
 					batch,
 					channels,
 					spatial,

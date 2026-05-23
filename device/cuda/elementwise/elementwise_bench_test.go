@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
 
@@ -28,10 +27,10 @@ func BenchmarkElementwiseCUDAAdd(b *testing.B) {
 
 	for b.Loop() {
 		if err := DispatchBinaryElementwise(
-			cudadevice.DeviceRef(harness.ContextRef()),
-			cudadevice.BufferRef(outputTensor.Ref()),
-			cudadevice.BufferRef(leftTensor.Ref()),
-			cudadevice.BufferRef(rightTensor.Ref()),
+			parity.DeviceRef(harness.ContextRef()),
+			parity.BufferRef(outputTensor.Ref()),
+			parity.BufferRef(leftTensor.Ref()),
+			parity.BufferRef(rightTensor.Ref()),
 			dtype.Float32,
 			BinaryAdd,
 			uint32(count),

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
 
@@ -25,9 +24,9 @@ func BenchmarkDequantCUDAInt8(b *testing.B) {
 
 	for b.Loop() {
 		if err := DispatchDequant(
-			cudadevice.DeviceRef(harness.ContextRef()),
-			cudadevice.BufferRef(sourceTensor.Ref()),
-			cudadevice.BufferRef(destinationTensor.Ref()),
+			parity.DeviceRef(harness.ContextRef()),
+			parity.BufferRef(sourceTensor.Ref()),
+			parity.BufferRef(destinationTensor.Ref()),
 			dtype.Float32,
 			0.0875,
 			-13,

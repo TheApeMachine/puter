@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
 
@@ -29,10 +28,10 @@ func BenchmarkPredictiveCodingCUDAPrediction(b *testing.B) {
 
 	for b.Loop() {
 		if err := DispatchPrediction(
-			cudadevice.DeviceRef(harness.ContextRef()),
-			cudadevice.BufferRef(weightsTensor.Ref()),
-			cudadevice.BufferRef(stateTensor.Ref()),
-			cudadevice.BufferRef(outputTensor.Ref()),
+			parity.DeviceRef(harness.ContextRef()),
+			parity.BufferRef(weightsTensor.Ref()),
+			parity.BufferRef(stateTensor.Ref()),
+			parity.BufferRef(outputTensor.Ref()),
 			dtype.Float32,
 			uint32(outDim),
 			uint32(inDim),

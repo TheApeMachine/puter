@@ -8,7 +8,6 @@ import (
 
 	"github.com/smartystreets/goconvey/convey"
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	cpudropout "github.com/theapemachine/puter/device/cpu/dropout"
 	"github.com/theapemachine/puter/device"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
@@ -34,9 +33,9 @@ func TestDropoutCUDAParity(t *testing.T) {
 				defer outputTensor.Close()
 
 				if err := DispatchDropout(
-					cudadevice.DeviceRef(harness.ContextRef()),
-					cudadevice.BufferRef(sourceTensor.Ref()),
-					cudadevice.BufferRef(outputTensor.Ref()),
+					parity.DeviceRef(harness.ContextRef()),
+					parity.BufferRef(sourceTensor.Ref()),
+					parity.BufferRef(outputTensor.Ref()),
 					uint32(count),
 					config,
 					dtype.Float32,

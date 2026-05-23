@@ -8,7 +8,6 @@ import (
 
 	"github.com/smartystreets/goconvey/convey"
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
 
@@ -59,10 +58,10 @@ func TestActivationCUDAParity(t *testing.T) {
 								defer sourceTensor.Close()
 								defer destinationTensor.Close()
 
-								if err := DispatchStandardUnary(
-									cudadevice.DeviceRef(harness.ContextRef()),
-									cudadevice.BufferRef(destinationTensor.Ref()),
-									cudadevice.BufferRef(sourceTensor.Ref()),
+								if err := DispatchStandardUnaryRefs(
+									harness.ContextRef(),
+									destinationTensor.Ref(),
+									sourceTensor.Ref(),
 									storageDType,
 									testCase.kernel,
 									uint32(count),
@@ -131,10 +130,10 @@ func TestActivationCUDAParity(t *testing.T) {
 								defer sourceTensor.Close()
 								defer destinationTensor.Close()
 
-								if err := DispatchUnaryParam(
-									cudadevice.DeviceRef(harness.ContextRef()),
-									cudadevice.BufferRef(destinationTensor.Ref()),
-									cudadevice.BufferRef(sourceTensor.Ref()),
+								if err := DispatchUnaryParamRefs(
+									harness.ContextRef(),
+									destinationTensor.Ref(),
+									sourceTensor.Ref(),
 									storageDType,
 									testCase.operation,
 									testCase.param,
@@ -217,10 +216,10 @@ func TestActivationCUDAParity(t *testing.T) {
 								defer sourceTensor.Close()
 								defer destinationTensor.Close()
 
-								if err := DispatchDualParam(
-									cudadevice.DeviceRef(harness.ContextRef()),
-									cudadevice.BufferRef(destinationTensor.Ref()),
-									cudadevice.BufferRef(sourceTensor.Ref()),
+								if err := DispatchDualParamRefs(
+									harness.ContextRef(),
+									destinationTensor.Ref(),
+									sourceTensor.Ref(),
 									storageDType,
 									testCase.operation,
 									testCase.param0,

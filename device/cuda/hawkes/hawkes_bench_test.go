@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
 
@@ -34,13 +33,13 @@ func BenchmarkHawkesCUDAIntensity(b *testing.B) {
 
 	for b.Loop() {
 		if err := DispatchHawkesIntensity(
-			cudadevice.DeviceRef(harness.ContextRef()),
-			cudadevice.BufferRef(eventsTensor.Ref()),
-			cudadevice.BufferRef(queryTensor.Ref()),
-			cudadevice.BufferRef(baselineTensor.Ref()),
-			cudadevice.BufferRef(alphaTensor.Ref()),
-			cudadevice.BufferRef(betaTensor.Ref()),
-			cudadevice.BufferRef(outputTensor.Ref()),
+			parity.DeviceRef(harness.ContextRef()),
+			parity.BufferRef(eventsTensor.Ref()),
+			parity.BufferRef(queryTensor.Ref()),
+			parity.BufferRef(baselineTensor.Ref()),
+			parity.BufferRef(alphaTensor.Ref()),
+			parity.BufferRef(betaTensor.Ref()),
+			parity.BufferRef(outputTensor.Ref()),
 			uint32(count),
 			uint32(count),
 			dtype.Float32,

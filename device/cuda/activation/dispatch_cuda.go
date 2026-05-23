@@ -458,6 +458,66 @@ var (
 	errUnsupportedDType  = errors.New("cuda activation: unsupported dtype")
 )
 
+func DispatchStandardUnaryRefs(
+	contextRef uintptr,
+	dstBuffer uintptr,
+	srcBuffer uintptr,
+	format dtype.DType,
+	kernel StandardKernel,
+	count uint32,
+) error {
+	return DispatchStandardUnary(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(dstBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(srcBuffer)),
+		format,
+		kernel,
+		count,
+	)
+}
+
+func DispatchUnaryParamRefs(
+	contextRef uintptr,
+	dstBuffer uintptr,
+	srcBuffer uintptr,
+	format dtype.DType,
+	operationPrefix string,
+	param float32,
+	count uint32,
+) error {
+	return DispatchUnaryParam(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(dstBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(srcBuffer)),
+		format,
+		operationPrefix,
+		param,
+		count,
+	)
+}
+
+func DispatchDualParamRefs(
+	contextRef uintptr,
+	dstBuffer uintptr,
+	srcBuffer uintptr,
+	format dtype.DType,
+	operationPrefix string,
+	param0 float32,
+	param1 float32,
+	count uint32,
+) error {
+	return DispatchDualParam(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(dstBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(srcBuffer)),
+		format,
+		operationPrefix,
+		param0,
+		param1,
+		count,
+	)
+}
+
 func cudaStatusError(status C.CUDAStatus) error {
 	if status.code == 0 {
 		return nil

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
 
@@ -30,10 +29,10 @@ func BenchmarkMatmulCUDAF32(b *testing.B) {
 
 	for b.Loop() {
 		if err := DispatchMatmul(
-			cudadevice.DeviceRef(harness.ContextRef()),
-			cudadevice.BufferRef(leftTensor.Ref()),
-			cudadevice.BufferRef(rightTensor.Ref()),
-			cudadevice.BufferRef(outputTensor.Ref()),
+			parity.DeviceRef(harness.ContextRef()),
+			parity.BufferRef(leftTensor.Ref()),
+			parity.BufferRef(rightTensor.Ref()),
+			parity.BufferRef(outputTensor.Ref()),
 			dtype.Float32,
 			rows,
 			inner,

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
 
@@ -31,11 +30,11 @@ func BenchmarkLossesCUDAMSE(b *testing.B) {
 
 	for b.Loop() {
 		if err := DispatchPairLoss(
-			cudadevice.DeviceRef(harness.ContextRef()),
-			cudadevice.BufferRef(predictionsTensor.Ref()),
-			cudadevice.BufferRef(targetsTensor.Ref()),
-			cudadevice.BufferRef(scratchTensor.Ref()),
-			cudadevice.BufferRef(outputTensor.Ref()),
+			parity.DeviceRef(harness.ContextRef()),
+			parity.BufferRef(predictionsTensor.Ref()),
+			parity.BufferRef(targetsTensor.Ref()),
+			parity.BufferRef(scratchTensor.Ref()),
+			parity.BufferRef(outputTensor.Ref()),
 			dtype.Float32,
 			KernelMSE,
 			uint32(count),

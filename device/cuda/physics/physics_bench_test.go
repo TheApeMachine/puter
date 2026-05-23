@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
 
@@ -28,10 +27,10 @@ func BenchmarkPhysicsCUDAGrad1D(b *testing.B) {
 
 	for b.Loop() {
 		if err := DispatchGrad1D(
-			cudadevice.DeviceRef(harness.ContextRef()),
-			cudadevice.BufferRef(inputTensor.Ref()),
-			cudadevice.BufferRef(spacingTensor.Ref()),
-			cudadevice.BufferRef(outputTensor.Ref()),
+			parity.DeviceRef(harness.ContextRef()),
+			parity.BufferRef(inputTensor.Ref()),
+			parity.BufferRef(spacingTensor.Ref()),
+			parity.BufferRef(outputTensor.Ref()),
 			dtype.Float32,
 			uint32(count),
 		); err != nil {

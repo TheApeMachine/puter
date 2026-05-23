@@ -8,7 +8,6 @@ import (
 
 	"github.com/smartystreets/goconvey/convey"
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	cpuelementwise "github.com/theapemachine/puter/device/cpu/elementwise"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
@@ -33,10 +32,10 @@ func TestElementwiseCUDAParity(t *testing.T) {
 				defer outputTensor.Close()
 
 				if err := DispatchBinaryElementwise(
-					cudadevice.DeviceRef(harness.ContextRef()),
-					cudadevice.BufferRef(outputTensor.Ref()),
-					cudadevice.BufferRef(leftTensor.Ref()),
-					cudadevice.BufferRef(rightTensor.Ref()),
+					parity.DeviceRef(harness.ContextRef()),
+					parity.BufferRef(outputTensor.Ref()),
+					parity.BufferRef(leftTensor.Ref()),
+					parity.BufferRef(rightTensor.Ref()),
 					dtype.Float32,
 					BinaryAdd,
 					uint32(count),

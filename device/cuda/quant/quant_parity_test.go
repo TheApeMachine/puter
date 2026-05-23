@@ -8,7 +8,6 @@ import (
 
 	"github.com/smartystreets/goconvey/convey"
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	cpuquant "github.com/theapemachine/puter/device/cpu/quant"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
@@ -33,9 +32,9 @@ func TestQuantCUDAParity(t *testing.T) {
 				defer destinationTensor.Close()
 
 				if err := DispatchQuant(
-					cudadevice.DeviceRef(harness.ContextRef()),
-					cudadevice.BufferRef(sourceTensor.Ref()),
-					cudadevice.BufferRef(destinationTensor.Ref()),
+					parity.DeviceRef(harness.ContextRef()),
+					parity.BufferRef(sourceTensor.Ref()),
+					parity.BufferRef(destinationTensor.Ref()),
 					scale,
 					zeroPoint,
 					uint32(count),

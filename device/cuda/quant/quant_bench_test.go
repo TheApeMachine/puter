@@ -5,7 +5,6 @@ package quant
 import (
 	"testing"
 
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
@@ -25,9 +24,9 @@ func BenchmarkQuantCUDAInt8(b *testing.B) {
 
 	for b.Loop() {
 		if err := DispatchQuant(
-			cudadevice.DeviceRef(harness.ContextRef()),
-			cudadevice.BufferRef(sourceTensor.Ref()),
-			cudadevice.BufferRef(destinationTensor.Ref()),
+			parity.DeviceRef(harness.ContextRef()),
+			parity.BufferRef(sourceTensor.Ref()),
+			parity.BufferRef(destinationTensor.Ref()),
 			0.0875,
 			-13,
 			uint32(count),

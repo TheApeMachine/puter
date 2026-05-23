@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
 
@@ -30,11 +29,11 @@ func BenchmarkReductionCUDASum(b *testing.B) {
 
 	for b.Loop() {
 		if err := DispatchReduction(
-			cudadevice.DeviceRef(harness.ContextRef()),
-			cudadevice.BufferRef(sourceTensor.Ref()),
-			cudadevice.BufferRef(scratchA.Ref()),
-			cudadevice.BufferRef(scratchB.Ref()),
-			cudadevice.BufferRef(outputTensor.Ref()),
+			parity.DeviceRef(harness.ContextRef()),
+			parity.BufferRef(sourceTensor.Ref()),
+			parity.BufferRef(scratchA.Ref()),
+			parity.BufferRef(scratchB.Ref()),
+			parity.BufferRef(outputTensor.Ref()),
 			dtype.Float32,
 			KernelSum,
 			uint32(count),

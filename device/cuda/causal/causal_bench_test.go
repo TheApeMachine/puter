@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
 
@@ -28,10 +27,10 @@ func BenchmarkCausalCUDACATE(b *testing.B) {
 
 	for b.Loop() {
 		if err := DispatchCATE(
-			cudadevice.DeviceRef(harness.ContextRef()),
-			cudadevice.BufferRef(treatedTensor.Ref()),
-			cudadevice.BufferRef(controlTensor.Ref()),
-			cudadevice.BufferRef(outputTensor.Ref()),
+			parity.DeviceRef(harness.ContextRef()),
+			parity.BufferRef(treatedTensor.Ref()),
+			parity.BufferRef(controlTensor.Ref()),
+			parity.BufferRef(outputTensor.Ref()),
 			dtype.Float32,
 			uint32(count),
 		); err != nil {

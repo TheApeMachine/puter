@@ -8,7 +8,6 @@ import (
 
 	"github.com/smartystreets/goconvey/convey"
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	cuprope "github.com/theapemachine/puter/device/cpu/rope"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
@@ -41,11 +40,11 @@ func TestRoPECUDAParity(t *testing.T) {
 				defer outputTensor.Close()
 
 				if err := DispatchRoPEPairs(
-					cudadevice.DeviceRef(harness.ContextRef()),
-					cudadevice.BufferRef(inputTensor.Ref()),
-					cudadevice.BufferRef(outputTensor.Ref()),
-					cudadevice.BufferRef(cosTensor.Ref()),
-					cudadevice.BufferRef(sinTensor.Ref()),
+					parity.DeviceRef(harness.ContextRef()),
+					parity.BufferRef(inputTensor.Ref()),
+					parity.BufferRef(outputTensor.Ref()),
+					parity.BufferRef(cosTensor.Ref()),
+					parity.BufferRef(sinTensor.Ref()),
 					halfDim,
 					dtype.Float32,
 				); err != nil {

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
 
@@ -31,11 +30,11 @@ func BenchmarkActiveInferenceCUDABeliefUpdate(b *testing.B) {
 
 	for b.Loop() {
 		if err := DispatchBeliefUpdate(
-			cudadevice.DeviceRef(harness.ContextRef()),
-			cudadevice.BufferRef(likelihoodTensor.Ref()),
-			cudadevice.BufferRef(priorTensor.Ref()),
-			cudadevice.BufferRef(scratchTensor.Ref()),
-			cudadevice.BufferRef(outputTensor.Ref()),
+			parity.DeviceRef(harness.ContextRef()),
+			parity.BufferRef(likelihoodTensor.Ref()),
+			parity.BufferRef(priorTensor.Ref()),
+			parity.BufferRef(scratchTensor.Ref()),
+			parity.BufferRef(outputTensor.Ref()),
 			dtype.Float32,
 			uint32(count),
 		); err != nil {

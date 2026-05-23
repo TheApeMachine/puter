@@ -8,7 +8,6 @@ import (
 
 	"github.com/smartystreets/goconvey/convey"
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	cpudot "github.com/theapemachine/puter/device/cpu/dot"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
@@ -35,11 +34,11 @@ func TestDotCUDAParity(t *testing.T) {
 				defer outputTensor.Close()
 
 				if err := DispatchDot(
-					cudadevice.DeviceRef(harness.ContextRef()),
-					cudadevice.BufferRef(leftTensor.Ref()),
-					cudadevice.BufferRef(rightTensor.Ref()),
-					cudadevice.BufferRef(scratchTensor.Ref()),
-					cudadevice.BufferRef(outputTensor.Ref()),
+					parity.DeviceRef(harness.ContextRef()),
+					parity.BufferRef(leftTensor.Ref()),
+					parity.BufferRef(rightTensor.Ref()),
+					parity.BufferRef(scratchTensor.Ref()),
+					parity.BufferRef(outputTensor.Ref()),
 					dtype.Float32,
 					uint32(count),
 				); err != nil {

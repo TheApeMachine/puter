@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
 
@@ -24,10 +23,10 @@ func BenchmarkActivationCUDAReLU(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		if err := DispatchStandardUnary(
-			cudadevice.DeviceRef(harness.ContextRef()),
-			cudadevice.BufferRef(destinationTensor.Ref()),
-			cudadevice.BufferRef(sourceTensor.Ref()),
+		if err := DispatchStandardUnaryRefs(
+			harness.ContextRef(),
+			destinationTensor.Ref(),
+			sourceTensor.Ref(),
 			dtype.Float32,
 			StandardReLU,
 			uint32(count),

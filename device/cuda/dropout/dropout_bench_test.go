@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	"github.com/theapemachine/puter/device"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
@@ -27,9 +26,9 @@ func BenchmarkDropoutCUDAF32(b *testing.B) {
 
 	for b.Loop() {
 		if err := DispatchDropout(
-			cudadevice.DeviceRef(harness.ContextRef()),
-			cudadevice.BufferRef(sourceTensor.Ref()),
-			cudadevice.BufferRef(outputTensor.Ref()),
+			parity.DeviceRef(harness.ContextRef()),
+			parity.BufferRef(sourceTensor.Ref()),
+			parity.BufferRef(outputTensor.Ref()),
 			uint32(count),
 			config,
 			dtype.Float32,

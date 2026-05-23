@@ -8,7 +8,6 @@ import (
 
 	"github.com/smartystreets/goconvey/convey"
 	"github.com/theapemachine/manifesto/dtype"
-	cudadevice "github.com/theapemachine/puter/device/cuda"
 	cpumatmul "github.com/theapemachine/puter/device/cpu/matmul"
 	"github.com/theapemachine/puter/device/cuda/internal/parity"
 )
@@ -36,10 +35,10 @@ func TestMatmulCUDAParity(t *testing.T) {
 				defer outputTensor.Close()
 
 				if err := DispatchMatmul(
-					cudadevice.DeviceRef(harness.ContextRef()),
-					cudadevice.BufferRef(leftTensor.Ref()),
-					cudadevice.BufferRef(rightTensor.Ref()),
-					cudadevice.BufferRef(outputTensor.Ref()),
+					parity.DeviceRef(harness.ContextRef()),
+					parity.BufferRef(leftTensor.Ref()),
+					parity.BufferRef(rightTensor.Ref()),
+					parity.BufferRef(outputTensor.Ref()),
 					dtype.Float32,
 					rows,
 					inner,
