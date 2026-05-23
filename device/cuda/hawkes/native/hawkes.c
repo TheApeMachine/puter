@@ -1,5 +1,5 @@
 #include "hawkes_dispatch.h"
-#include "../internal/bridge/core_private.h"
+#include "../../internal/bridge/core_private.h"
 
 #include <stdio.h>
 
@@ -88,7 +88,7 @@ int cuda_hm_phase_kernel_name(
     return 0;
 }
 
-static int cuda_hm_get_kernel(
+int cuda_hm_get_kernel(
     CUDADeviceRef contextRef,
     const char* kernelName,
     CUDAStatus* status,

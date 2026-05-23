@@ -2,6 +2,7 @@
 #define PUTER_DEVICE_CUDA_HAWKES_DISPATCH_H
 
 #include "hawkes.h"
+#include "../internal/bridge/core_private.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,6 +26,64 @@ int cuda_hm_phase_kernel_name(
     const char* operationName,
     const char* phase,
     int elementDType,
+    CUDAStatus* status
+);
+
+int cuda_hm_get_kernel(
+    CUDADeviceRef contextRef,
+    const char* kernelName,
+    CUDAStatus* status,
+    CUDAContext** context,
+    CUDAStreamRef* stream,
+    CUDAKernelRef* kernel
+);
+
+int cuda_hm_encode_hawkes_log_partial(
+    CUDAContext* context,
+    CUDAKernelRef kernel,
+    CUDAStreamRef stream,
+    CUDABufferRef eventsRef,
+    CUDABufferRef totalTimeRef,
+    CUDABufferRef baselineRef,
+    CUDABufferRef alphaRef,
+    CUDABufferRef betaRef,
+    CUDABufferRef scratchRef,
+    uint32_t eventCount,
+    uint32_t partialCount,
+    CUDAStatus* status
+);
+
+int cuda_hm_encode_hawkes_log_finalize(
+    CUDAContext* context,
+    CUDAKernelRef kernel,
+    CUDAStreamRef stream,
+    CUDABufferRef scratchRef,
+    CUDABufferRef totalTimeRef,
+    CUDABufferRef baselineRef,
+    CUDABufferRef outRef,
+    uint32_t eventCount,
+    CUDAStatus* status
+);
+
+int cuda_hm_encode_mi_partial(
+    CUDAContext* context,
+    CUDAKernelRef kernel,
+    CUDAStreamRef stream,
+    CUDABufferRef jointRef,
+    CUDABufferRef scratchRef,
+    uint32_t rows,
+    uint32_t cols,
+    uint32_t partialCount,
+    CUDAStatus* status
+);
+
+int cuda_hm_encode_finalize(
+    CUDAContext* context,
+    CUDAKernelRef kernel,
+    CUDAStreamRef stream,
+    CUDABufferRef scratchRef,
+    CUDABufferRef outRef,
+    uint32_t partialCount,
     CUDAStatus* status
 );
 

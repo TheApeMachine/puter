@@ -66,7 +66,7 @@ int cuda_active_single_kernel_name(
     return cuda_compose_kernel_name(out, outBytes, operationName, suffix, status);
 }
 
-static int cuda_active_get_kernel(
+int cuda_active_get_kernel(
     CUDADeviceRef contextRef,
     const char* kernelName,
     CUDAStatus* status,
@@ -96,7 +96,7 @@ static int cuda_active_get_kernel(
     return 0;
 }
 
-static int cuda_active_encode_finalize(
+int cuda_active_encode_finalize(
     CUDAContext* context,
     CUDAStreamRef stream,
     CUDAKernelRef kernel,
@@ -124,54 +124,4 @@ static int cuda_active_encode_finalize(
         sizeof(args),
         status
     );
-}
-
-int cuda_active_encode_finalize_dispatch(
-    CUDADeviceRef contextRef,
-    int elementDType,
-    CUDABufferRef scratchRef,
-    CUDABufferRef outRef,
-    uint32_t partialCount,
-    uint64_t completionToken,
-    CUDAStatus* status
-) {
-    char kernelName[128];
-    int nameCode = cuda_active_kernel_name(
-        kernelName,
-        sizeof(kernelName),
-        "active_scalar_finalize",
-        "value",
-        elementDType,
-        status
-    );
-
-    if (nameCode != 0) {
-        return nameCode;
-    }
-
-    CUDAContext* context = NULL;
-    CUDAStreamRef stream = NULL;
-    CUDAKernelRef kernel = NULL;
-    int kernelCode = cuda_active_get_kernel(contextRef, kernelName, status, &context, &stream, &kernel);
-
-    if (kernelCode != 0) {
-        return kernelCode;
-    }
-
-    int launchCode = cuda_active_encode_finalize(
-        context,
-        stream,
-        kernel,
-        scratchRef,
-        outRef,
-        partialCount,
-        status
-    );
-
-    if (launchCode != 0) {
-        return launchCode;
-    }
-
-    cuda_track_completion(context, stream, completionToken, NULL, status);
-    return 0;
 }

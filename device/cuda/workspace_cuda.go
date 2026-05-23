@@ -10,8 +10,9 @@ extern CUDAStreamRef cuda_context_default_stream(CUDADeviceRef device);
 import "C"
 
 import (
-	"math"
 	"unsafe"
+
+	"github.com/theapemachine/manifesto/dtype"
 )
 
 func (bridge *cudaBridge) borrowScratch(byteCount int64) C.CUDABufferRef {
@@ -155,7 +156,6 @@ func (bridge *cudaBridge) writeDeviceScalar(bufferRef C.CUDABufferRef, value flo
 
 	switch format {
 	case dtype.Float32:
-		math.Float32bits(value)
 		*(*float32)(unsafe.Pointer(&payload[0])) = value
 		byteCount = 4
 	case dtype.Float16:

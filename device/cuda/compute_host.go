@@ -492,7 +492,25 @@ func (host *ComputeHost) DispatchCounterfactual(observedY, observedX, counterfac
 }
 
 func (host *ComputeHost) DispatchDAGMarkovFactorization(conditionals unsafe.Pointer, conditionalCount int, output unsafe.Pointer, format dtype.DType) {
-	host.unavailable()
+	if conditionalCount == 0 || host.bridge == nil {
+		return
+	}
+
+	elementCount := uint32(conditionalCount)
+	scratchBuffer := host.bridge.borrowScratch(causalDagScratchBytes(elementCount))
+
+	defer host.bridge.releaseScratch(scratchBuffer)
+
+	if err := causal.DispatchDAGMarkovFactorization(
+		host.contextRef(),
+		resolveBufferRef(conditionals),
+		scratchBuffer,
+		resolveBufferRef(output),
+		format,
+		elementCount,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchDequant(dst, src unsafe.Pointer, count int, config device.DequantInt8Config, dstFormat, srcFormat dtype.DType) {
@@ -540,7 +558,21 @@ func (host *ComputeHost) DispatchDivergence1D(input, output unsafe.Pointer, coun
 }
 
 func (host *ComputeHost) DispatchDoIntervene(adjacency, intervened, output unsafe.Pointer, nodeCount, intervenedCount int, format dtype.DType) {
-	host.unavailable()
+	if nodeCount == 0 {
+		return
+	}
+
+	if err := causal.DispatchDoIntervene(
+		host.contextRef(),
+		resolveBufferRef(adjacency),
+		resolveBufferRef(intervened),
+		resolveBufferRef(output),
+		format,
+		uint32(nodeCount),
+		uint32(intervenedCount),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchDropout(dst, src unsafe.Pointer, count int, config device.DropoutConfig, format dtype.DType) {
@@ -596,7 +628,23 @@ func (host *ComputeHost) DispatchFreeEnergy(likelihood, posterior, prior, output
 }
 
 func (host *ComputeHost) DispatchFrontdoorAdjustment(mediatorGivenX, outcomeGivenXM, marginalX, output unsafe.Pointer, xCount, mediatorCount, yCount int, format dtype.DType) {
-	host.unavailable()
+	if xCount == 0 || mediatorCount == 0 || yCount == 0 {
+		return
+	}
+
+	if err := causal.DispatchFrontdoor(
+		host.contextRef(),
+		resolveBufferRef(mediatorGivenX),
+		resolveBufferRef(outcomeGivenXM),
+		resolveBufferRef(marginalX),
+		resolveBufferRef(output),
+		format,
+		uint32(xCount),
+		uint32(mediatorCount),
+		uint32(yCount),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchGrad1D(input, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {
@@ -641,7 +689,27 @@ func (host *ComputeHost) DispatchIFFT1D(realIn, imagIn, realOut, imagOut unsafe.
 }
 
 func (host *ComputeHost) DispatchIVEstimate(instrument, treatment, outcome unsafe.Pointer, count int, output unsafe.Pointer, format dtype.DType) {
-	host.unavailable()
+	if count == 0 || host.bridge == nil {
+		return
+	}
+
+	elementCount := uint32(count)
+	scratchBuffer := host.bridge.borrowScratch(causalIvScratchBytes(elementCount))
+
+	defer host.bridge.releaseScratch(scratchBuffer)
+
+	if err := causal.DispatchIVEstimate(
+		host.contextRef(),
+		resolveBufferRef(instrument),
+		resolveBufferRef(treatment),
+		resolveBufferRef(outcome),
+		scratchBuffer,
+		resolveBufferRef(output),
+		format,
+		elementCount,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchInstanceNorm(input, scale, bias, output unsafe.Pointer, batch, channels, spatial int, format dtype.DType) {

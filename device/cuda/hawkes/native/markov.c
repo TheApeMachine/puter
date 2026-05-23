@@ -1,6 +1,6 @@
 #include "markov.h"
 #include "hawkes_dispatch.h"
-#include "../internal/bridge/core_private.h"
+#include "../../internal/bridge/core_private.h"
 
 int cuda_dispatch_markov_blanket_partition(
     CUDADeviceRef contextRef,

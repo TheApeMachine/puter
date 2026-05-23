@@ -1,6 +1,6 @@
 #include "likelihood.h"
 #include "hawkes_dispatch.h"
-#include "../internal/bridge/core_private.h"
+#include "../../internal/bridge/core_private.h"
 
 int cuda_dispatch_hawkes_log_likelihood(
     CUDADeviceRef contextRef,

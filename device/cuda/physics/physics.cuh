@@ -467,9 +467,9 @@ extern "C" __global__ void prefix##_fft_stage( \
     scalarType* realValues, \
     scalarType* imagValues, \
     unsigned int length, \
-    unsigned int inverseValue, \
-    unsigned int butterfly \
+    unsigned int inverseValue \
 ) { \
+    unsigned int butterfly = blockIdx.x * blockDim.x + threadIdx.x; \
     physics_fft_stage_body( \
         physics_##loadTag##_typed, \
         physics_##loadTag##_typed, \

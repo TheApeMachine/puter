@@ -1,6 +1,6 @@
 #include "intensity.h"
 #include "hawkes_dispatch.h"
-#include "../internal/bridge/core_private.h"
+#include "../../internal/bridge/core_private.h"
 
 int cuda_dispatch_hawkes_intensity(
     CUDADeviceRef contextRef,
