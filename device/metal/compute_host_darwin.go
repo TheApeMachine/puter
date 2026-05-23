@@ -9,7 +9,9 @@ import (
 	"github.com/theapemachine/puter/device"
 	"github.com/theapemachine/puter/device/metal/activation"
 	"github.com/theapemachine/puter/device/metal/elementwise"
+	"github.com/theapemachine/puter/device/metal/layernorm"
 	"github.com/theapemachine/puter/device/metal/losses"
+	"github.com/theapemachine/puter/device/metal/normalization"
 	"github.com/theapemachine/puter/device/metal/reduction"
 	"github.com/theapemachine/puter/device/metal/sampling"
 )
@@ -208,7 +210,24 @@ func (host *ComputeHost) DispatchGrad1D(input, output unsafe.Pointer, count int,
 }
 
 func (host *ComputeHost) DispatchGroupNorm(config device.GroupNormConfig, input, scale, bias, output unsafe.Pointer, batch, channels, spatial int, format dtype.DType) {
-	host.unavailable()
+	if batch == 0 || channels == 0 || spatial == 0 {
+		return
+	}
+
+	if err := normalization.DispatchGroupNormRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(scale))),
+		uintptr(unsafe.Pointer(resolveBufferRef(bias))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(batch),
+		uint32(channels),
+		uint32(spatial),
+		uint32(config.Groups),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchHawkesIntensity(eventTimes, queryTimes, output unsafe.Pointer, eventCount, queryCount int, mu, alpha, beta float32, format dtype.DType) {
@@ -362,7 +381,22 @@ func (host *ComputeHost) LaunchBag(table, indices, offsets, output unsafe.Pointe
 }
 
 func (host *ComputeHost) LaunchLayerNorm(input, scale, bias, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {
-	host.unavailable()
+	if rows == 0 || lastDim == 0 {
+		return
+	}
+
+	if err := layernorm.DispatchLayerNormRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(scale))),
+		uintptr(unsafe.Pointer(resolveBufferRef(bias))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(rows),
+		uint32(lastDim),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) LaunchLookup(table, indices, output unsafe.Pointer, vocab, hidden, indexCount int, format dtype.DType) {

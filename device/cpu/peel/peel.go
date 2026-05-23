@@ -222,3 +222,73 @@ func offsetFloat32Pointer(base *float32, elementOffset int) *float32 {
 
 	return (*float32)(unsafe.Add(unsafe.Pointer(base), byteOffset))
 }
+
+/*
+ReducedLaneCount is the f16/bf16 element alignment for reduced-precision unary kernels.
+*/
+func ReducedLaneCount(isaName string) int {
+	switch isaName {
+	case "avx512":
+		return 16
+	case "avx2", "neon":
+		return 8
+	case "sse2":
+		return 4
+	default:
+		return 1
+	}
+}
+
+/*
+WrapF16Unary runs the SIMD kernel on a lane-aligned prefix and the generic
+reference on any tail lanes.
+*/
+func WrapF16Unary(
+	simdKernel func(dst, src *uint16, count int),
+	genericKernel func(dst, src *uint16, count int),
+	isaName string,
+) func(dst, src *uint16, count int) {
+	align := ReducedLaneCount(isaName)
+
+	return func(dst, src *uint16, count int) {
+		if count <= 0 {
+			return
+		}
+
+		headCount := count - count%align
+		if headCount > 0 {
+			simdKernel(dst, src, headCount)
+		}
+
+		tailCount := count - headCount
+		if tailCount > 0 {
+			genericKernel(
+				offsetUint16Pointer(dst, headCount),
+				offsetUint16Pointer(src, headCount),
+				tailCount,
+			)
+		}
+	}
+}
+
+/*
+WrapBF16Unary runs the SIMD kernel on a lane-aligned prefix and the generic
+reference on any tail lanes.
+*/
+func WrapBF16Unary(
+	simdKernel func(dst, src *uint16, count int),
+	genericKernel func(dst, src *uint16, count int),
+	isaName string,
+) func(dst, src *uint16, count int) {
+	return WrapF16Unary(simdKernel, genericKernel, isaName)
+}
+
+func offsetUint16Pointer(base *uint16, elementOffset int) *uint16 {
+	if elementOffset == 0 {
+		return base
+	}
+
+	byteOffset := elementOffset * int(unsafe.Sizeof(uint16(0)))
+
+	return (*uint16)(unsafe.Add(unsafe.Pointer(base), byteOffset))
+}

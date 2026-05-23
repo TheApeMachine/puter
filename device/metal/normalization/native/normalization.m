@@ -103,52 +103,6 @@ static int metal_norm_dispatch(
     }
 }
 
-int metal_dispatch_layernorm(
-    MetalDeviceRef contextRef,
-    int elementDType,
-    MetalBufferRef inputRef,
-    MetalBufferRef scaleRef,
-    MetalBufferRef biasRef,
-    MetalBufferRef outRef,
-    uint32_t rows,
-    uint32_t cols,
-    uint64_t completionToken,
-    MetalStatus* status
-) {
-    if (inputRef == NULL || scaleRef == NULL || biasRef == NULL || outRef == NULL) {
-        metal_norm_status_set(status, -2, "nil Metal buffer");
-        return -2;
-    }
-
-    char kernelName[128];
-    int nameCode = metal_norm_kernel_name(
-        kernelName,
-        sizeof(kernelName),
-        "layernorm",
-        elementDType,
-        status
-    );
-
-    if (nameCode != 0) {
-        return nameCode;
-    }
-
-    return metal_norm_dispatch(
-        contextRef,
-        kernelName,
-        rows,
-        completionToken,
-        status,
-        ^(id<MTLComputeCommandEncoder> encoder) {
-            [encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
-            [encoder setBuffer:(__bridge id<MTLBuffer>)scaleRef offset:0 atIndex:1];
-            [encoder setBuffer:(__bridge id<MTLBuffer>)biasRef offset:0 atIndex:2];
-            [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:3];
-            [encoder setBytes:&cols length:sizeof(cols) atIndex:4];
-        }
-    );
-}
-
 int metal_dispatch_rmsnorm(
     MetalDeviceRef contextRef,
     int elementDType,

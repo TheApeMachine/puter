@@ -79,6 +79,8 @@ void metal_buffer_release(MetalBufferRef bufferRef);
 
 void* metal_buffer_contents(MetalBufferRef bufferRef);
 
+void metal_device_wait_idle(MetalDeviceRef contextRef);
+
 #ifdef __cplusplus
 }
 #endif

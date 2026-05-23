@@ -23,6 +23,6 @@ var (
 	hardSwishF16LUT, hardSwishBF16LUT     [65536]uint16
 	hardTanhF16LUT, hardTanhBF16LUT       [65536]uint16
 	hardGeluF16LUT, hardGeluBF16LUT       [65536]uint16
-	quickGeluF16LUT, quickGeluBF16LUT     [65536]uint16
+	quickGeluF16LUT, quickGeluBF16LUT       [65536]uint16
 	tanhShrinkF16LUT, tanhShrinkBF16LUT   [65536]uint16
 )

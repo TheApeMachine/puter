@@ -1,8 +1,6 @@
 package activation
 
 import (
-	"unsafe"
-
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/puter/device/cpu/math"
 )
@@ -45,29 +43,6 @@ func init() {
 		fillF16LUT(spec.f16, spec.fill)
 		fillBF16LUT(spec.bf16, spec.fill)
 	}
-}
-
-func applyF16LUT(dst, src unsafe.Pointer, count int, lut *[65536]uint16) {
-	in := unsafe.Slice((*uint16)(src), count)
-	out := unsafe.Slice((*uint16)(dst), count)
-
-	index := 0
-	for index <= count-4 {
-		out[index] = lut[in[index]]
-		out[index+1] = lut[in[index+1]]
-		out[index+2] = lut[in[index+2]]
-		out[index+3] = lut[in[index+3]]
-		index += 4
-	}
-
-	for index < count {
-		out[index] = lut[in[index]]
-		index++
-	}
-}
-
-func applyBF16LUT(dst, src unsafe.Pointer, count int, lut *[65536]uint16) {
-	applyF16LUT(dst, src, count, lut)
 }
 
 func fillF16LUT(lut *[65536]uint16, op func(float64) float64) {

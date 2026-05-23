@@ -1,6 +1,7 @@
 package math
 
 import (
+	"math"
 	"unsafe"
 )
 
@@ -15,7 +16,7 @@ func FastExp64(x float64) float64 {
 		return 0x1p1023 * (1 + (1 - 0x1p-52)) // 1.7976931348623157e+308
 	}
 
-	z := x * 0.6931471805599453 // multiply by ln(2)
+	z := x * 1.4426950408889634 // multiply by log2(e)
 
 	// Separate into integer and fractional parts
 	k := int64(z)
@@ -27,10 +28,7 @@ func FastExp64(x float64) float64 {
 	// Minimax polynomial approximation for 2^f on [0, 1)
 	poly := 1.0 + f*(0.6931471805599453+f*(0.2402265069591007+f*(0.05550410706910451+f*(0.009618127167766223+f*0.001333899727232439))))
 
-	// Add integer part directly into the IEEE-754 exponent field
-	bits := *(*uint64)(unsafe.Pointer(&poly))
-	bits += uint64(k) << 52
-	return *(*float64)(unsafe.Pointer(&bits))
+	return math.Ldexp(poly, int(k))
 }
 
 func FastLog64(x float64) float64 {
@@ -70,31 +68,14 @@ func FastTanh64(x float64) float64 {
 }
 
 func FastSinh64(x float64) float64 {
-	// Clamp to avoid float64 overflow and slow subnormals
-	if x < -708.3964185322641 {
-		return 0.0
-	}
 	if x > 709.782712893384 {
-		return 0x1p1023 * (1 + (1 - 0x1p-52)) // 1.7976931348623157e+308
+		return 0x1p1023 * (1 + (1 - 0x1p-52))
+	}
+	if x < -709.782712893384 {
+		return -0x1p1023 * (1 + (1 - 0x1p-52))
 	}
 
-	z := x * 0.6931471805599453 // multiply by ln(2)
-
-	// Separate into integer and fractional parts
-
-	k := int64(z)
-	if z < 0 {
-		k-- // Ensure fraction is always in [0, 1)
-	}
-	f := z - float64(k)
-
-	// Minimax polynomial approximation for 2^f on [0, 1)
-	poly := 1.0 + f*(0.6931471805599453+f*(0.2402265069591007+f*(0.05550410706910451+f*(0.009618127167766223+f*0.001333899727232439))))
-
-	// Add integer part directly into the IEEE-754 exponent field
-	bits := *(*uint64)(unsafe.Pointer(&poly))
-	bits += uint64(k) << 52
-	return *(*float64)(unsafe.Pointer(&bits))
+	return 0.5 * (FastExp64(x) - FastExp64(-x))
 }
 
 func FastSigmoid64(value float64) float64 {

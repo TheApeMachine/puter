@@ -211,14 +211,14 @@ Public method signatures below are the **target** `device/interface.go` contract
 
 Each interface family under `device/metal/` is a self-contained package. The **family hub** and every **semantic domain** follow the same five-role pattern (the quintet):
 
-| Role | Family hub | Per domain `{domain}` |
-|------|------------|------------------------|
-| Go type | `{family}.go` (`darwin && cgo`) | `{domain}.go` |
-| Stub | `{family}_stub.go` | `{domain}_stub.go` |
-| C header | `{family}.h` | `{domain}.h` |
-| MSL source | `{family}.metal` — storage, templates, kernel `#define` macros | `{domain}.metal` — `#include "{family}.metal"` + instantiations |
-| Bridge | `{family}_bridge_darwin.go` — `#include "native/{family}.m"` then each `native/{domain}.m` | (included by family bridge) |
-| Native dispatch | `native/{family}.m` — shared status, kernel naming, pipeline prepare | `native/{domain}.m` — `#include "{domain}.h"` + dispatch bodies |
+| Role            | Family hub                                                                                 | Per domain `{domain}`                                           |
+|-----------------|--------------------------------------------------------------------------------------------|-----------------------------------------------------------------|
+| Go type         | `{family}.go` (`darwin && cgo`)                                                            | `{domain}.go`                                                   |
+| Stub            | `{family}_stub.go`                                                                         | `{domain}_stub.go`                                              |
+| C header        | `{family}.h`                                                                               | `{domain}.h`                                                    |
+| MSL source      | `{family}.metal` — storage, templates, kernel `#define` macros                             | `{domain}.metal` — `#include "{family}.metal"` + instantiations |
+| Bridge          | `{family}_bridge_darwin.go` — `#include "native/{family}.m"` then each `native/{domain}.m` | (included by family bridge)                                     |
+| Native dispatch | `native/{family}.m` — shared status, kernel naming, pipeline prepare                       | `native/{domain}.m` — `#include "{domain}.h"` + dispatch bodies |
 
 **Layout example (`activation/`):**
 
@@ -1143,12 +1143,12 @@ func (quant *Quant) Quant(dst, src unsafe.Pointer, count int, config device.Dequ
 
 #### Backend-Specific Kernel Artifacts
 
-| Backend | Kernel files live in | Bridge / runtime |
-|---------|---------------------|------------------|
-| CPU     | `<family>/*.s` + `select_*.go` | none (direct assembly) |
+| Backend | Kernel files live in                                                                      | Bridge / runtime                                                                                 |
+|---------|-------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|
+| CPU     | `<family>/*.s` + `select_*.go`                                                            | none (direct assembly)                                                                           |
 | Metal   | `<family>/{family}.metal` + `<family>/{domain}.metal`; runtime MSL in `internal/runtime/` | `<family>/{family}_bridge_darwin.go` + `native/*.m`; `internal/metallibgen` → `kernels.metallib` |
-| CUDA    | `<family>/*.cu` | `<family>/bridge.cu` or single bridge per family |
-| XLA     | `<family>/lower.go` | HLO builder + PJRT compile cache in `device/xla/` |
+| CUDA    | `<family>/*.cu`                                                                           | `<family>/bridge.cu` or single bridge per family                                                 |
+| XLA     | `<family>/lower.go`                                                                       | HLO builder + PJRT compile cache in `device/xla/`                                                |
 
 GPU backends may keep a small amount of top-level infrastructure (`allocate.go`, pipeline cache, metallib build) that is not tied to a single interface family. That infrastructure must not contain operation implementations.
 
@@ -1202,11 +1202,11 @@ XLA is the fifth execution backend. It is not a bypass around the manifesto comp
 
 The manifesto pipeline (unify → optimize → schedule → static workspace) is unchanged. What changes is the **codegen backend** selected at execution target:
 
-| Target | Elementwise fusion clusters | Heavy ops (Matmul, Conv, Attention, …) |
-|--------|----------------------------|----------------------------------------|
-| CPU    | LLVM JIT → AVX-512 / AVX2 / SSE2 / NEON | Static SIMD kernels or scalar reference |
-| Metal  | MSL JIT via `MTLLibrary` | MSL kernels |
-| CUDA   | PTX JIT via `NVRTC` | CUDA kernels |
+| Target | Elementwise fusion clusters                | Heavy ops (Matmul, Conv, Attention, …)                 |
+|--------|--------------------------------------------|--------------------------------------------------------|
+| CPU    | LLVM JIT → AVX-512 / AVX2 / SSE2 / NEON    | Static SIMD kernels or scalar reference                |
+| Metal  | MSL JIT via `MTLLibrary`                   | MSL kernels                                            |
+| CUDA   | PTX JIT via `NVRTC`                        | CUDA kernels                                           |
 | XLA    | Lower FusionAST to HLO; XLA compiler fuses | Lower each `Backend` method to HLO; XLA compiler fuses |
 
 On an XLA target, do **not** also emit the LLVM/MSL/CUDA elementwise JIT for the same fused cluster. Lower once to HLO and let the XLA compiler perform device fusion. The manifesto optimizer still forms `FusionAST`s and applies algebraic rewrites; XLA is the codegen and execution path for that target.

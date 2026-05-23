@@ -430,6 +430,26 @@ MetalDeviceRef metal_open_default_device(
     }
 }
 
+void metal_device_wait_idle(MetalDeviceRef contextRef) {
+    @autoreleasepool {
+        MetalContext* context = (MetalContext*)contextRef;
+
+        if (context == NULL || context->queue == NULL) {
+            return;
+        }
+
+        id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)context->queue;
+        id<MTLCommandBuffer> commandBuffer = [queue commandBuffer];
+
+        if (commandBuffer == nil) {
+            return;
+        }
+
+        [commandBuffer commit];
+        [commandBuffer waitUntilCompleted];
+    }
+}
+
 long long metal_recommended_max_working_set(MetalDeviceRef contextRef) {
     MetalContext* context = (MetalContext*)contextRef;
 

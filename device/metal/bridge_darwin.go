@@ -60,6 +60,25 @@ func (bridge *metalBridge) contextRef() uintptr {
 	return uintptr(unsafe.Pointer(bridge.device))
 }
 
+func (bridge *metalBridge) waitIdle() {
+	if bridge == nil || bridge.device == nil {
+		return
+	}
+
+	C.metal_device_wait_idle(bridge.device)
+}
+
+/*
+SyncDevice waits for in-flight Metal command buffers to finish.
+*/
+func (backend *Backend) SyncDevice() {
+	if backend == nil || backend.bridge == nil {
+		return
+	}
+
+	backend.bridge.waitIdle()
+}
+
 func (bridge *metalBridge) recommendedMaxWorkingSet() int64 {
 	if bridge == nil || bridge.device == nil {
 		return 0
