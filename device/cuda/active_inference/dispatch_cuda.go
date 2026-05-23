@@ -5,6 +5,7 @@ package active_inference
 import (
 	_ "embed"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 )
@@ -229,4 +230,24 @@ func DispatchPrecisionWeight(
 	}
 
 	return nil
+}
+
+func DispatchBeliefUpdateRefs(
+	contextRef uintptr,
+	likelihoodRef uintptr,
+	priorRef uintptr,
+	scratchRef uintptr,
+	outputRef uintptr,
+	format dtype.DType,
+	count uint32,
+) error {
+	return DispatchBeliefUpdate(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(likelihoodRef)),
+		C.CUDABufferRef(unsafe.Pointer(priorRef)),
+		C.CUDABufferRef(unsafe.Pointer(scratchRef)),
+		C.CUDABufferRef(unsafe.Pointer(outputRef)),
+		format,
+		count,
+	)
 }

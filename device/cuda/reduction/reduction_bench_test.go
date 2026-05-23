@@ -28,12 +28,12 @@ func BenchmarkReductionCUDASum(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		if err := DispatchReduction(
-			parity.DeviceRef(harness.ContextRef()),
-			parity.BufferRef(sourceTensor.Ref()),
-			parity.BufferRef(scratchA.Ref()),
-			parity.BufferRef(scratchB.Ref()),
-			parity.BufferRef(outputTensor.Ref()),
+		if err := DispatchReductionRefs(
+			harness.ContextRef(),
+			sourceTensor.Ref(),
+			scratchA.Ref(),
+			scratchB.Ref(),
+			outputTensor.Ref(),
 			dtype.Float32,
 			KernelSum,
 			uint32(count),

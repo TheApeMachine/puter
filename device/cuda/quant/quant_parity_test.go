@@ -31,10 +31,10 @@ func TestQuantCUDAParity(t *testing.T) {
 				defer sourceTensor.Close()
 				defer destinationTensor.Close()
 
-				if err := DispatchQuant(
-					parity.DeviceRef(harness.ContextRef()),
-					parity.BufferRef(sourceTensor.Ref()),
-					parity.BufferRef(destinationTensor.Ref()),
+				if err := DispatchQuantRefs(
+					harness.ContextRef(),
+					sourceTensor.Ref(),
+					destinationTensor.Ref(),
 					scale,
 					zeroPoint,
 					uint32(count),

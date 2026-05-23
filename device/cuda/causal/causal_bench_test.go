@@ -26,11 +26,11 @@ func BenchmarkCausalCUDACATE(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		if err := DispatchCATE(
-			parity.DeviceRef(harness.ContextRef()),
-			parity.BufferRef(treatedTensor.Ref()),
-			parity.BufferRef(controlTensor.Ref()),
-			parity.BufferRef(outputTensor.Ref()),
+		if err := DispatchCATERefs(
+			harness.ContextRef(),
+			treatedTensor.Ref(),
+			controlTensor.Ref(),
+			outputTensor.Ref(),
 			dtype.Float32,
 			uint32(count),
 		); err != nil {

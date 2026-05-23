@@ -5,6 +5,7 @@ package vsa
 import (
 	_ "embed"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 )
@@ -185,4 +186,22 @@ func dispatchUnary(
 	}
 
 	return nil
+}
+
+func DispatchBindRefs(
+	contextRef uintptr,
+	leftBuffer uintptr,
+	rightBuffer uintptr,
+	outputBuffer uintptr,
+	format dtype.DType,
+	count uint32,
+) error {
+	return DispatchBind(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(leftBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(rightBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(outputBuffer)),
+		format,
+		count,
+	)
 }

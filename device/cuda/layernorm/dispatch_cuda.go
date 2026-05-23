@@ -5,6 +5,7 @@ package layernorm
 import (
 	_ "embed"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 )
@@ -155,3 +156,27 @@ func DispatchRMSNorm(
 }
 
 var errUnsupportedDType = &dispatchError{code: -6, message: "unsupported CUDA layernorm dtype"}
+
+func DispatchLayerNormRefs(
+	contextRef uintptr,
+	inputRef uintptr,
+	scaleRef uintptr,
+	biasRef uintptr,
+	outputRef uintptr,
+	format dtype.DType,
+	rows uint32,
+	cols uint32,
+	completionToken uint64,
+) error {
+	return DispatchLayerNorm(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(inputRef)),
+		C.CUDABufferRef(unsafe.Pointer(scaleRef)),
+		C.CUDABufferRef(unsafe.Pointer(biasRef)),
+		C.CUDABufferRef(unsafe.Pointer(outputRef)),
+		format,
+		rows,
+		cols,
+		completionToken,
+	)
+}

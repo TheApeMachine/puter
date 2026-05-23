@@ -34,11 +34,11 @@ func TestMatmulCUDAParity(t *testing.T) {
 				defer rightTensor.Close()
 				defer outputTensor.Close()
 
-				if err := DispatchMatmul(
-					parity.DeviceRef(harness.ContextRef()),
-					parity.BufferRef(leftTensor.Ref()),
-					parity.BufferRef(rightTensor.Ref()),
-					parity.BufferRef(outputTensor.Ref()),
+				if err := DispatchMatmulRefs(
+					harness.ContextRef(),
+					leftTensor.Ref(),
+					rightTensor.Ref(),
+					outputTensor.Ref(),
 					dtype.Float32,
 					rows,
 					inner,

@@ -5,6 +5,7 @@ package embedding
 import (
 	_ "embed"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 )
@@ -198,4 +199,28 @@ func DispatchBag(
 	}
 
 	return nil
+}
+
+func DispatchLookupRefs(
+	contextRef uintptr,
+	tableBuffer uintptr,
+	indicesBuffer uintptr,
+	outputBuffer uintptr,
+	errorFlagBuffer uintptr,
+	format dtype.DType,
+	vocab uint32,
+	hidden uint32,
+	indexCount uint32,
+) error {
+	return DispatchLookup(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(tableBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(indicesBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(outputBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(errorFlagBuffer)),
+		format,
+		vocab,
+		hidden,
+		indexCount,
+	)
 }

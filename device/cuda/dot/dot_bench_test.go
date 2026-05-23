@@ -29,12 +29,12 @@ func BenchmarkDotCUDAF32(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		if err := DispatchDot(
-			parity.DeviceRef(harness.ContextRef()),
-			parity.BufferRef(leftTensor.Ref()),
-			parity.BufferRef(rightTensor.Ref()),
-			parity.BufferRef(scratchTensor.Ref()),
-			parity.BufferRef(outputTensor.Ref()),
+		if err := DispatchDotRefs(
+			harness.ContextRef(),
+			leftTensor.Ref(),
+			rightTensor.Ref(),
+			scratchTensor.Ref(),
+			outputTensor.Ref(),
 			dtype.Float32,
 			uint32(count),
 		); err != nil {

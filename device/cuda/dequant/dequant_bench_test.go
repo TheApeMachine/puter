@@ -23,10 +23,10 @@ func BenchmarkDequantCUDAInt8(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		if err := DispatchDequant(
-			parity.DeviceRef(harness.ContextRef()),
-			parity.BufferRef(sourceTensor.Ref()),
-			parity.BufferRef(destinationTensor.Ref()),
+		if err := DispatchDequantRefs(
+			harness.ContextRef(),
+			sourceTensor.Ref(),
+			destinationTensor.Ref(),
 			dtype.Float32,
 			0.0875,
 			-13,

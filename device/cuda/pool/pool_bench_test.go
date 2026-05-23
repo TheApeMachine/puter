@@ -30,10 +30,10 @@ func BenchmarkPoolCUDAMaxPool2D(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		if err := DispatchMaxPool2D(
-			parity.DeviceRef(harness.ContextRef()),
-			parity.BufferRef(inputTensor.Ref()),
-			parity.BufferRef(outputTensor.Ref()),
+		if err := DispatchMaxPool2DRefs(
+			harness.ContextRef(),
+			inputTensor.Ref(),
+			outputTensor.Ref(),
 			dtype.Float32,
 			batch,
 			channels,

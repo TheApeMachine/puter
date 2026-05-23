@@ -5,6 +5,7 @@ package causal
 import (
 	_ "embed"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 )
@@ -409,4 +410,22 @@ func DispatchCholesky(
 	}
 
 	return nil
+}
+
+func DispatchCATERefs(
+	contextRef uintptr,
+	treatedBuffer uintptr,
+	controlBuffer uintptr,
+	outputBuffer uintptr,
+	format dtype.DType,
+	count uint32,
+) error {
+	return DispatchCATE(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(treatedBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(controlBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(outputBuffer)),
+		format,
+		count,
+	)
 }

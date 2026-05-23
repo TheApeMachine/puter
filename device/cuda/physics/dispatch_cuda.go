@@ -446,3 +446,21 @@ func TwiddleHostBytes(count uint32, inverse bool) ([]byte, []byte) {
 	imagBytes := unsafe.Slice((*byte)(unsafe.Pointer(&imagValues[0])), len(imagValues)*4)
 	return realBytes, imagBytes
 }
+
+func DispatchGrad1DRefs(
+	contextRef uintptr,
+	inputRef uintptr,
+	spacingRef uintptr,
+	outputRef uintptr,
+	format dtype.DType,
+	count uint32,
+) error {
+	return DispatchGrad1D(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(inputRef)),
+		C.CUDABufferRef(unsafe.Pointer(spacingRef)),
+		C.CUDABufferRef(unsafe.Pointer(outputRef)),
+		format,
+		count,
+	)
+}

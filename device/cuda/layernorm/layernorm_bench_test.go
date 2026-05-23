@@ -31,12 +31,12 @@ func BenchmarkLayerNormCUDAF32(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		if err := DispatchLayerNorm(
-			parity.DeviceRef(harness.ContextRef()),
-			parity.BufferRef(inputTensor.Ref()),
-			parity.BufferRef(scaleTensor.Ref()),
-			parity.BufferRef(biasTensor.Ref()),
-			parity.BufferRef(outputTensor.Ref()),
+		if err := DispatchLayerNormRefs(
+			harness.ContextRef(),
+			inputTensor.Ref(),
+			scaleTensor.Ref(),
+			biasTensor.Ref(),
+			outputTensor.Ref(),
 			dtype.Float32,
 			uint32(rows),
 			uint32(cols),

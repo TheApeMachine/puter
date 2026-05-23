@@ -26,11 +26,11 @@ func BenchmarkPhysicsCUDAGrad1D(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		if err := DispatchGrad1D(
-			parity.DeviceRef(harness.ContextRef()),
-			parity.BufferRef(inputTensor.Ref()),
-			parity.BufferRef(spacingTensor.Ref()),
-			parity.BufferRef(outputTensor.Ref()),
+		if err := DispatchGrad1DRefs(
+			harness.ContextRef(),
+			inputTensor.Ref(),
+			spacingTensor.Ref(),
+			outputTensor.Ref(),
 			dtype.Float32,
 			uint32(count),
 		); err != nil {

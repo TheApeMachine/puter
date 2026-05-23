@@ -5,6 +5,7 @@ package rope
 import (
 	_ "embed"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/puter/device"
@@ -162,4 +163,24 @@ func DispatchRoPEPairs(
 	}
 
 	return nil
+}
+
+func DispatchRoPEPairsRefs(
+	contextRef uintptr,
+	inputBuffer uintptr,
+	outputBuffer uintptr,
+	cosBuffer uintptr,
+	sinBuffer uintptr,
+	halfDim uint32,
+	format dtype.DType,
+) error {
+	return DispatchRoPEPairs(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(inputBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(outputBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(cosBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(sinBuffer)),
+		halfDim,
+		format,
+	)
 }

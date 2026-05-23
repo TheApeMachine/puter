@@ -41,14 +41,14 @@ func TestHawkesCUDAParity(t *testing.T) {
 				defer betaTensor.Close()
 				defer outputTensor.Close()
 
-				if err := DispatchHawkesIntensity(
-					parity.DeviceRef(harness.ContextRef()),
-					parity.BufferRef(eventsTensor.Ref()),
-					parity.BufferRef(queryTensor.Ref()),
-					parity.BufferRef(baselineTensor.Ref()),
-					parity.BufferRef(alphaTensor.Ref()),
-					parity.BufferRef(betaTensor.Ref()),
-					parity.BufferRef(outputTensor.Ref()),
+				if err := DispatchHawkesIntensityRefs(
+					harness.ContextRef(),
+					eventsTensor.Ref(),
+					queryTensor.Ref(),
+					baselineTensor.Ref(),
+					alphaTensor.Ref(),
+					betaTensor.Ref(),
+					outputTensor.Ref(),
 					uint32(count),
 					uint32(count),
 					dtype.Float32,

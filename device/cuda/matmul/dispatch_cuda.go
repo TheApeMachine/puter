@@ -5,6 +5,7 @@ package matmul
 import (
 	_ "embed"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 )
@@ -115,4 +116,26 @@ func DispatchMatmul(
 	}
 
 	return nil
+}
+
+func DispatchMatmulRefs(
+	contextRef uintptr,
+	leftBuffer uintptr,
+	rightBuffer uintptr,
+	outBuffer uintptr,
+	format dtype.DType,
+	rows uint32,
+	inner uint32,
+	cols uint32,
+) error {
+	return DispatchMatmul(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(leftBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(rightBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(outBuffer)),
+		format,
+		rows,
+		inner,
+		cols,
+	)
 }

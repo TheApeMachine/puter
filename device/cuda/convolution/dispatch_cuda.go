@@ -5,6 +5,7 @@ package convolution
 import (
 	_ "embed"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 )
@@ -276,4 +277,34 @@ func DispatchConvTranspose2D(
 	}
 
 	return nil
+}
+
+func DispatchConv1DRefs(
+	contextRef uintptr,
+	inputBuffer uintptr,
+	weightBuffer uintptr,
+	biasBuffer uintptr,
+	outputBuffer uintptr,
+	batch uint32,
+	inChannels uint32,
+	inLength uint32,
+	outChannels uint32,
+	kernelLength uint32,
+	outLength uint32,
+	format dtype.DType,
+) error {
+	return DispatchConv1D(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(inputBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(weightBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(biasBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(outputBuffer)),
+		batch,
+		inChannels,
+		inLength,
+		outChannels,
+		kernelLength,
+		outLength,
+		format,
+	)
 }

@@ -44,13 +44,13 @@ func TestSamplingCUDAParity(t *testing.T) {
 				defer indicesTensor.Close()
 				defer outputTensor.Close()
 
-				if err := DispatchSampling(
-					parity.DeviceRef(harness.ContextRef()),
+				if err := DispatchSamplingRefs(
+					harness.ContextRef(),
 					0,
-					parity.BufferRef(logitsTensor.Ref()),
-					parity.BufferRef(scoresTensor.Ref()),
-					parity.BufferRef(indicesTensor.Ref()),
-					parity.BufferRef(outputTensor.Ref()),
+					logitsTensor.Ref(),
+					scoresTensor.Ref(),
+					indicesTensor.Ref(),
+					outputTensor.Ref(),
 					dtype.Float32,
 					uint32(count),
 					0,

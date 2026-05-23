@@ -5,6 +5,7 @@ package sampling
 import (
 	_ "embed"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 )
@@ -134,4 +135,28 @@ func DispatchSampling(
 	}
 
 	return nil
+}
+
+func DispatchSamplingRefs(
+	contextRef uintptr,
+	operation C.int,
+	logitsBuffer uintptr,
+	scoresBuffer uintptr,
+	indicesBuffer uintptr,
+	outBuffer uintptr,
+	format dtype.DType,
+	count uint32,
+	target float32,
+) error {
+	return DispatchSampling(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		operation,
+		C.CUDABufferRef(unsafe.Pointer(logitsBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(scoresBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(indicesBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(outBuffer)),
+		format,
+		count,
+		target,
+	)
 }

@@ -5,6 +5,7 @@ package dequant
 import (
 	_ "embed"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 )
@@ -151,5 +152,25 @@ func DispatchDequant4(
 		scale,
 		zeroPoint,
 		pairCount,
+	)
+}
+
+func DispatchDequantRefs(
+	contextRef uintptr,
+	sourceBuffer uintptr,
+	destinationBuffer uintptr,
+	dstFormat dtype.DType,
+	scale float32,
+	zeroPoint int8,
+	count uint32,
+) error {
+	return DispatchDequant(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(sourceBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(destinationBuffer)),
+		dstFormat,
+		scale,
+		zeroPoint,
+		count,
 	)
 }

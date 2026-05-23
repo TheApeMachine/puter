@@ -39,11 +39,11 @@ func TestAttentionCUDAParity(t *testing.T) {
 				defer maskTensor.Close()
 				defer outputTensor.Close()
 
-				if err := DispatchApplyMask(
-					parity.DeviceRef(harness.ContextRef()),
-					parity.BufferRef(inputTensor.Ref()),
-					parity.BufferRef(maskTensor.Ref()),
-					parity.BufferRef(outputTensor.Ref()),
+				if err := DispatchApplyMaskRefs(
+					harness.ContextRef(),
+					inputTensor.Ref(),
+					maskTensor.Ref(),
+					outputTensor.Ref(),
 					uint32(count),
 					dtype.Float32,
 				); err != nil {

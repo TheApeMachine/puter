@@ -25,10 +25,10 @@ func BenchmarkDropoutCUDAF32(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		if err := DispatchDropout(
-			parity.DeviceRef(harness.ContextRef()),
-			parity.BufferRef(sourceTensor.Ref()),
-			parity.BufferRef(outputTensor.Ref()),
+		if err := DispatchDropoutRefs(
+			harness.ContextRef(),
+			sourceTensor.Ref(),
+			outputTensor.Ref(),
 			uint32(count),
 			config,
 			dtype.Float32,

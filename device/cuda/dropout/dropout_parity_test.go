@@ -32,10 +32,10 @@ func TestDropoutCUDAParity(t *testing.T) {
 				defer sourceTensor.Close()
 				defer outputTensor.Close()
 
-				if err := DispatchDropout(
-					parity.DeviceRef(harness.ContextRef()),
-					parity.BufferRef(sourceTensor.Ref()),
-					parity.BufferRef(outputTensor.Ref()),
+				if err := DispatchDropoutRefs(
+					harness.ContextRef(),
+					sourceTensor.Ref(),
+					outputTensor.Ref(),
 					uint32(count),
 					config,
 					dtype.Float32,

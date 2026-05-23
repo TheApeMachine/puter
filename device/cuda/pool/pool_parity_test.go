@@ -75,10 +75,10 @@ func TestPoolCUDAParity(t *testing.T) {
 				defer inputTensor.Close()
 				defer outputTensor.Close()
 
-				if err := DispatchMaxPool2D(
-					parity.DeviceRef(harness.ContextRef()),
-					parity.BufferRef(inputTensor.Ref()),
-					parity.BufferRef(outputTensor.Ref()),
+				if err := DispatchMaxPool2DRefs(
+					harness.ContextRef(),
+					inputTensor.Ref(),
+					outputTensor.Ref(),
 					dtype.Float32,
 					uint32(batch),
 					uint32(channels),

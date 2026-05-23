@@ -5,6 +5,7 @@ package elementwise
 import (
 	_ "embed"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 )
@@ -244,3 +245,23 @@ func DispatchAxpy(
 }
 
 var errUnsupportedKernel = &dispatchError{code: -6, message: "unsupported CUDA elementwise kernel"}
+
+func DispatchBinaryElementwiseRefs(
+	contextRef uintptr,
+	dstBuffer uintptr,
+	leftBuffer uintptr,
+	rightBuffer uintptr,
+	format dtype.DType,
+	kernel BinaryKernel,
+	count uint32,
+) error {
+	return DispatchBinaryElementwise(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(dstBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(leftBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(rightBuffer)),
+		format,
+		kernel,
+		count,
+	)
+}

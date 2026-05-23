@@ -5,6 +5,7 @@ package predictive_coding
 import (
 	_ "embed"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/puter/device"
@@ -220,4 +221,24 @@ func DispatchUpdateWeights(
 	}
 
 	return nil
+}
+
+func DispatchPredictionRefs(
+	contextRef uintptr,
+	weightsRef uintptr,
+	stateRef uintptr,
+	outputRef uintptr,
+	format dtype.DType,
+	outCount uint32,
+	inCount uint32,
+) error {
+	return DispatchPrediction(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(weightsRef)),
+		C.CUDABufferRef(unsafe.Pointer(stateRef)),
+		C.CUDABufferRef(unsafe.Pointer(outputRef)),
+		format,
+		outCount,
+		inCount,
+	)
 }

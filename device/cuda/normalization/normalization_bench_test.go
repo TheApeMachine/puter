@@ -32,12 +32,12 @@ func BenchmarkNormalizationCUDAInstanceNorm(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		if err := DispatchInstanceNorm(
-			parity.DeviceRef(harness.ContextRef()),
-			parity.BufferRef(inputTensor.Ref()),
-			parity.BufferRef(scaleTensor.Ref()),
-			parity.BufferRef(biasTensor.Ref()),
-			parity.BufferRef(outputTensor.Ref()),
+		if err := DispatchInstanceNormRefs(
+			harness.ContextRef(),
+			inputTensor.Ref(),
+			scaleTensor.Ref(),
+			biasTensor.Ref(),
+			outputTensor.Ref(),
 			batch,
 			channels,
 			spatial,

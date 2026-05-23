@@ -26,11 +26,11 @@ func BenchmarkElementwiseCUDAAdd(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		if err := DispatchBinaryElementwise(
-			parity.DeviceRef(harness.ContextRef()),
-			parity.BufferRef(outputTensor.Ref()),
-			parity.BufferRef(leftTensor.Ref()),
-			parity.BufferRef(rightTensor.Ref()),
+		if err := DispatchBinaryElementwiseRefs(
+			harness.ContextRef(),
+			outputTensor.Ref(),
+			leftTensor.Ref(),
+			rightTensor.Ref(),
 			dtype.Float32,
 			BinaryAdd,
 			uint32(count),

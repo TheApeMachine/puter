@@ -23,10 +23,10 @@ func BenchmarkQuantCUDAInt8(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		if err := DispatchQuant(
-			parity.DeviceRef(harness.ContextRef()),
-			parity.BufferRef(sourceTensor.Ref()),
-			parity.BufferRef(destinationTensor.Ref()),
+		if err := DispatchQuantRefs(
+			harness.ContextRef(),
+			sourceTensor.Ref(),
+			destinationTensor.Ref(),
 			0.0875,
 			-13,
 			uint32(count),

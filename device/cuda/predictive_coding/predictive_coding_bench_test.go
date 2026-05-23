@@ -27,11 +27,11 @@ func BenchmarkPredictiveCodingCUDAPrediction(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		if err := DispatchPrediction(
-			parity.DeviceRef(harness.ContextRef()),
-			parity.BufferRef(weightsTensor.Ref()),
-			parity.BufferRef(stateTensor.Ref()),
-			parity.BufferRef(outputTensor.Ref()),
+		if err := DispatchPredictionRefs(
+			harness.ContextRef(),
+			weightsTensor.Ref(),
+			stateTensor.Ref(),
+			outputTensor.Ref(),
 			dtype.Float32,
 			uint32(outDim),
 			uint32(inDim),

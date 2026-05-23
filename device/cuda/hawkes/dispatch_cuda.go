@@ -5,6 +5,7 @@ package hawkes
 import (
 	_ "embed"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 )
@@ -328,4 +329,30 @@ func ScalarScratchBytes(format dtype.DType) int64 {
 	default:
 		return 4
 	}
+}
+
+func DispatchHawkesIntensityRefs(
+	contextRef uintptr,
+	eventsRef uintptr,
+	queryTimesRef uintptr,
+	baselineRef uintptr,
+	alphaRef uintptr,
+	betaRef uintptr,
+	outputRef uintptr,
+	eventCount uint32,
+	queryCount uint32,
+	format dtype.DType,
+) error {
+	return DispatchHawkesIntensity(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(eventsRef)),
+		C.CUDABufferRef(unsafe.Pointer(queryTimesRef)),
+		C.CUDABufferRef(unsafe.Pointer(baselineRef)),
+		C.CUDABufferRef(unsafe.Pointer(alphaRef)),
+		C.CUDABufferRef(unsafe.Pointer(betaRef)),
+		C.CUDABufferRef(unsafe.Pointer(outputRef)),
+		eventCount,
+		queryCount,
+		format,
+	)
 }

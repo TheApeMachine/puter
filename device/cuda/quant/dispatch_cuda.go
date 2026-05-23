@@ -5,6 +5,7 @@ package quant
 import (
 	_ "embed"
 	"strings"
+	"unsafe"
 )
 
 /*
@@ -101,6 +102,24 @@ func DispatchQuant(
 		destinationBuffer,
 		scale,
 		int32(zeroPoint),
+		count,
+	)
+}
+
+func DispatchQuantRefs(
+	contextRef uintptr,
+	sourceBuffer uintptr,
+	destinationBuffer uintptr,
+	scale float32,
+	zeroPoint int8,
+	count uint32,
+) error {
+	return DispatchQuant(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(sourceBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(destinationBuffer)),
+		scale,
+		zeroPoint,
 		count,
 	)
 }

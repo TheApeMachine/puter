@@ -5,6 +5,7 @@ package pool
 import (
 	_ "embed"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 )
@@ -264,4 +265,32 @@ func DispatchAdaptiveAvgPool2D(
 	}
 
 	return nil
+}
+
+func DispatchMaxPool2DRefs(
+	contextRef uintptr,
+	inputRef uintptr,
+	outputRef uintptr,
+	format dtype.DType,
+	batch uint32,
+	channels uint32,
+	inHeight uint32,
+	inWidth uint32,
+	outHeight uint32,
+	outWidth uint32,
+	completionToken uint64,
+) error {
+	return DispatchMaxPool2D(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(inputRef)),
+		C.CUDABufferRef(unsafe.Pointer(outputRef)),
+		format,
+		batch,
+		channels,
+		inHeight,
+		inWidth,
+		outHeight,
+		outWidth,
+		completionToken,
+	)
 }

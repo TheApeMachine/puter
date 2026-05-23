@@ -5,6 +5,7 @@ package attention
 import (
 	_ "embed"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/puter/device"
@@ -342,4 +343,22 @@ func DispatchALiBiBias(
 	}
 
 	return nil
+}
+
+func DispatchApplyMaskRefs(
+	contextRef uintptr,
+	inputBuffer uintptr,
+	maskBuffer uintptr,
+	outputBuffer uintptr,
+	count uint32,
+	format dtype.DType,
+) error {
+	return DispatchApplyMask(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(inputBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(maskBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(outputBuffer)),
+		count,
+		format,
+	)
 }

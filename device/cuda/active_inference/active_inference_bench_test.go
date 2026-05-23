@@ -29,12 +29,12 @@ func BenchmarkActiveInferenceCUDABeliefUpdate(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		if err := DispatchBeliefUpdate(
-			parity.DeviceRef(harness.ContextRef()),
-			parity.BufferRef(likelihoodTensor.Ref()),
-			parity.BufferRef(priorTensor.Ref()),
-			parity.BufferRef(scratchTensor.Ref()),
-			parity.BufferRef(outputTensor.Ref()),
+		if err := DispatchBeliefUpdateRefs(
+			harness.ContextRef(),
+			likelihoodTensor.Ref(),
+			priorTensor.Ref(),
+			scratchTensor.Ref(),
+			outputTensor.Ref(),
 			dtype.Float32,
 			uint32(count),
 		); err != nil {

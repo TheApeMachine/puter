@@ -29,12 +29,12 @@ func BenchmarkLossesCUDAMSE(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		if err := DispatchPairLoss(
-			parity.DeviceRef(harness.ContextRef()),
-			parity.BufferRef(predictionsTensor.Ref()),
-			parity.BufferRef(targetsTensor.Ref()),
-			parity.BufferRef(scratchTensor.Ref()),
-			parity.BufferRef(outputTensor.Ref()),
+		if err := DispatchPairLossRefs(
+			harness.ContextRef(),
+			predictionsTensor.Ref(),
+			targetsTensor.Ref(),
+			scratchTensor.Ref(),
+			outputTensor.Ref(),
 			dtype.Float32,
 			KernelMSE,
 			uint32(count),

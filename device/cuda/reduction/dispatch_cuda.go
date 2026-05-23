@@ -5,6 +5,7 @@ package reduction
 import (
 	_ "embed"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 )
@@ -142,4 +143,26 @@ func DispatchReduction(
 	}
 
 	return nil
+}
+
+func DispatchReductionRefs(
+	contextRef uintptr,
+	inputBuffer uintptr,
+	scratchABuffer uintptr,
+	scratchBBuffer uintptr,
+	outBuffer uintptr,
+	format dtype.DType,
+	kernel ReductionKernel,
+	count uint32,
+) error {
+	return DispatchReduction(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(inputBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(scratchABuffer)),
+		C.CUDABufferRef(unsafe.Pointer(scratchBBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(outBuffer)),
+		format,
+		kernel,
+		count,
+	)
 }

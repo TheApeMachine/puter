@@ -5,6 +5,7 @@ package normalization
 import (
 	_ "embed"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/puter/device"
@@ -203,4 +204,28 @@ func DispatchBatchNormEval(
 	}
 
 	return nil
+}
+
+func DispatchInstanceNormRefs(
+	contextRef uintptr,
+	inputBuffer uintptr,
+	scaleBuffer uintptr,
+	biasBuffer uintptr,
+	outputBuffer uintptr,
+	batch uint32,
+	channels uint32,
+	spatial uint32,
+	format dtype.DType,
+) error {
+	return DispatchInstanceNorm(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(inputBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(scaleBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(biasBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(outputBuffer)),
+		batch,
+		channels,
+		spatial,
+		format,
+	)
 }

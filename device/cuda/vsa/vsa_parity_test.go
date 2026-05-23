@@ -31,11 +31,11 @@ func TestVSACUDAParity(t *testing.T) {
 				defer rightTensor.Close()
 				defer outputTensor.Close()
 
-				if err := DispatchBind(
-					parity.DeviceRef(harness.ContextRef()),
-					parity.BufferRef(leftTensor.Ref()),
-					parity.BufferRef(rightTensor.Ref()),
-					parity.BufferRef(outputTensor.Ref()),
+				if err := DispatchBindRefs(
+					harness.ContextRef(),
+					leftTensor.Ref(),
+					rightTensor.Ref(),
+					outputTensor.Ref(),
 					dtype.Float32,
 					uint32(count),
 				); err != nil {

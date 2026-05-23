@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"math"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/puter/device"
@@ -138,4 +139,22 @@ func DispatchDropout(
 	}
 
 	return nil
+}
+
+func DispatchDropoutRefs(
+	contextRef uintptr,
+	inputBuffer uintptr,
+	outputBuffer uintptr,
+	count uint32,
+	config device.DropoutConfig,
+	format dtype.DType,
+) error {
+	return DispatchDropout(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(inputBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(outputBuffer)),
+		count,
+		config,
+		format,
+	)
 }

@@ -75,12 +75,12 @@ func TestConvolutionCUDAParity(t *testing.T) {
 				defer biasTensor.Close()
 				defer outputTensor.Close()
 
-				if err := DispatchConv1D(
-					parity.DeviceRef(harness.ContextRef()),
-					parity.BufferRef(inputTensor.Ref()),
-					parity.BufferRef(weightTensor.Ref()),
-					parity.BufferRef(biasTensor.Ref()),
-					parity.BufferRef(outputTensor.Ref()),
+				if err := DispatchConv1DRefs(
+					harness.ContextRef(),
+					inputTensor.Ref(),
+					weightTensor.Ref(),
+					biasTensor.Ref(),
+					outputTensor.Ref(),
 					batch,
 					inChannels,
 					inLength,

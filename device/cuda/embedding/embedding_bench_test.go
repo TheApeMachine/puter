@@ -35,12 +35,12 @@ func BenchmarkEmbeddingCUDALookup(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		if err := DispatchLookup(
-			parity.DeviceRef(harness.ContextRef()),
-			parity.BufferRef(tableTensor.Ref()),
-			parity.BufferRef(indicesTensor.Ref()),
-			parity.BufferRef(outputTensor.Ref()),
-			parity.BufferRef(errorFlagTensor.Ref()),
+		if err := DispatchLookupRefs(
+			harness.ContextRef(),
+			tableTensor.Ref(),
+			indicesTensor.Ref(),
+			outputTensor.Ref(),
+			errorFlagTensor.Ref(),
 			dtype.Float32,
 			vocab,
 			hidden,

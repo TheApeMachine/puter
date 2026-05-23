@@ -5,6 +5,7 @@ package dot
 import (
 	_ "embed"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 )
@@ -107,4 +108,24 @@ func DispatchDot(
 	}
 
 	return nil
+}
+
+func DispatchDotRefs(
+	contextRef uintptr,
+	leftBuffer uintptr,
+	rightBuffer uintptr,
+	scratchBuffer uintptr,
+	outBuffer uintptr,
+	format dtype.DType,
+	count uint32,
+) error {
+	return DispatchDot(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(leftBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(rightBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(scratchBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(outBuffer)),
+		format,
+		count,
+	)
 }

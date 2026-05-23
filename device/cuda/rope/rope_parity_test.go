@@ -39,12 +39,12 @@ func TestRoPECUDAParity(t *testing.T) {
 				defer sinTensor.Close()
 				defer outputTensor.Close()
 
-				if err := DispatchRoPEPairs(
-					parity.DeviceRef(harness.ContextRef()),
-					parity.BufferRef(inputTensor.Ref()),
-					parity.BufferRef(outputTensor.Ref()),
-					parity.BufferRef(cosTensor.Ref()),
-					parity.BufferRef(sinTensor.Ref()),
+				if err := DispatchRoPEPairsRefs(
+					harness.ContextRef(),
+					inputTensor.Ref(),
+					outputTensor.Ref(),
+					cosTensor.Ref(),
+					sinTensor.Ref(),
 					halfDim,
 					dtype.Float32,
 				); err != nil {

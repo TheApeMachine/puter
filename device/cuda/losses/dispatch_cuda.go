@@ -5,6 +5,7 @@ package losses
 import (
 	_ "embed"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 )
@@ -131,6 +132,28 @@ func DispatchPairLoss(
 	}
 
 	return nil
+}
+
+func DispatchPairLossRefs(
+	contextRef uintptr,
+	predictionsBuffer uintptr,
+	targetsBuffer uintptr,
+	scratchBuffer uintptr,
+	outBuffer uintptr,
+	format dtype.DType,
+	kernel LossKernel,
+	count uint32,
+) error {
+	return DispatchPairLoss(
+		C.CUDADeviceRef(unsafe.Pointer(contextRef)),
+		C.CUDABufferRef(unsafe.Pointer(predictionsBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(targetsBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(scratchBuffer)),
+		C.CUDABufferRef(unsafe.Pointer(outBuffer)),
+		format,
+		kernel,
+		count,
+	)
 }
 
 /*
