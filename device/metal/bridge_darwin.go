@@ -580,6 +580,18 @@ func (registry *metalCompletionRegistry) BeginMany(
 	return token, nil
 }
 
+func (registry *metalCompletionRegistry) CompleteBatch(tokens []uint64) {
+	for _, token := range tokens {
+		registry.Complete(token, 0, "")
+	}
+}
+
+func (registry *metalCompletionRegistry) FailBatch(tokens []uint64, err error) {
+	for _, token := range tokens {
+		registry.Fail(token, err)
+	}
+}
+
 func (registry *metalCompletionRegistry) Complete(token uint64, code int, message string) {
 	completion := registry.take(token)
 	if len(completion.targets) == 0 {
@@ -931,15 +943,32 @@ func (target *metalTensor) GradFn() tensor.GradFn {
 	return nil
 }
 
+const metalBatchDeferredTokenLimit = 4096
+
 func (bridge *metalBridge) beginBatch() {
 	bridge.batchMutex.Lock()
 	bridge.batchDepth++
+	bridge.batchMutex.Unlock()
 	C.metal_begin_batch(bridge.device)
 }
 
 func (bridge *metalBridge) endBatch() error {
 	status := C.MetalStatus{}
 	C.metal_end_batch(bridge.device, &status)
+
+	tokenBuffer := make([]C.uint64_t, metalBatchDeferredTokenLimit)
+	tokenCount := C.metal_copy_batch_deferred_tokens(
+		bridge.device,
+		&tokenBuffer[0],
+		C.size_t(metalBatchDeferredTokenLimit),
+	)
+
+	tokens := make([]uint64, int(tokenCount))
+	for index := range tokens {
+		tokens[index] = uint64(tokenBuffer[index])
+	}
+
+	bridge.batchMutex.Lock()
 	bridge.batchDepth--
 
 	if bridge.batchDepth < 0 {
@@ -949,8 +978,11 @@ func (bridge *metalBridge) endBatch() error {
 	bridge.batchMutex.Unlock()
 
 	if status.code != 0 {
-		return fmt.Errorf("metal batch: %s", metalStatus("end", status))
+		batchErr := fmt.Errorf("metal batch: %s", metalStatus("end", status))
+		metalCompletions.FailBatch(tokens, batchErr)
+		return batchErr
 	}
 
+	metalCompletions.CompleteBatch(tokens)
 	return nil
 }

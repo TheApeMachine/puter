@@ -131,10 +131,25 @@ id<MTLComputeCommandEncoder> metal_get_encoder(MetalContext* context, id<MTLComm
 }
 
 void metal_end_encoder(MetalContext* context, id<MTLComputeCommandEncoder> encoder, id<MTLCommandBuffer> commandBuffer) {
+    if (encoder == nil || commandBuffer == nil) {
+        return;
+    }
+
     if (!context->isBatching) {
         [encoder endEncoding];
         [commandBuffer commit];
+        return;
     }
+
+    id<MTLCommandBuffer> currentCommandBuffer =
+        (__bridge id<MTLCommandBuffer>)context->currentCommandBuffer;
+
+    if (currentCommandBuffer != nil && commandBuffer == currentCommandBuffer) {
+        return;
+    }
+
+    [encoder endEncoding];
+    [commandBuffer commit];
 }
 
 void metal_suspend_compute_encoder(MetalContext* context) {
@@ -222,7 +237,10 @@ void metal_track_command_completion(
         return;
     }
 
-    if (context->isBatching) {
+    id<MTLCommandBuffer> currentCommandBuffer =
+        (__bridge id<MTLCommandBuffer>)context->currentCommandBuffer;
+
+    if (context->isBatching && currentCommandBuffer != nil && commandBuffer == currentCommandBuffer) {
         metal_deferred_push(context, completionToken, validationBufferRef);
         return;
     }
@@ -260,6 +278,11 @@ void metal_begin_batch(MetalDeviceRef contextRef) {
 }
 
 void metal_end_batch(MetalDeviceRef contextRef, MetalStatus* status) {
+    if (contextRef == NULL) {
+        metal_status_set(status, -1, "invalid Metal context");
+        return;
+    }
+
     MetalContext* context = (MetalContext*)contextRef;
     id<MTLCommandBuffer> batchCommandBuffer = nil;
 
@@ -283,16 +306,6 @@ void metal_end_batch(MetalDeviceRef contextRef, MetalStatus* status) {
     if (batchCommandBuffer == nil) {
         if (context->deferredCount > 0) {
             metal_status_set(status, -5, "Metal batch ended without a command buffer");
-
-            for (size_t index = 0; index < context->deferredCount; index++) {
-                metalCommandCompleted(
-                    context->deferredCompletions[index].token,
-                    -5,
-                    "Metal batch ended without a command buffer"
-                );
-            }
-
-            context->deferredCount = 0;
         }
 
         return;
@@ -314,20 +327,32 @@ void metal_end_batch(MetalDeviceRef contextRef, MetalStatus* status) {
 
         context->lastBatchStatus = -5;
         metal_status_set(status, -5, [message UTF8String]);
-
-        for (size_t index = 0; index < context->deferredCount; index++) {
-            metalCommandCompleted(
-                context->deferredCompletions[index].token,
-                -5,
-                (char*)[message UTF8String]
-            );
-        }
-
-        context->deferredCount = 0;
         return;
     }
+}
 
-    metal_flush_deferred_completions(context, batchCommandBuffer);
+size_t metal_copy_batch_deferred_tokens(
+    MetalDeviceRef contextRef,
+    uint64_t* outTokens,
+    size_t outCapacity
+) {
+    if (contextRef == NULL || outTokens == NULL || outCapacity == 0) {
+        return 0;
+    }
+
+    MetalContext* context = (MetalContext*)contextRef;
+    size_t copied = context->deferredCount;
+
+    if (copied > outCapacity) {
+        copied = outCapacity;
+    }
+
+    for (size_t index = 0; index < copied; index++) {
+        outTokens[index] = context->deferredCompletions[index].token;
+    }
+
+    context->deferredCount = 0;
+    return copied;
 }
 
 id<MTLComputePipelineState> metal_get_pipeline(

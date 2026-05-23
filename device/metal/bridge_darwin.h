@@ -1,6 +1,7 @@
 #ifndef CARAMBA_BACKEND_DEVICE_METAL_BRIDGE_DARWIN_H
 #define CARAMBA_BACKEND_DEVICE_METAL_BRIDGE_DARWIN_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -131,6 +132,11 @@ MetalDeviceRef metal_open_default_device(
 long long metal_recommended_max_working_set(MetalDeviceRef contextRef);
 void metal_begin_batch(MetalDeviceRef contextRef);
 void metal_end_batch(MetalDeviceRef contextRef, MetalStatus* status);
+size_t metal_copy_batch_deferred_tokens(
+    MetalDeviceRef contextRef,
+    uint64_t* outTokens,
+    size_t outCapacity
+);
 void metal_layer_begin(MetalDeviceRef contextRef);
 int metal_layer_end(MetalDeviceRef contextRef, MetalStatus* status);
 MetalBufferRef metal_buffer_new_shared(MetalDeviceRef contextRef, long long bytes);
