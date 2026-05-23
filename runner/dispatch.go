@@ -252,16 +252,10 @@ func zeroBiasTensor(
 	node *ir.Node,
 	storageDType dtype.DType,
 ) (tensor.Tensor, error) {
-	featureCount, err := nodeIntAttribute(node, "out_channels")
+	featureCount, err := biasFeatureCount(node)
 
 	if err != nil {
-		outputDims := node.Shape().Dims()
-
-		if len(outputDims) == 0 {
-			return nil, fmt.Errorf("runner: bias node %q has empty output shape", node.ID())
-		}
-
-		featureCount = outputDims[len(outputDims)-1]
+		return nil, err
 	}
 
 	biasShape, err := tensor.NewShape([]int{featureCount})
@@ -271,6 +265,24 @@ func zeroBiasTensor(
 	}
 
 	return zeroTensor(memory, biasShape, storageDType)
+}
+
+func biasFeatureCount(node *ir.Node) (int, error) {
+	for _, attributeName := range []string{"out_features", "out_channels"} {
+		featureCount, err := nodeIntAttribute(node, attributeName)
+
+		if err == nil {
+			return featureCount, nil
+		}
+	}
+
+	outputDims := node.Shape().Dims()
+
+	if len(outputDims) == 0 {
+		return 0, fmt.Errorf("runner: bias node %q has empty output shape", node.ID())
+	}
+
+	return outputDims[len(outputDims)-1], nil
 }
 
 func dispatchRegisteredKernel(

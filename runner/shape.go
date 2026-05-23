@@ -624,7 +624,7 @@ func primaryFloatInputShape(
 		return value.Shape(), nil
 	}
 
-	return node.Shape(), nil
+	return tensor.Shape{}, fmt.Errorf("runner: node %q missing float input shape", node.ID())
 }
 
 func embeddingOutputShape(

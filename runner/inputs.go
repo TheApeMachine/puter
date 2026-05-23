@@ -141,7 +141,7 @@ func residentInputTensor(
 }
 
 func uploadInt32Indices(memory tensor.Backend, values []int) (tensor.Tensor, error) {
-	shape, err := tensor.NewShape([]int{len(values)})
+	shape, err := tokenBatchShape(len(values))
 
 	if err != nil {
 		return nil, err
@@ -157,7 +157,7 @@ func uploadInt32Indices(memory tensor.Backend, values []int) (tensor.Tensor, err
 }
 
 func uploadInt32Slice(memory tensor.Backend, values []int32) (tensor.Tensor, error) {
-	shape, err := tensor.NewShape([]int{len(values)})
+	shape, err := tokenBatchShape(len(values))
 
 	if err != nil {
 		return nil, err
@@ -170,6 +170,14 @@ func uploadInt32Slice(memory tensor.Backend, values []int32) (tensor.Tensor, err
 	}
 
 	return memory.Upload(shape, dtype.Int32, buffer)
+}
+
+func tokenBatchShape(length int) (tensor.Shape, error) {
+	if length <= 0 {
+		return tensor.Shape{}, fmt.Errorf("runner: token batch length must be positive")
+	}
+
+	return tensor.NewShape([]int{1, length})
 }
 
 func uploadFloat32Slice(
