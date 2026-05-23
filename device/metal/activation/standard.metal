@@ -1,6 +1,7 @@
 #include <metal_stdlib>
-#include "../elementwise/elementwise_gelu_f64.metalinc"
 #include "activation.metal"
+#include "activation_ops_f16.metalinc"
+#include "activation_ops_bf16.metalinc"
 
 using namespace metal;
 
@@ -37,11 +38,15 @@ struct TanhOp {
 
 struct GeluOp {
     float4 operator()(float4 value) const {
-        return metal_gelu_float4(value);
+        const float4 k = float4(0.7978845608028655f);
+        const float4 c = float4(0.044715f);
+        return float4(0.5f) * value * (float4(1.0f) + precise::tanh(k * (value + c * value * value * value)));
     }
 
     float operator()(float value) const {
-        return metal_gelu_softfloat_scalar(value);
+        const float k = 0.7978845608028655f;
+        const float c = 0.044715f;
+        return 0.5f * value * (1.0f + precise::tanh(k * (value + c * value * value * value)));
     }
 };
 
@@ -282,5 +287,60 @@ dtype_macro(tanh_shrink, TanhShrinkOp) \
 dtype_macro(relu, ReluOp) \
 
 STANDARD_UNARY_KERNELS(STANDARD_UNARY_FLOAT32_KERNEL)
-STANDARD_UNARY_KERNELS(STANDARD_UNARY_FLOAT16_KERNEL)
-STANDARD_UNARY_KERNELS(STANDARD_UNARY_BFLOAT16_KERNEL)
+
+#define STANDARD_HALF_UNARY_KERNELS(dtype_macro) \
+dtype_macro(exp, HalfExpOp) \
+dtype_macro(log, HalfLogOp) \
+dtype_macro(tanh, HalfTanhOp) \
+dtype_macro(gelu, HalfGeluOp) \
+dtype_macro(sigmoid, HalfSigmoidOp) \
+dtype_macro(silu, HalfSiluOp) \
+dtype_macro(swish, HalfSiluOp) \
+dtype_macro(softsign, HalfSoftsignOp) \
+dtype_macro(elu, HalfELUOp) \
+dtype_macro(selu, HalfSELUOp) \
+dtype_macro(leaky_relu, HalfLeakyReLUOp) \
+dtype_macro(hardsigmoid, HalfHardSigmoidOp) \
+dtype_macro(hardswish, HalfHardSwishOp) \
+dtype_macro(log1p, HalfLog1pOp) \
+dtype_macro(expm1, HalfExpm1Op) \
+dtype_macro(celu, HalfCeluOp) \
+dtype_macro(softplus, HalfSoftplusOp) \
+dtype_macro(mish, HalfMishOp) \
+dtype_macro(log_sigmoid, HalfLogSigmoidOp) \
+dtype_macro(gelu_tanh, HalfGeluTanhOp) \
+dtype_macro(hardtanh, HalfHardTanhOp) \
+dtype_macro(hard_gelu, HalfHardGeluOp) \
+dtype_macro(quick_gelu, HalfQuickGeluOp) \
+dtype_macro(tanh_shrink, HalfTanhShrinkOp) \
+dtype_macro(relu, HalfReluOp)
+
+#define STANDARD_BF16_UNARY_KERNELS(dtype_macro) \
+dtype_macro(exp, BF16ExpOp) \
+dtype_macro(log, BF16LogOp) \
+dtype_macro(tanh, BF16TanhOp) \
+dtype_macro(gelu, BF16GeluOp) \
+dtype_macro(sigmoid, BF16SigmoidOp) \
+dtype_macro(silu, BF16SiluOp) \
+dtype_macro(swish, BF16SiluOp) \
+dtype_macro(softsign, BF16SoftsignOp) \
+dtype_macro(elu, BF16ELUOp) \
+dtype_macro(selu, BF16SELUOp) \
+dtype_macro(leaky_relu, BF16LeakyReLUOp) \
+dtype_macro(hardsigmoid, BF16HardSigmoidOp) \
+dtype_macro(hardswish, BF16HardSwishOp) \
+dtype_macro(log1p, BF16Log1pOp) \
+dtype_macro(expm1, BF16Expm1Op) \
+dtype_macro(celu, BF16CeluOp) \
+dtype_macro(softplus, BF16SoftplusOp) \
+dtype_macro(mish, BF16MishOp) \
+dtype_macro(log_sigmoid, BF16LogSigmoidOp) \
+dtype_macro(gelu_tanh, BF16GeluTanhOp) \
+dtype_macro(hardtanh, BF16HardTanhOp) \
+dtype_macro(hard_gelu, BF16HardGeluOp) \
+dtype_macro(quick_gelu, BF16QuickGeluOp) \
+dtype_macro(tanh_shrink, BF16TanhShrinkOp) \
+dtype_macro(relu, BF16ReluOp)
+
+STANDARD_HALF_UNARY_KERNELS(STANDARD_UNARY_FLOAT16_KERNEL)
+STANDARD_BF16_UNARY_KERNELS(STANDARD_UNARY_BFLOAT16_KERNEL)

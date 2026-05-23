@@ -1,0 +1,70 @@
+#ifndef CARAMBA_DEVICE_METAL_ACTIVATION_GATED_OPS_BF16_METALINC
+#define CARAMBA_DEVICE_METAL_ACTIVATION_GATED_OPS_BF16_METALINC
+
+#include "activation_ops_bf16.metalinc"
+
+static inline bfloat gated_swiglu_bf16(bfloat gateValue, bfloat upValue) {
+    return BF16SiluOp{}(gateValue) * upValue;
+}
+
+static inline bfloat4 gated_swiglu_bf164(bfloat4 gateValue, bfloat4 upValue) {
+    return BF16SiluOp{}(gateValue) * upValue;
+}
+
+static inline bfloat gated_geglu_bf16(bfloat gateValue, bfloat upValue) {
+    return gateValue * BF16GeluOp{}(upValue);
+}
+
+static inline bfloat4 gated_geglu_bf164(bfloat4 gateValue, bfloat4 upValue) {
+    return gateValue * BF16GeluOp{}(upValue);
+}
+
+static inline bfloat gated_glu_bf16(bfloat gateValue, bfloat upValue) {
+    return gateValue * BF16SigmoidOp{}(upValue);
+}
+
+static inline bfloat4 gated_glu_bf164(bfloat4 gateValue, bfloat4 upValue) {
+    return gateValue * BF16SigmoidOp{}(upValue);
+}
+
+static inline bfloat gated_reglu_bf16(bfloat gateValue, bfloat upValue) {
+    return gateValue * BF16ReluOp{}(upValue);
+}
+
+static inline bfloat4 gated_reglu_bf164(bfloat4 gateValue, bfloat4 upValue) {
+    return gateValue * BF16ReluOp{}(upValue);
+}
+
+static inline bfloat gated_siglu_bf16(bfloat gateValue, bfloat upValue) {
+    return BF16SigmoidOp{}(gateValue) * upValue;
+}
+
+static inline bfloat4 gated_siglu_bf164(bfloat4 gateValue, bfloat4 upValue) {
+    return BF16SigmoidOp{}(gateValue) * upValue;
+}
+
+static inline bfloat gated_seglu_bf16(bfloat gateValue, bfloat upValue) {
+    return upValue * BF16SigmoidOp{}(gateValue);
+}
+
+static inline bfloat4 gated_seglu_bf164(bfloat4 gateValue, bfloat4 upValue) {
+    return upValue * BF16SigmoidOp{}(gateValue);
+}
+
+static inline bfloat gated_linglu_bf16(bfloat gateValue, bfloat upValue) {
+    return gateValue * upValue;
+}
+
+static inline bfloat4 gated_linglu_bf164(bfloat4 gateValue, bfloat4 upValue) {
+    return gateValue * upValue;
+}
+
+static inline bfloat gated_geglu_tanh_bf16(bfloat gateValue, bfloat upValue) {
+    return gateValue * BF16GeluTanhOp{}(upValue);
+}
+
+static inline bfloat4 gated_geglu_tanh_bf164(bfloat4 gateValue, bfloat4 upValue) {
+    return gateValue * BF16GeluTanhOp{}(upValue);
+}
+
+#endif

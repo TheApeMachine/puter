@@ -7,6 +7,7 @@ package metal
 #cgo LDFLAGS: -framework Metal -framework Foundation -framework CoreFoundation -framework MetalPerformanceShaders
 
 #include "internal/bridge/core_private.h"
+#include "internal/bridge/core_darwin.m"
 
 #include "internal/runtime/bridge_projection_darwin.m"
 #include "internal/runtime/bridge_utility_darwin.m"

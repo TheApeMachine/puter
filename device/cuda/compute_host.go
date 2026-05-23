@@ -46,6 +46,29 @@ func (host *ComputeHost) elementCount(pointers ...unsafe.Pointer) uint32 {
 	return 0
 }
 
+func (host *ComputeHost) matrixRowsCols(pointer unsafe.Pointer) (rows uint32, cols uint32) {
+	deviceTensor := resolveDeviceTensor(pointer)
+
+	if deviceTensor == nil {
+		return 0, 0
+	}
+
+	shape := deviceTensor.Shape()
+
+	if len(shape) == 0 {
+		return 0, 0
+	}
+
+	cols = uint32(shape[len(shape)-1])
+	total := uint32(deviceTensor.Len())
+
+	if cols == 0 {
+		return 0, 0
+	}
+
+	return total / cols, cols
+}
+
 func (host *ComputeHost) BinaryElementwise(dst, left, right unsafe.Pointer, format dtype.DType, kernel elementwise.BinaryKernel) {
 	host.unavailable()
 }
@@ -291,11 +314,41 @@ func (host *ComputeHost) DispatchUpdateWeights(config device.PredictiveCodingCon
 }
 
 func (host *ComputeHost) GLUPacked(dst, packed unsafe.Pointer, batch, halfCount int, format dtype.DType, variant activation.GLUVariant) {
-	host.unavailable()
+	if batch == 0 || halfCount == 0 {
+		return
+	}
+
+	if err := activation.DispatchGLUPacked(
+		host.contextRef(),
+		resolveBufferRef(dst),
+		resolveBufferRef(packed),
+		format,
+		variant,
+		uint32(halfCount),
+		uint32(batch),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) GLUTensors(dst, gate, up unsafe.Pointer, format dtype.DType, variant activation.GLUVariant) {
-	host.unavailable()
+	count := host.elementCount(dst, gate, up)
+
+	if count == 0 {
+		return
+	}
+
+	if err := activation.DispatchGLUTensors(
+		host.contextRef(),
+		resolveBufferRef(dst),
+		resolveBufferRef(gate),
+		resolveBufferRef(up),
+		format,
+		variant,
+		count,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) LaunchBag(table, indices, offsets, output unsafe.Pointer, vocab, hidden, bagCount, indexCount int, format dtype.DType) {
@@ -323,7 +376,22 @@ func (host *ComputeHost) PReLUV(dst, src, slopes unsafe.Pointer, format dtype.DT
 }
 
 func (host *ComputeHost) Softmax(dst, src unsafe.Pointer, format dtype.DType) {
-	host.unavailable()
+	rows, cols := host.matrixRowsCols(src)
+
+	if rows == 0 || cols == 0 {
+		return
+	}
+
+	if err := activation.DispatchSoftmax(
+		host.contextRef(),
+		resolveBufferRef(dst),
+		resolveBufferRef(src),
+		format,
+		rows,
+		cols,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) StandardUnary(dst, src unsafe.Pointer, format dtype.DType, kernel activation.StandardKernel) {
@@ -341,5 +409,21 @@ func (host *ComputeHost) UnaryElementwise(dst, src unsafe.Pointer, format dtype.
 }
 
 func (host *ComputeHost) UnaryParam(dst, src unsafe.Pointer, format dtype.DType, kernelName string, param float32) {
-	host.unavailable()
+	count := host.elementCount(dst, src)
+
+	if count == 0 {
+		return
+	}
+
+	if err := activation.DispatchUnaryParam(
+		host.contextRef(),
+		resolveBufferRef(dst),
+		resolveBufferRef(src),
+		format,
+		kernelName,
+		param,
+		count,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }

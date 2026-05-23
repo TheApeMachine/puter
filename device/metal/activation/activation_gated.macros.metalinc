@@ -1,0 +1,139 @@
+#ifndef CARAMBA_DEVICE_METAL_ACTIVATION_GATED_MACROS_METALINC
+#define CARAMBA_DEVICE_METAL_ACTIVATION_GATED_MACROS_METALINC
+
+#define GATED_TENSOR_KERNEL_F32(name, expr_f4, expr_scalar) \
+kernel void name##_float32( \
+    device float4* destination [[buffer(0)]], \
+    device const float4* gate [[buffer(1)]], \
+    device const float4* up [[buffer(2)]], \
+    constant uint& count [[buffer(3)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    uint base = index * 4; \
+    if (base + 3 < count) { \
+        destination[index] = expr_f4; \
+        return; \
+    } \
+    device float* destinationRaw = reinterpret_cast<device float*>(destination); \
+    device const float* gateRaw = reinterpret_cast<device const float*>(gate); \
+    device const float* upRaw = reinterpret_cast<device const float*>(up); \
+    for (uint offset = 0; offset < 4; offset++) { \
+        uint scalarIndex = base + offset; \
+        if (scalarIndex < count) { \
+            float gateValue = gateRaw[scalarIndex]; \
+            float upValue = upRaw[scalarIndex]; \
+            destinationRaw[scalarIndex] = expr_scalar; \
+        } \
+    } \
+}
+
+#define GATED_TENSOR_KERNEL_F16(name, expr_h4, expr_scalar) \
+kernel void name##_float16( \
+    device half4* destination [[buffer(0)]], \
+    device const half4* gate [[buffer(1)]], \
+    device const half4* up [[buffer(2)]], \
+    constant uint& count [[buffer(3)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    uint base = index * 4; \
+    if (base + 3 < count) { \
+        destination[index] = expr_h4; \
+        return; \
+    } \
+    device half* destinationRaw = reinterpret_cast<device half*>(destination); \
+    device const half* gateRaw = reinterpret_cast<device const half*>(gate); \
+    device const half* upRaw = reinterpret_cast<device const half*>(up); \
+    for (uint offset = 0; offset < 4; offset++) { \
+        uint scalarIndex = base + offset; \
+        if (scalarIndex < count) { \
+            half gateValue = gateRaw[scalarIndex]; \
+            half upValue = upRaw[scalarIndex]; \
+            destinationRaw[scalarIndex] = expr_scalar; \
+        } \
+    } \
+}
+
+#define GATED_TENSOR_KERNEL_BF16(name, expr_b4, expr_scalar) \
+kernel void name##_bfloat16( \
+    device ushort4* destination [[buffer(0)]], \
+    device const ushort4* gate [[buffer(1)]], \
+    device const ushort4* up [[buffer(2)]], \
+    constant uint& count [[buffer(3)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    uint base = index * 4; \
+    if (base + 3 < count) { \
+        destination[index] = as_type<ushort4>(expr_b4); \
+        return; \
+    } \
+    device ushort* destinationRaw = reinterpret_cast<device ushort*>(destination); \
+    device const ushort* gateRaw = reinterpret_cast<device const ushort*>(gate); \
+    device const ushort* upRaw = reinterpret_cast<device const ushort*>(up); \
+    for (uint offset = 0; offset < 4; offset++) { \
+        uint scalarIndex = base + offset; \
+        if (scalarIndex < count) { \
+            bfloat gateValue = as_type<bfloat>(gateRaw[scalarIndex]); \
+            bfloat upValue = as_type<bfloat>(upRaw[scalarIndex]); \
+            destinationRaw[scalarIndex] = as_type<ushort>(expr_scalar); \
+        } \
+    } \
+}
+
+#define GATED_PACKED_KERNEL_F32(name, expr_scalar) \
+kernel void name##_packed_float32( \
+    device float* destination [[buffer(0)]], \
+    device const float* packed [[buffer(1)]], \
+    constant uint& inner [[buffer(2)]], \
+    constant uint& count [[buffer(3)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    if (index >= count) { \
+        return; \
+    } \
+    uint batchIndex = index / inner; \
+    uint lane = index - batchIndex * inner; \
+    uint rowBase = batchIndex * inner * 2; \
+    float gateValue = packed[rowBase + lane]; \
+    float upValue = packed[rowBase + inner + lane]; \
+    destination[index] = expr_scalar; \
+}
+
+#define GATED_PACKED_KERNEL_F16(name, expr_scalar) \
+kernel void name##_packed_float16( \
+    device half* destination [[buffer(0)]], \
+    device const half* packed [[buffer(1)]], \
+    constant uint& inner [[buffer(2)]], \
+    constant uint& count [[buffer(3)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    if (index >= count) { \
+        return; \
+    } \
+    uint batchIndex = index / inner; \
+    uint lane = index - batchIndex * inner; \
+    uint rowBase = batchIndex * inner * 2; \
+    half gateValue = packed[rowBase + lane]; \
+    half upValue = packed[rowBase + inner + lane]; \
+    destination[index] = expr_scalar; \
+}
+
+#define GATED_PACKED_KERNEL_BF16(name, expr_scalar) \
+kernel void name##_packed_bfloat16( \
+    device ushort* destination [[buffer(0)]], \
+    device const ushort* packed [[buffer(1)]], \
+    constant uint& inner [[buffer(2)]], \
+    constant uint& count [[buffer(3)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    if (index >= count) { \
+        return; \
+    } \
+    uint batchIndex = index / inner; \
+    uint lane = index - batchIndex * inner; \
+    uint rowBase = batchIndex * inner * 2; \
+    bfloat gateValue = as_type<bfloat>(packed[rowBase + lane]); \
+    bfloat upValue = as_type<bfloat>(packed[rowBase + inner + lane]); \
+    destination[index] = as_type<ushort>(expr_scalar); \
+}
+
+#endif

@@ -21,6 +21,8 @@ int metal_activation_compose_kernel_name(
     MetalStatus* status
 );
 
+uint32_t metal_activation_vector_launch_count(uint32_t count, int elementDType);
+
 #ifdef __cplusplus
 }
 #endif

@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"errors"
 	"strings"
+	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
@@ -17,6 +18,9 @@ import (
 
 #include <stdlib.h>
 #include "standard.h"
+#include "parametric.h"
+#include "softmax.h"
+#include "gated.h"
 
 extern void cuda_activation_register_module_source(const char* source);
 */
@@ -28,8 +32,23 @@ var activationHubSource string
 //go:embed standard.cu
 var standardDomainSource string
 
+//go:embed parametric.cu
+var parametricDomainSource string
+
+//go:embed softmax.cu
+var softmaxDomainSource string
+
+//go:embed gated.cu
+var gatedDomainSource string
+
 func moduleSource() string {
-	parts := []string{activationHubSource, standardDomainSource}
+	parts := []string{
+		activationHubSource,
+		standardDomainSource,
+		parametricDomainSource,
+		softmaxDomainSource,
+		gatedDomainSource,
+	}
 	return strings.Join(parts, "\n")
 }
 
@@ -149,6 +168,201 @@ func DispatchStandardUnary(
 		0,
 		&status,
 	)
+
+	if code != 0 {
+		return cudaStatusError(status)
+	}
+
+	return nil
+}
+
+func DispatchUnaryParam(
+	contextRef C.CUDADeviceRef,
+	dstBuffer C.CUDABufferRef,
+	srcBuffer C.CUDABufferRef,
+	format dtype.DType,
+	operationPrefix string,
+	param float32,
+	count uint32,
+) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
+	operationName := C.CString(operationPrefix)
+	defer C.free(unsafe.Pointer(operationName))
+
+	var status C.CUDAStatus
+	code := C.cuda_dispatch_unary_param(
+		contextRef,
+		operationName,
+		elementFormat,
+		srcBuffer,
+		dstBuffer,
+		C.uint32_t(count),
+		C.float(param),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		return cudaStatusError(status)
+	}
+
+	return nil
+}
+
+func DispatchSoftmax(
+	contextRef C.CUDADeviceRef,
+	dstBuffer C.CUDABufferRef,
+	srcBuffer C.CUDABufferRef,
+	format dtype.DType,
+	rows uint32,
+	cols uint32,
+) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
+	var status C.CUDAStatus
+	code := C.cuda_dispatch_softmax(
+		contextRef,
+		elementFormat,
+		srcBuffer,
+		dstBuffer,
+		C.uint32_t(rows),
+		C.uint32_t(cols),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		return cudaStatusError(status)
+	}
+
+	return nil
+}
+
+func DispatchGLUTensors(
+	contextRef C.CUDADeviceRef,
+	dstBuffer C.CUDABufferRef,
+	gateBuffer C.CUDABufferRef,
+	upBuffer C.CUDABufferRef,
+	format dtype.DType,
+	variant GLUVariant,
+	count uint32,
+) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
+	var status C.CUDAStatus
+	var code C.int
+
+	switch variant {
+	case SwiGLU:
+		code = C.cuda_dispatch_swiglu(
+			contextRef, elementFormat, dstBuffer, gateBuffer, upBuffer, C.uint32_t(count), 0, &status,
+		)
+	case GeGLU:
+		code = C.cuda_dispatch_geglu(
+			contextRef, elementFormat, dstBuffer, gateBuffer, upBuffer, C.uint32_t(count), 0, &status,
+		)
+	case GLU:
+		code = C.cuda_dispatch_glu(
+			contextRef, elementFormat, dstBuffer, gateBuffer, upBuffer, C.uint32_t(count), 0, &status,
+		)
+	case ReGLU:
+		code = C.cuda_dispatch_reglu(
+			contextRef, elementFormat, dstBuffer, gateBuffer, upBuffer, C.uint32_t(count), 0, &status,
+		)
+	case SiGLU:
+		code = C.cuda_dispatch_siglu(
+			contextRef, elementFormat, dstBuffer, gateBuffer, upBuffer, C.uint32_t(count), 0, &status,
+		)
+	case SeGLU:
+		code = C.cuda_dispatch_seglu(
+			contextRef, elementFormat, dstBuffer, gateBuffer, upBuffer, C.uint32_t(count), 0, &status,
+		)
+	case LinGLU:
+		code = C.cuda_dispatch_linglu(
+			contextRef, elementFormat, dstBuffer, gateBuffer, upBuffer, C.uint32_t(count), 0, &status,
+		)
+	case GeGLUTanh:
+		code = C.cuda_dispatch_geglu_tanh(
+			contextRef, elementFormat, dstBuffer, gateBuffer, upBuffer, C.uint32_t(count), 0, &status,
+		)
+	default:
+		return errUnsupportedKernel
+	}
+
+	if code != 0 {
+		return cudaStatusError(status)
+	}
+
+	return nil
+}
+
+func DispatchGLUPacked(
+	contextRef C.CUDADeviceRef,
+	dstBuffer C.CUDABufferRef,
+	packedBuffer C.CUDABufferRef,
+	format dtype.DType,
+	variant GLUVariant,
+	inner uint32,
+	count uint32,
+) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
+	var status C.CUDAStatus
+	var code C.int
+
+	switch variant {
+	case SwiGLU:
+		code = C.cuda_dispatch_swiglu_packed(
+			contextRef, elementFormat, dstBuffer, packedBuffer, C.uint32_t(inner), C.uint32_t(count), 0, &status,
+		)
+	case GeGLU:
+		code = C.cuda_dispatch_geglu_packed(
+			contextRef, elementFormat, dstBuffer, packedBuffer, C.uint32_t(inner), C.uint32_t(count), 0, &status,
+		)
+	case GLU:
+		code = C.cuda_dispatch_glu_packed(
+			contextRef, elementFormat, dstBuffer, packedBuffer, C.uint32_t(inner), C.uint32_t(count), 0, &status,
+		)
+	case ReGLU:
+		code = C.cuda_dispatch_reglu_packed(
+			contextRef, elementFormat, dstBuffer, packedBuffer, C.uint32_t(inner), C.uint32_t(count), 0, &status,
+		)
+	case SiGLU:
+		code = C.cuda_dispatch_siglu_packed(
+			contextRef, elementFormat, dstBuffer, packedBuffer, C.uint32_t(inner), C.uint32_t(count), 0, &status,
+		)
+	case SeGLU:
+		code = C.cuda_dispatch_seglu_packed(
+			contextRef, elementFormat, dstBuffer, packedBuffer, C.uint32_t(inner), C.uint32_t(count), 0, &status,
+		)
+	case LinGLU:
+		code = C.cuda_dispatch_linglu_packed(
+			contextRef, elementFormat, dstBuffer, packedBuffer, C.uint32_t(inner), C.uint32_t(count), 0, &status,
+		)
+	case GeGLUTanh:
+		code = C.cuda_dispatch_geglu_tanh_packed(
+			contextRef, elementFormat, dstBuffer, packedBuffer, C.uint32_t(inner), C.uint32_t(count), 0, &status,
+		)
+	default:
+		return errUnsupportedKernel
+	}
 
 	if code != 0 {
 		return cudaStatusError(status)

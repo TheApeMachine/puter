@@ -40,6 +40,17 @@ int cuda_dispatch_geglu(
     CUDAStatus* status
 );
 
+int cuda_dispatch_geglu_packed(
+    CUDADeviceRef contextRef,
+    int elementDType,
+    CUDABufferRef destinationRef,
+    CUDABufferRef packedRef,
+    uint32_t inner,
+    uint32_t count,
+    uint64_t completionToken,
+    CUDAStatus* status
+);
+
 int cuda_dispatch_glu(
     CUDADeviceRef contextRef,
     int elementDType,
@@ -62,12 +73,34 @@ int cuda_dispatch_reglu(
     CUDAStatus* status
 );
 
+int cuda_dispatch_reglu_packed(
+    CUDADeviceRef contextRef,
+    int elementDType,
+    CUDABufferRef destinationRef,
+    CUDABufferRef packedRef,
+    uint32_t inner,
+    uint32_t count,
+    uint64_t completionToken,
+    CUDAStatus* status
+);
+
 int cuda_dispatch_siglu(
     CUDADeviceRef contextRef,
     int elementDType,
     CUDABufferRef destinationRef,
     CUDABufferRef gateRef,
     CUDABufferRef upRef,
+    uint32_t count,
+    uint64_t completionToken,
+    CUDAStatus* status
+);
+
+int cuda_dispatch_siglu_packed(
+    CUDADeviceRef contextRef,
+    int elementDType,
+    CUDABufferRef destinationRef,
+    CUDABufferRef packedRef,
+    uint32_t inner,
     uint32_t count,
     uint64_t completionToken,
     CUDAStatus* status
@@ -84,6 +117,17 @@ int cuda_dispatch_seglu(
     CUDAStatus* status
 );
 
+int cuda_dispatch_seglu_packed(
+    CUDADeviceRef contextRef,
+    int elementDType,
+    CUDABufferRef destinationRef,
+    CUDABufferRef packedRef,
+    uint32_t inner,
+    uint32_t count,
+    uint64_t completionToken,
+    CUDAStatus* status
+);
+
 int cuda_dispatch_linglu(
     CUDADeviceRef contextRef,
     int elementDType,
@@ -95,12 +139,45 @@ int cuda_dispatch_linglu(
     CUDAStatus* status
 );
 
+int cuda_dispatch_linglu_packed(
+    CUDADeviceRef contextRef,
+    int elementDType,
+    CUDABufferRef destinationRef,
+    CUDABufferRef packedRef,
+    uint32_t inner,
+    uint32_t count,
+    uint64_t completionToken,
+    CUDAStatus* status
+);
+
 int cuda_dispatch_geglu_tanh(
     CUDADeviceRef contextRef,
     int elementDType,
     CUDABufferRef destinationRef,
     CUDABufferRef gateRef,
     CUDABufferRef upRef,
+    uint32_t count,
+    uint64_t completionToken,
+    CUDAStatus* status
+);
+
+int cuda_dispatch_geglu_tanh_packed(
+    CUDADeviceRef contextRef,
+    int elementDType,
+    CUDABufferRef destinationRef,
+    CUDABufferRef packedRef,
+    uint32_t inner,
+    uint32_t count,
+    uint64_t completionToken,
+    CUDAStatus* status
+);
+
+int cuda_dispatch_glu_packed(
+    CUDADeviceRef contextRef,
+    int elementDType,
+    CUDABufferRef destinationRef,
+    CUDABufferRef packedRef,
+    uint32_t inner,
     uint32_t count,
     uint64_t completionToken,
     CUDAStatus* status

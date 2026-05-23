@@ -232,6 +232,52 @@ int cuda_launch_1d(
     return 0;
 }
 
+int cuda_launch_grid(
+    CUDAContext* context,
+    CUDAKernelRef kernel,
+    CUDAStreamRef stream,
+    uint32_t gridX,
+    uint32_t gridY,
+    uint32_t gridZ,
+    uint32_t blockX,
+    uint32_t blockY,
+    uint32_t blockZ,
+    uint32_t sharedBytes,
+    void** args,
+    size_t argBytes,
+    CUDAStatus* status
+) {
+    (void)context;
+    (void)argBytes;
+
+    if (kernel == NULL || gridX == 0 || blockX == 0) {
+        return 0;
+    }
+
+    CUfunction function = (CUfunction)kernel;
+    CUstream cuStream = (CUstream)stream;
+    CUresult driverStatus = cuLaunchKernel(
+        function,
+        gridX,
+        gridY,
+        gridZ,
+        blockX,
+        blockY,
+        blockZ,
+        sharedBytes,
+        cuStream,
+        args,
+        NULL
+    );
+
+    if (driverStatus != CUDA_SUCCESS) {
+        cuda_status_set(status, -7, "cuLaunchKernel grid failed");
+        return -7;
+    }
+
+    return 0;
+}
+
 void cuda_track_completion(
     CUDAContext* context,
     CUDAStreamRef stream,

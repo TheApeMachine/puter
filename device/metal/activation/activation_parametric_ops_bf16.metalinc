@@ -1,0 +1,100 @@
+#ifndef CARAMBA_DEVICE_METAL_ACTIVATION_PARAMETRIC_OPS_BF16_METALINC
+#define CARAMBA_DEVICE_METAL_ACTIVATION_PARAMETRIC_OPS_BF16_METALINC
+
+#include "activation_bf16_math.metalinc"
+
+static inline bfloat parametric_bf16_prelu(bfloat value, bfloat slope) {
+    return select(slope * value, value, value > activation_bf16_zero());
+}
+
+static inline bfloat parametric_bf16_elu(bfloat value, bfloat alpha) {
+    if (value > activation_bf16_zero()) {
+        return value;
+    }
+
+    return alpha * (activation_bf16_exp(value) - activation_bf16_one());
+}
+
+static inline bfloat parametric_bf16_celu(bfloat value, bfloat alpha) {
+    if (value > activation_bf16_zero()) {
+        return value;
+    }
+
+    return alpha * (activation_bf16_exp(value / alpha) - activation_bf16_one());
+}
+
+static inline bfloat parametric_bf16_threshold(bfloat value, bfloat threshold) {
+    return select(activation_bf16_zero(), value, value > threshold);
+}
+
+struct BF16PReLUSlopeOp {
+    bfloat4 operator()(bfloat4 value, bfloat slope) const {
+        return bfloat4(
+            parametric_bf16_prelu(value.x, slope),
+            parametric_bf16_prelu(value.y, slope),
+            parametric_bf16_prelu(value.z, slope),
+            parametric_bf16_prelu(value.w, slope)
+        );
+    }
+
+    bfloat operator()(bfloat value, bfloat slope) const {
+        return parametric_bf16_prelu(value, slope);
+    }
+};
+
+struct BF16LeakyReLUSlopeOp {
+    bfloat4 operator()(bfloat4 value, bfloat slope) const {
+        return BF16PReLUSlopeOp{}(value, slope);
+    }
+
+    bfloat operator()(bfloat value, bfloat slope) const {
+        return parametric_bf16_prelu(value, slope);
+    }
+};
+
+struct BF16ELUAlphaOp {
+    bfloat4 operator()(bfloat4 value, bfloat alpha) const {
+        return bfloat4(
+            parametric_bf16_elu(value.x, alpha),
+            parametric_bf16_elu(value.y, alpha),
+            parametric_bf16_elu(value.z, alpha),
+            parametric_bf16_elu(value.w, alpha)
+        );
+    }
+
+    bfloat operator()(bfloat value, bfloat alpha) const {
+        return parametric_bf16_elu(value, alpha);
+    }
+};
+
+struct BF16CELUAlphaOp {
+    bfloat4 operator()(bfloat4 value, bfloat alpha) const {
+        return bfloat4(
+            parametric_bf16_celu(value.x, alpha),
+            parametric_bf16_celu(value.y, alpha),
+            parametric_bf16_celu(value.z, alpha),
+            parametric_bf16_celu(value.w, alpha)
+        );
+    }
+
+    bfloat operator()(bfloat value, bfloat alpha) const {
+        return parametric_bf16_celu(value, alpha);
+    }
+};
+
+struct BF16ThresholdOp {
+    bfloat4 operator()(bfloat4 value, bfloat threshold) const {
+        return bfloat4(
+            parametric_bf16_threshold(value.x, threshold),
+            parametric_bf16_threshold(value.y, threshold),
+            parametric_bf16_threshold(value.z, threshold),
+            parametric_bf16_threshold(value.w, threshold)
+        );
+    }
+
+    bfloat operator()(bfloat value, bfloat threshold) const {
+        return parametric_bf16_threshold(value, threshold);
+    }
+};
+
+#endif

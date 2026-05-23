@@ -1,0 +1,115 @@
+#ifndef CARAMBA_DEVICE_METAL_ACTIVATION_GATED_OPS_F32_METALINC
+#define CARAMBA_DEVICE_METAL_ACTIVATION_GATED_OPS_F32_METALINC
+
+#include <metal_stdlib>
+using namespace metal;
+
+static inline float activation_gated_silu_f(float value) {
+    return value / (1.0f + precise::exp(-value));
+}
+
+static inline float4 activation_gated_silu_f4(float4 value) {
+    return value / (float4(1.0f) + precise::exp(-value));
+}
+
+static inline float activation_gated_gelu_f(float value) {
+    const float k = 0.7978845608028655f;
+    const float c = 0.044715f;
+    return 0.5f * value * (1.0f + precise::tanh(k * (value + c * value * value * value)));
+}
+
+static inline float4 activation_gated_gelu_f4(float4 value) {
+    const float4 k = float4(0.7978845608028655f);
+    const float4 c = float4(0.044715f);
+    return float4(0.5f) * value * (float4(1.0f) + precise::tanh(k * (value + c * value * value * value)));
+}
+
+static inline float activation_gated_gelu_tanh_f(float value) {
+    return activation_gated_gelu_f(value);
+}
+
+static inline float4 activation_gated_gelu_tanh_f4(float4 value) {
+    return activation_gated_gelu_f4(value);
+}
+
+static inline float activation_gated_sigmoid_f(float value) {
+    return 1.0f / (1.0f + precise::exp(-value));
+}
+
+static inline float4 activation_gated_sigmoid_f4(float4 value) {
+    return float4(1.0f) / (float4(1.0f) + precise::exp(-value));
+}
+
+static inline float activation_gated_relu_f(float value) {
+    return value > 0.0f ? value : 0.0f;
+}
+
+static inline float4 activation_gated_relu_f4(float4 value) {
+    return max(float4(0.0f), value);
+}
+
+static inline float4 gated_swiglu_f4(float4 gateValue, float4 upValue) {
+    return activation_gated_silu_f4(gateValue) * upValue;
+}
+
+static inline float gated_swiglu_f(float gateValue, float upValue) {
+    return activation_gated_silu_f(gateValue) * upValue;
+}
+
+static inline float4 gated_geglu_f4(float4 gateValue, float4 upValue) {
+    return gateValue * activation_gated_gelu_f4(upValue);
+}
+
+static inline float gated_geglu_f(float gateValue, float upValue) {
+    return gateValue * activation_gated_gelu_f(upValue);
+}
+
+static inline float4 gated_glu_f4(float4 gateValue, float4 upValue) {
+    return gateValue * activation_gated_sigmoid_f4(upValue);
+}
+
+static inline float gated_glu_f(float gateValue, float upValue) {
+    return gateValue * activation_gated_sigmoid_f(upValue);
+}
+
+static inline float4 gated_reglu_f4(float4 gateValue, float4 upValue) {
+    return gateValue * activation_gated_relu_f4(upValue);
+}
+
+static inline float gated_reglu_f(float gateValue, float upValue) {
+    return gateValue * activation_gated_relu_f(upValue);
+}
+
+static inline float4 gated_siglu_f4(float4 gateValue, float4 upValue) {
+    return activation_gated_sigmoid_f4(gateValue) * upValue;
+}
+
+static inline float gated_siglu_f(float gateValue, float upValue) {
+    return activation_gated_sigmoid_f(gateValue) * upValue;
+}
+
+static inline float4 gated_seglu_f4(float4 gateValue, float4 upValue) {
+    return upValue * activation_gated_sigmoid_f4(gateValue);
+}
+
+static inline float gated_seglu_f(float gateValue, float upValue) {
+    return upValue * activation_gated_sigmoid_f(gateValue);
+}
+
+static inline float4 gated_linglu_f4(float4 gateValue, float4 upValue) {
+    return gateValue * upValue;
+}
+
+static inline float gated_linglu_f(float gateValue, float upValue) {
+    return gateValue * upValue;
+}
+
+static inline float4 gated_geglu_tanh_f4(float4 gateValue, float4 upValue) {
+    return gateValue * activation_gated_gelu_tanh_f4(upValue);
+}
+
+static inline float gated_geglu_tanh_f(float gateValue, float upValue) {
+    return gateValue * activation_gated_gelu_tanh_f(upValue);
+}
+
+#endif

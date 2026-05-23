@@ -1,0 +1,57 @@
+#ifndef CARAMBA_DEVICE_METAL_ACTIVATION_PARAMETRIC_OPS_F32_METALINC
+#define CARAMBA_DEVICE_METAL_ACTIVATION_PARAMETRIC_OPS_F32_METALINC
+
+#include <metal_stdlib>
+using namespace metal;
+
+struct PReLUSlopeOp {
+    float4 operator()(float4 value, float slope) const {
+        return select(slope * value, value, value > float4(0.0f));
+    }
+
+    float operator()(float value, float slope) const {
+        return value > 0.0f ? value : slope * value;
+    }
+};
+
+struct LeakyReLUSlopeOp {
+    float4 operator()(float4 value, float slope) const {
+        return select(slope * value, value, value > float4(0.0f));
+    }
+
+    float operator()(float value, float slope) const {
+        return value > 0.0f ? value : slope * value;
+    }
+};
+
+struct ELUAlphaOp {
+    float4 operator()(float4 value, float alpha) const {
+        return select(alpha * (precise::exp(value) - float4(1.0f)), value, value > float4(0.0f));
+    }
+
+    float operator()(float value, float alpha) const {
+        return value > 0.0f ? value : alpha * (precise::exp(value) - 1.0f);
+    }
+};
+
+struct CELUAlphaOp {
+    float4 operator()(float4 value, float alpha) const {
+        return select(alpha * (precise::exp(value / alpha) - float4(1.0f)), value, value > float4(0.0f));
+    }
+
+    float operator()(float value, float alpha) const {
+        return value > 0.0f ? value : alpha * (precise::exp(value / alpha) - 1.0f);
+    }
+};
+
+struct ThresholdOp {
+    float4 operator()(float4 value, float threshold) const {
+        return select(float4(0.0f), value, value > float4(threshold));
+    }
+
+    float operator()(float value, float threshold) const {
+        return value > threshold ? value : 0.0f;
+    }
+};
+
+#endif

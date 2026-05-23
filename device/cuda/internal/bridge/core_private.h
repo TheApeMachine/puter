@@ -46,6 +46,22 @@ int cuda_launch_1d(
     CUDAStatus* status
 );
 
+int cuda_launch_grid(
+    CUDAContext* context,
+    CUDAKernelRef kernel,
+    CUDAStreamRef stream,
+    uint32_t gridX,
+    uint32_t gridY,
+    uint32_t gridZ,
+    uint32_t blockX,
+    uint32_t blockY,
+    uint32_t blockZ,
+    uint32_t sharedBytes,
+    void** args,
+    size_t argBytes,
+    CUDAStatus* status
+);
+
 void cuda_track_completion(
     CUDAContext* context,
     CUDAStreamRef stream,

@@ -64,3 +64,18 @@ int metal_activation_compose_kernel_name(
 
     return 0;
 }
+
+uint32_t metal_activation_vector_launch_count(uint32_t count, int elementDType) {
+    if (count == 0) {
+        return 0;
+    }
+
+    switch (elementDType) {
+    case MetalElementDTypeFloat32:
+    case MetalElementDTypeFloat16:
+    case MetalElementDTypeBFloat16:
+        return (count + 3u) / 4u;
+    default:
+        return count;
+    }
+}

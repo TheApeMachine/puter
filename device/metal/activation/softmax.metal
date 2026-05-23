@@ -1,62 +1,24 @@
 #include <metal_stdlib>
+#include "activation_bf16_math.metalinc"
 
 using namespace metal;
 
 constant uint softmaxThreadCount = 256;
 constant uint softmaxSimdgroupWidth = 32;
 
-static inline float bf16_to_float_softmax(ushort value) {
-    return as_type<float>(uint(value) << 16);
-}
-
-static inline ushort float_to_bf16_softmax(float value) {
-    return ushort(as_type<uint>(value) >> 16);
-}
-
-struct Float32SoftmaxStorage {
-    static float load(device const float* values, uint index) {
-        return values[index];
-    }
-
-    static void store(device float* values, uint index, float value) {
-        values[index] = value;
-    }
-};
-
-struct Float16SoftmaxStorage {
-    static float load(device const half* values, uint index) {
-        return float(values[index]);
-    }
-
-    static void store(device half* values, uint index, float value) {
-        values[index] = half(value);
-    }
-};
-
-struct BFloat16SoftmaxStorage {
-    static float load(device const ushort* values, uint index) {
-        return bf16_to_float_softmax(values[index]);
-    }
-
-    static void store(device ushort* values, uint index, float value) {
-        values[index] = float_to_bf16_softmax(value);
-    }
-};
-
-template <typename Storage, typename Scalar>
-static inline void softmax_rows(
-    device const Scalar* input,
-    device Scalar* out,
-    threadgroup float* reduction,
-    constant uint& cols,
-    uint row,
-    uint threadIndex
+kernel void softmax_float32(
+    device const float* input [[buffer(0)]],
+    device float* out [[buffer(1)]],
+    constant uint& cols [[buffer(2)]],
+    uint row [[threadgroup_position_in_grid]],
+    uint threadIndex [[thread_position_in_threadgroup]]
 ) {
+    threadgroup float reduction[256];
     uint rowOffset = row * cols;
     float localMax = -3.4028234663852886e38f;
 
     for (uint col = threadIndex; col < cols; col += softmaxThreadCount) {
-        localMax = max(localMax, Storage::load(input, rowOffset + col));
+        localMax = max(localMax, input[rowOffset + col]);
     }
 
     localMax = simd_max(localMax);
@@ -86,7 +48,7 @@ static inline void softmax_rows(
     float localSum = 0.0f;
 
     for (uint col = threadIndex; col < cols; col += softmaxThreadCount) {
-        localSum += exp(Storage::load(input, rowOffset + col) - maximum);
+        localSum += exp(input[rowOffset + col] - maximum);
     }
 
     localSum = simd_sum(localSum);
@@ -112,23 +74,126 @@ static inline void softmax_rows(
     float sum = reduction[0];
 
     for (uint col = threadIndex; col < cols; col += softmaxThreadCount) {
-        float value = sum == 0.0f ? 0.0f : exp(Storage::load(input, rowOffset + col) - maximum) / sum;
-        Storage::store(out, rowOffset + col, value);
+        float value = sum == 0.0f ? 0.0f : exp(input[rowOffset + col] - maximum) / sum;
+        out[rowOffset + col] = value;
     }
 }
 
-#define SOFTMAX_KERNEL(name, storage, scalar) \
-kernel void name( \
-    device const scalar* input [[buffer(0)]], \
-    device scalar* out [[buffer(1)]], \
-    constant uint& cols [[buffer(2)]], \
-    uint row [[threadgroup_position_in_grid]], \
-    uint threadIndex [[thread_position_in_threadgroup]] \
-) { \
-    threadgroup float reduction[256]; \
-    softmax_rows<storage, scalar>(input, out, reduction, cols, row, threadIndex); \
+kernel void softmax_float16(
+    device const half* input [[buffer(0)]],
+    device half* out [[buffer(1)]],
+    constant uint& cols [[buffer(2)]],
+    uint row [[threadgroup_position_in_grid]],
+    uint threadIndex [[thread_position_in_threadgroup]]
+) {
+    threadgroup half reduction[256];
+    uint rowOffset = row * cols;
+    half localMax = half(-65504.0h);
+
+    for (uint col = threadIndex; col < cols; col += softmaxThreadCount) {
+        localMax = max(localMax, input[rowOffset + col]);
+    }
+
+    reduction[threadIndex] = localMax;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    if (threadIndex == 0) {
+        half rowMax = reduction[0];
+
+        for (uint offset = 1; offset < softmaxThreadCount; offset++) {
+            rowMax = max(rowMax, reduction[offset]);
+        }
+
+        reduction[0] = rowMax;
+    }
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    half maximum = reduction[0];
+    half localSum = half(0.0h);
+
+    for (uint col = threadIndex; col < cols; col += softmaxThreadCount) {
+        localSum = localSum + exp(input[rowOffset + col] - maximum);
+    }
+
+    reduction[threadIndex] = localSum;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    if (threadIndex == 0) {
+        half rowSum = reduction[0];
+
+        for (uint offset = 1; offset < softmaxThreadCount; offset++) {
+            rowSum = rowSum + reduction[offset];
+        }
+
+        reduction[0] = rowSum;
+    }
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    half sum = reduction[0];
+
+    for (uint col = threadIndex; col < cols; col += softmaxThreadCount) {
+        half numerator = exp(input[rowOffset + col] - maximum);
+        out[rowOffset + col] = numerator / sum;
+    }
 }
 
-SOFTMAX_KERNEL(softmax_float32, Float32SoftmaxStorage, float)
-SOFTMAX_KERNEL(softmax_float16, Float16SoftmaxStorage, half)
-SOFTMAX_KERNEL(softmax_bfloat16, BFloat16SoftmaxStorage, ushort)
+kernel void softmax_bfloat16(
+    device const ushort* input [[buffer(0)]],
+    device ushort* out [[buffer(1)]],
+    constant uint& cols [[buffer(2)]],
+    uint row [[threadgroup_position_in_grid]],
+    uint threadIndex [[thread_position_in_threadgroup]]
+) {
+    threadgroup bfloat reduction[256];
+    uint rowOffset = row * cols;
+    bfloat localMax = bfloat(-3.38953139e38);
+
+    for (uint col = threadIndex; col < cols; col += softmaxThreadCount) {
+        bfloat loaded = as_type<bfloat>(input[rowOffset + col]);
+        localMax = activation_bf16_max(localMax, loaded);
+    }
+
+    reduction[threadIndex] = localMax;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    if (threadIndex == 0) {
+        bfloat rowMax = reduction[0];
+
+        for (uint offset = 1; offset < softmaxThreadCount; offset++) {
+            rowMax = activation_bf16_max(rowMax, reduction[offset]);
+        }
+
+        reduction[0] = rowMax;
+    }
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    bfloat maximum = reduction[0];
+    bfloat localSum = activation_bf16_zero();
+
+    for (uint col = threadIndex; col < cols; col += softmaxThreadCount) {
+        bfloat loaded = as_type<bfloat>(input[rowOffset + col]);
+        localSum = localSum + activation_bf16_exp(loaded - maximum);
+    }
+
+    reduction[threadIndex] = localSum;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    if (threadIndex == 0) {
+        bfloat rowSum = reduction[0];
+
+        for (uint offset = 1; offset < softmaxThreadCount; offset++) {
+            rowSum = rowSum + reduction[offset];
+        }
+
+        reduction[0] = rowSum;
+    }
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    bfloat sum = reduction[0];
+
+    for (uint col = threadIndex; col < cols; col += softmaxThreadCount) {
+        bfloat loaded = as_type<bfloat>(input[rowOffset + col]);
+        bfloat numerator = activation_bf16_exp(loaded - maximum);
+        out[rowOffset + col] = as_type<ushort>(numerator / sum);
+    }
+}

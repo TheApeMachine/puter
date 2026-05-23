@@ -1,204 +1,82 @@
-#include "activation.cuh"
+#include "activation_unary_macros.cuh"
+#include "activation_ops_f32.cuh"
+#include "activation_ops_f16.cuh"
+#include "activation_ops_bf16.cuh"
 
-#define ACTIVATION_UNARY_KERNEL(name, expr) \
-extern "C" __global__ void name##_float32( \
-    const float* input, \
-    float* output, \
-    unsigned int count \
-) { \
-    unsigned int index = blockIdx.x * blockDim.x + threadIdx.x; \
-    if (index >= count) { \
-        return; \
-    } \
-    float value = input[index]; \
-    output[index] = (expr); \
-}
+ACTIVATION_UNARY_KERNEL_F32(relu, activation_relu_f4, activation_relu_f1)
+ACTIVATION_UNARY_KERNEL_F32(exp, activation_exp_f4, activation_exp_f1)
+ACTIVATION_UNARY_KERNEL_F32(log, activation_log_f4, activation_log_f1)
+ACTIVATION_UNARY_KERNEL_F32(tanh, activation_tanh_f4, activation_tanh_f1)
+ACTIVATION_UNARY_KERNEL_F32(gelu, activation_gelu_f4, activation_gelu_f1)
+ACTIVATION_UNARY_KERNEL_F32(sigmoid, activation_sigmoid_f4, activation_sigmoid_f1)
+ACTIVATION_UNARY_KERNEL_F32(silu, activation_silu_f4, activation_silu_f1)
+ACTIVATION_UNARY_KERNEL_F32(swish, activation_silu_f4, activation_silu_f1)
+ACTIVATION_UNARY_KERNEL_F32(softsign, activation_softsign_f4, activation_softsign_f1)
+ACTIVATION_UNARY_KERNEL_F32(elu, activation_elu_f4, activation_elu_f1)
+ACTIVATION_UNARY_KERNEL_F32(selu, activation_selu_f4, activation_selu_f1)
+ACTIVATION_UNARY_KERNEL_F32(leaky_relu, activation_leaky_relu_f4, activation_leaky_relu_f1)
+ACTIVATION_UNARY_KERNEL_F32(hardsigmoid, activation_hardsigmoid_f4, activation_hardsigmoid_f1)
+ACTIVATION_UNARY_KERNEL_F32(hardswish, activation_hardswish_f4, activation_hardswish_f1)
+ACTIVATION_UNARY_KERNEL_F32(log1p, activation_log1p_f4, activation_log1p_f1)
+ACTIVATION_UNARY_KERNEL_F32(expm1, activation_expm1_f4, activation_expm1_f1)
+ACTIVATION_UNARY_KERNEL_F32(celu, activation_celu_f4, activation_celu_f1)
+ACTIVATION_UNARY_KERNEL_F32(softplus, activation_softplus_f4, activation_softplus_f1)
+ACTIVATION_UNARY_KERNEL_F32(mish, activation_mish_f4, activation_mish_f1)
+ACTIVATION_UNARY_KERNEL_F32(log_sigmoid, activation_log_sigmoid_f4, activation_log_sigmoid_f1)
+ACTIVATION_UNARY_KERNEL_F32(gelu_tanh, activation_gelu_tanh_f4, activation_gelu_tanh_f1)
+ACTIVATION_UNARY_KERNEL_F32(hardtanh, activation_hardtanh_f4, activation_hardtanh_f1)
+ACTIVATION_UNARY_KERNEL_F32(hard_gelu, activation_hard_gelu_f4, activation_hard_gelu_f1)
+ACTIVATION_UNARY_KERNEL_F32(quick_gelu, activation_quick_gelu_f4, activation_quick_gelu_f1)
+ACTIVATION_UNARY_KERNEL_F32(tanh_shrink, activation_tanh_shrink_f4, activation_tanh_shrink_f1)
 
-ACTIVATION_UNARY_KERNEL(exp, expf(value))
-ACTIVATION_UNARY_KERNEL(log, logf(value))
-ACTIVATION_UNARY_KERNEL(log1p, log1pf(value))
-ACTIVATION_UNARY_KERNEL(expm1, expm1f(value))
-ACTIVATION_UNARY_KERNEL(sigmoid, 1.0f / (1.0f + expf(-value)))
-ACTIVATION_UNARY_KERNEL(log_sigmoid, -logf(1.0f + expf(-value)))
-ACTIVATION_UNARY_KERNEL(tanh, tanhf(value))
-ACTIVATION_UNARY_KERNEL(silu, value / (1.0f + expf(-value)))
-ACTIVATION_UNARY_KERNEL(swish, value / (1.0f + expf(-value)))
-ACTIVATION_UNARY_KERNEL(softsign, value / (1.0f + fabsf(value)))
-ACTIVATION_UNARY_KERNEL(softplus, log1pf(expf(value)))
-ACTIVATION_UNARY_KERNEL(mish, value * tanhf(log1pf(expf(value))))
-ACTIVATION_UNARY_KERNEL(hardsigmoid, fminf(1.0f, fmaxf(0.0f, 0.2f * value + 0.5f)))
-ACTIVATION_UNARY_KERNEL(hardswish, value * fminf(1.0f, fmaxf(0.0f, value + 3.0f)) / 6.0f))
-ACTIVATION_UNARY_KERNEL(hardtanh, fminf(1.0f, fmaxf(-1.0f, value)))
-ACTIVATION_UNARY_KERNEL(quick_gelu, value * sigmoidf(1.702f * value))
-ACTIVATION_UNARY_KERNEL(tanh_shrink, value - tanhf(value))
+ACTIVATION_UNARY_KERNEL_F16(relu, activation_relu_h2, activation_relu_h1)
+ACTIVATION_UNARY_KERNEL_F16(exp, activation_exp_h2, activation_exp_h1)
+ACTIVATION_UNARY_KERNEL_F16(log, activation_log_h2, activation_log_h1)
+ACTIVATION_UNARY_KERNEL_F16(tanh, activation_tanh_h2, activation_tanh_h1)
+ACTIVATION_UNARY_KERNEL_F16(gelu, activation_gelu_h2, activation_gelu_h1)
+ACTIVATION_UNARY_KERNEL_F16(sigmoid, activation_sigmoid_h2, activation_sigmoid_h1)
+ACTIVATION_UNARY_KERNEL_F16(silu, activation_silu_h2, activation_silu_h1)
+ACTIVATION_UNARY_KERNEL_F16(swish, activation_silu_h2, activation_silu_h1)
+ACTIVATION_UNARY_KERNEL_F16(softsign, activation_softsign_h2, activation_softsign_h1)
+ACTIVATION_UNARY_KERNEL_F16(elu, activation_elu_h2, activation_elu_h1)
+ACTIVATION_UNARY_KERNEL_F16(selu, activation_selu_h2, activation_selu_h1)
+ACTIVATION_UNARY_KERNEL_F16(leaky_relu, activation_leaky_relu_h2, activation_leaky_relu_h1)
+ACTIVATION_UNARY_KERNEL_F16(hardsigmoid, activation_hardsigmoid_h2, activation_hardsigmoid_h1)
+ACTIVATION_UNARY_KERNEL_F16(hardswish, activation_hardswish_h2, activation_hardswish_h1)
+ACTIVATION_UNARY_KERNEL_F16(log1p, activation_log1p_h2, activation_log1p_h1)
+ACTIVATION_UNARY_KERNEL_F16(expm1, activation_expm1_h2, activation_expm1_h1)
+ACTIVATION_UNARY_KERNEL_F16(celu, activation_celu_h2, activation_celu_h1)
+ACTIVATION_UNARY_KERNEL_F16(softplus, activation_softplus_h2, activation_softplus_h1)
+ACTIVATION_UNARY_KERNEL_F16(mish, activation_mish_h2, activation_mish_h1)
+ACTIVATION_UNARY_KERNEL_F16(log_sigmoid, activation_log_sigmoid_h2, activation_log_sigmoid_h1)
+ACTIVATION_UNARY_KERNEL_F16(gelu_tanh, activation_gelu_tanh_h2, activation_gelu_tanh_h1)
+ACTIVATION_UNARY_KERNEL_F16(hardtanh, activation_hardtanh_h2, activation_hardtanh_h1)
+ACTIVATION_UNARY_KERNEL_F16(hard_gelu, activation_hard_gelu_h2, activation_hard_gelu_h1)
+ACTIVATION_UNARY_KERNEL_F16(quick_gelu, activation_quick_gelu_h2, activation_quick_gelu_h1)
+ACTIVATION_UNARY_KERNEL_F16(tanh_shrink, activation_tanh_shrink_h2, activation_tanh_shrink_h1)
 
-extern "C" __global__ void gelu_float32(
-    const float* input,
-    float* output,
-    unsigned int count
-) {
-    unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (index >= count) {
-        return;
-    }
-
-    float value = input[index];
-    output[index] = 0.5f * value * (1.0f + erff(value * 0.70710678118654752440f));
-}
-
-extern "C" __global__ void gelu_tanh_float32(
-    const float* input,
-    float* output,
-    unsigned int count
-) {
-    unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (index >= count) {
-        return;
-    }
-
-    float value = input[index];
-    float cube = value * value * value;
-    float inner = 0.7978845608028654f * (value + 0.044715f * cube);
-    output[index] = 0.5f * value * (1.0f + tanhf(inner));
-}
-
-extern "C" __global__ void hard_gelu_float32(
-    const float* input,
-    float* output,
-    unsigned int count
-) {
-    unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (index >= count) {
-        return;
-    }
-
-    float value = input[index];
-    float scaled = (value + 1.5f) / 3.0f;
-
-    if (value <= -1.5f) {
-        output[index] = 0.0f;
-        return;
-    }
-
-    if (value >= 1.5f) {
-        output[index] = value;
-        return;
-    }
-
-    output[index] = value * scaled;
-}
-
-extern "C" __global__ void relu_float32(
-    const float* input,
-    float* output,
-    unsigned int count
-) {
-    unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (index >= count) {
-        return;
-    }
-
-    float value = input[index];
-    output[index] = value > 0.0f ? value : 0.0f;
-}
-
-extern "C" __global__ void leaky_relu_float32(
-    const float* input,
-    float* output,
-    unsigned int count
-) {
-    unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (index >= count) {
-        return;
-    }
-
-    float value = input[index];
-    float slope = activation_leaky_relu_slope();
-    output[index] = value > 0.0f ? value : slope * value;
-}
-
-extern "C" __global__ void elu_float32(
-    const float* input,
-    float* output,
-    unsigned int count
-) {
-    unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (index >= count) {
-        return;
-    }
-
-    float value = input[index];
-    output[index] = value > 0.0f ? value : expf(value) - 1.0f;
-}
-
-extern "C" __global__ void celu_float32(
-    const float* input,
-    float* output,
-    unsigned int count
-) {
-    unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (index >= count) {
-        return;
-    }
-
-    float value = input[index];
-    output[index] = value > 0.0f ? value : expf(value) - 1.0f;
-}
-
-extern "C" __global__ void selu_float32(
-    const float* input,
-    float* output,
-    unsigned int count
-) {
-    unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (index >= count) {
-        return;
-    }
-
-    float value = input[index];
-    float scale = activation_selu_scale();
-    float alpha = activation_selu_alpha();
-    output[index] = value > 0.0f ? scale * value : scale * alpha * (expf(value) - 1.0f);
-}
-
-#define ACTIVATION_UNARY_KERNEL_F16(name, expr) \
-extern "C" __global__ void name##_float16( \
-    const __half* input, \
-    __half* output, \
-    unsigned int count \
-) { \
-    unsigned int index = blockIdx.x * blockDim.x + threadIdx.x; \
-    if (index >= count) { \
-        return; \
-    } \
-    float value = __half2float(input[index]); \
-    output[index] = __float2half(expr); \
-}
-
-ACTIVATION_UNARY_KERNEL_F16(exp, expf(value))
-ACTIVATION_UNARY_KERNEL_F16(relu, value > 0.0f ? value : 0.0f)
-
-#define ACTIVATION_UNARY_KERNEL_BF16(name, expr) \
-extern "C" __global__ void name##_bfloat16( \
-    const __nv_bfloat16* input, \
-    __nv_bfloat16* output, \
-    unsigned int count \
-) { \
-    unsigned int index = blockIdx.x * blockDim.x + threadIdx.x; \
-    if (index >= count) { \
-        return; \
-    } \
-    float value = activation_bf16_to_float(input[index]); \
-    output[index] = activation_float_to_bf16(expr); \
-}
-
-ACTIVATION_UNARY_KERNEL_BF16(exp, expf(value))
-ACTIVATION_UNARY_KERNEL_BF16(relu, value > 0.0f ? value : 0.0f)
+ACTIVATION_UNARY_KERNEL_BF16(relu, activation_relu_b2, activation_relu_bf16)
+ACTIVATION_UNARY_KERNEL_BF16(exp, activation_exp_b2, activation_exp_b1)
+ACTIVATION_UNARY_KERNEL_BF16(log, activation_log_b2, activation_log_b1)
+ACTIVATION_UNARY_KERNEL_BF16(tanh, activation_tanh_b2, activation_tanh_b1)
+ACTIVATION_UNARY_KERNEL_BF16(gelu, activation_gelu_b2, activation_gelu_bf16)
+ACTIVATION_UNARY_KERNEL_BF16(sigmoid, activation_sigmoid_b2, activation_sigmoid_bf16)
+ACTIVATION_UNARY_KERNEL_BF16(silu, activation_silu_b2, activation_silu_bf16)
+ACTIVATION_UNARY_KERNEL_BF16(swish, activation_silu_b2, activation_silu_bf16)
+ACTIVATION_UNARY_KERNEL_BF16(softsign, activation_softsign_b2, activation_softsign_b1)
+ACTIVATION_UNARY_KERNEL_BF16(elu, activation_elu_b2, activation_elu_b1)
+ACTIVATION_UNARY_KERNEL_BF16(selu, activation_selu_b2, activation_selu_b1)
+ACTIVATION_UNARY_KERNEL_BF16(leaky_relu, activation_leaky_relu_b2, activation_leaky_relu_b1)
+ACTIVATION_UNARY_KERNEL_BF16(hardsigmoid, activation_hardsigmoid_b2, activation_hardsigmoid_b1)
+ACTIVATION_UNARY_KERNEL_BF16(hardswish, activation_hardswish_b2, activation_hardswish_b1)
+ACTIVATION_UNARY_KERNEL_BF16(log1p, activation_log1p_b2, activation_log1p_b1)
+ACTIVATION_UNARY_KERNEL_BF16(expm1, activation_expm1_b2, activation_expm1_b1)
+ACTIVATION_UNARY_KERNEL_BF16(celu, activation_celu_b2, activation_celu_b1)
+ACTIVATION_UNARY_KERNEL_BF16(softplus, activation_softplus_b2, activation_softplus_b1)
+ACTIVATION_UNARY_KERNEL_BF16(mish, activation_mish_b2, activation_mish_b1)
+ACTIVATION_UNARY_KERNEL_BF16(log_sigmoid, activation_log_sigmoid_b2, activation_log_sigmoid_b1)
+ACTIVATION_UNARY_KERNEL_BF16(gelu_tanh, activation_gelu_tanh_b2, activation_gelu_tanh_bf16)
+ACTIVATION_UNARY_KERNEL_BF16(hardtanh, activation_hardtanh_b2, activation_hardtanh_b1)
+ACTIVATION_UNARY_KERNEL_BF16(hard_gelu, activation_hard_gelu_b2, activation_hard_gelu_b1)
+ACTIVATION_UNARY_KERNEL_BF16(quick_gelu, activation_quick_gelu_b2, activation_quick_gelu_b1)
+ACTIVATION_UNARY_KERNEL_BF16(tanh_shrink, activation_tanh_shrink_b2, activation_tanh_shrink_b1)

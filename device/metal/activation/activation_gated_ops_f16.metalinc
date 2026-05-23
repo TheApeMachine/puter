@@ -1,0 +1,70 @@
+#ifndef CARAMBA_DEVICE_METAL_ACTIVATION_GATED_OPS_F16_METALINC
+#define CARAMBA_DEVICE_METAL_ACTIVATION_GATED_OPS_F16_METALINC
+
+#include "activation_ops_f16.metalinc"
+
+static inline half gated_swiglu_h(half gateValue, half upValue) {
+    return HalfSiluOp{}(gateValue) * upValue;
+}
+
+static inline half4 gated_swiglu_h4(half4 gateValue, half4 upValue) {
+    return HalfSiluOp{}(gateValue) * upValue;
+}
+
+static inline half gated_geglu_h(half gateValue, half upValue) {
+    return gateValue * HalfGeluOp{}(upValue);
+}
+
+static inline half4 gated_geglu_h4(half4 gateValue, half4 upValue) {
+    return gateValue * HalfGeluOp{}(upValue);
+}
+
+static inline half gated_glu_h(half gateValue, half upValue) {
+    return gateValue * HalfSigmoidOp{}(upValue);
+}
+
+static inline half4 gated_glu_h4(half4 gateValue, half4 upValue) {
+    return gateValue * HalfSigmoidOp{}(upValue);
+}
+
+static inline half gated_reglu_h(half gateValue, half upValue) {
+    return gateValue * HalfReluOp{}(upValue);
+}
+
+static inline half4 gated_reglu_h4(half4 gateValue, half4 upValue) {
+    return gateValue * HalfReluOp{}(upValue);
+}
+
+static inline half gated_siglu_h(half gateValue, half upValue) {
+    return HalfSigmoidOp{}(gateValue) * upValue;
+}
+
+static inline half4 gated_siglu_h4(half4 gateValue, half4 upValue) {
+    return HalfSigmoidOp{}(gateValue) * upValue;
+}
+
+static inline half gated_seglu_h(half gateValue, half upValue) {
+    return upValue * HalfSigmoidOp{}(gateValue);
+}
+
+static inline half4 gated_seglu_h4(half4 gateValue, half4 upValue) {
+    return upValue * HalfSigmoidOp{}(gateValue);
+}
+
+static inline half gated_linglu_h(half gateValue, half upValue) {
+    return gateValue * upValue;
+}
+
+static inline half4 gated_linglu_h4(half4 gateValue, half4 upValue) {
+    return gateValue * upValue;
+}
+
+static inline half gated_geglu_tanh_h(half gateValue, half upValue) {
+    return gateValue * HalfGeluTanhOp{}(upValue);
+}
+
+static inline half4 gated_geglu_tanh_h4(half4 gateValue, half4 upValue) {
+    return gateValue * HalfGeluTanhOp{}(upValue);
+}
+
+#endif

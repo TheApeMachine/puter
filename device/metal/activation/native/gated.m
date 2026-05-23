@@ -16,27 +16,40 @@ static int metal_gated_dispatch(
 ) {
     @autoreleasepool {
         metal_activation_status_clear(status);
+
         if (threadCount == 0) {
-            metal_activation_status_set(status, -6, "empty Metal gated dispatch");
+            return 0;
+        }
+
+        if (kernelName == NULL) {
+            metal_activation_status_set(status, -6, "unknown Metal gated kernel");
             return -6;
         }
+
         MetalContext* context = (MetalContext*)contextRef;
+
         if (context == NULL || context->queue == NULL || context->device == NULL) {
             metal_activation_status_set(status, -1, "invalid Metal context");
             return -1;
         }
+
         id<MTLComputePipelineState> pipeline = metal_get_pipeline(context, kernelName, status);
+
         if (pipeline == nil) {
             return status != NULL && status->code != 0 ? status->code : -7;
         }
+
         id<MTLCommandBuffer> commandBuffer;
         id<MTLComputeCommandEncoder> encoder = metal_get_encoder((MetalContext*)contextRef, &commandBuffer);
         [encoder setComputePipelineState:pipeline];
         encode(encoder);
+
         NSUInteger threadWidth = [pipeline threadExecutionWidth];
+
         if (threadWidth == 0) {
             threadWidth = 1;
         }
+
         [encoder dispatchThreads:MTLSizeMake(threadCount, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(threadWidth, 1, 1)];
         metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
@@ -45,21 +58,9 @@ static int metal_gated_dispatch(
     }
 }
 
-static const char* metal_swiglu_kernel_name(int elementDType) {
-    switch (elementDType) {
-    case MetalElementDTypeFloat32:
-        return "swiglu_float32";
-    case MetalElementDTypeFloat16:
-        return "swiglu_float16";
-    case MetalElementDTypeBFloat16:
-        return "swiglu_bfloat16";
-    default:
-        return NULL;
-    }
-}
-
-int metal_dispatch_swiglu(
+static int metal_gated_launch_tensor(
     MetalDeviceRef contextRef,
+    const char* kernelName,
     int elementDType,
     MetalBufferRef destinationRef,
     MetalBufferRef gateRef,
@@ -68,22 +69,15 @@ int metal_dispatch_swiglu(
     uint64_t completionToken,
     MetalStatus* status
 ) {
-    const char* kernelName = metal_swiglu_kernel_name(elementDType);
-
     if (destinationRef == NULL || gateRef == NULL || upRef == NULL) {
         metal_activation_status_set(status, -2, "nil Metal buffer");
         return -2;
     }
 
-    if (kernelName == NULL) {
-        metal_activation_status_set(status, -6, "unknown Metal swiglu dtype");
-        return -6;
-    }
-
     return metal_gated_dispatch(
         contextRef,
         kernelName,
-        (NSUInteger)((count + 3u) / 4u),
+        (NSUInteger)metal_activation_vector_launch_count(count, elementDType),
         completionToken,
         status,
         ^(id<MTLComputeCommandEncoder> encoder) {
@@ -95,22 +89,9 @@ int metal_dispatch_swiglu(
     );
 }
 
-static const char* metal_swiglu_packed_kernel_name(int elementDType) {
-    switch (elementDType) {
-    case MetalElementDTypeFloat32:
-        return "swiglu_packed_float32";
-    case MetalElementDTypeFloat16:
-        return "swiglu_packed_float16";
-    case MetalElementDTypeBFloat16:
-        return "swiglu_packed_bfloat16";
-    default:
-        return NULL;
-    }
-}
-
-int metal_dispatch_swiglu_packed(
+static int metal_gated_launch_packed(
     MetalDeviceRef contextRef,
-    int elementDType,
+    const char* kernelName,
     MetalBufferRef destinationRef,
     MetalBufferRef packedRef,
     uint32_t inner,
@@ -118,22 +99,15 @@ int metal_dispatch_swiglu_packed(
     uint64_t completionToken,
     MetalStatus* status
 ) {
-    const char* kernelName = metal_swiglu_packed_kernel_name(elementDType);
-
     if (destinationRef == NULL || packedRef == NULL) {
         metal_activation_status_set(status, -2, "nil Metal buffer");
         return -2;
     }
 
-    if (kernelName == NULL) {
-        metal_activation_status_set(status, -6, "unknown Metal packed swiglu dtype");
-        return -6;
-    }
-
     return metal_gated_dispatch(
         contextRef,
         kernelName,
-        (NSUInteger)((count + 3u) / 4u),
+        (NSUInteger)count,
         completionToken,
         status,
         ^(id<MTLComputeCommandEncoder> encoder) {
@@ -144,6 +118,113 @@ int metal_dispatch_swiglu_packed(
         }
     );
 }
+
+static const char* metal_gated_tensor_kernel_name(const char* prefix, int elementDType, MetalStatus* status) {
+    static __thread char kernelName[128];
+    const char* suffix = metal_activation_element_dtype_suffix(elementDType);
+
+    if (suffix == NULL) {
+        metal_activation_status_set(status, -6, "unknown Metal gated dtype");
+        return NULL;
+    }
+
+    if (metal_activation_compose_kernel_name(kernelName, sizeof(kernelName), prefix, suffix, status) != 0) {
+        return NULL;
+    }
+
+    return kernelName;
+}
+
+static const char* metal_gated_packed_kernel_name(const char* prefix, int elementDType, MetalStatus* status) {
+    static __thread char kernelName[128];
+    const char* suffix = metal_activation_element_dtype_suffix(elementDType);
+
+    if (suffix == NULL) {
+        metal_activation_status_set(status, -6, "unknown Metal packed gated dtype");
+        return NULL;
+    }
+
+    char prefixBuffer[64];
+    snprintf(prefixBuffer, sizeof(prefixBuffer), "%s_packed", prefix);
+
+    if (metal_activation_compose_kernel_name(kernelName, sizeof(kernelName), prefixBuffer, suffix, status) != 0) {
+        return NULL;
+    }
+
+    return kernelName;
+}
+
+#define METAL_DISPATCH_GATED_TENSOR(name) \
+int metal_dispatch_##name( \
+    MetalDeviceRef contextRef, \
+    int elementDType, \
+    MetalBufferRef destinationRef, \
+    MetalBufferRef gateRef, \
+    MetalBufferRef upRef, \
+    uint32_t count, \
+    uint64_t completionToken, \
+    MetalStatus* status \
+) { \
+    const char* kernelName = metal_gated_tensor_kernel_name(#name, elementDType, status); \
+    if (kernelName == NULL) { \
+        return status != NULL && status->code != 0 ? status->code : -6; \
+    } \
+    return metal_gated_launch_tensor( \
+        contextRef, \
+        kernelName, \
+        elementDType, \
+        destinationRef, \
+        gateRef, \
+        upRef, \
+        count, \
+        completionToken, \
+        status \
+    ); \
+}
+
+#define METAL_DISPATCH_GATED_PACKED(name) \
+int metal_dispatch_##name##_packed( \
+    MetalDeviceRef contextRef, \
+    int elementDType, \
+    MetalBufferRef destinationRef, \
+    MetalBufferRef packedRef, \
+    uint32_t inner, \
+    uint32_t count, \
+    uint64_t completionToken, \
+    MetalStatus* status \
+) { \
+    const char* kernelName = metal_gated_packed_kernel_name(#name, elementDType, status); \
+    if (kernelName == NULL) { \
+        return status != NULL && status->code != 0 ? status->code : -6; \
+    } \
+    return metal_gated_launch_packed( \
+        contextRef, \
+        kernelName, \
+        destinationRef, \
+        packedRef, \
+        inner, \
+        count, \
+        completionToken, \
+        status \
+    ); \
+}
+
+METAL_DISPATCH_GATED_TENSOR(swiglu)
+METAL_DISPATCH_GATED_PACKED(swiglu)
+METAL_DISPATCH_GATED_TENSOR(geglu)
+METAL_DISPATCH_GATED_PACKED(geglu)
+METAL_DISPATCH_GATED_TENSOR(glu)
+METAL_DISPATCH_GATED_PACKED(glu)
+METAL_DISPATCH_GATED_TENSOR(reglu)
+METAL_DISPATCH_GATED_PACKED(reglu)
+METAL_DISPATCH_GATED_TENSOR(siglu)
+METAL_DISPATCH_GATED_PACKED(siglu)
+METAL_DISPATCH_GATED_TENSOR(seglu)
+METAL_DISPATCH_GATED_PACKED(seglu)
+METAL_DISPATCH_GATED_TENSOR(linglu)
+METAL_DISPATCH_GATED_PACKED(linglu)
+METAL_DISPATCH_GATED_TENSOR(geglu_tanh)
+METAL_DISPATCH_GATED_PACKED(geglu_tanh)
 
 int metal_dispatch_timestep_embedding(
     MetalDeviceRef contextRef,
@@ -203,354 +284,3 @@ int metal_dispatch_timestep_embedding(
         }
     );
 }
-
-static const char* metal_geglu_kernel_name(int elementDType) {
-    switch (elementDType) {
-    case MetalElementDTypeFloat32:
-        return "geglu_float32";
-    case MetalElementDTypeFloat16:
-        return "geglu_float16";
-    case MetalElementDTypeBFloat16:
-        return "geglu_bfloat16";
-    default:
-        return NULL;
-    }
-}
-
-int metal_dispatch_geglu(
-    MetalDeviceRef contextRef,
-    int elementDType,
-    MetalBufferRef destinationRef,
-    MetalBufferRef gateRef,
-    MetalBufferRef upRef,
-    uint32_t count,
-    uint64_t completionToken,
-    MetalStatus* status
-) {
-    const char* kernelName = metal_geglu_kernel_name(elementDType);
-
-    if (destinationRef == NULL || gateRef == NULL || upRef == NULL) {
-        metal_activation_status_set(status, -2, "nil Metal buffer");
-        return -2;
-    }
-
-    if (kernelName == NULL) {
-        metal_activation_status_set(status, -6, "unknown Metal geglu dtype");
-        return -6;
-    }
-
-    return metal_gated_dispatch(
-        contextRef,
-        kernelName,
-        (NSUInteger)((count + 3u) / 4u),
-        completionToken,
-        status,
-        ^(id<MTLComputeCommandEncoder> encoder) {
-            [encoder setBuffer:(__bridge id<MTLBuffer>)destinationRef offset:0 atIndex:0];
-            [encoder setBuffer:(__bridge id<MTLBuffer>)gateRef offset:0 atIndex:1];
-            [encoder setBuffer:(__bridge id<MTLBuffer>)upRef offset:0 atIndex:2];
-            [encoder setBytes:&count length:sizeof(count) atIndex:3];
-        }
-    );
-}
-
-static const char* metal_glu_kernel_name(int elementDType) {
-    switch (elementDType) {
-    case MetalElementDTypeFloat32:
-        return "glu_float32";
-    case MetalElementDTypeFloat16:
-        return "glu_float16";
-    case MetalElementDTypeBFloat16:
-        return "glu_bfloat16";
-    default:
-        return NULL;
-    }
-}
-
-int metal_dispatch_glu(
-    MetalDeviceRef contextRef,
-    int elementDType,
-    MetalBufferRef destinationRef,
-    MetalBufferRef gateRef,
-    MetalBufferRef upRef,
-    uint32_t count,
-    uint64_t completionToken,
-    MetalStatus* status
-) {
-    const char* kernelName = metal_glu_kernel_name(elementDType);
-
-    if (destinationRef == NULL || gateRef == NULL || upRef == NULL) {
-        metal_activation_status_set(status, -2, "nil Metal buffer");
-        return -2;
-    }
-
-    if (kernelName == NULL) {
-        metal_activation_status_set(status, -6, "unknown Metal glu dtype");
-        return -6;
-    }
-
-    return metal_gated_dispatch(
-        contextRef,
-        kernelName,
-        (NSUInteger)((count + 3u) / 4u),
-        completionToken,
-        status,
-        ^(id<MTLComputeCommandEncoder> encoder) {
-            [encoder setBuffer:(__bridge id<MTLBuffer>)destinationRef offset:0 atIndex:0];
-            [encoder setBuffer:(__bridge id<MTLBuffer>)gateRef offset:0 atIndex:1];
-            [encoder setBuffer:(__bridge id<MTLBuffer>)upRef offset:0 atIndex:2];
-            [encoder setBytes:&count length:sizeof(count) atIndex:3];
-        }
-    );
-}
-
-static const char* metal_reglu_kernel_name(int elementDType) {
-    switch (elementDType) {
-    case MetalElementDTypeFloat32:
-        return "reglu_float32";
-    case MetalElementDTypeFloat16:
-        return "reglu_float16";
-    case MetalElementDTypeBFloat16:
-        return "reglu_bfloat16";
-    default:
-        return NULL;
-    }
-}
-
-int metal_dispatch_reglu(
-    MetalDeviceRef contextRef,
-    int elementDType,
-    MetalBufferRef destinationRef,
-    MetalBufferRef gateRef,
-    MetalBufferRef upRef,
-    uint32_t count,
-    uint64_t completionToken,
-    MetalStatus* status
-) {
-    const char* kernelName = metal_reglu_kernel_name(elementDType);
-
-    if (destinationRef == NULL || gateRef == NULL || upRef == NULL) {
-        metal_activation_status_set(status, -2, "nil Metal buffer");
-        return -2;
-    }
-
-    if (kernelName == NULL) {
-        metal_activation_status_set(status, -6, "unknown Metal reglu dtype");
-        return -6;
-    }
-
-    return metal_gated_dispatch(
-        contextRef,
-        kernelName,
-        (NSUInteger)((count + 3u) / 4u),
-        completionToken,
-        status,
-        ^(id<MTLComputeCommandEncoder> encoder) {
-            [encoder setBuffer:(__bridge id<MTLBuffer>)destinationRef offset:0 atIndex:0];
-            [encoder setBuffer:(__bridge id<MTLBuffer>)gateRef offset:0 atIndex:1];
-            [encoder setBuffer:(__bridge id<MTLBuffer>)upRef offset:0 atIndex:2];
-            [encoder setBytes:&count length:sizeof(count) atIndex:3];
-        }
-    );
-}
-
-static const char* metal_siglu_kernel_name(int elementDType) {
-    switch (elementDType) {
-    case MetalElementDTypeFloat32:
-        return "siglu_float32";
-    case MetalElementDTypeFloat16:
-        return "siglu_float16";
-    case MetalElementDTypeBFloat16:
-        return "siglu_bfloat16";
-    default:
-        return NULL;
-    }
-}
-
-int metal_dispatch_siglu(
-    MetalDeviceRef contextRef,
-    int elementDType,
-    MetalBufferRef destinationRef,
-    MetalBufferRef gateRef,
-    MetalBufferRef upRef,
-    uint32_t count,
-    uint64_t completionToken,
-    MetalStatus* status
-) {
-    const char* kernelName = metal_siglu_kernel_name(elementDType);
-
-    if (destinationRef == NULL || gateRef == NULL || upRef == NULL) {
-        metal_activation_status_set(status, -2, "nil Metal buffer");
-        return -2;
-    }
-
-    if (kernelName == NULL) {
-        metal_activation_status_set(status, -6, "unknown Metal siglu dtype");
-        return -6;
-    }
-
-    return metal_gated_dispatch(
-        contextRef,
-        kernelName,
-        (NSUInteger)((count + 3u) / 4u),
-        completionToken,
-        status,
-        ^(id<MTLComputeCommandEncoder> encoder) {
-            [encoder setBuffer:(__bridge id<MTLBuffer>)destinationRef offset:0 atIndex:0];
-            [encoder setBuffer:(__bridge id<MTLBuffer>)gateRef offset:0 atIndex:1];
-            [encoder setBuffer:(__bridge id<MTLBuffer>)upRef offset:0 atIndex:2];
-            [encoder setBytes:&count length:sizeof(count) atIndex:3];
-        }
-    );
-}
-
-static const char* metal_seglu_kernel_name(int elementDType) {
-    switch (elementDType) {
-    case MetalElementDTypeFloat32:
-        return "seglu_float32";
-    case MetalElementDTypeFloat16:
-        return "seglu_float16";
-    case MetalElementDTypeBFloat16:
-        return "seglu_bfloat16";
-    default:
-        return NULL;
-    }
-}
-
-int metal_dispatch_seglu(
-    MetalDeviceRef contextRef,
-    int elementDType,
-    MetalBufferRef destinationRef,
-    MetalBufferRef gateRef,
-    MetalBufferRef upRef,
-    uint32_t count,
-    uint64_t completionToken,
-    MetalStatus* status
-) {
-    const char* kernelName = metal_seglu_kernel_name(elementDType);
-
-    if (destinationRef == NULL || gateRef == NULL || upRef == NULL) {
-        metal_activation_status_set(status, -2, "nil Metal buffer");
-        return -2;
-    }
-
-    if (kernelName == NULL) {
-        metal_activation_status_set(status, -6, "unknown Metal seglu dtype");
-        return -6;
-    }
-
-    return metal_gated_dispatch(
-        contextRef,
-        kernelName,
-        (NSUInteger)((count + 3u) / 4u),
-        completionToken,
-        status,
-        ^(id<MTLComputeCommandEncoder> encoder) {
-            [encoder setBuffer:(__bridge id<MTLBuffer>)destinationRef offset:0 atIndex:0];
-            [encoder setBuffer:(__bridge id<MTLBuffer>)gateRef offset:0 atIndex:1];
-            [encoder setBuffer:(__bridge id<MTLBuffer>)upRef offset:0 atIndex:2];
-            [encoder setBytes:&count length:sizeof(count) atIndex:3];
-        }
-    );
-}
-
-static const char* metal_linglu_kernel_name(int elementDType) {
-    switch (elementDType) {
-    case MetalElementDTypeFloat32:
-        return "linglu_float32";
-    case MetalElementDTypeFloat16:
-        return "linglu_float16";
-    case MetalElementDTypeBFloat16:
-        return "linglu_bfloat16";
-    default:
-        return NULL;
-    }
-}
-
-int metal_dispatch_linglu(
-    MetalDeviceRef contextRef,
-    int elementDType,
-    MetalBufferRef destinationRef,
-    MetalBufferRef gateRef,
-    MetalBufferRef upRef,
-    uint32_t count,
-    uint64_t completionToken,
-    MetalStatus* status
-) {
-    const char* kernelName = metal_linglu_kernel_name(elementDType);
-
-    if (destinationRef == NULL || gateRef == NULL || upRef == NULL) {
-        metal_activation_status_set(status, -2, "nil Metal buffer");
-        return -2;
-    }
-
-    if (kernelName == NULL) {
-        metal_activation_status_set(status, -6, "unknown Metal linglu dtype");
-        return -6;
-    }
-
-    return metal_gated_dispatch(
-        contextRef,
-        kernelName,
-        (NSUInteger)((count + 3u) / 4u),
-        completionToken,
-        status,
-        ^(id<MTLComputeCommandEncoder> encoder) {
-            [encoder setBuffer:(__bridge id<MTLBuffer>)destinationRef offset:0 atIndex:0];
-            [encoder setBuffer:(__bridge id<MTLBuffer>)gateRef offset:0 atIndex:1];
-            [encoder setBuffer:(__bridge id<MTLBuffer>)upRef offset:0 atIndex:2];
-            [encoder setBytes:&count length:sizeof(count) atIndex:3];
-        }
-    );
-}
-
-static const char* metal_geglu_tanh_kernel_name(int elementDType) {
-    switch (elementDType) {
-    case MetalElementDTypeFloat32:
-        return "geglu_tanh_float32";
-    case MetalElementDTypeFloat16:
-        return "geglu_tanh_float16";
-    case MetalElementDTypeBFloat16:
-        return "geglu_tanh_bfloat16";
-    default:
-        return NULL;
-    }
-}
-
-int metal_dispatch_geglu_tanh(
-    MetalDeviceRef contextRef,
-    int elementDType,
-    MetalBufferRef destinationRef,
-    MetalBufferRef gateRef,
-    MetalBufferRef upRef,
-    uint32_t count,
-    uint64_t completionToken,
-    MetalStatus* status
-) {
-    const char* kernelName = metal_geglu_tanh_kernel_name(elementDType);
-
-    if (destinationRef == NULL || gateRef == NULL || upRef == NULL) {
-        metal_activation_status_set(status, -2, "nil Metal buffer");
-        return -2;
-    }
-
-    if (kernelName == NULL) {
-        metal_activation_status_set(status, -6, "unknown Metal geglu_tanh dtype");
-        return -6;
-    }
-
-    return metal_gated_dispatch(
-        contextRef,
-        kernelName,
-        (NSUInteger)((count + 3u) / 4u),
-        completionToken,
-        status,
-        ^(id<MTLComputeCommandEncoder> encoder) {
-            [encoder setBuffer:(__bridge id<MTLBuffer>)destinationRef offset:0 atIndex:0];
-            [encoder setBuffer:(__bridge id<MTLBuffer>)gateRef offset:0 atIndex:1];
-            [encoder setBuffer:(__bridge id<MTLBuffer>)upRef offset:0 atIndex:2];
-            [encoder setBytes:&count length:sizeof(count) atIndex:3];
-        }
-    );
-}
-

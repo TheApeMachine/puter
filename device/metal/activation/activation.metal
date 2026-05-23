@@ -9,32 +9,6 @@ constant float metalActivationSELUAlpha = 1.67326324235437728482f;
 constant float metalActivationSELUScale = 1.05070098735548049342f;
 constant float metalActivationLeakyReLUSlope = 0.01f;
 
-static inline float activation_bf16_to_float(ushort value) {
-    return as_type<float>(uint(value) << 16);
-}
-
-static inline ushort activation_float_to_bf16(float value) {
-    return ushort(as_type<uint>(value) >> 16);
-}
-
-static inline float4 activation_bf16_to_float4(ushort4 value) {
-    return float4(
-        activation_bf16_to_float(value.x),
-        activation_bf16_to_float(value.y),
-        activation_bf16_to_float(value.z),
-        activation_bf16_to_float(value.w)
-    );
-}
-
-static inline ushort4 activation_float4_to_bf16(float4 value) {
-    return ushort4(
-        activation_float_to_bf16(value.x),
-        activation_float_to_bf16(value.y),
-        activation_float_to_bf16(value.z),
-        activation_float_to_bf16(value.w)
-    );
-}
-
 template <typename UnaryOp>
 static inline void activation_unary_float32(
     device const float4* inputVector,
@@ -73,7 +47,7 @@ static inline void activation_unary_float16(
     uint base = index * 4;
 
     if (base + 3 < count) {
-        outVector[index] = half4(op(float4(inputVector[index])));
+        outVector[index] = op(inputVector[index]);
         return;
     }
 
@@ -84,7 +58,7 @@ static inline void activation_unary_float16(
         uint scalarIndex = base + offset;
 
         if (scalarIndex < count) {
-            out[scalarIndex] = half(op(float(input[scalarIndex])));
+            out[scalarIndex] = op(input[scalarIndex]);
         }
     }
 }
@@ -100,7 +74,8 @@ static inline void activation_unary_bfloat16(
     uint base = index * 4;
 
     if (base + 3 < count) {
-        outVector[index] = activation_float4_to_bf16(op(activation_bf16_to_float4(inputVector[index])));
+        bfloat4 loaded = as_type<bfloat4>(inputVector[index]);
+        outVector[index] = as_type<ushort4>(op(loaded));
         return;
     }
 
@@ -111,7 +86,8 @@ static inline void activation_unary_bfloat16(
         uint scalarIndex = base + offset;
 
         if (scalarIndex < count) {
-            out[scalarIndex] = activation_float_to_bf16(op(activation_bf16_to_float(input[scalarIndex])));
+            bfloat loaded = as_type<bfloat>(input[scalarIndex]);
+            out[scalarIndex] = as_type<ushort>(op(loaded));
         }
     }
 }

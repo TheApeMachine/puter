@@ -25,6 +25,8 @@ int cuda_activation_compose_kernel_name(
     CUDAStatus* status
 );
 
+uint32_t cuda_activation_vector_launch_count(uint32_t count, int elementDType);
+
 #ifdef __cplusplus
 }
 #endif

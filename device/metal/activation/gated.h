@@ -106,6 +106,83 @@ int metal_dispatch_geglu_tanh(
     MetalStatus* status
 );
 
+int metal_dispatch_geglu_packed(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef destinationRef,
+    MetalBufferRef packedRef,
+    uint32_t inner,
+    uint32_t count,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+
+int metal_dispatch_glu_packed(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef destinationRef,
+    MetalBufferRef packedRef,
+    uint32_t inner,
+    uint32_t count,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+
+int metal_dispatch_reglu_packed(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef destinationRef,
+    MetalBufferRef packedRef,
+    uint32_t inner,
+    uint32_t count,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+
+int metal_dispatch_siglu_packed(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef destinationRef,
+    MetalBufferRef packedRef,
+    uint32_t inner,
+    uint32_t count,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+
+int metal_dispatch_seglu_packed(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef destinationRef,
+    MetalBufferRef packedRef,
+    uint32_t inner,
+    uint32_t count,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+
+int metal_dispatch_linglu_packed(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef destinationRef,
+    MetalBufferRef packedRef,
+    uint32_t inner,
+    uint32_t count,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+
+int metal_dispatch_geglu_tanh_packed(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef destinationRef,
+    MetalBufferRef packedRef,
+    uint32_t inner,
+    uint32_t count,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+
 #ifdef __cplusplus
 }
 #endif

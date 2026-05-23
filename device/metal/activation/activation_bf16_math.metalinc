@@ -1,0 +1,146 @@
+#ifndef CARAMBA_DEVICE_METAL_ACTIVATION_BF16_MATH_METALINC
+#define CARAMBA_DEVICE_METAL_ACTIVATION_BF16_MATH_METALINC
+
+#include <metal_stdlib>
+using namespace metal;
+
+static inline bfloat activation_bf16_zero(void) {
+    return bfloat(0.0);
+}
+
+static inline bfloat activation_bf16_one(void) {
+    return bfloat(1.0);
+}
+
+static inline bfloat activation_bf16_half(void) {
+    return bfloat(0.5);
+}
+
+static inline bfloat activation_bf16_from_int(int value) {
+    return bfloat(value);
+}
+
+static inline bfloat activation_bf16_abs(bfloat value) {
+    return select(value, -value, value < activation_bf16_zero());
+}
+
+static inline bfloat activation_bf16_exp_positive(bfloat value) {
+    bfloat sum = activation_bf16_one();
+    bfloat term = activation_bf16_one();
+
+    for (int index = 1; index < 12; index++) {
+        term = term * (value / activation_bf16_from_int(index));
+        sum = sum + term;
+    }
+
+    return sum;
+}
+
+static inline bfloat activation_bf16_exp(bfloat value) {
+    if (value < activation_bf16_zero()) {
+        bfloat positive = activation_bf16_exp_positive(-value);
+        return activation_bf16_one() / positive;
+    }
+
+    return activation_bf16_exp_positive(value);
+}
+
+static inline bfloat activation_bf16_log(bfloat value) {
+    bfloat shifted = value - activation_bf16_one();
+    bfloat sum = shifted;
+    bfloat term = shifted;
+    const bfloat sign = select(activation_bf16_one(), -activation_bf16_one(), shifted < activation_bf16_zero());
+
+    for (int index = 2; index < 16; index++) {
+        term = term * (-shifted);
+        sum = sum + sign * (term / activation_bf16_from_int(index));
+    }
+
+    return sum;
+}
+
+static inline bfloat activation_bf16_tanh(bfloat value) {
+    bfloat expDouble = activation_bf16_exp(value + value);
+    return (expDouble - activation_bf16_one()) / (expDouble + activation_bf16_one());
+}
+
+static inline bfloat activation_bf16_sigmoid(bfloat value) {
+    return activation_bf16_one() / (activation_bf16_one() + activation_bf16_exp(-value));
+}
+
+static inline bfloat activation_bf16_sqrt(bfloat value) {
+    if (value <= activation_bf16_zero()) {
+        return activation_bf16_zero();
+    }
+
+    bfloat guess = value;
+
+    for (int index = 0; index < 5; index++) {
+        guess = activation_bf16_half() * (guess + value / guess);
+    }
+
+    return guess;
+}
+
+static inline bfloat activation_bf16_rsqrt(bfloat value) {
+    bfloat root = activation_bf16_sqrt(value);
+
+    if (root == activation_bf16_zero()) {
+        return activation_bf16_zero();
+    }
+
+    return activation_bf16_one() / root;
+}
+
+static inline bfloat activation_bf16_sin(bfloat value) {
+    bfloat x = value;
+    bfloat x2 = x * x;
+    bfloat term = x;
+    bfloat sum = x;
+    const bfloat sign = -activation_bf16_one();
+
+    for (int index = 2; index <= 8; index += 2) {
+        term = term * x2 / activation_bf16_from_int((index - 1) * index);
+        sum = sum + sign * term;
+    }
+
+    return sum;
+}
+
+static inline bfloat activation_bf16_cos(bfloat value) {
+    bfloat x = value;
+    bfloat x2 = x * x;
+    bfloat term = activation_bf16_one();
+    bfloat sum = activation_bf16_one();
+    const bfloat sign = -activation_bf16_one();
+
+    for (int index = 2; index <= 8; index += 2) {
+        term = term * x2 / activation_bf16_from_int((index - 1) * index);
+        sum = sum + sign * term;
+    }
+
+    return sum;
+}
+
+static inline bfloat activation_bf16_clamp(bfloat value, bfloat low, bfloat high) {
+    return select(select(value, high, value > high), low, value < low);
+}
+
+static inline bfloat activation_bf16_min(bfloat left, bfloat right) {
+    return select(left, right, right < left);
+}
+
+static inline bfloat activation_bf16_max(bfloat left, bfloat right) {
+    return select(left, right, left < right);
+}
+
+static inline bfloat4 activation_bf16_map4(bfloat4 value, thread bfloat (*operation)(bfloat)) {
+    return bfloat4(
+        operation(value.x),
+        operation(value.y),
+        operation(value.z),
+        operation(value.w)
+    );
+}
+
+#endif

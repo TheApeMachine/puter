@@ -1,0 +1,125 @@
+#ifndef CARAMBA_DEVICE_METAL_ACTIVATION_PARAMETRIC_MACROS_METALINC
+#define CARAMBA_DEVICE_METAL_ACTIVATION_PARAMETRIC_MACROS_METALINC
+
+template <typename UnaryOp>
+static inline void param_unary_float32(
+    device const float4* inputVector,
+    device float4* outVector,
+    constant uint& count,
+    constant float& param,
+    uint index,
+    UnaryOp op
+) {
+    uint base = index * 4;
+
+    if (base + 3 < count) {
+        outVector[index] = op(inputVector[index], param);
+        return;
+    }
+
+    device const float* input = reinterpret_cast<device const float*>(inputVector);
+    device float* out = reinterpret_cast<device float*>(outVector);
+
+    for (uint offset = 0; offset < 4; offset++) {
+        uint scalarIndex = base + offset;
+
+        if (scalarIndex < count) {
+            out[scalarIndex] = op(input[scalarIndex], param);
+        }
+    }
+}
+
+template <typename UnaryOp>
+static inline void param_unary_float16(
+    device const half4* inputVector,
+    device half4* outVector,
+    constant uint& count,
+    constant float& param,
+    uint index,
+    UnaryOp op
+) {
+    half paramValue = half(param);
+    uint base = index * 4;
+
+    if (base + 3 < count) {
+        outVector[index] = op(inputVector[index], paramValue);
+        return;
+    }
+
+    device const half* input = reinterpret_cast<device const half*>(inputVector);
+    device half* out = reinterpret_cast<device half*>(outVector);
+
+    for (uint offset = 0; offset < 4; offset++) {
+        uint scalarIndex = base + offset;
+
+        if (scalarIndex < count) {
+            out[scalarIndex] = op(input[scalarIndex], paramValue);
+        }
+    }
+}
+
+template <typename UnaryOp>
+static inline void param_unary_bfloat16(
+    device const ushort4* inputVector,
+    device ushort4* outVector,
+    constant uint& count,
+    constant float& param,
+    uint index,
+    UnaryOp op
+) {
+    bfloat paramValue = bfloat(param);
+    uint base = index * 4;
+
+    if (base + 3 < count) {
+        bfloat4 loaded = as_type<bfloat4>(inputVector[index]);
+        outVector[index] = as_type<ushort4>(op(loaded, paramValue));
+        return;
+    }
+
+    device const ushort* input = reinterpret_cast<device const ushort*>(inputVector);
+    device ushort* out = reinterpret_cast<device ushort*>(outVector);
+
+    for (uint offset = 0; offset < 4; offset++) {
+        uint scalarIndex = base + offset;
+
+        if (scalarIndex < count) {
+            bfloat loaded = as_type<bfloat>(input[scalarIndex]);
+            out[scalarIndex] = as_type<ushort>(op(loaded, paramValue));
+        }
+    }
+}
+
+#define PARAM_UNARY_KERNEL_F32(name, op) \
+kernel void name##_float32( \
+    device const float4* inputVector [[buffer(0)]], \
+    device float4* outVector [[buffer(1)]], \
+    constant uint& count [[buffer(2)]], \
+    constant float& param [[buffer(3)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    param_unary_float32(inputVector, outVector, count, param, index, op{}); \
+}
+
+#define PARAM_UNARY_KERNEL_F16(name, op) \
+kernel void name##_float16( \
+    device const half4* inputVector [[buffer(0)]], \
+    device half4* outVector [[buffer(1)]], \
+    constant uint& count [[buffer(2)]], \
+    constant float& param [[buffer(3)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    param_unary_float16(inputVector, outVector, count, param, index, op{}); \
+}
+
+#define PARAM_UNARY_KERNEL_BF16(name, op) \
+kernel void name##_bfloat16( \
+    device const ushort4* inputVector [[buffer(0)]], \
+    device ushort4* outVector [[buffer(1)]], \
+    constant uint& count [[buffer(2)]], \
+    constant float& param [[buffer(3)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    param_unary_bfloat16(inputVector, outVector, count, param, index, op{}); \
+}
+
+#endif

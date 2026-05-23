@@ -9,7 +9,7 @@ extern "C" {
 
 int cuda_dispatch_unary_param(
     CUDADeviceRef contextRef,
-    const char* kernelName,
+    const char* operationPrefix,
     int elementDType,
     CUDABufferRef inputRef,
     CUDABufferRef outRef,

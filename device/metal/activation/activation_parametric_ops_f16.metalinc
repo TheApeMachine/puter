@@ -1,0 +1,57 @@
+#ifndef CARAMBA_DEVICE_METAL_ACTIVATION_PARAMETRIC_OPS_F16_METALINC
+#define CARAMBA_DEVICE_METAL_ACTIVATION_PARAMETRIC_OPS_F16_METALINC
+
+#include <metal_stdlib>
+using namespace metal;
+
+struct HalfPReLUSlopeOp {
+    half4 operator()(half4 value, half slope) const {
+        return select(slope * value, value, value > half4(0.0h));
+    }
+
+    half operator()(half value, half slope) const {
+        return value > half(0.0h) ? value : slope * value;
+    }
+};
+
+struct HalfLeakyReLUSlopeOp {
+    half4 operator()(half4 value, half slope) const {
+        return select(slope * value, value, value > half4(0.0h));
+    }
+
+    half operator()(half value, half slope) const {
+        return value > half(0.0h) ? value : slope * value;
+    }
+};
+
+struct HalfELUAlphaOp {
+    half4 operator()(half4 value, half alpha) const {
+        return select(alpha * (exp(value) - half4(1.0h)), value, value > half4(0.0h));
+    }
+
+    half operator()(half value, half alpha) const {
+        return value > half(0.0h) ? value : alpha * (exp(value) - half(1.0h));
+    }
+};
+
+struct HalfCELUAlphaOp {
+    half4 operator()(half4 value, half alpha) const {
+        return select(alpha * (exp(value / alpha) - half4(1.0h)), value, value > half4(0.0h));
+    }
+
+    half operator()(half value, half alpha) const {
+        return value > half(0.0h) ? value : alpha * (exp(value / alpha) - half(1.0h));
+    }
+};
+
+struct HalfThresholdOp {
+    half4 operator()(half4 value, half threshold) const {
+        return select(half4(0.0h), value, value > half4(threshold));
+    }
+
+    half operator()(half value, half threshold) const {
+        return value > threshold ? value : half(0.0h);
+    }
+};
+
+#endif

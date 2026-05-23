@@ -1,0 +1,308 @@
+#ifndef CARAMBA_DEVICE_METAL_ACTIVATION_OPS_BF16_METALINC
+#define CARAMBA_DEVICE_METAL_ACTIVATION_OPS_BF16_METALINC
+
+#include "activation_bf16_math.metalinc"
+
+static inline bfloat activation_bf16_relu(bfloat value) {
+    return select(activation_bf16_zero(), value, value >= activation_bf16_zero());
+}
+
+#define BF16_UNARY_OP(name, scalar_fn) \
+struct name { \
+    bfloat4 operator()(bfloat4 value) const { return activation_bf16_map4(value, scalar_fn); } \
+    bfloat operator()(bfloat value) const { return scalar_fn(value); } \
+};
+
+BF16_UNARY_OP(BF16ReluOp, activation_bf16_relu)
+BF16_UNARY_OP(BF16AbsOp, activation_bf16_abs)
+BF16_UNARY_OP(BF16ExpOp, activation_bf16_exp)
+BF16_UNARY_OP(BF16LogOp, activation_bf16_log)
+BF16_UNARY_OP(BF16TanhOp, activation_bf16_tanh)
+BF16_UNARY_OP(BF16SigmoidOp, activation_bf16_sigmoid)
+BF16_UNARY_OP(BF16SqrtOp, activation_bf16_sqrt)
+BF16_UNARY_OP(BF16RsqrtOp, activation_bf16_rsqrt)
+BF16_UNARY_OP(BF16SinOp, activation_bf16_sin)
+BF16_UNARY_OP(BF16CosOp, activation_bf16_cos)
+
+struct BF16NegOp {
+    bfloat4 operator()(bfloat4 value) const { return -value; }
+    bfloat operator()(bfloat value) const { return -value; }
+};
+
+struct BF16SquareOp {
+    bfloat4 operator()(bfloat4 value) const { return value * value; }
+    bfloat operator()(bfloat value) const { return value * value; }
+};
+
+struct BF16RecipOp {
+    bfloat4 operator()(bfloat4 value) const { return activation_bf16_one() / value; }
+    bfloat operator()(bfloat value) const { return activation_bf16_one() / value; }
+};
+
+struct BF16SignOp {
+    bfloat4 operator()(bfloat4 value) const {
+        return bfloat4(
+            select(bfloat(-1.0), bfloat(1.0), value.x > activation_bf16_zero()),
+            select(bfloat(-1.0), bfloat(1.0), value.y > activation_bf16_zero()),
+            select(bfloat(-1.0), bfloat(1.0), value.z > activation_bf16_zero()),
+            select(bfloat(-1.0), bfloat(1.0), value.w > activation_bf16_zero())
+        );
+    }
+    bfloat operator()(bfloat value) const {
+        return select(bfloat(-1.0), bfloat(1.0), value > activation_bf16_zero());
+    }
+};
+
+struct BF16GeluOp {
+    bfloat4 operator()(bfloat4 value) const {
+        const bfloat k = bfloat(0.7978845608028655);
+        const bfloat c = bfloat(0.044715);
+        return bfloat4(
+            activation_bf16_half() * value.x * (activation_bf16_one() + activation_bf16_tanh(k * (value.x + c * value.x * value.x * value.x))),
+            activation_bf16_half() * value.y * (activation_bf16_one() + activation_bf16_tanh(k * (value.y + c * value.y * value.y * value.y))),
+            activation_bf16_half() * value.z * (activation_bf16_one() + activation_bf16_tanh(k * (value.z + c * value.z * value.z * value.z))),
+            activation_bf16_half() * value.w * (activation_bf16_one() + activation_bf16_tanh(k * (value.w + c * value.w * value.w * value.w)))
+        );
+    }
+    bfloat operator()(bfloat value) const {
+        const bfloat k = bfloat(0.7978845608028655);
+        const bfloat c = bfloat(0.044715);
+        return activation_bf16_half() * value * (activation_bf16_one() + activation_bf16_tanh(k * (value + c * value * value * value)));
+    }
+};
+
+struct BF16SiluOp {
+    bfloat4 operator()(bfloat4 value) const { return value * activation_bf16_map4(value, activation_bf16_sigmoid); }
+    bfloat operator()(bfloat value) const { return value * activation_bf16_sigmoid(value); }
+};
+
+struct BF16SoftsignOp {
+    bfloat4 operator()(bfloat4 value) const {
+        return bfloat4(
+            value.x / (activation_bf16_one() + activation_bf16_abs(value.x)),
+            value.y / (activation_bf16_one() + activation_bf16_abs(value.y)),
+            value.z / (activation_bf16_one() + activation_bf16_abs(value.z)),
+            value.w / (activation_bf16_one() + activation_bf16_abs(value.w))
+        );
+    }
+    bfloat operator()(bfloat value) const {
+        return value / (activation_bf16_one() + activation_bf16_abs(value));
+    }
+};
+
+struct BF16ELUOp {
+    bfloat4 operator()(bfloat4 value) const {
+        return bfloat4(
+            select(value.x, activation_bf16_exp(value.x) - activation_bf16_one(), value.x < activation_bf16_zero()),
+            select(value.y, activation_bf16_exp(value.y) - activation_bf16_one(), value.y < activation_bf16_zero()),
+            select(value.z, activation_bf16_exp(value.z) - activation_bf16_one(), value.z < activation_bf16_zero()),
+            select(value.w, activation_bf16_exp(value.w) - activation_bf16_one(), value.w < activation_bf16_zero())
+        );
+    }
+    bfloat operator()(bfloat value) const {
+        return select(value, activation_bf16_exp(value) - activation_bf16_one(), value < activation_bf16_zero());
+    }
+};
+
+struct BF16SELUOp {
+    bfloat4 operator()(bfloat4 value) const {
+        const bfloat alpha = bfloat(1.6732632423543772848170429916717);
+        const bfloat scale = bfloat(1.0507009873554804934193349852946);
+        return bfloat4(
+            scale * select(value.x, alpha * (activation_bf16_exp(value.x) - activation_bf16_one()), value.x < activation_bf16_zero()),
+            scale * select(value.y, alpha * (activation_bf16_exp(value.y) - activation_bf16_one()), value.y < activation_bf16_zero()),
+            scale * select(value.z, alpha * (activation_bf16_exp(value.z) - activation_bf16_one()), value.z < activation_bf16_zero()),
+            scale * select(value.w, alpha * (activation_bf16_exp(value.w) - activation_bf16_one()), value.w < activation_bf16_zero())
+        );
+    }
+    bfloat operator()(bfloat value) const {
+        const bfloat alpha = bfloat(1.6732632423543772848170429916717);
+        const bfloat scale = bfloat(1.0507009873554804934193349852946);
+        return scale * select(value, alpha * (activation_bf16_exp(value) - activation_bf16_one()), value < activation_bf16_zero());
+    }
+};
+
+struct BF16LeakyReLUOp {
+    bfloat4 operator()(bfloat4 value) const {
+        const bfloat slope = bfloat(0.01);
+        return bfloat4(
+            select(slope * value.x, value.x, value.x >= activation_bf16_zero()),
+            select(slope * value.y, value.y, value.y >= activation_bf16_zero()),
+            select(slope * value.z, value.z, value.z >= activation_bf16_zero()),
+            select(slope * value.w, value.w, value.w >= activation_bf16_zero())
+        );
+    }
+    bfloat operator()(bfloat value) const {
+        const bfloat slope = bfloat(0.01);
+        return select(slope * value, value, value >= activation_bf16_zero());
+    }
+};
+
+struct BF16HardSigmoidOp {
+    bfloat4 operator()(bfloat4 value) const {
+        const bfloat low = activation_bf16_zero();
+        const bfloat high = activation_bf16_one();
+        return bfloat4(
+            activation_bf16_clamp(bfloat(0.2) * value.x + bfloat(0.5), low, high),
+            activation_bf16_clamp(bfloat(0.2) * value.y + bfloat(0.5), low, high),
+            activation_bf16_clamp(bfloat(0.2) * value.z + bfloat(0.5), low, high),
+            activation_bf16_clamp(bfloat(0.2) * value.w + bfloat(0.5), low, high)
+        );
+    }
+    bfloat operator()(bfloat value) const {
+        return activation_bf16_clamp(bfloat(0.2) * value + bfloat(0.5), activation_bf16_zero(), activation_bf16_one());
+    }
+};
+
+struct BF16HardSwishOp {
+    bfloat4 operator()(bfloat4 value) const {
+        const bfloat low = activation_bf16_zero();
+        const bfloat high = activation_bf16_one();
+        return bfloat4(
+            value.x * activation_bf16_clamp(bfloat(0.16666666666666666) * value.x + bfloat(0.5), low, high),
+            value.y * activation_bf16_clamp(bfloat(0.16666666666666666) * value.y + bfloat(0.5), low, high),
+            value.z * activation_bf16_clamp(bfloat(0.16666666666666666) * value.z + bfloat(0.5), low, high),
+            value.w * activation_bf16_clamp(bfloat(0.16666666666666666) * value.w + bfloat(0.5), low, high)
+        );
+    }
+    bfloat operator()(bfloat value) const {
+        return value * activation_bf16_clamp(bfloat(0.16666666666666666) * value + bfloat(0.5), activation_bf16_zero(), activation_bf16_one());
+    }
+};
+
+struct BF16Log1pOp {
+    bfloat4 operator()(bfloat4 value) const {
+        return bfloat4(
+            activation_bf16_log(activation_bf16_one() + value.x),
+            activation_bf16_log(activation_bf16_one() + value.y),
+            activation_bf16_log(activation_bf16_one() + value.z),
+            activation_bf16_log(activation_bf16_one() + value.w)
+        );
+    }
+    bfloat operator()(bfloat value) const { return activation_bf16_log(activation_bf16_one() + value); }
+};
+
+struct BF16Expm1Op {
+    bfloat4 operator()(bfloat4 value) const {
+        return activation_bf16_map4(value, activation_bf16_exp) - activation_bf16_one();
+    }
+    bfloat operator()(bfloat value) const { return activation_bf16_exp(value) - activation_bf16_one(); }
+};
+
+struct BF16CeluOp {
+    bfloat4 operator()(bfloat4 value) const {
+        const bfloat alpha = activation_bf16_one();
+        return bfloat4(
+            select(value.x, activation_bf16_zero(), value.x < activation_bf16_zero()) + alpha * (activation_bf16_exp(activation_bf16_min(value.x, activation_bf16_zero()) / alpha) - activation_bf16_one()),
+            select(value.y, activation_bf16_zero(), value.y < activation_bf16_zero()) + alpha * (activation_bf16_exp(activation_bf16_min(value.y, activation_bf16_zero()) / alpha) - activation_bf16_one()),
+            select(value.z, activation_bf16_zero(), value.z < activation_bf16_zero()) + alpha * (activation_bf16_exp(activation_bf16_min(value.z, activation_bf16_zero()) / alpha) - activation_bf16_one()),
+            select(value.w, activation_bf16_zero(), value.w < activation_bf16_zero()) + alpha * (activation_bf16_exp(activation_bf16_min(value.w, activation_bf16_zero()) / alpha) - activation_bf16_one())
+        );
+    }
+    bfloat operator()(bfloat value) const {
+        const bfloat alpha = activation_bf16_one();
+        return select(value, activation_bf16_zero(), value < activation_bf16_zero()) + alpha * (activation_bf16_exp(activation_bf16_min(value, activation_bf16_zero()) / alpha) - activation_bf16_one());
+    }
+};
+
+struct BF16SoftplusOp {
+    bfloat4 operator()(bfloat4 value) const {
+        return bfloat4(
+            activation_bf16_log(activation_bf16_one() + activation_bf16_exp(value.x)),
+            activation_bf16_log(activation_bf16_one() + activation_bf16_exp(value.y)),
+            activation_bf16_log(activation_bf16_one() + activation_bf16_exp(value.z)),
+            activation_bf16_log(activation_bf16_one() + activation_bf16_exp(value.w))
+        );
+    }
+    bfloat operator()(bfloat value) const {
+        return activation_bf16_log(activation_bf16_one() + activation_bf16_exp(value));
+    }
+};
+
+struct BF16MishOp {
+    bfloat4 operator()(bfloat4 value) const {
+        return bfloat4(
+            value.x * activation_bf16_tanh(activation_bf16_log(activation_bf16_one() + activation_bf16_exp(value.x))),
+            value.y * activation_bf16_tanh(activation_bf16_log(activation_bf16_one() + activation_bf16_exp(value.y))),
+            value.z * activation_bf16_tanh(activation_bf16_log(activation_bf16_one() + activation_bf16_exp(value.z))),
+            value.w * activation_bf16_tanh(activation_bf16_log(activation_bf16_one() + activation_bf16_exp(value.w)))
+        );
+    }
+    bfloat operator()(bfloat value) const {
+        return value * activation_bf16_tanh(activation_bf16_log(activation_bf16_one() + activation_bf16_exp(value)));
+    }
+};
+
+struct BF16LogSigmoidOp {
+    bfloat4 operator()(bfloat4 value) const {
+        return bfloat4(
+            -activation_bf16_log(activation_bf16_one() + activation_bf16_exp(-value.x)),
+            -activation_bf16_log(activation_bf16_one() + activation_bf16_exp(-value.y)),
+            -activation_bf16_log(activation_bf16_one() + activation_bf16_exp(-value.z)),
+            -activation_bf16_log(activation_bf16_one() + activation_bf16_exp(-value.w))
+        );
+    }
+    bfloat operator()(bfloat value) const {
+        return -activation_bf16_log(activation_bf16_one() + activation_bf16_exp(-value));
+    }
+};
+
+struct BF16GeluTanhOp {
+    bfloat4 operator()(bfloat4 value) const { return BF16GeluOp{}(value); }
+    bfloat operator()(bfloat value) const { return BF16GeluOp{}(value); }
+};
+
+struct BF16HardTanhOp {
+    bfloat4 operator()(bfloat4 value) const {
+        const bfloat low = bfloat(-1.0);
+        const bfloat high = activation_bf16_one();
+        return bfloat4(
+            activation_bf16_clamp(value.x, low, high),
+            activation_bf16_clamp(value.y, low, high),
+            activation_bf16_clamp(value.z, low, high),
+            activation_bf16_clamp(value.w, low, high)
+        );
+    }
+    bfloat operator()(bfloat value) const {
+        return activation_bf16_clamp(value, bfloat(-1.0), activation_bf16_one());
+    }
+};
+
+struct BF16HardGeluOp {
+    bfloat4 operator()(bfloat4 value) const {
+        const bfloat threshold = bfloat(-0.7071067811865476);
+        return bfloat4(
+            value.x * select(activation_bf16_zero(), activation_bf16_one(), value.x > threshold),
+            value.y * select(activation_bf16_zero(), activation_bf16_one(), value.y > threshold),
+            value.z * select(activation_bf16_zero(), activation_bf16_one(), value.z > threshold),
+            value.w * select(activation_bf16_zero(), activation_bf16_one(), value.w > threshold)
+        );
+    }
+    bfloat operator()(bfloat value) const {
+        return value * select(activation_bf16_zero(), activation_bf16_one(), value > bfloat(-0.7071067811865476));
+    }
+};
+
+struct BF16QuickGeluOp {
+    bfloat4 operator()(bfloat4 value) const {
+        const bfloat scale = bfloat(1.702);
+        return bfloat4(
+            value.x * activation_bf16_sigmoid(scale * value.x),
+            value.y * activation_bf16_sigmoid(scale * value.y),
+            value.z * activation_bf16_sigmoid(scale * value.z),
+            value.w * activation_bf16_sigmoid(scale * value.w)
+        );
+    }
+    bfloat operator()(bfloat value) const {
+        return value * activation_bf16_sigmoid(bfloat(1.702) * value);
+    }
+};
+
+struct BF16TanhShrinkOp {
+    bfloat4 operator()(bfloat4 value) const { return value - activation_bf16_map4(value, activation_bf16_tanh); }
+    bfloat operator()(bfloat value) const { return value - activation_bf16_tanh(value); }
+};
+
+#undef BF16_UNARY_OP
+
+#endif

@@ -1,0 +1,230 @@
+#ifndef CARAMBA_DEVICE_METAL_ACTIVATION_OPS_F16_METALINC
+#define CARAMBA_DEVICE_METAL_ACTIVATION_OPS_F16_METALINC
+
+#include <metal_stdlib>
+using namespace metal;
+
+struct HalfReluOp {
+    half4 operator()(half4 value) const { return max(half4(0.0h), value); }
+    half operator()(half value) const { return max(half(0.0h), value); }
+};
+
+struct HalfAbsOp {
+    half4 operator()(half4 value) const { return abs(value); }
+    half operator()(half value) const { return abs(value); }
+};
+
+struct HalfNegOp {
+    half4 operator()(half4 value) const { return -value; }
+    half operator()(half value) const { return -value; }
+};
+
+struct HalfSquareOp {
+    half4 operator()(half4 value) const { return value * value; }
+    half operator()(half value) const { return value * value; }
+};
+
+struct HalfRecipOp {
+    half4 operator()(half4 value) const { return half4(1.0h) / value; }
+    half operator()(half value) const { return half(1.0h) / value; }
+};
+
+struct HalfSqrtOp {
+    half4 operator()(half4 value) const { return sqrt(value); }
+    half operator()(half value) const { return sqrt(value); }
+};
+
+struct HalfSignOp {
+    half4 operator()(half4 value) const {
+        return select(half4(-1.0h), half4(1.0h), value > half4(0.0h));
+    }
+    half operator()(half value) const {
+        return select(half(-1.0h), half(1.0h), value > half(0.0h));
+    }
+};
+
+struct HalfRsqrtOp {
+    half4 operator()(half4 value) const { return rsqrt(value); }
+    half operator()(half value) const { return rsqrt(value); }
+};
+
+struct HalfExpOp {
+    half4 operator()(half4 value) const { return exp(value); }
+    half operator()(half value) const { return exp(value); }
+};
+
+struct HalfLogOp {
+    half4 operator()(half4 value) const { return log(value); }
+    half operator()(half value) const { return log(value); }
+};
+
+struct HalfSinOp {
+    half4 operator()(half4 value) const { return sin(value); }
+    half operator()(half value) const { return sin(value); }
+};
+
+struct HalfCosOp {
+    half4 operator()(half4 value) const { return cos(value); }
+    half operator()(half value) const { return cos(value); }
+};
+
+struct HalfTanhOp {
+    half4 operator()(half4 value) const { return tanh(value); }
+    half operator()(half value) const { return tanh(value); }
+};
+
+struct HalfGeluOp {
+    half4 operator()(half4 value) const {
+        const half4 k = half4(0.7978845608028655h);
+        const half4 c = half4(0.044715h);
+        return half4(0.5h) * value * (half4(1.0h) + tanh(k * (value + c * value * value * value)));
+    }
+    half operator()(half value) const {
+        const half k = half(0.7978845608028655h);
+        const half c = half(0.044715h);
+        return half(0.5h) * value * (half(1.0h) + tanh(k * (value + c * value * value * value)));
+    }
+};
+
+struct HalfSigmoidOp {
+    half4 operator()(half4 value) const { return half4(1.0h) / (half4(1.0h) + exp(-value)); }
+    half operator()(half value) const { return half(1.0h) / (half(1.0h) + exp(-value)); }
+};
+
+struct HalfSiluOp {
+    half4 operator()(half4 value) const { return value / (half4(1.0h) + exp(-value)); }
+    half operator()(half value) const { return value / (half(1.0h) + exp(-value)); }
+};
+
+struct HalfSoftsignOp {
+    half4 operator()(half4 value) const { return value / (half4(1.0h) + abs(value)); }
+    half operator()(half value) const { return value / (half(1.0h) + abs(value)); }
+};
+
+struct HalfELUOp {
+    half4 operator()(half4 value) const {
+        return select(value, exp(value) - half4(1.0h), value < half4(0.0h));
+    }
+    half operator()(half value) const {
+        return select(value, exp(value) - half(1.0h), value < half(0.0h));
+    }
+};
+
+struct HalfSELUOp {
+    half4 operator()(half4 value) const {
+        const half4 alpha = half4(1.6732632423543772848170429916717h);
+        const half4 scale = half4(1.0507009873554804934193349852946h);
+        return scale * select(value, alpha * (exp(value) - half4(1.0h)), value < half4(0.0h));
+    }
+    half operator()(half value) const {
+        const half alpha = half(1.6732632423543772848170429916717h);
+        const half scale = half(1.0507009873554804934193349852946h);
+        return scale * select(value, alpha * (exp(value) - half(1.0h)), value < half(0.0h));
+    }
+};
+
+struct HalfLeakyReLUOp {
+    half4 operator()(half4 value) const {
+        return select(half4(0.01h) * value, value, value >= half4(0.0h));
+    }
+    half operator()(half value) const {
+        return select(half(0.01h) * value, value, value >= half(0.0h));
+    }
+};
+
+struct HalfHardSigmoidOp {
+    half4 operator()(half4 value) const {
+        return clamp(half4(0.2h) * value + half4(0.5h), half4(0.0h), half4(1.0h));
+    }
+    half operator()(half value) const {
+        return clamp(half(0.2h) * value + half(0.5h), half(0.0h), half(1.0h));
+    }
+};
+
+struct HalfHardSwishOp {
+    half4 operator()(half4 value) const {
+        return value * clamp(half4(0.16666666666666666h) * value + half4(0.5h), half4(0.0h), half4(1.0h));
+    }
+    half operator()(half value) const {
+        return value * clamp(half(0.16666666666666666h) * value + half(0.5h), half(0.0h), half(1.0h));
+    }
+};
+
+struct HalfLog1pOp {
+    half4 operator()(half4 value) const { return log(half4(1.0h) + value); }
+    half operator()(half value) const { return log(half(1.0h) + value); }
+};
+
+struct HalfExpm1Op {
+    half4 operator()(half4 value) const { return exp(value) - half4(1.0h); }
+    half operator()(half value) const { return exp(value) - half(1.0h); }
+};
+
+struct HalfCeluOp {
+    half4 operator()(half4 value) const {
+        const half4 alpha = half4(1.0h);
+        return max(value, half4(0.0h)) + alpha * (exp(min(value, half4(0.0h)) / alpha) - half4(1.0h));
+    }
+    half operator()(half value) const {
+        const half alpha = half(1.0h);
+        return max(value, half(0.0h)) + alpha * (exp(min(value, half(0.0h)) / alpha) - half(1.0h));
+    }
+};
+
+struct HalfSoftplusOp {
+    half4 operator()(half4 value) const { return log(half4(1.0h) + exp(value)); }
+    half operator()(half value) const { return log(half(1.0h) + exp(value)); }
+};
+
+struct HalfMishOp {
+    half4 operator()(half4 value) const { return value * tanh(log(half4(1.0h) + exp(value))); }
+    half operator()(half value) const { return value * tanh(log(half(1.0h) + exp(value))); }
+};
+
+struct HalfLogSigmoidOp {
+    half4 operator()(half4 value) const { return -log(half4(1.0h) + exp(-value)); }
+    half operator()(half value) const { return -log(half(1.0h) + exp(-value)); }
+};
+
+struct HalfGeluTanhOp {
+    half4 operator()(half4 value) const {
+        const half4 k = half4(0.7978845608028655h);
+        const half4 c = half4(0.044715h);
+        return half4(0.5h) * value * (half4(1.0h) + tanh(k * (value + c * value * value * value)));
+    }
+    half operator()(half value) const {
+        const half k = half(0.7978845608028655h);
+        const half c = half(0.044715h);
+        return half(0.5h) * value * (half(1.0h) + tanh(k * (value + c * value * value * value)));
+    }
+};
+
+struct HalfHardTanhOp {
+    half4 operator()(half4 value) const { return clamp(value, half4(-1.0h), half4(1.0h)); }
+    half operator()(half value) const { return clamp(value, half(-1.0h), half(1.0h)); }
+};
+
+struct HalfHardGeluOp {
+    half4 operator()(half4 value) const {
+        return value * select(half4(0.0h), half4(1.0h), value > half4(-0.7071067811865476h));
+    }
+    half operator()(half value) const {
+        return value * select(half(0.0h), half(1.0h), value > half(-0.7071067811865476h));
+    }
+};
+
+struct HalfQuickGeluOp {
+    half4 operator()(half4 value) const {
+        return value * (half4(1.0h) / (half4(1.0h) + exp(-half4(1.702h) * value)));
+    }
+    half operator()(half value) const {
+        return value * (half(1.0h) / (half(1.0h) + exp(-half(1.702h) * value)));
+    }
+};
+
+struct HalfTanhShrinkOp {
+    half4 operator()(half4 value) const { return value - tanh(value); }
+    half operator()(half value) const { return value - tanh(value); }
+};
+
+#endif

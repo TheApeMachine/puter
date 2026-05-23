@@ -8,7 +8,7 @@
 
 int metal_dispatch_unary_param(
     MetalDeviceRef contextRef,
-    const char* kernelName,
+    const char* operationPrefix,
     int elementDType,
     MetalBufferRef inputRef,
     MetalBufferRef outRef,
@@ -20,7 +20,7 @@ int metal_dispatch_unary_param(
     @autoreleasepool {
         metal_activation_status_clear(status);
 
-        if (count == 0 || kernelName == NULL) {
+        if (count == 0 || operationPrefix == NULL) {
             return 0;
         }
 
@@ -29,6 +29,26 @@ int metal_dispatch_unary_param(
         if (context == NULL || context->queue == NULL || inputRef == NULL || outRef == NULL) {
             metal_activation_status_set(status, -2, "invalid Metal unary param dispatch");
             return -2;
+        }
+
+        const char* dtypeSuffix = metal_activation_element_dtype_suffix(elementDType);
+
+        if (dtypeSuffix == NULL) {
+            metal_activation_status_set(status, -6, "unknown Metal parametric dtype");
+            return -6;
+        }
+
+        char kernelName[128];
+        int nameCode = metal_activation_compose_kernel_name(
+            kernelName,
+            sizeof(kernelName),
+            operationPrefix,
+            dtypeSuffix,
+            status
+        );
+
+        if (nameCode != 0) {
+            return nameCode;
         }
 
         id<MTLComputePipelineState> pipeline = metal_get_pipeline(context, kernelName, status);
@@ -52,7 +72,7 @@ int metal_dispatch_unary_param(
             threadWidth = 1;
         }
 
-        NSUInteger vectorCount = (NSUInteger)((count + 3) / 4);
+        NSUInteger vectorCount = (NSUInteger)metal_activation_vector_launch_count(count, elementDType);
         [encoder dispatchThreads:MTLSizeMake(vectorCount, 1, 1)
             threadsPerThreadgroup:MTLSizeMake(threadWidth, 1, 1)];
         metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);
@@ -61,4 +81,3 @@ int metal_dispatch_unary_param(
         return 0;
     }
 }
-
