@@ -4,7 +4,6 @@ package parity
 
 import (
 	"fmt"
-	"math"
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
@@ -79,7 +78,7 @@ func ComputeUnaryReference(
 }
 
 /*
-GroupNormReference computes the scalar GroupNorm reference in float32 space.
+GroupNormReference computes the GroupNorm reference matching Metal MSL reduction order.
 */
 func GroupNormReference(
 	input, scale, bias []float32,
@@ -98,20 +97,7 @@ func GroupNormReference(
 			groupScale := scale[channelStart : channelStart+channelsPerGroup]
 			groupBias := bias[channelStart : channelStart+channelsPerGroup]
 
-			mean := groupMeanFloat64(groupInput)
-			variance := groupVarianceFloat64(groupInput, mean)
-			mean32 := float32(mean)
-			invStdDev := float32(1.0 / math.Sqrt(variance+float64(normEpsilon)))
-
-			for channelIndex := 0; channelIndex < channelsPerGroup; channelIndex++ {
-				channelOffset := channelIndex * spatial
-
-				for spatialIndex := 0; spatialIndex < spatial; spatialIndex++ {
-					index := channelOffset + spatialIndex
-					normalized := (groupInput[index] - mean32) * invStdDev
-					groupOutput[index] = normalized*groupScale[channelIndex] + groupBias[channelIndex]
-				}
-			}
+			metalGroupNormGroup(groupInput, groupOutput, groupScale, groupBias, channelsPerGroup, spatial)
 		}
 	}
 
@@ -119,7 +105,7 @@ func GroupNormReference(
 }
 
 /*
-LayerNormReference computes the scalar LayerNorm reference in float32 space.
+LayerNormReference computes the LayerNorm reference matching Metal MSL reduction order.
 */
 func LayerNormReference(
 	input, scale, bias []float32,
@@ -132,15 +118,7 @@ func LayerNormReference(
 		rowInput := input[rowStart : rowStart+cols]
 		rowOutput := output[rowStart : rowStart+cols]
 
-		mean := groupMeanFloat64(rowInput)
-		variance := groupVarianceFloat64(rowInput, mean)
-		mean32 := float32(mean)
-		invStdDev := float32(1.0 / math.Sqrt(variance+float64(normEpsilon)))
-
-		for colIndex := 0; colIndex < cols; colIndex++ {
-			normalized := (rowInput[colIndex] - mean32) * invStdDev
-			rowOutput[colIndex] = normalized*scale[colIndex] + bias[colIndex]
-		}
+		metalLayerNormRow(rowInput, rowOutput, scale, bias)
 	}
 
 	return output
@@ -191,31 +169,26 @@ func decodeVector(bytesIn []byte, format dtype.DType) ([]float32, error) {
 	}
 }
 
-func groupMeanFloat64(values []float32) float64 {
-	var sum float64
+/*
+ComputeUnaryReferenceBytes runs the CPU reference and returns encoded storage bytes.
+*/
+func ComputeUnaryReferenceBytes(
+	source []float32,
+	format dtype.DType,
+	reference UnaryReference,
+) []byte {
+	sourceBytes, err := encodeVector(source, format)
 
-	for _, value := range values {
-		sum += float64(value)
+	if err != nil {
+		panic(err)
 	}
 
-	return sum / float64(len(values))
-}
+	destinationBytes := make([]byte, len(sourceBytes))
+	reference(
+		unsafe.Pointer(&destinationBytes[0]),
+		unsafe.Pointer(&sourceBytes[0]),
+		len(source),
+	)
 
-func groupVarianceFloat64(values []float32, mean float64) float64 {
-	var sum float64
-
-	for _, value := range values {
-		delta := float64(value) - mean
-		sum += delta * delta
-	}
-
-	return sum / float64(len(values))
-}
-
-func groupMean(values []float32) float32 {
-	return float32(groupMeanFloat64(values))
-}
-
-func groupVariance(values []float32, mean float32) float32 {
-	return float32(groupVarianceFloat64(values, float64(mean)))
+	return destinationBytes
 }

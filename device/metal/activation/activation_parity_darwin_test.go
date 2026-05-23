@@ -62,7 +62,7 @@ func TestActivationStandardUnaryMetalParity(t *testing.T) {
 						for _, count := range parity.Lengths {
 							convey.Convey(fmt.Sprintf("N=%d", count), func() {
 								source := parity.RandomUnaryInput(count, 0x4D00+int64(count))
-								want := parity.ComputeUnaryReference(
+								wantBytes := parity.ComputeUnaryReferenceBytes(
 									source,
 									storageDType,
 									testCase.reference(storageDType),
@@ -84,9 +84,17 @@ func TestActivationStandardUnaryMetalParity(t *testing.T) {
 									t.Fatalf("dispatch %s: %v", testCase.name, err)
 								}
 
-								got := harness.DownloadFloat32(destinationTensor, storageDType)
-								maxULP := reducedMaxULP(storageDType, testCase.maxULPF32, testCase.maxULPRed)
-								parity.AssertFloat32SlicesWithinULP(t, got, want, maxULP)
+								if storageDType == dtype.Float32 {
+									got := harness.DownloadFloat32(destinationTensor, storageDType)
+									want := parity.DecodeFloat32Vector(wantBytes, storageDType)
+									parity.AssertFloat32SlicesWithinULP(t, got, want, testCase.maxULPF32)
+								}
+
+								if storageDType != dtype.Float32 {
+									harness.Sync()
+									gotBytes := destinationTensor.ReadBytes()
+									parity.AssertEncodedSlicesEqual(t, gotBytes, wantBytes)
+								}
 							})
 						}
 					})

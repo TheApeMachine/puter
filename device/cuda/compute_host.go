@@ -9,6 +9,7 @@ import (
 	"github.com/theapemachine/puter/device"
 	"github.com/theapemachine/puter/device/cuda/activation"
 	"github.com/theapemachine/puter/device/cuda/elementwise"
+	"github.com/theapemachine/puter/device/cuda/layernorm"
 )
 
 type ComputeHost struct {
@@ -70,7 +71,23 @@ func (host *ComputeHost) matrixRowsCols(pointer unsafe.Pointer) (rows uint32, co
 }
 
 func (host *ComputeHost) BinaryElementwise(dst, left, right unsafe.Pointer, format dtype.DType, kernel elementwise.BinaryKernel) {
-	host.unavailable()
+	count := host.elementCount(dst, left, right)
+
+	if count == 0 {
+		return
+	}
+
+	if err := elementwise.DispatchBinaryElementwise(
+		host.contextRef(),
+		resolveBufferRef(dst),
+		resolveBufferRef(left),
+		resolveBufferRef(right),
+		format,
+		kernel,
+		count,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchALiBiBias(scores, slope, output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
@@ -94,7 +111,22 @@ func (host *ComputeHost) DispatchAvgPool2D(config device.PoolConfig, input, outp
 }
 
 func (host *ComputeHost) DispatchAxpy(y, x unsafe.Pointer, alpha float32, format dtype.DType) {
-	host.unavailable()
+	count := host.elementCount(y, x)
+
+	if count == 0 {
+		return
+	}
+
+	if err := elementwise.DispatchAxpy(
+		host.contextRef(),
+		resolveBufferRef(y),
+		resolveBufferRef(x),
+		format,
+		alpha,
+		count,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchBackdoorAdjustment(conditional, marginalZ, output unsafe.Pointer, xCount, zCount, yCount int, format dtype.DType) {
@@ -356,7 +388,23 @@ func (host *ComputeHost) LaunchBag(table, indices, offsets, output unsafe.Pointe
 }
 
 func (host *ComputeHost) LaunchLayerNorm(input, scale, bias, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {
-	host.unavailable()
+	if rows == 0 || lastDim == 0 {
+		return
+	}
+
+	if err := layernorm.DispatchLayerNorm(
+		host.contextRef(),
+		resolveBufferRef(input),
+		resolveBufferRef(scale),
+		resolveBufferRef(bias),
+		resolveBufferRef(output),
+		format,
+		uint32(rows),
+		uint32(lastDim),
+		0,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) LaunchLookup(table, indices, output unsafe.Pointer, vocab, hidden, indexCount int, format dtype.DType) {
@@ -364,7 +412,22 @@ func (host *ComputeHost) LaunchLookup(table, indices, output unsafe.Pointer, voc
 }
 
 func (host *ComputeHost) LaunchRMSNorm(input, scale, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {
-	host.unavailable()
+	if rows == 0 || lastDim == 0 {
+		return
+	}
+
+	if err := layernorm.DispatchRMSNorm(
+		host.contextRef(),
+		resolveBufferRef(input),
+		resolveBufferRef(scale),
+		resolveBufferRef(output),
+		format,
+		uint32(rows),
+		uint32(lastDim),
+		0,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) MatmulLaunch(out, left, right unsafe.Pointer, rows, inner, cols int, format dtype.DType) {
@@ -405,7 +468,22 @@ func (host *ComputeHost) StandardUnary(dst, src unsafe.Pointer, format dtype.DTy
 }
 
 func (host *ComputeHost) UnaryElementwise(dst, src unsafe.Pointer, format dtype.DType, kernel elementwise.UnaryKernel) {
-	host.unavailable()
+	count := host.elementCount(dst, src)
+
+	if count == 0 {
+		return
+	}
+
+	if err := elementwise.DispatchUnaryMath(
+		host.contextRef(),
+		resolveBufferRef(dst),
+		resolveBufferRef(src),
+		format,
+		kernel,
+		count,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) UnaryParam(dst, src unsafe.Pointer, format dtype.DType, kernelName string, param float32) {
