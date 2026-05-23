@@ -73,6 +73,13 @@ void cuda_status_clear(CUDAStatus* status);
 
 void cuda_status_set(CUDAStatus* status, int code, const char* message);
 
+CUDAKernelRef cuda_bridge_resolve_kernel(
+    CUDADeviceRef contextRef,
+    const char* moduleSource,
+    const char* kernelName,
+    CUDAStatus* status
+);
+
 #ifdef __cplusplus
 }
 #endif

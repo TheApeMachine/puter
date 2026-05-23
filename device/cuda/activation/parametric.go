@@ -9,15 +9,17 @@ import (
 )
 
 const (
-	paramKernelPReLUSlope     = "prelu_slope"
-	paramKernelLeakyReLUSlope = "leaky_relu_slope"
-	paramKernelELUAlpha       = "elu_alpha"
-	paramKernelCELUAlpha      = "celu_alpha"
-	paramKernelThreshold      = "threshold"
-	paramKernelHardTanhRange  = "hard_tanh_range"
-	paramKernelSnake          = "snake"
+	paramKernelPReLUSlope      = "prelu_slope"
+	paramKernelLeakyReLUSlope  = "leaky_relu_slope"
+	paramKernelELUAlpha        = "elu_alpha"
+	paramKernelCELUAlpha       = "celu_alpha"
+	paramKernelThreshold       = "threshold"
+	paramKernelHardTanhRange   = "hard_tanh_range"
+	paramKernelSnake           = "snake"
 	paramKernelSnakeParametric = "snake_parametric"
-	paramKernelRReLU          = "rrelu"
+	paramKernelRReLU           = "rrelu"
+	paramKernelHardShrink      = "hard_shrink"
+	paramKernelSoftShrink      = "soft_shrink"
 )
 
 func (activation *Activation) PReLU(
@@ -118,7 +120,7 @@ func (activation *Activation) HardShrink(
 	lambda float32,
 ) {
 	_ = count
-	activation.host.UnaryParam(dst, src, format, paramKernelThreshold, lambda)
+	activation.host.UnaryParam(dst, src, format, paramKernelHardShrink, lambda)
 }
 
 func (activation *Activation) SoftShrink(
@@ -128,7 +130,7 @@ func (activation *Activation) SoftShrink(
 	lambda float32,
 ) {
 	_ = count
-	activation.host.UnaryParam(dst, src, format, paramKernelThreshold, lambda)
+	activation.host.UnaryParam(dst, src, format, paramKernelSoftShrink, lambda)
 }
 
 func (activation *Activation) RReLU(

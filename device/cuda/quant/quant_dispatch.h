@@ -11,10 +11,10 @@ void cuda_quant_register_module_source(const char* source);
 
 int cuda_dispatch_quantization(
     CUDADeviceRef contextRef,
-    int operation,
+    int elementDType,
     CUDABufferRef inputRef,
     CUDABufferRef outRef,
-    float scale,
+    float invScale,
     int zeroPoint,
     uint32_t count,
     uint64_t completionToken,

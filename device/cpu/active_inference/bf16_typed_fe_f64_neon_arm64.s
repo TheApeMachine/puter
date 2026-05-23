@@ -15,18 +15,15 @@
 #define VMAX_S4(m, n, d)    WORD $(0x4E20F400 | ((m) << 16) | ((n) << 5) | (d))
 #define VMOV_B16(src, dst)  WORD $(0x4EA01C00 | ((src) << 16) | ((src) << 5) | (dst))
 
-DATA aiTypedLogC<>+0(SB)/4, $0.6931471805599453
-DATA aiTypedLogC<>+4(SB)/4, $1.0
-DATA aiTypedLogC<>+8(SB)/4, $0.09090909
-DATA aiTypedLogC<>+12(SB)/4, $0.11111111
-DATA aiTypedLogC<>+16(SB)/4, $0.14285715
-DATA aiTypedLogC<>+20(SB)/4, $0.20000000
-DATA aiTypedLogC<>+24(SB)/4, $0.33333334
-DATA aiTypedLogC<>+28(SB)/4, $2.0
-GLOBL aiTypedLogC<>(SB), RODATA|NOPTR, $32
-
-DATA aiEpsF64<>+0(SB)/8, $0x3F50600000000000
-GLOBL aiEpsF64<>(SB), RODATA|NOPTR, $8
+DATA aiTypedFeLogCBf16<>+0(SB)/4, $0.6931471805599453
+DATA aiTypedFeLogCBf16<>+4(SB)/4, $1.0
+DATA aiTypedFeLogCBf16<>+8(SB)/4, $0.09090909
+DATA aiTypedFeLogCBf16<>+12(SB)/4, $0.11111111
+DATA aiTypedFeLogCBf16<>+16(SB)/4, $0.14285715
+DATA aiTypedFeLogCBf16<>+20(SB)/4, $0.20000000
+DATA aiTypedFeLogCBf16<>+24(SB)/4, $0.33333334
+DATA aiTypedFeLogCBf16<>+28(SB)/4, $2.0
+GLOBL aiTypedFeLogCBf16<>(SB), RODATA|NOPTR, $32
 
 #define AI_TYPED_LOAD_LOG_MASKS \
 	MOVD $0x007FFFFF, R6 ;\
@@ -40,7 +37,7 @@ GLOBL aiEpsF64<>(SB), RODATA|NOPTR, $8
 	VDUP V26.S[0], V26.S4
 
 #define AI_TYPED_RELOAD_LOG_POLY \
-	MOVD $aiTypedLogC<>(SB), R13 ;\
+	MOVD $aiTypedFeLogCBf16<>(SB), R13 ;\
 	FMOVS  0(R13), F16 ;\
 	VDUP V16.S[0], V16.S4 ;\
 	FMOVS  4(R13), F17 ;\
@@ -96,7 +93,8 @@ GLOBL aiEpsF64<>(SB), RODATA|NOPTR, $8
 	FCVTSD F1, fd
 
 #define AI_F64_CLAMP_POS(fd) \
-	FMOVD aiEpsF64<>(SB), F2 ;\
+	MOVD  $0x3F506024DD2F1AA0, R6 ;\
+	FMOVD R6, F2 ;\
 	FMAXD fd, F2, fd
 
 #define AI_F64_LOG_TO(in, out) \

@@ -1079,7 +1079,6 @@ func (host *ComputeHost) DispatchPredictionError(observed, predicted, output uns
 
 func (host *ComputeHost) DispatchQuant(dst, src unsafe.Pointer, count int, config device.DequantInt8Config, dstFormat, srcFormat dtype.DType) {
 	_ = dstFormat
-	_ = srcFormat
 
 	if count == 0 {
 		return
@@ -1089,6 +1088,7 @@ func (host *ComputeHost) DispatchQuant(dst, src unsafe.Pointer, count int, confi
 		host.contextRef(),
 		resolveBufferRef(src),
 		resolveBufferRef(dst),
+		srcFormat,
 		config.Scale,
 		config.ZeroPoint,
 		uint32(count),

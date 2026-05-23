@@ -1389,7 +1389,7 @@ PHASE 1: Core Interface and Types
   ├── 1.3 Write unit tests verifying that all methods in device.Backend accept unsafe.Pointer
   └── 1.4 Reorganize device/metal (and device/cuda) to match device/cpu layout per §2.3
         ├── 1.4a Metal: interface-family tree + quintet per family (§2.3.1) — **done**
-        └── 1.4b CUDA: mirror §2.3 family subpackages — **pending**
+        └── 1.4b CUDA: mirror §2.3 family subpackages — **done**
   │
 PHASE 2: Compiler Front-End and Unification
   │
@@ -1441,7 +1441,7 @@ PHASE 7: Verification and Validation
 *   **Task 1.3:** Write unit tests verifying that all methods in `device.Backend` accept `unsafe.Pointer` and adhere to the zero-host-sync principle.
 *   **Task 1.4:** Restructure GPU backends to mirror §2.3.
     *   **1.4a (Metal, complete):** `device/metal/` uses the interface-family tree with the quintet per family (§2.3.1). Monolithic MSL and cross-family bridges eliminated. `internal/metallibgen` walks `**/*.metal` under `device/metal/` when building `kernels.metallib`.
-    *   **1.4b (CUDA, pending):** Delete `device_missing`, `device_remaining`, and other catch-all files. Move each operation family into its subdirectory with methods on a family type, embedded from root `Backend`, colocated kernels, bridges, and parity tests.
+    *   **1.4b (CUDA, complete):** `device/cuda/` uses the interface-family tree with NVRTC `.cu` domains, per-family `dispatch_cuda.go`, `native/*.c` bridges, `internal/parity/` harness, and parity/bench tests for all quintet-complete families. Root holds `backend.go`, `allocate.go`, `kernels.go`, and `backend_config.go`.
     *   Remove root `backend_*.go` forwarding shims from `device/cpu` as subpackages gain embedded types.
 
 #### Phase 2: Compiler Front-End and Unification

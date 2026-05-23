@@ -17,6 +17,7 @@ import (
 	"github.com/theapemachine/puter/device/cuda/hawkes"
 	"github.com/theapemachine/puter/device/cuda/layernorm"
 	"github.com/theapemachine/puter/device/cuda/losses"
+	"github.com/theapemachine/puter/device/cuda/masking"
 	"github.com/theapemachine/puter/device/cuda/matmul"
 	"github.com/theapemachine/puter/device/cuda/normalization"
 	"github.com/theapemachine/puter/device/cuda/physics"
@@ -47,6 +48,7 @@ func (backend *Backend) bindFamilies(computeHost *ComputeHost) {
 	backend.Hawkes = hawkes.New(computeHost)
 	backend.Physics = physics.New(computeHost)
 	backend.Causal = causal.New(computeHost)
+	backend.Masking = masking.New(computeHost)
 	backend.Attention = attention.New(computeHost)
 	backend.VSA = vsa.New(computeHost)
 	backend.ActiveInference = active_inference.New(computeHost)

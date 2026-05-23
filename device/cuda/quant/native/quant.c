@@ -15,10 +15,10 @@ const char* cuda_quant_module_source(void) {
 
 int cuda_dispatch_quantization(
     CUDADeviceRef contextRef,
-    int operation,
+    int elementDType,
     CUDABufferRef inputRef,
     CUDABufferRef outRef,
-    float scale,
+    float invScale,
     int zeroPoint,
     uint32_t count,
     uint64_t completionToken,
@@ -35,9 +35,18 @@ int cuda_dispatch_quantization(
         return -2;
     }
 
-    if (operation != 2) {
-        cuda_status_set(status, -6, "unknown CUDA quantization kernel");
+    const char* suffix = cuda_element_dtype_suffix(elementDType);
+
+    if (suffix == NULL) {
+        cuda_status_set(status, -6, "unknown CUDA quant dtype");
         return -6;
+    }
+
+    char kernelName[128];
+    int nameCode = cuda_compose_kernel_name(kernelName, sizeof(kernelName), "int8_quant", suffix, status);
+
+    if (nameCode != 0) {
+        return nameCode;
     }
 
     const char* moduleSource = cuda_quant_module_source();
@@ -55,7 +64,7 @@ int cuda_dispatch_quantization(
         return prepareCode;
     }
 
-    CUDAKernelRef kernel = cuda_get_kernel(context, moduleSource, "int8_quant", status);
+    CUDAKernelRef kernel = cuda_get_kernel(context, moduleSource, kernelName, status);
 
     if (kernel == NULL) {
         return status != NULL && status->code != 0 ? status->code : -7;
@@ -63,15 +72,13 @@ int cuda_dispatch_quantization(
 
     void* inputPtr = cuda_buffer_device_ptr(inputRef);
     void* outPtr = cuda_buffer_device_ptr(outRef);
-    void* args[] = {&inputPtr, &outPtr, &count};
-    int launchCode = cuda_launch_1d(context, kernel, stream, count, args, sizeof(args), status);
+    void* args[] = {&inputPtr, &outPtr, &invScale, &zeroPoint, &count};
+    uint32_t launchCount = cuda_vector_launch_count(count, elementDType);
+    int launchCode = cuda_launch_1d(context, kernel, stream, launchCount, args, sizeof(args), status);
 
     if (launchCode != 0) {
         return launchCode;
     }
-
-    (void)scale;
-    (void)zeroPoint;
 
     cuda_track_completion(context, stream, completionToken, NULL, status);
     return 0;

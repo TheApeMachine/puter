@@ -306,3 +306,19 @@ void cuda_track_completion(
     cudaStreamSynchronize((cudaStream_t)stream);
     cuda_status_clear(status);
 }
+
+CUDAKernelRef cuda_bridge_resolve_kernel(
+    CUDADeviceRef contextRef,
+    const char* moduleSource,
+    const char* kernelName,
+    CUDAStatus* status
+) {
+    CUDAContext* context = cuda_context_from_ref(contextRef);
+
+    if (context == NULL) {
+        cuda_status_set(status, -1, "invalid CUDA context");
+        return NULL;
+    }
+
+    return cuda_get_kernel(context, moduleSource, kernelName, status);
+}

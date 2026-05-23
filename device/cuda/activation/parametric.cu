@@ -661,3 +661,93 @@ extern "C" __global__ void rrelu_bfloat16(
 
     output[index] = __float2bfloat16(param_rrelu_value_bfloat16(input, index, count, lower, upper));
 }
+
+static __device__ __forceinline__ float4 param_hard_shrink_f4(float4 value, float lambda) {
+    return make_float4(
+        (value.x > lambda || value.x < -lambda) ? value.x : 0.0f,
+        (value.y > lambda || value.y < -lambda) ? value.y : 0.0f,
+        (value.z > lambda || value.z < -lambda) ? value.z : 0.0f,
+        (value.w > lambda || value.w < -lambda) ? value.w : 0.0f
+    );
+}
+
+static __device__ __forceinline__ float param_hard_shrink_f1(float value, float lambda) {
+    if (value > lambda || value < -lambda) {
+        return value;
+    }
+
+    return 0.0f;
+}
+
+static __device__ __forceinline__ float4 param_soft_shrink_f4(float4 value, float lambda) {
+    return make_float4(
+        value.x > lambda ? value.x - lambda : (value.x < -lambda ? value.x + lambda : 0.0f),
+        value.y > lambda ? value.y - lambda : (value.y < -lambda ? value.y + lambda : 0.0f),
+        value.z > lambda ? value.z - lambda : (value.z < -lambda ? value.z + lambda : 0.0f),
+        value.w > lambda ? value.w - lambda : (value.w < -lambda ? value.w + lambda : 0.0f)
+    );
+}
+
+static __device__ __forceinline__ float param_soft_shrink_f1(float value, float lambda) {
+    if (value > lambda) {
+        return value - lambda;
+    }
+
+    if (value < -lambda) {
+        return value + lambda;
+    }
+
+    return 0.0f;
+}
+
+static __device__ __forceinline__ __half param_hard_shrink_h1(__half value, __half lambda) {
+    return __float2half(param_hard_shrink_f1(__half2float(value), __half2float(lambda)));
+}
+
+static __device__ __forceinline__ __half2 param_hard_shrink_h2(__half2 value, __half lambda) {
+    return __halves2half2(
+        param_hard_shrink_h1(__low2half(value), lambda),
+        param_hard_shrink_h1(__high2half(value), lambda)
+    );
+}
+
+static __device__ __forceinline__ __nv_bfloat16 param_hard_shrink_bf16(__nv_bfloat16 value, __nv_bfloat16 lambda) {
+    return __float2bfloat16(param_hard_shrink_f1(__bfloat162float(value), __bfloat162float(lambda)));
+}
+
+static __device__ __forceinline__ __nv_bfloat162 param_hard_shrink_bf162(__nv_bfloat162 value, __nv_bfloat16 lambda) {
+    return __halves2bfloat162(
+        param_hard_shrink_bf16(__low2bfloat16(value), lambda),
+        param_hard_shrink_bf16(__high2bfloat16(value), lambda)
+    );
+}
+
+static __device__ __forceinline__ __half param_soft_shrink_h1(__half value, __half lambda) {
+    return __float2half(param_soft_shrink_f1(__half2float(value), __half2float(lambda)));
+}
+
+static __device__ __forceinline__ __half2 param_soft_shrink_h2(__half2 value, __half lambda) {
+    return __halves2half2(
+        param_soft_shrink_h1(__low2half(value), lambda),
+        param_soft_shrink_h1(__high2half(value), lambda)
+    );
+}
+
+static __device__ __forceinline__ __nv_bfloat16 param_soft_shrink_bf16(__nv_bfloat16 value, __nv_bfloat16 lambda) {
+    return __float2bfloat16(param_soft_shrink_f1(__bfloat162float(value), __bfloat162float(lambda)));
+}
+
+static __device__ __forceinline__ __nv_bfloat162 param_soft_shrink_bf162(__nv_bfloat162 value, __nv_bfloat16 lambda) {
+    return __halves2bfloat162(
+        param_soft_shrink_bf16(__low2bfloat16(value), lambda),
+        param_soft_shrink_bf16(__high2bfloat16(value), lambda)
+    );
+}
+
+PARAMETRIC_KERNEL_F32(hard_shrink, param_hard_shrink_f4, param_hard_shrink_f1)
+PARAMETRIC_KERNEL_F16(hard_shrink, param_hard_shrink_h2, param_hard_shrink_h1)
+PARAMETRIC_KERNEL_BF16(hard_shrink, param_hard_shrink_bf162, param_hard_shrink_bf16)
+
+PARAMETRIC_KERNEL_F32(soft_shrink, param_soft_shrink_f4, param_soft_shrink_f1)
+PARAMETRIC_KERNEL_F16(soft_shrink, param_soft_shrink_h2, param_soft_shrink_h1)
+PARAMETRIC_KERNEL_BF16(soft_shrink, param_soft_shrink_bf162, param_soft_shrink_bf16)

@@ -31,6 +31,7 @@ import (
 	"github.com/theapemachine/puter/device/cuda/hawkes"
 	"github.com/theapemachine/puter/device/cuda/layernorm"
 	"github.com/theapemachine/puter/device/cuda/losses"
+	"github.com/theapemachine/puter/device/cuda/masking"
 	"github.com/theapemachine/puter/device/cuda/matmul"
 	"github.com/theapemachine/puter/device/cuda/normalization"
 	"github.com/theapemachine/puter/device/cuda/physics"
@@ -67,6 +68,7 @@ type Backend struct {
 	hawkes.Hawkes
 	physics.Physics
 	causal.Causal
+	masking.Masking
 	attention.Attention
 	vsa.VSA
 	active_inference.ActiveInference

@@ -41,26 +41,13 @@ var (
 )
 
 func FreeEnergyBF16NEON(likelihood, posterior, prior []dtype.BF16) dtype.BF16 {
-	if len(likelihood) == 0 {
-		return 0
-	}
-
-	return FreeEnergyBFloat16NEONAsm(
-		&likelihood[0], &posterior[0], &prior[0], len(likelihood),
-	)
+	return freeEnergyBFloat16F64NEON(likelihood, posterior, prior)
 }
 
 func ExpectedFreeEnergyBF16NEON(
 	predictedObs, preferredObs, predictedState []dtype.BF16,
 ) dtype.BF16 {
-	if len(predictedObs) == 0 {
-		return 0
-	}
-
-	return ExpectedFreeEnergyBFloat16NEONAsm(
-		&predictedObs[0], &preferredObs[0], &predictedState[0],
-		len(predictedObs), len(predictedState),
-	)
+	return expectedFreeEnergyBFloat16F64NEON(predictedObs, preferredObs, predictedState)
 }
 
 func BeliefUpdateBF16NEON(likelihood, prior, output []dtype.BF16) {
@@ -84,26 +71,13 @@ func PrecisionWeightBF16NEON(errors, precision, output []dtype.BF16) {
 }
 
 func FreeEnergyFP16NEON(likelihood, posterior, prior []dtype.F16) dtype.F16 {
-	if len(likelihood) == 0 {
-		return 0
-	}
-
-	return FreeEnergyFloat16NEONAsm(
-		&likelihood[0], &posterior[0], &prior[0], len(likelihood),
-	)
+	return freeEnergyFloat16F64NEON(likelihood, posterior, prior)
 }
 
 func ExpectedFreeEnergyFP16NEON(
 	predictedObs, preferredObs, predictedState []dtype.F16,
 ) dtype.F16 {
-	if len(predictedObs) == 0 {
-		return 0
-	}
-
-	return ExpectedFreeEnergyFloat16NEONAsm(
-		&predictedObs[0], &preferredObs[0], &predictedState[0],
-		len(predictedObs), len(predictedState),
-	)
+	return expectedFreeEnergyFloat16F64NEON(predictedObs, preferredObs, predictedState)
 }
 
 func BeliefUpdateFP16NEON(likelihood, prior, output []dtype.F16) {

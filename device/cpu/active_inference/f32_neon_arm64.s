@@ -31,7 +31,7 @@ DATA aiLogC<>+16(SB)/4, $0.14285715
 DATA aiLogC<>+20(SB)/4, $0.20000000
 DATA aiLogC<>+24(SB)/4, $0.33333334
 DATA aiLogC<>+28(SB)/4, $2.0
-GLOBL aiLogC<>(SB), 8, $32
+GLOBL aiLogC<>(SB), RODATA|NOPTR, $32
 
 // func PrecisionWeightFloat32NEONAsm(errors, precision, output *float32, count int)
 TEXT ·PrecisionWeightFloat32NEONAsm(SB), NOSPLIT, $0-32

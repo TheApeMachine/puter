@@ -1,4 +1,4 @@
-//go:build cuda
+//go:build !cuda
 
 package dequant
 
@@ -9,11 +9,11 @@ import (
 	"github.com/theapemachine/puter/device"
 )
 
-func (dequantization *Dequantization) Dequant(
+func (dequantization *Dequantization) Dequant4(
 	dst, src unsafe.Pointer,
-	count int,
-	config device.DequantInt8Config,
+	pairCount int,
+	config device.DequantInt4Config,
 	dstFormat, srcFormat dtype.DType,
 ) {
-	dequantization.host.DispatchDequant(dst, src, count, config, dstFormat, srcFormat)
+	dequantization.stubHost()
 }

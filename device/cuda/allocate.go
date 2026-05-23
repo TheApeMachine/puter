@@ -5,15 +5,62 @@ package cuda
 /*
 #include "internal/bridge/core.h"
 
+extern CUDABufferRef cuda_buffer_alloc(CUDADeviceRef device, long long bytes);
+extern void cuda_buffer_release(CUDABufferRef buffer);
 extern CUDAStreamRef cuda_context_default_stream(CUDADeviceRef device);
+extern int cuda_memcpy_async_d2h(void* dst, CUDABufferRef src, long long bytes, CUDAStreamRef stream, CUDAStatus* status);
+extern int cuda_memcpy_async_h2d(CUDABufferRef dst, const void* src, long long bytes, CUDAStreamRef stream, CUDAStatus* status);
+extern int cuda_stream_synchronize(CUDAStreamRef stream, CUDAStatus* status);
 */
 import "C"
 
 import (
+	"math"
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/manifesto/tensor"
 )
+
+const workspaceAlign = 128
+
+func (backend *Backend) allocateAligned(byteCount int64) (unsafe.Pointer, error) {
+	if backend.bridge == nil {
+		return nil, tensor.ErrNeedsPlatformSetup
+	}
+
+	return backend.bridge.allocateAligned(byteCount)
+}
+
+func (backend *Backend) release(devicePointer unsafe.Pointer) {
+	if backend.bridge == nil || devicePointer == nil {
+		return
+	}
+
+	backend.bridge.release(devicePointer)
+}
+
+func (bridge *cudaBridge) allocateAligned(byteCount int64) (unsafe.Pointer, error) {
+	if byteCount <= 0 {
+		return nil, nil
+	}
+
+	bufferRef := C.cuda_buffer_alloc(bridge.device, C.longlong(byteCount))
+
+	if bufferRef == nil {
+		return nil, tensor.ErrAllocatorExhausted
+	}
+
+	return unsafe.Pointer(bufferRef), nil
+}
+
+func (bridge *cudaBridge) release(devicePointer unsafe.Pointer) {
+	if devicePointer == nil {
+		return
+	}
+
+	C.cuda_buffer_release(C.CUDABufferRef(devicePointer))
+}
 
 func (bridge *cudaBridge) borrowScratch(byteCount int64) C.CUDABufferRef {
 	if byteCount <= 0 {

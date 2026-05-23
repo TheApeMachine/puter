@@ -35,6 +35,7 @@ func TestQuantCUDAParity(t *testing.T) {
 					harness.ContextRef(),
 					sourceTensor.Ref(),
 					destinationTensor.Ref(),
+					dtype.Float32,
 					scale,
 					zeroPoint,
 					uint32(count),

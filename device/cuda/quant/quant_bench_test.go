@@ -27,6 +27,7 @@ func BenchmarkQuantCUDAInt8(b *testing.B) {
 			harness.ContextRef(),
 			sourceTensor.Ref(),
 			destinationTensor.Ref(),
+			dtype.Float32,
 			0.0875,
 			-13,
 			uint32(count),
