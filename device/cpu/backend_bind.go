@@ -19,7 +19,6 @@ import (
 	"github.com/theapemachine/puter/device/cpu/normalization"
 	"github.com/theapemachine/puter/device/cpu/physics"
 	"github.com/theapemachine/puter/device/cpu/pool"
-	"github.com/theapemachine/puter/device/cpu/pospop"
 	"github.com/theapemachine/puter/device/cpu/predictive_coding"
 	"github.com/theapemachine/puter/device/cpu/quant"
 	"github.com/theapemachine/puter/device/cpu/reduction"
@@ -53,5 +52,4 @@ func (backend *Backend) bindFamilies() {
 	backend.PredictiveCoding = predictive_coding.New()
 	backend.Dequantization = dequant.New()
 	backend.Quantization = quant.New()
-	backend.PosPop = pospop.New()
 }

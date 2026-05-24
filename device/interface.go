@@ -435,8 +435,11 @@ type Quant interface {
 	Quant(dst, src unsafe.Pointer, count int, config DequantInt8Config, dstFormat, srcFormat dtype.DType)
 }
 
-type Backend interface {
+type HostBackend interface {
 	PosPop
+}
+
+type Backend interface {
 	Activation
 	Elementwise
 	Reduction

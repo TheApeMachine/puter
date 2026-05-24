@@ -14,10 +14,10 @@ func dispatchConv2D(
 	outHeight, outWidth int,
 	format dtype.DType,
 ) {
-	if batch*inChannels*inHeight*inWidth == 0 ||
-		batch*outChannels*outHeight*outWidth == 0 {
-		return
-	}
+	requireConvExtents(
+		batch*inChannels*inHeight*inWidth,
+		batch*outChannels*outHeight*outWidth,
+	)
 
 	if format == dtype.Float32 {
 		runConv2DF32(
@@ -110,10 +110,10 @@ func dispatchConvTranspose2D(
 	outHeight, outWidth int,
 	format dtype.DType,
 ) {
-	if batch*inChannels*inHeight*inWidth == 0 ||
-		batch*outChannels*outHeight*outWidth == 0 {
-		return
-	}
+	requireConvExtents(
+		batch*inChannels*inHeight*inWidth,
+		batch*outChannels*outHeight*outWidth,
+	)
 
 	if format == dtype.Float32 {
 		runConvTranspose2DF32(

@@ -350,6 +350,144 @@ func (builder *Builder) loadPoolExecutable(
 }
 
 /*
+ExecuteConvolution compiles (or loads from cache) and executes convolution with bias.
+*/
+func (builder *Builder) ExecuteConvolution(
+	bridge *xlaBridge,
+	operationName string,
+	context LoweringContext,
+	intParams []int64,
+	input *DeviceTensor,
+	weight *DeviceTensor,
+	bias *DeviceTensor,
+	output *DeviceTensor,
+) error {
+	programKey, err := builder.ProgramKeyFor(operationName, context, nil, intParams)
+
+	if err != nil {
+		return err
+	}
+
+	executable, err := builder.loadConvolutionExecutable(bridge, programKey, context, intParams)
+
+	if err != nil {
+		return err
+	}
+
+	return bridge.executeVariadic(
+		C.XLAExecutableRef(executable.handle),
+		[]*DeviceTensor{input, weight, bias},
+		output,
+	)
+}
+
+func (builder *Builder) loadConvolutionExecutable(
+	bridge *xlaBridge,
+	programKey ProgramKey,
+	context LoweringContext,
+	intParams []int64,
+) (*CompiledExecutable, error) {
+	if cached, ok := builder.CachedExecutable(programKey); ok {
+		return cached, nil
+	}
+
+	if len(context.InputShapes) != 3 {
+		return nil, &loweringError{message: "convolution requires input, weight, and bias shapes"}
+	}
+
+	moduleName := fmt.Sprintf("puter_%s", programKey.Operation)
+	inputShape := context.InputShapes[0]
+	weightShape := context.InputShapes[1]
+	biasShape := context.InputShapes[2]
+	outputShape := context.OutputShape
+
+	var hloText string
+	var err error
+
+	switch programKey.Operation {
+	case "conv2d":
+		convParams, paramsErr := hlo.ConvParamsFromIntParams(intParams, 2, false)
+		if paramsErr != nil {
+			return nil, paramsErr
+		}
+
+		hloText, err = hlo.RenderConv2D(
+			moduleName,
+			context.OutputDType,
+			inputShape,
+			weightShape,
+			biasShape,
+			outputShape,
+			convParams,
+		)
+	case "conv1d":
+		convParams, paramsErr := hlo.ConvParamsFromIntParams(intParams, 1, false)
+		if paramsErr != nil {
+			return nil, paramsErr
+		}
+
+		hloText, err = hlo.RenderConv1D(
+			moduleName,
+			context.OutputDType,
+			inputShape,
+			weightShape,
+			biasShape,
+			outputShape,
+			convParams,
+		)
+	case "conv3d":
+		convParams, paramsErr := hlo.ConvParamsFromIntParams(intParams, 3, false)
+		if paramsErr != nil {
+			return nil, paramsErr
+		}
+
+		hloText, err = hlo.RenderConv3D(
+			moduleName,
+			context.OutputDType,
+			inputShape,
+			weightShape,
+			biasShape,
+			outputShape,
+			convParams,
+		)
+	case "conv_transpose2d":
+		convParams, paramsErr := hlo.ConvParamsFromIntParams(intParams, 2, true)
+		if paramsErr != nil {
+			return nil, paramsErr
+		}
+
+		hloText, err = hlo.RenderConvTranspose2D(
+			moduleName,
+			context.OutputDType,
+			inputShape,
+			weightShape,
+			biasShape,
+			outputShape,
+			convParams,
+		)
+	default:
+		return nil, &loweringError{message: "unknown XLA convolution operation: " + programKey.Operation}
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	executableRef, err := bridge.compileHLO(hloText)
+
+	if err != nil {
+		return nil, err
+	}
+
+	compiled := &CompiledExecutable{
+		key:    programKey,
+		handle: uintptr(executableRef),
+	}
+	builder.RecordExecutable(programKey, compiled)
+	return compiled, nil
+}
+
+/*
 ExecuteVariadic compiles (or loads from cache) and executes a multi-input XLA program.
 */
 func (builder *Builder) ExecuteVariadic(

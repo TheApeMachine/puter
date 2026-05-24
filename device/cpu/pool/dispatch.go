@@ -13,10 +13,7 @@ func dispatchPool2D(
 	format dtype.DType,
 	useMax bool,
 ) {
-	if batch*channels*inHeight*inWidth == 0 ||
-		batch*channels*outHeight*outWidth == 0 {
-		return
-	}
+	requirePoolExtents(batch, channels, inHeight, inWidth, outHeight, outWidth)
 
 	if format == dtype.Float32 {
 		if useMax {
@@ -51,10 +48,7 @@ func dispatchAdaptivePool2D(
 	format dtype.DType,
 	useMax bool,
 ) {
-	if batch*channels*inHeight*inWidth == 0 ||
-		batch*channels*outHeight*outWidth == 0 {
-		return
-	}
+	requirePoolExtents(batch, channels, inHeight, inWidth, outHeight, outWidth)
 
 	if format == dtype.Float32 {
 		if useMax {

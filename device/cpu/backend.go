@@ -2,6 +2,7 @@ package cpu
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"unsafe"
 
@@ -25,7 +26,6 @@ import (
 	"github.com/theapemachine/puter/device/cpu/normalization"
 	"github.com/theapemachine/puter/device/cpu/physics"
 	"github.com/theapemachine/puter/device/cpu/pool"
-	"github.com/theapemachine/puter/device/cpu/pospop"
 	"github.com/theapemachine/puter/device/cpu/predictive_coding"
 	"github.com/theapemachine/puter/device/cpu/quant"
 	"github.com/theapemachine/puter/device/cpu/reduction"
@@ -45,6 +45,9 @@ type Backend struct {
 	err    error
 	pool   *qpool.Q
 	closed atomic.Bool
+
+	workspaceMu     sync.Mutex
+	workspaceBlocks []unsafe.Pointer
 
 	activation.Activation
 	elementwise.Elementwise
@@ -70,7 +73,6 @@ type Backend struct {
 	predictive_coding.PredictiveCoding
 	dequant.Dequantization
 	quant.Quantization
-	pospop.PosPop
 }
 
 /*
