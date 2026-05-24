@@ -20,11 +20,12 @@ Pool discovers and owns every compute device available on the host.
 Placement policy belongs in manifesto/runtime; execution belongs in puter/runner.
 */
 type Pool struct {
-	ctx        context.Context
-	cancel     context.CancelFunc
-	devices    map[DeviceID]device.Backend
-	workerPool *qpool.Q
-	closeOnce  sync.Once
+	ctx         context.Context
+	cancel      context.CancelFunc
+	devices     map[DeviceID]device.Backend
+	hostBackend device.HostBackend
+	workerPool  *qpool.Q
+	closeOnce   sync.Once
 }
 
 /*
@@ -51,10 +52,11 @@ func New(ctx context.Context, workerPool *qpool.Q) (*Pool, error) {
 	}
 
 	devicePool := &Pool{
-		ctx:        ctx,
-		cancel:     cancel,
-		devices:    deviceMap,
-		workerPool: workerPool,
+		ctx:         ctx,
+		cancel:      cancel,
+		devices:     deviceMap,
+		hostBackend: cpu.NewHostBackend(),
+		workerPool:  workerPool,
 	}
 
 	return devicePool, errnie.Require(map[string]any{
@@ -138,6 +140,17 @@ func (devicePool *Pool) WorkerPool() *qpool.Q {
 	}
 
 	return devicePool.workerPool
+}
+
+/*
+HostBackend returns CPU-side preprocessing (PosPop).
+*/
+func (devicePool *Pool) HostBackend() device.HostBackend {
+	if devicePool == nil {
+		return nil
+	}
+
+	return devicePool.hostBackend
 }
 
 /*

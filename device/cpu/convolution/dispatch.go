@@ -47,10 +47,10 @@ func dispatchConv1D(
 	batch, inChannels, inLength, outChannels, kernelLength, outLength int,
 	format dtype.DType,
 ) {
-	if batch*inChannels*inLength == 0 ||
-		batch*outChannels*outLength == 0 {
-		return
-	}
+	requireConvExtents(
+		batch*inChannels*inLength,
+		batch*outChannels*outLength,
+	)
 
 	if format == dtype.Float32 {
 		runConv1DF32(
@@ -77,10 +77,10 @@ func dispatchConv3D(
 	outChannels, kD, kH, kW, outD, outH, outW int,
 	format dtype.DType,
 ) {
-	if batch*inChannels*inD*inH*inW == 0 ||
-		batch*outChannels*outD*outH*outW == 0 {
-		return
-	}
+	requireConvExtents(
+		batch*inChannels*inD*inH*inW,
+		batch*outChannels*outD*outH*outW,
+	)
 
 	if format == dtype.Float32 {
 		runConv3DF32(

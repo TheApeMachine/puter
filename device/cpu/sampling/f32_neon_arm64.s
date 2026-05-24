@@ -21,59 +21,47 @@
 DATA samOneF32<>+0(SB)/4, $0x3f800000
 GLOBL samOneF32<>(SB), RODATA|NOPTR, $4
 
+#define VFCMLTZ_S4(n, d)   WORD $(0x4EA0E800 | ((n) << 5) | (d))
+#define VFCMLT_S4(m, n, d) WORD $(0x6EA0E800 | ((m) << 16) | ((n) << 5) | (d))
+#define VSCVTF_S4(n, d)    WORD $(0x4E21D800 | ((n) << 5) | (d))
+#define VBIC_B16(m, n, d)  WORD $(0x4E601C00 | ((m) << 16) | ((n) << 5) | (d))
+
 DATA samExpC<>+0(SB)/4, $1.4426950408889634
 DATA samExpC<>+4(SB)/4, $0.6931471805599453
-DATA samExpC<>+8(SB)/4, $127.0
-DATA samExpC<>+12(SB)/4, $0.00019841270
-DATA samExpC<>+16(SB)/4, $0.0013888889
-DATA samExpC<>+20(SB)/4, $0.008333334
-DATA samExpC<>+24(SB)/4, $0.041666667
-DATA samExpC<>+28(SB)/4, $0.16666667
-DATA samExpC<>+32(SB)/4, $0.5
-DATA samExpC<>+36(SB)/4, $1.0
-DATA samExpC<>+40(SB)/4, $1.0
-GLOBL samExpC<>(SB), RODATA|NOPTR, $44
+DATA samExpC<>+12(SB)/4, $0.69314718
+DATA samExpC<>+16(SB)/4, $0.24022650
+DATA samExpC<>+20(SB)/4, $0.05550410
+DATA samExpC<>+24(SB)/4, $0.00961812
+DATA samExpC<>+28(SB)/4, $0.00133389
+DATA samExpC<>+32(SB)/4, $1.0
+GLOBL samExpC<>(SB), RODATA|NOPTR, $36
 
-DATA samSoftmaxClamp<>+0(SB)/4, $-87.0
+DATA samSoftmaxClamp<>+0(SB)/4, $-87.33654
 GLOBL samSoftmaxClamp<>(SB), RODATA|NOPTR, $4
 
-#define SAM_ACCUM_V6_TO_F64_SUM \
-	SUB  $16, RSP ;\
-	VST1 [V6.S4], (RSP) ;\
-	FMOVS (RSP), F6 ;\
-	FCVTSD F6, F6 ;\
-	FADDD F6, F31, F31 ;\
-	FMOVS 4(RSP), F6 ;\
-	FCVTSD F6, F6 ;\
-	FADDD F6, F31, F31 ;\
-	FMOVS 8(RSP), F6 ;\
-	FCVTSD F6, F6 ;\
-	FADDD F6, F31, F31 ;\
-	FMOVS 12(RSP), F6 ;\
-	FCVTSD F6, F6 ;\
-	FADDD F6, F31, F31 ;\
-	ADD  $16, RSP
+#define SAM_ACCUM_V6_TO_F32_SUM \
+	VFADD_S4(6, 29, 29)
 
 #define SAM_EXP_V0_TO_V6 \
-	VMOV_B16(19, 3) \
-	VMOV_B16(20, 4) \
+	VFMUL_S4(16, 0, 1) \
+	VFCVTZS_S4(1, 5) \
+	VFCMLTZ_S4(1, 7) \
+	VADD_S4(7, 5, 5) \
+	VSCVTF_S4(5, 2) \
+	VFSUB_S4(2, 1, 0) \
+	VMOV_B16(23, 3) \
+	VMOV_B16(22, 4) \
 	VFMLA_S4(0, 3, 4) \
 	VMOV_B16(21, 3) \
 	VFMLA_S4(0, 4, 3) \
-	VMOV_B16(22, 4) \
+	VMOV_B16(20, 4) \
 	VFMLA_S4(0, 3, 4) \
-	VMOV_B16(23, 3) \
+	VMOV_B16(19, 3) \
 	VFMLA_S4(0, 4, 3) \
 	VMOV_B16(24, 4) \
 	VFMLA_S4(0, 3, 4) \
-	VMOV_B16(25, 3) \
-	VFMLA_S4(0, 4, 3) \
-	VMOV_B16(26, 4) \
-	VFMLA_S4(0, 3, 4) \
-	VFCVTZS_S4(1, 5) \
-	VADD_S4(27, 5, 5) \
 	VSHL_S4_BY23(5, 5) \
-	VFMUL_S4(5, 4, 6)
+	VADD_S4(5, 4, 6)
 
 // func GreedySampleFloat32NEONAsm(logits *float32, count int) int32
 TEXT ·GreedySampleFloat32NEONAsm(SB), NOSPLIT, $16-20
@@ -239,10 +227,6 @@ sam_softmax_max_done:
 	MOVD $samExpC<>(SB), R3
 	FMOVS 0(R3), F16
 	VDUP V16.S[0], V16.S4
-	FMOVS 4(R3), F17
-	VDUP V17.S[0], V17.S4
-	FMOVS 8(R3), F18
-	VDUP V18.S[0], V18.S4
 	FMOVS 12(R3), F19
 	VDUP V19.S[0], V19.S4
 	FMOVS 16(R3), F20
@@ -255,14 +239,9 @@ sam_softmax_max_done:
 	VDUP V23.S[0], V23.S4
 	FMOVS 32(R3), F24
 	VDUP V24.S[0], V24.S4
-	FMOVS 36(R3), F25
-	VDUP V25.S[0], V25.S4
-	FMOVS 40(R3), F26
-	VDUP V26.S[0], V26.S4
-	VFCVTZS_S4(18, 27)
 	FMOVS samSoftmaxClamp<>(SB), F30
 	VDUP V30.S[0], V30.S4
-	FMOVD $0, F31
+	VEOR V29.B16, V29.B16, V29.B16
 
 sam_softmax_exp_loop4:
 	CMP  $4, R2
@@ -272,19 +251,19 @@ sam_softmax_exp_loop4:
 	ADD  $16, R0
 	VFSUB_S4(28, 0, 0)
 	VFDIV_S4(10, 0, 0)
-	VFMAX_S4(30, 0, 0)
-	VFMUL_S4(16, 0, 1)
-	VFRINTN_S4(1, 1)
-	VFMUL_S4(17, 1, 2)
-	VFSUB_S4(2, 0, 0)
+	VFSUB_S4(30, 0, 8)
+	VFCMLTZ_S4(8, 9)
 	SAM_EXP_V0_TO_V6
+	VBIC_B16(9, 6, 6)
 	VST1 [V6.S4], (R1)
-	SAM_ACCUM_V6_TO_F64_SUM
+	SAM_ACCUM_V6_TO_F32_SUM
 	ADD  $16, R1
 	SUB  $4, R2
 	B    sam_softmax_exp_loop4
 
 sam_softmax_exp_scalar:
+	VFADDP_S4(29, 29, 29)
+	FADDP_S(29, 31)
 	CBZ  R2, sam_softmax_normalize
 
 	MOVD count+24(FP), R6
@@ -299,29 +278,24 @@ sam_softmax_exp_scalar_loop:
 	FMOVS (R0), F0
 	FSUBS F28, F0, F0
 	FDIVS F10, F0, F0
-	FMAXS F30, F0, F0
 	VDUP V0.S[0], V0.S4
-	VFMUL_S4(16, 0, 1)
-	VFRINTN_S4(1, 1)
-	VFMUL_S4(17, 1, 2)
-	VFSUB_S4(2, 0, 0)
 	SAM_EXP_V0_TO_V6
+
+sam_softmax_exp_scalar_store:
 	FMOVS F6, (R1)
-	FCVTSD F6, F6
-	FADDD F6, F31, F31
+	FADDS F6, F31, F31
 	ADD  $4, R0
 	ADD  $4, R1
 	SUB  $1, R2
 	CBNZ R2, sam_softmax_exp_scalar_loop
 
 sam_softmax_normalize:
-	FMOVD $0, F15
-	FCMPD F31, F15
+	FMOVS $0, F15
+	FCMPS F31, F15
 	BEQ  sam_softmax_done
 
-	FMOVD $1.0, F8
-	FDIVD F31, F8, F8
-	FCVTDS F8, F8
+	FMOVS samOneF32<>(SB), F8
+	FDIVS F31, F8, F8
 	VDUP V8.S[0], V8.S4
 
 	MOVD out+8(FP), R0

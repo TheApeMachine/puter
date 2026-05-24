@@ -4,6 +4,7 @@ package predictive_coding
 
 import (
 	"unsafe"
+
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/puter/device"
 )
@@ -13,7 +14,7 @@ func (predictiveCoding *PredictiveCoding) Prediction(
 	outDim, inDim int,
 	format dtype.DType,
 ) {
-	predictiveCoding.unimplemented("Prediction")
+	predictiveCoding.host.DispatchPrediction(weights, representation, output, outDim, inDim, format)
 }
 
 func (predictiveCoding *PredictiveCoding) PredictionError(
@@ -21,7 +22,7 @@ func (predictiveCoding *PredictiveCoding) PredictionError(
 	count int,
 	format dtype.DType,
 ) {
-	predictiveCoding.unimplemented("PredictionError")
+	predictiveCoding.host.DispatchPredictionError(observed, predicted, output, count, format)
 }
 
 func (predictiveCoding *PredictiveCoding) UpdateRepresentation(
@@ -30,10 +31,20 @@ func (predictiveCoding *PredictiveCoding) UpdateRepresentation(
 	outDim, inDim int,
 	format dtype.DType,
 ) {
-	predictiveCoding.unimplemented("UpdateRepresentation")
+	predictiveCoding.host.DispatchUpdateRepresentation(
+		config, weights, representation, predictionError, output,
+		outDim, inDim, format,
+	)
 }
 
-func (predictiveCoding *PredictiveCoding) UpdateWeights(config device.PredictiveCodingConfig, weights, representation, predictionError, output unsafe.Pointer, outDim, inDim int, format dtype.DType,) {
-	predictiveCoding.unimplemented("UpdateWeights")
+func (predictiveCoding *PredictiveCoding) UpdateWeights(
+	config device.PredictiveCodingConfig,
+	weights, representation, predictionError, output unsafe.Pointer,
+	outDim, inDim int,
+	format dtype.DType,
+) {
+	predictiveCoding.host.DispatchUpdateWeights(
+		config, weights, representation, predictionError, output,
+		outDim, inDim, format,
+	)
 }
-

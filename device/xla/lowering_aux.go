@@ -12,6 +12,7 @@ func RegisterAuxLowerings(registry *LoweringRegistry) {
 	registry.Register(NewVariadicLowering("embedding_lookup", 2))
 	registry.Register(NewVariadicLowering("embedding_bag", 3))
 	registry.Register(UnaryToScalarLowering{operationName: "greedy_sample"})
+	registry.Register(UnaryParamLowering{operationName: "softmax_sort"})
 }
 
 type NullaryLowering struct {

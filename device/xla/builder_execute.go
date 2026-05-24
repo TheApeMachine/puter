@@ -888,7 +888,32 @@ func (builder *Builder) loadVariadicExecutable(
 	case "embedding_bag":
 		hloText, err = renderEmbeddingBag(moduleName, context)
 	default:
-		return nil, &loweringError{message: "unknown XLA variadic operation: " + programKey.Operation}
+		var ok bool
+		hloText, ok, err = renderCausalPhysicsVariadicHLO(
+			moduleName,
+			programKey.Operation,
+			context,
+			floatParams,
+			intParams,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if !ok {
+			hloText, ok, err = renderResearchVariadicHLO(
+				moduleName,
+				programKey.Operation,
+				context,
+				floatParams,
+				intParams,
+			)
+		}
+
+		if !ok {
+			return nil, &loweringError{message: "unknown XLA variadic operation: " + programKey.Operation}
+		}
 	}
 
 	_ = floatParams
@@ -1076,6 +1101,78 @@ func (builder *Builder) ExecuteGreedySample(
 	}
 
 	return bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef())
+}
+
+/*
+ExecuteSoftmaxSort compiles (or loads from cache) and executes temperature softmax with descending sort.
+The output stacks sorted probabilities and sorted indices as float32 lanes.
+*/
+func (builder *Builder) ExecuteSoftmaxSort(
+	bridge *xlaBridge,
+	context LoweringContext,
+	floatParams []float64,
+	input *DeviceTensor,
+	output *DeviceTensor,
+) error {
+	programKey, err := builder.ProgramKeyFor("softmax_sort", context, floatParams, nil)
+
+	if err != nil {
+		return err
+	}
+
+	executable, err := builder.loadSoftmaxSortExecutable(bridge, programKey, context, floatParams)
+
+	if err != nil {
+		return err
+	}
+
+	return bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef())
+}
+
+func (builder *Builder) loadSoftmaxSortExecutable(
+	bridge *xlaBridge,
+	programKey ProgramKey,
+	context LoweringContext,
+	floatParams []float64,
+) (*CompiledExecutable, error) {
+	if cached, ok := builder.CachedExecutable(programKey); ok {
+		return cached, nil
+	}
+
+	if len(context.InputShapes) != 1 {
+		return nil, &loweringError{message: "softmax sort requires one input shape"}
+	}
+
+	vocabSize := context.InputShapes[0].Dims()[0]
+	temperature := float32(1)
+
+	if len(floatParams) > 0 {
+		temperature = float32(floatParams[0])
+	}
+
+	hloText, err := hlo.RenderSoftmaxSort(
+		fmt.Sprintf("puter_%s", programKey.Operation),
+		context.InputDTypes[0],
+		vocabSize,
+		temperature,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	executableRef, err := bridge.compileHLO(hloText)
+
+	if err != nil {
+		return nil, err
+	}
+
+	compiled := &CompiledExecutable{
+		key:    programKey,
+		handle: uintptr(executableRef),
+	}
+	builder.RecordExecutable(programKey, compiled)
+	return compiled, nil
 }
 
 func (builder *Builder) loadGreedySampleExecutable(

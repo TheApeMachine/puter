@@ -4,6 +4,7 @@ import (
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/puter/device"
 )
 
 /*
@@ -19,6 +20,8 @@ Host is the XLA dispatch surface sampling operations call into.
 type Host interface {
 	NeedsPlatform()
 	DispatchGreedySample(logits unsafe.Pointer, vocabSize int, format dtype.DType) int32
+	DispatchTopKSample(config device.SamplingConfig, logits unsafe.Pointer, vocabSize int, format dtype.DType) int32
+	DispatchTopPSample(config device.SamplingConfig, logits unsafe.Pointer, vocabSize int, format dtype.DType) int32
 	NotImplemented(string)
 }
 

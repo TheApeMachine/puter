@@ -15,8 +15,7 @@ func (sampling *Sampling) TopKSample(
 	vocabSize int,
 	format dtype.DType,
 ) int32 {
-	sampling.unimplemented("TopKSample")
-	return 0
+	return sampling.host.DispatchTopKSample(config, logits, vocabSize, format)
 }
 
 func (sampling *Sampling) TopPSample(
@@ -25,8 +24,7 @@ func (sampling *Sampling) TopPSample(
 	vocabSize int,
 	format dtype.DType,
 ) int32 {
-	sampling.unimplemented("TopPSample")
-	return 0
+	return sampling.host.DispatchTopPSample(config, logits, vocabSize, format)
 }
 
 func (sampling *Sampling) GreedySample(

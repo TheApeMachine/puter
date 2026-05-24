@@ -1,29 +1,47 @@
 package active_inference
 
+import (
+	"unsafe"
+
+	"github.com/theapemachine/manifesto/dtype"
+)
+
 /*
 ActiveInference implements device.ActiveInference for the XLA backend.
 */
 type ActiveInference struct {
-    host Host
+	host Host
 }
 
 /*
 Host is the XLA dispatch surface active_inference operations call into.
 */
 type Host interface {
-    NeedsPlatform()
-    NotImplemented(string)
+	NeedsPlatform()
+	DispatchBeliefUpdate(likelihood, prior, output unsafe.Pointer, count int, format dtype.DType)
+	DispatchExpectedFreeEnergy(
+		predictedObs, preferredObs, predictedState, output unsafe.Pointer,
+		obsCount, stateCount int,
+		format dtype.DType,
+	)
+	DispatchFreeEnergy(
+		likelihood, posterior, prior, output unsafe.Pointer,
+		count int,
+		format dtype.DType,
+	)
+	DispatchPrecisionWeight(errors, precision, output unsafe.Pointer, count int, format dtype.DType)
+	NotImplemented(string)
 }
 
 /*
 New wires a ActiveInference receiver to its XLA dispatch host.
 */
 func New(host Host) ActiveInference {
-    return ActiveInference{host: host}
+	return ActiveInference{host: host}
 }
 
 func (receiver *ActiveInference) stubHost() {
-    receiver.host.NeedsPlatform()
+	receiver.host.NeedsPlatform()
 }
 
 func (receiver *ActiveInference) unimplemented(methodName string) {

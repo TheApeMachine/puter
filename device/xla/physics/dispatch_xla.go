@@ -4,42 +4,47 @@ package physics
 
 import (
 	"unsafe"
+
 	"github.com/theapemachine/manifesto/dtype"
 )
 
 func (physics *Physics) FFT1D(realIn, imagIn, realOut, imagOut unsafe.Pointer, count int, format dtype.DType) {
-	physics.unimplemented("FFT1D")
+	physics.host.DispatchFFT1D(realIn, imagIn, realOut, imagOut, count, format)
 }
 
 func (physics *Physics) IFFT1D(realIn, imagIn, realOut, imagOut unsafe.Pointer, count int, format dtype.DType) {
-	physics.unimplemented("IFFT1D")
+	physics.host.DispatchIFFT1D(realIn, imagIn, realOut, imagOut, count, format)
 }
 
 func (physics *Physics) Laplacian(input, output unsafe.Pointer, dims []int, spacing float32, format dtype.DType) {
-	physics.unimplemented("Laplacian")
+	physics.host.DispatchLaplacian(input, output, dims, spacing, format)
 }
 
 func (physics *Physics) Laplacian4(input, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {
-	physics.unimplemented("Laplacian4")
+	physics.host.DispatchLaplacian4(input, output, count, spacing, format)
 }
 
 func (physics *Physics) Grad1D(input, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {
-	physics.unimplemented("Grad1D")
+	physics.host.DispatchGrad1D(input, output, count, spacing, format)
 }
 
 func (physics *Physics) Divergence1D(input, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {
-	physics.unimplemented("Divergence1D")
+	physics.host.DispatchDivergence1D(input, output, count, spacing, format)
 }
 
 func (physics *Physics) QuantumPotential(density, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {
-	physics.unimplemented("QuantumPotential")
+	physics.host.DispatchQuantumPotential(density, output, count, spacing, format)
 }
 
 func (physics *Physics) BohmianVelocity(phase, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {
-	physics.unimplemented("BohmianVelocity")
+	physics.host.DispatchBohmianVelocity(phase, output, count, spacing, format)
 }
 
-func (physics *Physics) MadelungContinuity(density, velocity, residual unsafe.Pointer, count int, spacing float32, format dtype.DType,) {
-	physics.unimplemented("MadelungContinuity")
+func (physics *Physics) MadelungContinuity(
+	density, velocity, residual unsafe.Pointer,
+	count int,
+	spacing float32,
+	format dtype.DType,
+) {
+	physics.host.DispatchMadelungContinuity(density, velocity, residual, count, spacing, format)
 }
-

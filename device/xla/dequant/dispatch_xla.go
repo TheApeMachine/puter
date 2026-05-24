@@ -4,6 +4,7 @@ package dequant
 
 import (
 	"unsafe"
+
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/puter/device"
 )
@@ -14,7 +15,7 @@ func (dequantization *Dequantization) Dequant(
 	config device.DequantInt8Config,
 	dstFormat, srcFormat dtype.DType,
 ) {
-	dequantization.unimplemented("Dequant")
+	dequantization.host.DispatchDequant(dst, src, count, config, dstFormat, srcFormat)
 }
 
 func (dequantization *Dequantization) Dequant4(
@@ -23,6 +24,5 @@ func (dequantization *Dequantization) Dequant4(
 	config device.DequantInt4Config,
 	dstFormat, srcFormat dtype.DType,
 ) {
-	dequantization.unimplemented("Dequant4")
+	dequantization.host.DispatchDequant4(dst, src, pairCount, config, dstFormat, srcFormat)
 }
-

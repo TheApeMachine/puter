@@ -1,8 +1,9 @@
 package sampling
 
 import (
-	"math"
 	"unsafe"
+
+	cpumath "github.com/theapemachine/puter/device/cpu/math"
 )
 
 func greedySampleF32Generic(logits *float32, count int) int32 {
@@ -52,11 +53,11 @@ func SamplingSoftmaxRowGeneric(logits, out []float32, temperature float32) {
 		}
 	}
 
-	var denominator float64
+	var denominator float32
 
 	for index, value := range logits {
-		shifted := math.Exp(float64((value - maximum) / temperature))
-		out[index] = float32(shifted)
+		shifted := cpumath.FastExp32((value - maximum) / temperature)
+		out[index] = shifted
 		denominator += shifted
 	}
 
@@ -64,7 +65,7 @@ func SamplingSoftmaxRowGeneric(logits, out []float32, temperature float32) {
 		return
 	}
 
-	scale := float32(1.0 / denominator)
+	scale := float32(1) / denominator
 
 	for index := range out {
 		out[index] *= scale

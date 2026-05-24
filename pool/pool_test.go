@@ -40,6 +40,11 @@ func TestNew(test *testing.T) {
 			So(hostDevice, ShouldNotBeNil)
 		})
 
+		Convey("It should expose host preprocessing", func() {
+			hostBackend := devicePool.HostBackend()
+			So(hostBackend, ShouldNotBeNil)
+		})
+
 		Convey("It should reject unknown device ids", func() {
 			_, err := devicePool.Device(DeviceID{Location: tensor.CUDA, Index: 9})
 			So(err, ShouldNotBeNil)
