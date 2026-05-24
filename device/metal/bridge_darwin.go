@@ -25,6 +25,8 @@ import (
 */
 import "C"
 
+//go:generate go run ./internal/metallibgen
+
 //go:embed kernels.metallib
 var kernelsMetalLibrary []byte
 

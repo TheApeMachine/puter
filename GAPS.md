@@ -157,7 +157,64 @@ Manifesto today is a **HuggingFace checkpoint compiler with a sequential interpr
 | Async non-blocking executor | 5.2 | ✗ | `runtime/executor.go` | Sequential host-side dispatch; map-based input lookups (compile-time, but no streams). |
 | Parity harness (CPU scalar vs SIMD vs GPU vs XLA) | 7.1 | ✗ | — | Not present in manifesto. |
 
-### 3.2 IR conformance vs §6
+### 3.1.b Static memory planner (Phase 4.1–4.2) — **LANDED**
+
+Liveness analysis + interval-coloring allocator implemented in `manifesto/ir/planner.go`:
+
+- `AssignPortIDs(topology)` assigns sequential unique IDs to every Port in topological order. Idempotent.
+- `AnalyzeLiveness(nodes, bindings)` walks the topologically-ordered node list and produces one Interval per distinct output Port. Unproduced inputs (graph inputs, weights) are treated as live from step 0. Each interval's byte size is computed via `PortByteSize`, which resolves symbolic shape dimensions through the bindings map.
+- `AllocateOffsets(intervals, align)` runs the interval-coloring algorithm from ARCHITECTURE.md §3 blueprint: sorts intervals by Start, maintains a live set, evicts expired entries, finds the lowest non-conflicting offset for each new entry. Sizes and offsets are rounded up to `align` (defaults to 64 bytes per §5.1).
+- `PlanWorkspace(topology, options)` combines them: assigns IDs, runs liveness, allocates, populates `Topology.Workspace` and each `Port.Allocation` in place.
+
+Tests cover: ID assignment uniqueness and idempotency, linear chain liveness, multi-consumer extension to last use, unbound symbol rejection, bound symbol resolution, disjoint-intervals-share-offset (coloring works), overlapping-intervals-distinct-offsets, alignment rounding, scalar port byte size, default alignment.
+
+**What this unblocks:**
+- P0b (kernel-side device writes) — Metal/CUDA/XLA backends now have a real workspace plan to write into; `host.ReductionScalar` etc. can be migrated to take `dst unsafe.Pointer` mapped to a planned workspace offset.
+- The async DAG executor — needs `Topology.Workspace` populated before the dispatch loop can pre-materialize pointers.
+- Cross-stream sync (Phase 4.4) — the planner is the prerequisite for the stream-partitioner pass that emits SyncEvents.
+
+**Still missing for end-to-end planning:**
+- The PortType typer pass (referenced in §3.1.a) — populates Port.Type from the recipe so the planner can compute sizes. Currently the planner requires callers to set Port.Type manually.
+- Symbol-binding pipeline — bindings come from Unify in §3.1.a but no pass yet runs Unify across all node connections to collect a global SymbolMap.
+
+---
+
+### 3.1.a PortType unification (Phase 2.2) — **FIRST PASS LANDED**
+
+Direct unification per ARCHITECTURE.md §4.2 is implemented in `manifesto/ir/unify.go`:
+
+- `Unify(producer, consumer PortType) → UnificationResult` returns a unified type plus a `SymbolMap` of bindings (e.g. when producer `[B, 768]` meets consumer `[4, 768]`, Bindings holds `{"B": 4}`).
+- DType mismatches return a `UnificationError` with `AdaptorHint: "cast"`. Layout mismatches return `AdaptorHint: "transpose"`. The adaptor-synthesis pass that consumes these hints is Phase 2.3 — still pending.
+- Shape unification handles all four cases: static/static, static/symbolic (binds), symbolic/symbolic (same name OK, distinct names add a `SymbolEqualityConstraint`).
+- Kind unification: `SemanticGeneric` acts as a wildcard; otherwise strict equality, so a `Logits` port can't be silently consumed where `HiddenState` was expected.
+- Constraint validation runs against the unified shape + bindings: `DivisibilityConstraint`, `RangeConstraint`, and `SymbolEqualityConstraint` all enforce at unification time when their inputs are bound.
+
+Tests (`unify_test.go`) cover: identical types, static/static, symbol binding from either side, same/distinct symbols, conflicting bindings, rank mismatch, dtype mismatch with cast hint, layout mismatch with transpose hint, `LayoutUnspecified` deferral, Kind wildcards and mismatches, divisibility enforcement, range enforcement, and constraint deduplication.
+
+**What's still missing in the pipeline:** the unifier ingests two `PortType` values it doesn't yet have any compiler stage producing. The next pieces are:
+- A typer pass that walks the recipe and assigns `PortType` to every `Port` (currently `Port.Type` is zero-valued because no pass writes to it).
+- The adaptor synthesis pass that consumes `UnificationError.AdaptorHint` and inserts Transpose/Cast/Reshape nodes.
+- Connection of these passes into the `manifesto/lower` pipeline.
+
+---
+
+### 3.2 IR conformance vs §6 — **TYPES NOW DEFINED**
+
+**Update:** The foundational types from ARCHITECTURE.md §6 and §4.1 are now declared in `manifesto/ir/` (additive changes only — existing fields preserved for backward compat):
+
+- `port_type.go` — `PortType`, `ShapeSchema`, `Dimension`, `LayoutSchema` enum, `SemanticKind`, `Constraint` interface + three concrete implementations (`DivisibilityConstraint`, `SymbolEqualityConstraint`, `RangeConstraint`).
+- `port_allocation.go` — `PortAllocation`, `StrideFormula`, `SymbolMap` with `Resolve()`.
+- `workspace.go` — `WorkspaceLayout`, `Interval`, `Interval.Overlaps()`.
+- `sync_event.go` — `SyncEvent`.
+- `topology.go` updated to add `Workspace`, `InputPorts`, `OutputPorts`.
+- `node.go` updated to add `ID`, `JitKernel`, `StreamID`, `SyncBarriers`.
+- `port.go` updated to add `ID`, `Type`, `Allocation`.
+
+Unit tests cover construction, stride resolution, interval overlap semantics, and field preservation. **What remains is the *implementation* of the passes that populate these fields** — PortType unification (Phase 2.2), liveness analysis + coloring allocator (Phase 4.1–4.2), DAG scheduler with stream partitioning (Phase 4.4), JIT codegen (Phase 3.2). The types they read/write now exist; their implementations are still pending per the GAPS.md §3.1 pipeline matrix.
+
+---
+
+### 3.2-legacy IR conformance (before types landed)
 
 Spec IR (§6):
 
@@ -299,7 +356,22 @@ This is the order I'd suggest. Each item is roughly self-contained.
 
 ---
 
-## 6.5 Diffusion contamination — model-specific Go that shouldn't exist
+## 6.5 Diffusion contamination — **GO EXCISION COMPLETE**
+
+**Update:** All diffusion-specific Go has been removed from `manifesto/`. The `manifesto/diffusion/` package is gone; `manifesto/runtime/{executor_diffusion,scheduler,scheduler_test,pipeline_scheduler,pipeline_scheduler_test,latents,latents_test}.go` are gone; all `FlowMatchEulerDiscrete`, `Schedulers` map fields, and step-name dispatch cases (`scheduler.timesteps`, `scheduler.bind_latents`, `scheduler.delta`, `diffusion.prepare_latents`) have been stripped from `runtime/executor.go`, `runtime/session.go`, and `runtime/session_callgraph.go`. The two diffusion runtime YAMLs (`asset/template/runtime/diffusion.yml`, `diffusion-diagnose.yml`) that referenced the deleted step kinds have also been deleted.
+
+`check_banned.sh` for manifesto now reports zero diffusion-related violations (§1-4). The only remaining flags are the 13 old-format YAMLs that pre-date this work and are tracked separately as a migration task.
+
+What still exists (deliberately):
+- `ast/program.go` retains `Schedulers map[string]SchedulerDeclaration` for AST parse fidelity. The parser still consumes the `schedulers:` block in YAML programs, but the runtime never reads the parsed data — it's harmless dead-data until the AST is also cleaned up (P3 follow-up).
+- `asset/template/model/diffusion/*.yml` (FLUX, SD3 architecture templates) — these are model topology definitions over atomics, not Go shortcuts. They're the targets the YAML rewrite will fill in.
+- `caramba/cmd/diffusion*.go` CLI subcommands and the corresponding `Makefile` targets — they'll fail at runtime now that the step kinds are gone. They become "broken until atomics + YAML rewrite" and are documented as such.
+
+The historical analysis below is preserved for context.
+
+---
+
+## 6.5-historical Diffusion contamination — model-specific Go that shouldn't exist
 
 While trying to get HuggingFace-driven YAML manifests compiling, the codebase accreted **diffusion-specific Go code** that bypasses the "compile from atomics" principle. Every model architecture — Llama, FLUX, SD3, BERT, ViT — should decompose into the same atomic ops via a YAML recipe. Today, FLUX-style diffusion has its own Go fast-path in manifesto, and the executor knows what `diffusion.prepare_latents` and `scheduler.timesteps` are. That has to come out.
 
@@ -479,6 +551,181 @@ These are Metal-vs-scalar differences in the low-order bits at specific lanes �
 **Diagnostic next step:** for each failing test, narrow the input that produces the failing lane, then trace which MSL operation introduces the drift. Likely candidates: replace `exp(x)` with the same polynomial the scalar uses, force FMA on/off consistently, or rework the reduction order in normalization variance.
 
 **Action priority:** P3. Real correctness issue but isolated to three Metal kernels; does not block contract work, planner work, or diffusion excision.
+
+---
+
+## 6.7 Diffusion-via-YAML rewrite plan
+
+After the Go excision (§6.5), the platform has the closed-world atomic contract but no working diffusion. This section is the design for getting diffusion running again — using only YAML recipes over atomic ops, no model-family Go.
+
+### 6.7.1 Atomic ops required (and their status)
+
+| Op | Family | Status | Used for |
+|---|---|---|---|
+| `random.normal` | random (new) | ✓ CPU scalar, ✓ NEON Philox, ⚠ Metal (functional, ULP envelope documented), ✗ AMD64, ✗ CUDA, ✗ XLA | Initial noise tensor |
+| `math.arange` | math | ✗ missing | Timestep array generation |
+| `math.linspace` | math | ✗ missing | Alternative scheduler base (sigma schedules from `linspace(1, 0, N)`) |
+| `math.scalar_broadcast` | elementwise | ✗ missing (could compose from existing) | `sigma * x` style operations |
+| `shape.permute` | shape | partial — `transpose`/`reshape` exist; need general N-d permute | NCHW ↔ packed-latent grid |
+| `math.add`, `math.mul`, `math.sub`, `math.div` | math | ✓ exist | Sigma scaling, residual update |
+| `control.loop_each` | control | ✓ exists | The denoising loop body |
+| `state.update` | state | ✓ exists | Tracking step_index across the loop |
+
+**Net new YAML to write under `manifesto/asset/template/operation/`:**
+- `random/normal.yml` — references the device.Backend RandomNormal method (step 6 of the RandomNormal sequence)
+- `math/arange.yml` — `arange(start, stop, step) → vector`
+- `math/linspace.yml` — `linspace(start, stop, count) → vector`
+- `math/scalar_broadcast.yml` — `(scalar, tensor) → tensor with scalar broadcast`
+
+Each of those YAMLs declares the op interface (inputs, outputs, config); the underlying implementation either already exists as a `device.Backend` method (arange/linspace need adding) or composes from existing ops via a block recipe.
+
+### 6.7.2 Architecture YAML structure (FLUX-2 worked example)
+
+A diffusion model YAML at `template/model/architecture/flux2.yml` (after `kind:` migration) declares:
+
+```yaml
+kind: Architecture
+name: FLUX-2
+op: model.architecture.flux2
+description: FLUX-2 transformer denoiser.
+
+# Variables the include caller supplies (already documented in the
+# existing flux2.yml header comment).
+variables:
+  hidden_size:        { type: int }
+  num_layers:         { type: int }
+  num_single_layers:  { type: int }
+  num_attention_heads:{ type: int }
+  attention_head_dim: { type: int }
+  joint_attention_dim:{ type: int }
+  rope_theta:         { type: int }
+  eps:                { type: float }
+  context_seq_len:    { type: int }
+  latent_seq_len:     { type: int }
+  in_channels:        { type: int }
+  # ...
+
+# Inputs the denoiser network takes per call (NOT the diffusion loop —
+# this is just the prediction model).
+inputs:
+  - { name: latents,       type: tensor, shape: [B, latent_seq_len, in_channels] }
+  - { name: text_embedding,type: tensor, shape: [B, context_seq_len, joint_attention_dim] }
+  - { name: timestep,      type: tensor, shape: [B] }
+outputs:
+  - { name: noise_pred,    type: tensor, shape: [B, latent_seq_len, in_channels] }
+
+# The denoiser topology over atomics (the existing flux2.yml content,
+# already shaped right per its header comment: "This file is data, not
+# code"). Each node is an atomic op already in template/operation/.
+system:
+  topology:
+    nodes:
+      - { id: …, op: math.rmsnorm, … }
+      - { id: …, op: attention.multihead_joint, … }
+      - { id: …, op: activation.swiglu, … }
+      # … etc, exactly as flux2.yml already encodes
+```
+
+### 6.7.3 Runtime program structure (the diffusion loop)
+
+A diffusion runtime program at `template/runtime/diffusion.yml` (after rewrite) declares:
+
+```yaml
+kind: Program
+name: diffusion
+description: Generate an image by iteratively denoising random noise.
+
+state:
+  - { name: step_index, type: int }
+  - { name: latents,    type: tensor }
+
+steps:
+  # 1) Initialize noise as latents
+  - op: random.normal
+    config:
+      shape: [1, latent_seq_len, in_channels]
+      seed:  $config.seed
+      dtype: $config.dtype
+    out: { dst: latents }
+
+  # 2) Compute sigma schedule (replaces FlowMatchEulerDiscrete.Timesteps)
+  - op: math.linspace
+    config: { start: 1.0, stop: 0.0, count: $config.num_inference_steps }
+    out: { dst: sigmas }
+
+  # 3) Compute timesteps from sigmas (sigma * num_train_timesteps, possibly
+  #    with the flow-match shift transform — but that's just arithmetic)
+  - op: math.scalar_broadcast
+    config: { op: mul, scalar: $config.num_train_timesteps }
+    in:  { x: sigmas }
+    out: { dst: timesteps }
+
+  # 4) The denoising loop
+  - op: control.loop_each
+    loop: { over: timesteps, as: timestep }
+    body:
+      # 4a) Predict noise via the architecture
+      - op: model.architecture.flux2
+        in:
+          latents:        latents
+          text_embedding: $input.text_embedding
+          timestep:       timestep
+        out: { noise_pred: noise_pred }
+        weights: $config.weights_uri  # safetensors source
+
+      # 4b) Compute sigma delta for this step
+      - op: math.scheduler_delta
+        config: { schedule: $sigmas, step_index: step_index }
+        out: { dst: sigma_delta }
+
+      # 4c) Update latents: latents = latents - sigma_delta * noise_pred
+      - op: math.axpy
+        config: { alpha: -1.0 }  # latents <- latents + alpha * (sigma_delta * noise_pred)
+        in: { y: latents, x: noise_pred, scale: sigma_delta }
+        out: { dst: latents }
+
+      # 4d) Increment step counter
+      - op: state.update
+        config: { target: step_index, update: increment }
+
+  # 5) Decode latents → image (VAE decoder)
+  - op: model.architecture.vae_decoder
+    in:  { latents: latents }
+    out: { image: image }
+    weights: $config.vae_weights_uri
+
+outputs:
+  - image
+```
+
+The "Flow-Match Euler Discrete" scheduler that used to live in Go becomes just `linspace + scalar_broadcast + per-step delta arithmetic` — all expressible as a manifest.
+
+The `math.scheduler_delta` op above is the only piece that smells model-family. It's actually generic ("given a 1-D schedule tensor and a step index, return the delta to the next entry") and belongs in `math/`. If we don't want a dedicated op, it's `sigmas[step_index] - sigmas[step_index+1]` expressed as `shape.slice + math.sub`.
+
+### 6.7.4 Sequencing
+
+1. **Land the missing atomics:**
+   - `random.normal` (already mostly done; needs YAML at `template/operation/random/normal.yml` + step 5 wiring to `device.Backend`)
+   - `math.arange`: device-side reference + YAML
+   - `math.linspace`: device-side reference + YAML
+   - `math.scalar_broadcast`: either as a new device op or composed from `math.mul` with broadcast semantics
+
+2. **Migrate `template/model/architecture/flux2.yml` to `kind:` format.** It's already structured as the desired data; just needs the `kind: Architecture` header + variables block.
+
+3. **Write the runtime program** `template/runtime/diffusion.yml` per §6.7.3 above. Reference the migrated `flux2.yml` via the existing include mechanism.
+
+4. **Add a VAE decoder architecture template** (the existing diffusion model YAMLs like `template/model/diffusion/flux-1-dev.yml` likely already reference a VAE component; just confirm it's expressed as a sub-manifest over atomics).
+
+5. **End-to-end smoke test:** caramba CLI `diffusion` subcommand re-enabled, loads the rewritten runtime YAML, runs one denoising step, produces a non-noise image. Doesn't need to match prior output bit-for-bit; just needs to produce a recognizable diffusion artifact.
+
+6. **Delete the diffusion CLI plumbing in caramba** if it has any model-specific paths that survived. The `caramba diffusion <prompt>` command becomes a generic "load this YAML, run it, save the image output" — same shape as `caramba chat`.
+
+### 6.7.5 Acceptance criteria
+
+- `manifesto/scripts/check_banned.sh` continues to report zero diffusion violations (already true after §6.5).
+- `caramba run diffusion "<prompt>"` produces an image without invoking any Go code that special-cases diffusion.
+- Adding a new diffusion variant (say, SD3) requires writing only YAML — no Go.
+- The rewritten YAMLs all start with `kind:` and pass `check_banned.sh §5`.
 
 ---
 

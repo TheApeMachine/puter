@@ -3,9 +3,8 @@
 package random
 
 import (
+	"fmt"
 	"unsafe"
-
-	"github.com/theapemachine/manifesto/tensor"
 )
 
 /*
@@ -70,10 +69,20 @@ func DispatchNormalRefs(
 	)
 }
 
+/*
+metalStatusError converts a non-zero MetalStatus into a rich Go error
+that preserves the underlying status code and the C-level message. We
+intentionally do NOT collapse to tensor.ErrNeedsPlatformSetup here
+because that sentinel is reserved for "the Metal backend is not
+available at all" (checked at NewHarness time). Once we are past
+backend setup, a kernel dispatch failure is a real error with
+debuggable detail and the caller deserves to see it.
+*/
 func metalStatusError(status C.MetalStatus) error {
 	if status.code == 0 {
 		return nil
 	}
 
-	return tensor.ErrNeedsPlatformSetup
+	message := C.GoString(&status.message[0])
+	return fmt.Errorf("metal random kernel failed (code=%d): %s", int(status.code), message)
 }
