@@ -6,6 +6,16 @@ import (
 
 var NaN = *(*float32)(unsafe.Pointer(&uvnan32))
 
+const fastExp32Log2E = float32(1.4426950408889634)
+
+// fastExp32Fraction returns z - float32(k) without an FNMSUB rewrite that
+// rounds differently from vector VFSUB on arm64.
+//
+//go:noinline
+func fastExp32Fraction(z float32, k int32) float32 {
+	return z - float32(k)
+}
+
 // FastExp32 computes e^x using IEEE-754 bit manipulation and a polynomial approximation.
 // It avoids float64 and is roughly 5-10x faster than math.Exp in Go.
 func FastExp32(x float32) float32 {
@@ -18,14 +28,14 @@ func FastExp32(x float32) float32 {
 	}
 
 	// e^x = 2^(x * log2(e))
-	z := x * 1.4426950408889634 // multiply by log2(e)
+	z := x * fastExp32Log2E
 
 	// Separate into integer and fractional parts
 	k := int32(z)
 	if z < 0 {
 		k-- // Ensure fraction is always in [0, 1)
 	}
-	f := z - float32(k)
+	f := fastExp32Fraction(z, k)
 
 	// Minimax polynomial approximation for 2^f on [0, 1)
 	poly := 1.0 + f*(0.69314718+f*(0.24022650+f*(0.05550410+f*(0.00961812+f*0.00133389))))

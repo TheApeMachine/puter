@@ -72,7 +72,7 @@ GLOBL samSoftmaxClamp<>(SB), RODATA|NOPTR, $4
 
 #define VAND_S4(m, n, d)   WORD $(0x4E201C00 | ((m) << 16) | ((n) << 5) | (d))
 
-#define SAM_EXP_V0_TO_V6 \
+#define SAM_EXP_POLY_V0_TO_V4 \
 	VFMUL_S4(16, 0, 1) \
 	VFCVTZS_S4(1, 5) \
 	VFCMLTZ_S4(1, 12) \
@@ -85,12 +85,52 @@ GLOBL samSoftmaxClamp<>(SB), RODATA|NOPTR, $4
 	SAM_POLY_STEP(21, 4, 3) \
 	SAM_POLY_STEP(20, 3, 4) \
 	SAM_POLY_STEP(19, 4, 3) \
-	SAM_POLY_STEP(24, 3, 4) \
-	VSHL_S4_BY23(5, 8) \
-	VADD_I32(8, 4, 6)
+	SAM_POLY_STEP(24, 3, 4)
+
+#define SAM_EXP_CALL_GPR_INJECT \
+	MOVD R30, R9 ;\
+	BL   samExpGPRInject4(SB) ;\
+	MOVD R9, R30
+
+#define SAM_EXP_V0_TO_V6 \
+	SAM_EXP_POLY_V0_TO_V4 ;\
+	SAM_EXP_CALL_GPR_INJECT
+
+// samExpGPRInject4 adds k<<23 into each lane of v4 using GPR bit ops.
+// Input v4 poly, v5 k; output v6.
+TEXT samExpGPRInject4(SB), NOSPLIT, $32-0
+	MOVD RSP, R14
+	VST1 [V4.S4], (R14)
+	ADD  $16, R14, R13
+	VST1 [V5.S4], (R13)
+	MOVD RSP, R14
+	MOVD $0, R12
+
+sam_exp_gpr_inject_lane:
+	MOVD R14, R10
+	ADD  R12, R10, R10
+	FMOVS (R10), F4
+	FMOVS F4, R6
+	MOVD R14, R11
+	ADD  $16, R11, R11
+	ADD  R12, R11, R11
+	MOVW (R11), R4
+	MOVD $0xFFFFFFFF, R7
+	AND  R7, R4, R4
+	LSL  $23, R4, R8
+	ADD  R8, R6, R6
+	FMOVS R6, F4
+	MOVD R14, R10
+	ADD  R12, R10, R10
+	FMOVS F4, (R10)
+	ADD  $4, R12
+	CMP  $16, R12
+	BLT  sam_exp_gpr_inject_lane
+	VLD1 (R14), [V6.S4]
+	RET
 
 // func samFastExp32OneNEONAsm(x float32) float32
-TEXT ·samFastExp32OneNEONAsm(SB), NOSPLIT, $0-12
+TEXT ·samFastExp32OneNEONAsm(SB), NOSPLIT, $16-12
 	FMOVS x+0(FP), F0
 	VDUP V0.S[0], V0.S4
 	MOVD $samExpC<>(SB), R3
@@ -274,6 +314,9 @@ sam_softmax_max_done:
 	MOVD count+24(FP), R2
 	FMOVS F16, F28
 	VDUP V28.S[0], V28.S4
+	VDUP V10.S[0], V10.S4
+	FMOVS samSoftmaxClamp<>(SB), F30
+	VDUP V30.S[0], V30.S4
 
 	MOVD $samExpC<>(SB), R3
 	FMOVS 0(R3), F16
@@ -292,8 +335,6 @@ sam_softmax_max_done:
 	VDUP V24.S[0], V24.S4
 	MOVD $samNegOneI32<>(SB), R3
 	VLD1 (R3), [V11.S4]
-	FMOVS samSoftmaxClamp<>(SB), F30
-	VDUP V30.S[0], V30.S4
 
 sam_softmax_exp_loop4:
 	CMP  $4, R2
@@ -337,7 +378,6 @@ sam_softmax_exp_scalar_loop:
 sam_softmax_exp_scalar_compute:
 	VDUP V0.S[0], V0.S4
 	SAM_EXP_V0_TO_V6
-	FMOVS F6, F6
 
 sam_softmax_exp_scalar_store:
 	FMOVS F6, (R1)
