@@ -33,7 +33,7 @@ func TestAddFloat32(t *testing.T) {
 				}
 
 				outView, _ := out.Float32Native()
-				elementwise.Add(
+				elementwise.New().Add(
 					unsafe.Pointer(&outView[0]),
 					unsafe.Pointer(&leftView[0]),
 					unsafe.Pointer(&rightView[0]),
@@ -67,7 +67,7 @@ func TestAddBFloat16_MixedAccumulation(t *testing.T) {
 		}
 
 		outView, _ := out.BFloat16Native()
-		elementwise.Add(
+		elementwise.New().Add(
 			unsafe.Pointer(&outView[0]),
 			unsafe.Pointer(&leftView[0]),
 			unsafe.Pointer(&rightView[0]),

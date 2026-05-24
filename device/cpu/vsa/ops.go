@@ -53,8 +53,9 @@ func (vsa VSA) Permute(config VSAConfig, input, output unsafe.Pointer, count int
 }
 
 func (vsa VSA) InversePermute(config VSAConfig, input, output unsafe.Pointer, count int, format dtype.DType) {
-	config.Shift = -config.Shift
-	Permute(config, input, output, count, format)
+	inverted := config
+	inverted.Shift = -config.Shift
+	vsa.Permute(inverted, input, output, count, format)
 }
 
 func (vsa VSA) Similarity(left, right unsafe.Pointer, count int, format dtype.DType) float32 {

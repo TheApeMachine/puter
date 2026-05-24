@@ -6,6 +6,7 @@ import (
 
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
+	"github.com/theapemachine/puter/device"
 	"github.com/theapemachine/puter/device/cpu/activation"
 )
 
@@ -32,10 +33,7 @@ reduces memory bandwidth on real hardware. The reference here is a
 single-block execution to keep the math obvious.
 */
 
-type FlashAttentionConfig struct {
-	BlockSize int
-	Causal    bool
-}
+type FlashAttentionConfig = device.FlashAttentionConfig
 
 func DefaultFlashAttentionConfig() FlashAttentionConfig {
 	return FlashAttentionConfig{BlockSize: 64, Causal: false}
@@ -180,7 +178,7 @@ func flashExpFloat32(value float32) float32 {
 	}
 
 	scratch := [1]float32{value}
-	activation.Exp(
+	activation.New().Exp(
 		unsafe.Pointer(unsafe.SliceData(scratch[:])),
 		unsafe.Pointer(unsafe.SliceData(scratch[:])),
 		1,

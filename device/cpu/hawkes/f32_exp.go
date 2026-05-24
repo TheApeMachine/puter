@@ -12,7 +12,7 @@ hawkesExpScalar applies the platform activation exp kernel to one lane.
 */
 func hawkesExpScalar(value float32) float32 {
 	scratch := [1]float32{value}
-	activation.Exp(
+	activation.New().Exp(
 		unsafe.Pointer(unsafe.SliceData(scratch[:])),
 		unsafe.Pointer(unsafe.SliceData(scratch[:])),
 		len(scratch),

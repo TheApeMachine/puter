@@ -1,17 +1,12 @@
 package convolution
 
+import "github.com/theapemachine/puter/device"
+
 /*
 Conv2DConfig binds stride, padding, and dilation for 2-D convolution
 and transposed convolution entry points.
 */
-type Conv2DConfig struct {
-	StrideH   int
-	StrideW   int
-	PaddingH  int
-	PaddingW  int
-	DilationH int
-	DilationW int
-}
+type Conv2DConfig = device.Conv2DConfig
 
 func DefaultConv2DConfig() Conv2DConfig {
 	return Conv2DConfig{
@@ -24,11 +19,7 @@ func DefaultConv2DConfig() Conv2DConfig {
 /*
 Conv1DConfig binds stride, padding, and dilation for 1-D convolution.
 */
-type Conv1DConfig struct {
-	Stride   int
-	Padding  int
-	Dilation int
-}
+type Conv1DConfig = device.Conv1DConfig
 
 func DefaultConv1DConfig() Conv1DConfig {
 	return Conv1DConfig{Stride: 1, Padding: 0, Dilation: 1}
@@ -37,11 +28,7 @@ func DefaultConv1DConfig() Conv1DConfig {
 /*
 Conv3DConfig binds stride, padding, and dilation for 3-D convolution.
 */
-type Conv3DConfig struct {
-	StrideD, StrideH, StrideW       int
-	PaddingD, PaddingH, PaddingW    int
-	DilationD, DilationH, DilationW int
-}
+type Conv3DConfig = device.Conv3DConfig
 
 func DefaultConv3DConfig() Conv3DConfig {
 	return Conv3DConfig{

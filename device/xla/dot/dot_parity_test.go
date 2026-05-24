@@ -65,7 +65,7 @@ func dotReference(left, right []float32, format dtype.DType) float32 {
 	}
 
 	productBytes := make([]byte, len(leftBytes))
-	cpuelementwise.Mul(
+	cpuelementwise.New().Mul(
 		unsafe.Pointer(&productBytes[0]),
 		unsafe.Pointer(&leftBytes[0]),
 		unsafe.Pointer(&rightBytes[0]),
@@ -73,5 +73,5 @@ func dotReference(left, right []float32, format dtype.DType) float32 {
 		format,
 	)
 
-	return cpureduction.Sum(unsafe.Pointer(&productBytes[0]), count, format)
+	return cpureduction.New().Sum(unsafe.Pointer(&productBytes[0]), count, format)
 }

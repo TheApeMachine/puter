@@ -2,6 +2,7 @@ package predictive_coding
 
 import (
 	"github.com/theapemachine/manifesto/tensor"
+	"github.com/theapemachine/puter/device"
 )
 
 /*
@@ -16,9 +17,7 @@ Friston-style hierarchical predictive coding model:
 Host tensor paths route through Float32Native dispatchers (AVX-512 on amd64 when available).
 */
 
-type PredictiveCodingConfig struct {
-	LearningRate float32
-}
+type PredictiveCodingConfig = device.PredictiveCodingConfig
 
 func DefaultPredictiveCodingConfig() PredictiveCodingConfig {
 	return PredictiveCodingConfig{LearningRate: 1e-2}

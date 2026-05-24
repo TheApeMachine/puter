@@ -22,7 +22,7 @@ func TestLossesCUDAParity(t *testing.T) {
 			convey.Convey(fmt.Sprintf("N=%d", count), func() {
 				predictions := parity.RandomUnaryInput(count, 0x2100+int64(count))
 				targets := parity.RandomUnaryInput(count, 0x2200+int64(count))
-				want := []float32{cpulosses.MSE(
+				want := []float32{cpulosses.New().MSE(
 					unsafe.Pointer(&predictions[0]),
 					unsafe.Pointer(&targets[0]),
 					count,

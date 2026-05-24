@@ -78,7 +78,7 @@ func matmulReferenceBytes(
 		}
 
 		outputBytes := make([]byte, rows*cols*elementByteWidth(format))
-		cpumatmul.Matmul(
+		cpumatmul.New().Matmul(
 			unsafe.Pointer(&outputBytes[0]),
 			unsafe.Pointer(&leftBytes[0]),
 			unsafe.Pointer(&rightBytes[0]),

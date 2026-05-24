@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/theapemachine/manifesto/dtype"
-	"github.com/theapemachine/manifesto/tensor"
 )
 
 func RenderRoPEPairs(
@@ -81,16 +80,17 @@ func RenderRoPE(
 
 ENTRY main {
   input = %s parameter(0)
-  positions = %s convert(iota(s32[%d]{0}), dimensions={0}), newtype=%s
-  start = %s[] constant(%d)
+  pos_iota = iota(s32[%d]{0}), dimensions={0}
+  start = s32[] constant(%d)
   start_b = s32[%d]{0} broadcast(start), dimensions={}
-  pos_i32 = s32[%d]{0} add(positions, start_b)
-  pos = %s convert(pos_i32), newtype=%s
-  pair_idx = %s convert(iota(s32[%d]{0}), dimensions={0}), newtype=%s
+  pos_i32 = s32[%d]{0} add(pos_iota, start_b)
+  pos = %s convert(pos_i32)
+  pair_iota = iota(s32[%d]{0}), dimensions={0}
+  pair_idx = %s convert(pair_iota)
   two = %s[] constant(2)
   head_dim = %s[] constant(%d)
   exp_num = %s multiply(two, pair_idx)
-  exp_den = %s convert(head_dim), newtype=%s
+  exp_den = %s convert(head_dim)
   exponent = %s negate(%s divide(exp_num, exp_den))
   base = %s[] constant(%g)
   inv_freq = %s power(base, exponent)
@@ -113,12 +113,14 @@ ENTRY main {
 }
 `, moduleName, entryLayout,
 		inputLiteral,
-		seqLiteral, seqLen, elementType,
-		elementType, startPosition, seqLen, seqLen,
-		seqLiteral, elementType,
-		halfLiteral, halfDim, elementType,
+		seqLen, startPosition, seqLen, seqLen,
+		elementType,
+		halfDim, elementType,
+		elementType,
 		elementType, headDim,
-		halfLiteral, halfLiteral, elementType, halfLiteral, halfLiteral,
+		halfLiteral,
+		elementType,
+		halfLiteral, halfLiteral,
 		elementType, baseFreq, halfLiteral,
 		seqLiteral, seqLen, halfLiteral, halfDim, tableLiteral,
 		tableLiteral, tableLiteral,

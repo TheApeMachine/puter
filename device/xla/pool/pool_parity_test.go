@@ -83,7 +83,7 @@ func poolReferenceBytes(
 	destinationBytes := make([]byte, batch*channels*outHeight*outWidth*elementByteWidth(format))
 
 	if useMax {
-		cpupool.MaxPool2D(
+		cpupool.New().MaxPool2D(
 			cpupool.PoolConfig{
 				KernelH:  config.KernelH,
 				KernelW:  config.KernelW,

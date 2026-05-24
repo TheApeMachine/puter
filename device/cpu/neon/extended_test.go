@@ -28,7 +28,7 @@ func TestUnaryAbsAndExp(t *testing.T) {
 		copy(inputView, []float32{-1, 0, 1, 2})
 
 		outView, _ := out.Float32Native()
-		elementwise.Abs(
+		elementwise.New().Abs(
 			unsafe.Pointer(&outView[0]),
 			unsafe.Pointer(&inputView[0]),
 			len(inputView),
@@ -38,7 +38,7 @@ func TestUnaryAbsAndExp(t *testing.T) {
 		convey.So(outView, convey.ShouldResemble, []float32{1, 0, 1, 2})
 
 		inputView[0] = 0
-		activation.Exp(
+		activation.New().Exp(
 			unsafe.Pointer(&outView[0]),
 			unsafe.Pointer(&inputView[0]),
 			len(inputView),
@@ -57,7 +57,7 @@ func TestReductionSum(t *testing.T) {
 		inputView, _ := input.Float32Native()
 		copy(inputView, []float32{1, 2, 3, 4})
 
-		total := reduction.Sum(
+		total := reduction.New().Sum(
 			unsafe.Pointer(&inputView[0]),
 			len(inputView),
 			dtype.Float32,
@@ -79,7 +79,7 @@ func TestMSELoss(t *testing.T) {
 		targetView, _ := targets.Float32Native()
 		copy(targetView, []float32{1, 3, 5})
 
-		mean := losses.MSE(
+		mean := losses.New().MSE(
 			unsafe.Pointer(&predView[0]),
 			unsafe.Pointer(&targetView[0]),
 			len(predView),
@@ -98,7 +98,7 @@ func TestGreedySample(t *testing.T) {
 		logitView, _ := logits.Float32Native()
 		copy(logitView, []float32{0.1, 0.2, 0.9, 0.3, 0.4})
 
-		token := sampling.GreedySample(unsafe.Pointer(&logitView[0]), len(logitView), dtype.Float32)
+		token := sampling.New().GreedySample(unsafe.Pointer(&logitView[0]), len(logitView), dtype.Float32)
 		convey.So(token, convey.ShouldEqual, int32(2))
 	})
 }
@@ -120,7 +120,7 @@ func TestEmbeddingLookup(t *testing.T) {
 		out, _ := tensor.NewZeroed(outShape, dtype.Float32)
 		outView, _ := out.Float32Native()
 
-		embedding.Lookup(
+		embedding.New().Lookup(
 			unsafe.Pointer(&tableView[0]),
 			unsafe.Pointer(&indicesView[0]),
 			unsafe.Pointer(&outView[0]),

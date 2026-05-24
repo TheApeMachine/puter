@@ -4,6 +4,7 @@ import (
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/tensor"
+	"github.com/theapemachine/puter/device"
 )
 
 /*
@@ -21,14 +22,7 @@ the kernels here apply masking via the config rather than an input
 tensor until a dedicated layout kernel lands.
 */
 
-type MultiHeadAttentionConfig struct {
-	NumHeads    int
-	HeadDim     int
-	Causal      bool
-	WindowSize  int     // 0 = no window
-	ALiBiSlope  float32 // 0 = disabled
-	KVHeadCount int     // for GQA/MQA; 0 → equals NumHeads (full multi-head)
-}
+type MultiHeadAttentionConfig = device.MultiHeadAttentionConfig
 
 func DefaultMultiHeadAttentionConfig() MultiHeadAttentionConfig {
 	return MultiHeadAttentionConfig{NumHeads: 8, HeadDim: 64}

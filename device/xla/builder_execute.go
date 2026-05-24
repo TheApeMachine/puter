@@ -376,6 +376,332 @@ func (builder *Builder) ExecuteVariadic(
 	return bridge.executeVariadic(C.XLAExecutableRef(executable.handle), inputs, output)
 }
 
+/*
+ExecutePairLoss compiles (or loads from cache) and executes a pair-wise loss to scalar.
+*/
+func (builder *Builder) ExecutePairLoss(
+	bridge *xlaBridge,
+	operationName string,
+	context LoweringContext,
+	predictions *DeviceTensor,
+	targets *DeviceTensor,
+	output *DeviceTensor,
+) error {
+	programKey, err := builder.ProgramKeyFor(operationName, context, nil, nil)
+
+	if err != nil {
+		return err
+	}
+
+	executable, err := builder.loadPairLossExecutable(bridge, programKey, context)
+
+	if err != nil {
+		return err
+	}
+
+	return bridge.executeBinary(C.XLAExecutableRef(executable.handle), predictions.bufferRef(), targets.bufferRef(), output.bufferRef())
+}
+
+func (builder *Builder) loadPairLossExecutable(
+	bridge *xlaBridge,
+	programKey ProgramKey,
+	context LoweringContext,
+) (*CompiledExecutable, error) {
+	if cached, ok := builder.CachedExecutable(programKey); ok {
+		return cached, nil
+	}
+
+	lossKind, ok := hlo.PairLossKindFromOperation(programKey.Operation)
+
+	if !ok {
+		return nil, &loweringError{message: "invalid XLA pair loss operation: " + programKey.Operation}
+	}
+
+	if len(context.InputShapes) != 2 {
+		return nil, &loweringError{message: "pair loss requires two input shapes"}
+	}
+
+	hloText, err := hlo.RenderPairLoss(
+		fmt.Sprintf("puter_%s", programKey.Operation),
+		context.OutputDType,
+		context.InputShapes[0],
+		lossKind,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	executableRef, err := bridge.compileHLO(hloText)
+
+	if err != nil {
+		return nil, err
+	}
+
+	compiled := &CompiledExecutable{
+		key:    programKey,
+		handle: uintptr(executableRef),
+	}
+	builder.RecordExecutable(programKey, compiled)
+	return compiled, nil
+}
+
+/*
+ExecuteCrossEntropy compiles (or loads from cache) and executes cross entropy to scalar.
+*/
+func (builder *Builder) ExecuteCrossEntropy(
+	bridge *xlaBridge,
+	context LoweringContext,
+	logits *DeviceTensor,
+	targets *DeviceTensor,
+	output *DeviceTensor,
+) error {
+	programKey, err := builder.ProgramKeyFor("cross_entropy", context, nil, nil)
+
+	if err != nil {
+		return err
+	}
+
+	executable, err := builder.loadCrossEntropyExecutable(bridge, programKey, context)
+
+	if err != nil {
+		return err
+	}
+
+	return bridge.executeVariadic(
+		C.XLAExecutableRef(executable.handle),
+		[]*DeviceTensor{logits, targets},
+		output,
+	)
+}
+
+func (builder *Builder) loadCrossEntropyExecutable(
+	bridge *xlaBridge,
+	programKey ProgramKey,
+	context LoweringContext,
+) (*CompiledExecutable, error) {
+	if cached, ok := builder.CachedExecutable(programKey); ok {
+		return cached, nil
+	}
+
+	if len(context.InputShapes) != 2 {
+		return nil, &loweringError{message: "cross entropy requires logits and target shapes"}
+	}
+
+	logitsShape := context.InputShapes[0]
+	logitsDimensions := logitsShape.Dims()
+
+	if len(logitsDimensions) != 2 {
+		return nil, &loweringError{message: "cross entropy logits must be rank-2"}
+	}
+
+	hloText, err := hlo.RenderCrossEntropy(
+		fmt.Sprintf("puter_%s", programKey.Operation),
+		context.OutputDType,
+		logitsDimensions[0],
+		logitsDimensions[1],
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	executableRef, err := bridge.compileHLO(hloText)
+
+	if err != nil {
+		return nil, err
+	}
+
+	compiled := &CompiledExecutable{
+		key:    programKey,
+		handle: uintptr(executableRef),
+	}
+	builder.RecordExecutable(programKey, compiled)
+	return compiled, nil
+}
+
+/*
+ExecuteRoPE compiles (or loads from cache) and executes rotary positional embedding.
+*/
+func (builder *Builder) ExecuteRoPE(
+	bridge *xlaBridge,
+	context LoweringContext,
+	floatParams []float64,
+	intParams []int64,
+	input *DeviceTensor,
+	output *DeviceTensor,
+) error {
+	programKey, err := builder.ProgramKeyFor("rope", context, floatParams, intParams)
+
+	if err != nil {
+		return err
+	}
+
+	executable, err := builder.loadRoPEExecutable(bridge, programKey, context, floatParams, intParams)
+
+	if err != nil {
+		return err
+	}
+
+	return bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef())
+}
+
+func (builder *Builder) loadRoPEExecutable(
+	bridge *xlaBridge,
+	programKey ProgramKey,
+	context LoweringContext,
+	floatParams []float64,
+	intParams []int64,
+) (*CompiledExecutable, error) {
+	if cached, ok := builder.CachedExecutable(programKey); ok {
+		return cached, nil
+	}
+
+	if len(context.InputShapes) != 1 {
+		return nil, &loweringError{message: "rope requires one input shape"}
+	}
+
+	inputDimensions := context.InputShapes[0].Dims()
+
+	if len(inputDimensions) != 3 {
+		return nil, &loweringError{message: "rope requires rank-3 input"}
+	}
+
+	baseFreq := 10000.0
+	startPosition := 0
+
+	if len(floatParams) > 0 {
+		baseFreq = floatParams[0]
+	}
+
+	if len(intParams) > 0 {
+		startPosition = int(intParams[0])
+	}
+
+	hloText, err := hlo.RenderRoPE(
+		fmt.Sprintf("puter_%s", programKey.Operation),
+		context.OutputDType,
+		inputDimensions[0],
+		inputDimensions[1],
+		inputDimensions[2],
+		baseFreq,
+		startPosition,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	executableRef, err := bridge.compileHLO(hloText)
+
+	if err != nil {
+		return nil, err
+	}
+
+	compiled := &CompiledExecutable{
+		key:    programKey,
+		handle: uintptr(executableRef),
+	}
+	builder.RecordExecutable(programKey, compiled)
+	return compiled, nil
+}
+
+func renderScaledDotProductAttention(
+	moduleName string,
+	context LoweringContext,
+	intParams []int64,
+) (string, error) {
+	if len(context.InputShapes) != 3 {
+		return "", &loweringError{message: "scaled dot product attention requires three input shapes"}
+	}
+
+	queryShape := context.InputShapes[0]
+	keyShape := context.InputShapes[1]
+	valueShape := context.InputShapes[2]
+	seqQ := queryShape.Dims()[0]
+	seqK := keyShape.Dims()[0]
+	depth := queryShape.Dims()[1]
+	valueDim := valueShape.Dims()[1]
+	causal := false
+
+	if len(intParams) > 0 && intParams[0] != 0 {
+		causal = true
+	}
+
+	return hlo.RenderScaledDotProductAttention(
+		moduleName,
+		context.OutputDType,
+		seqQ,
+		seqK,
+		depth,
+		valueDim,
+		causal,
+	)
+}
+
+func renderMultiHeadAttention(
+	moduleName string,
+	context LoweringContext,
+	floatParams []float64,
+	intParams []int64,
+) (string, error) {
+	if len(context.InputShapes) != 3 {
+		return "", &loweringError{message: "multi head attention requires three input shapes"}
+	}
+
+	queryShape := context.InputShapes[0]
+	keyShape := context.InputShapes[1]
+	seqQ := queryShape.Dims()[0]
+	seqK := keyShape.Dims()[0]
+	headDim := 0
+	numHeads := 0
+	kvHeads := 0
+	causal := false
+	windowSize := 0
+	alibiSlope := float32(0)
+
+	if len(intParams) > 0 {
+		numHeads = int(intParams[0])
+	}
+
+	if len(intParams) > 1 {
+		headDim = int(intParams[1])
+	}
+
+	if len(intParams) > 2 {
+		kvHeads = int(intParams[2])
+	}
+
+	if len(intParams) > 3 && intParams[3] != 0 {
+		causal = true
+	}
+
+	if len(intParams) > 4 {
+		windowSize = int(intParams[4])
+	}
+
+	if len(floatParams) > 0 {
+		alibiSlope = float32(floatParams[0])
+	}
+
+	if numHeads == 0 || headDim == 0 {
+		return "", &loweringError{message: "multi head attention requires head metadata"}
+	}
+
+	return hlo.RenderMultiHeadAttention(
+		moduleName,
+		context.OutputDType,
+		seqQ,
+		seqK,
+		numHeads,
+		kvHeads,
+		headDim,
+		causal,
+		windowSize,
+		alibiSlope,
+	)
+}
+
 func (builder *Builder) loadVariadicExecutable(
 	bridge *xlaBridge,
 	programKey ProgramKey,
@@ -410,6 +736,13 @@ func (builder *Builder) loadVariadicExecutable(
 		}
 
 		hloText, err = hlo.RenderGroupNorm(moduleName, context.OutputDType, inputShape, groups)
+	case "rope_pairs":
+		headDim := inputShape.Dims()[0]
+		hloText, err = hlo.RenderRoPEPairs(moduleName, context.OutputDType, headDim)
+	case "scaled_dot_product_attention":
+		hloText, err = renderScaledDotProductAttention(moduleName, context, intParams)
+	case "multi_head_attention":
+		hloText, err = renderMultiHeadAttention(moduleName, context, floatParams, intParams)
 	default:
 		return nil, &loweringError{message: "unknown XLA variadic operation: " + programKey.Operation}
 	}

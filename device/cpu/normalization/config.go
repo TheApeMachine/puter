@@ -1,8 +1,8 @@
 package normalization
 
-type GroupNormConfig struct {
-	Groups int
-}
+import "github.com/theapemachine/puter/device"
+
+type GroupNormConfig = device.GroupNormConfig
 
 func DefaultGroupNormConfig() GroupNormConfig {
 	return GroupNormConfig{Groups: 32}

@@ -28,19 +28,19 @@ func RenderScaledDotProductAttention(
 	scale := 1.0 / math.Sqrt(float64(depth))
 	entryLayout := fmt.Sprintf("%s,%s,%s->%s", queryLiteral, keyLiteral, valueLiteral, outputLiteral)
 
-	causalBlock := ""
-	scoreSource := "scaled"
+	maskBlock := ""
+	scoreTensor := "scaled"
 
 	if causal {
-		causalBlock = fmt.Sprintf(`  q_idx = %s reshape(iota(s32[%d]{0}), dimensions={%d,1})
+		maskBlock = fmt.Sprintf(`  q_idx = s32[%d,%d]{1,0} reshape(iota(s32[%d]{0}), dimensions={%d,1})
   k_idx = s32[%d,%d]{1,0} reshape(iota(s32[%d]{0}), dimensions={1,%d})
   causal_mask = pred[%d,%d]{1,0} compare(k_idx, q_idx), direction=GT
-  neg_inf = %s[] constant(-inf)
-  neg_inf_b = %s broadcast(neg_inf), dimensions={0,1}
-  scaled_masked = %s select(causal_mask, neg_inf_b, scaled)
-`, scoreLiteral, seqQ, seqQ, seqK, seqK, seqK, seqK, seqQ, seqK,
+  neg_inf_mask = %s[] constant(-inf)
+  neg_inf_mask_b = %s broadcast(neg_inf_mask), dimensions={0,1}
+  scaled_masked = %s select(causal_mask, neg_inf_mask_b, scaled)
+`, seqQ, seqQ, seqQ, seqQ, seqK, seqK, seqK, seqK, seqQ, seqK,
 			elementType, scoreLiteral, scoreLiteral)
-		scoreSource = "scaled_masked"
+		scoreTensor = "scaled_masked"
 	}
 
 	return fmt.Sprintf(`HloModule %s, entry_computation_layout={%s}
@@ -82,10 +82,9 @@ ENTRY main {
 		queryLiteral, keyLiteral, valueLiteral,
 		keyLiteral, scoreLiteral,
 		elementType, scale, scoreLiteral,
-		causalBlock,
-		elementType, rowLiteral, scoreSource, scoreLiteral, scoreLiteral, scoreSource, scoreLiteral,
-		elementType, rowLiteral, scoreLiteral, scoreLiteral,
-		scoreLiteral, outputLiteral), nil
+		maskBlock,
+		elementType, rowLiteral, scoreTensor, scoreLiteral, scoreLiteral, scoreTensor,
+		elementType, rowLiteral, scoreLiteral, scoreLiteral, scoreLiteral, outputLiteral), nil
 }
 
 func RenderMultiHeadAttention(
@@ -110,44 +109,69 @@ func RenderMultiHeadAttention(
 		return "", fmt.Errorf("multi-head attention head count must divide kv head count")
 	}
 
+	repeatFactor := numHeads / kvHeads
 	queryLiteral := fmt.Sprintf("%s[%d,%d]{1,0}", elementType, seqQ, numHeads*headDim)
 	keyLiteral := fmt.Sprintf("%s[%d,%d]{1,0}", elementType, seqK, kvHeads*headDim)
 	valueLiteral := fmt.Sprintf("%s[%d,%d]{1,0}", elementType, seqK, kvHeads*headDim)
 	outputLiteral := fmt.Sprintf("%s[%d,%d]{1,0}", elementType, seqQ, numHeads*headDim)
 	batchQueryLiteral := fmt.Sprintf("%s[%d,%d,%d]{2,1,0}", elementType, numHeads, seqQ, headDim)
-	batchKeyLiteral := fmt.Sprintf("%s[%d,%d,%d]{2,1,0}", elementType, kvHeads, seqK, headDim)
-	batchValueLiteral := fmt.Sprintf("%s[%d,%d,%d]{2,1,0}", elementType, kvHeads, seqK, headDim)
+	batchKeyLiteral := fmt.Sprintf("%s[%d,%d,%d]{2,1,0}", elementType, numHeads, seqK, headDim)
+	batchValueLiteral := fmt.Sprintf("%s[%d,%d,%d]{2,1,0}", elementType, numHeads, seqK, headDim)
 	batchOutputLiteral := fmt.Sprintf("%s[%d,%d,%d]{2,1,0}", elementType, numHeads, seqQ, headDim)
 	scoreLiteral := fmt.Sprintf("%s[%d,%d,%d]{2,1,0}", elementType, numHeads, seqQ, seqK)
 	rowLiteral := fmt.Sprintf("%s[%d,%d]{1,0}", elementType, numHeads, seqQ)
+	kvBatchLiteral := fmt.Sprintf("%s[%d,%d,%d]{2,1,0}", elementType, kvHeads, seqK, headDim)
+	kvExpandLiteral := fmt.Sprintf("%s[%d,1,%d,%d]{3,2,1,0}", elementType, kvHeads, seqK, headDim)
 	scale := 1.0 / math.Sqrt(float64(headDim))
 	entryLayout := fmt.Sprintf("%s,%s,%s->%s", queryLiteral, keyLiteral, valueLiteral, outputLiteral)
 
-	repeatFactor := numHeads / kvHeads
-	expandKey := batchKeyLiteral
+	keyPrep := fmt.Sprintf(`  key_batched = %s reshape(key), dimensions={%d,%d,%d}
+  value_batched = %s reshape(value), dimensions={%d,%d,%d}
+  key_trans = %s transpose(key_batched), dimensions={1,0,2}
+  value_trans = %s transpose(value_batched), dimensions={1,0,2}`,
+		kvBatchLiteral, seqK, kvHeads, headDim,
+		kvBatchLiteral, seqK, kvHeads, headDim,
+		kvBatchLiteral, kvBatchLiteral)
 
 	if repeatFactor > 1 {
-		expandKey = fmt.Sprintf("%s[%d,%d,%d,%d]{3,2,1,0}", elementType, kvHeads, repeatFactor, seqK, headDim)
+		keyPrep += fmt.Sprintf(`
+  key_exp = %s reshape(key_trans), dimensions={%d,1,%d,%d}
+  value_exp = %s reshape(value_trans), dimensions={%d,1,%d,%d}
+  key_tiled = %s broadcast(key_exp), dimensions={0,2,3}
+  value_tiled = %s broadcast(value_exp), dimensions={0,2,3}
+  key_heads = %s reshape(key_tiled), dimensions={%d,%d,%d}
+  value_heads = %s reshape(value_tiled), dimensions={%d,%d,%d}`,
+			kvExpandLiteral, kvHeads, seqK, headDim,
+			kvExpandLiteral, kvHeads, seqK, headDim,
+			kvExpandLiteral, kvExpandLiteral,
+			batchKeyLiteral, numHeads, seqK, headDim,
+			batchValueLiteral, numHeads, seqK, headDim)
+	}
+
+	if repeatFactor == 1 {
+		keyPrep += fmt.Sprintf(`
+  key_heads = %s transpose(key_batched), dimensions={1,0,2}
+  value_heads = %s transpose(value_batched), dimensions={1,0,2}`,
+			batchKeyLiteral, batchValueLiteral)
 	}
 
 	causalBlock := ""
-	windowBlock := ""
-	alibiBlock := ""
-	scoreSource := "scaled"
 
 	if causal {
-		causalBlock = fmt.Sprintf(`  q_idx = %s reshape(iota(s32[%d]{0}), dimensions={1,%d,1})
+		causalBlock = fmt.Sprintf(`  q_idx = s32[%d,%d,%d]{2,1,0} reshape(iota(s32[%d]{0}), dimensions={1,%d,1})
   k_idx = s32[%d,%d,%d]{2,1,0} reshape(iota(s32[%d]{0}), dimensions={1,1,%d})
   causal_mask = pred[%d,%d,%d]{2,1,0} compare(k_idx, q_idx), direction=GT
-  neg_inf = %s[] constant(-inf)
-  neg_inf_b = %s broadcast(neg_inf), dimensions={0,1,2}
-  scaled = %s select(causal_mask, neg_inf_b, scaled)
-`, scoreLiteral, seqQ, seqQ, numHeads, seqQ, seqK, seqK, seqK, numHeads, seqQ, seqK,
+  neg_inf_c = %s[] constant(-inf)
+  neg_inf_c_b = %s broadcast(neg_inf_c), dimensions={0,1,2}
+  scaled = %s select(causal_mask, neg_inf_c_b, scaled)
+`, numHeads, seqQ, seqQ, seqQ, seqQ, numHeads, seqQ, seqK, seqK, seqK, numHeads, seqQ, seqK,
 			elementType, scoreLiteral, scoreLiteral)
 	}
 
+	windowBlock := ""
+
 	if windowSize > 0 {
-		windowBlock = fmt.Sprintf(`  q_idx_w = %s reshape(iota(s32[%d]{0}), dimensions={1,%d,1})
+		windowBlock = fmt.Sprintf(`  q_idx_w = s32[%d,%d,%d]{2,1,0} reshape(iota(s32[%d]{0}), dimensions={1,%d,1})
   k_idx_w = s32[%d,%d,%d]{2,1,0} reshape(iota(s32[%d]{0}), dimensions={1,1,%d})
   distance = s32[%d,%d,%d]{2,1,0} subtract(q_idx_w, k_idx_w)
   window = s32[] constant(%d)
@@ -156,42 +180,22 @@ func RenderMultiHeadAttention(
   neg_inf_w = %s[] constant(-inf)
   neg_inf_w_b = %s broadcast(neg_inf_w), dimensions={0,1,2}
   scaled = %s select(window_mask, neg_inf_w_b, scaled)
-`, scoreLiteral, seqQ, seqQ, numHeads, seqQ, seqK, seqK, seqK, numHeads, seqQ, seqK,
-			numHeads, seqQ, seqK, windowSize, numHeads, seqQ, seqK, numHeads, seqQ, seqK,
+`, numHeads, seqQ, seqQ, seqQ, seqQ, numHeads, seqQ, seqK, seqK, seqK, numHeads, seqQ, seqK,
+			numHeads, seqQ, seqK, windowSize, numHeads, seqQ, seqK,
 			elementType, scoreLiteral, scoreLiteral)
 	}
 
+	alibiBlock := ""
+
 	if alibiSlope != 0 {
-		alibiBlock = fmt.Sprintf(`  q_idx_a = %s convert(%s reshape(iota(s32[%d]{0}), dimensions={1,%d,1})), newtype=%s
-  k_idx_a = %s convert(s32[%d,%d,%d]{2,1,0} reshape(iota(s32[%d]{0}), dimensions={1,1,%d})), newtype=%s
+		alibiBlock = fmt.Sprintf(`  q_idx_a = %s convert(s32[%d,%d,%d]{2,1,0} reshape(iota(s32[%d]{0}), dimensions={1,%d,1}))
+  k_idx_a = %s convert(s32[%d,%d,%d]{2,1,0} reshape(iota(s32[%d]{0}), dimensions={1,1,%d}))
   alibi = %s multiply(%s[] constant(%g), %s subtract(k_idx_a, q_idx_a))
   scaled = %s add(scaled, alibi)
-`, elementType, scoreLiteral, seqQ, seqQ, elementType,
-			elementType, numHeads, seqQ, seqK, seqK, seqK, elementType,
+`, elementType, numHeads, seqQ, seqQ, seqQ, seqQ,
+			elementType, numHeads, seqQ, seqK, seqK, seqK,
 			scoreLiteral, elementType, alibiSlope, scoreLiteral,
 			scoreLiteral)
-	}
-
-	_ = scoreSource
-
-	keyPrep := fmt.Sprintf(`  key_batched = %s reshape(key), dimensions={%d,%d,%d}
-  value_batched = %s reshape(value), dimensions={%d,%d,%d}`, batchKeyLiteral, seqK, kvHeads, headDim, batchValueLiteral, seqK, kvHeads, headDim)
-
-	if repeatFactor > 1 {
-		keyPrep = fmt.Sprintf(`  key_batched = %s reshape(key), dimensions={%d,%d,%d}
-  value_batched = %s reshape(value), dimensions={%d,%d,%d}
-  key_expanded = %s reshape(key_batched), dimensions={%d,%d,1,%d,%d}
-  value_expanded = %s reshape(value_batched), dimensions={%d,%d,1,%d,%d}
-  key_tiled = %s broadcast(key_expanded), dimensions={0,1,2,3,4}
-  value_tiled = %s broadcast(value_expanded), dimensions={0,1,2,3,4}
-  key_batched = %s reshape(key_tiled), dimensions={%d,%d,%d}
-  value_batched = %s reshape(value_tiled), dimensions={%d,%d,%d}`,
-			batchKeyLiteral, seqK, kvHeads, headDim, batchValueLiteral, seqK, kvHeads, headDim,
-			expandKey, kvHeads, seqK, repeatFactor, headDim,
-			expandKey, kvHeads, seqK, repeatFactor, headDim,
-			expandKey, expandKey,
-			batchKeyLiteral, numHeads, seqK, headDim,
-			batchValueLiteral, numHeads, seqK, headDim)
 	}
 
 	return fmt.Sprintf(`HloModule %s, entry_computation_layout={%s}
@@ -213,10 +217,8 @@ ENTRY main {
   key = %s parameter(1)
   value = %s parameter(2)
   query_batched = %s reshape(query), dimensions={%d,%d,%d}
-  %s
   query_heads = %s transpose(query_batched), dimensions={1,0,2}
-  key_heads = %s transpose(key_batched), dimensions={1,0,2}
-  value_heads = %s transpose(value_batched), dimensions={1,0,2}
+%s
   key_t = %s transpose(key_heads), dimensions={0,2,1}
   scores = %s dot(query_heads, key_t), lhs_batch_dimensions={0}, lhs_contracting_dimensions={2}, rhs_batch_dimensions={0}, rhs_contracting_dimensions={2}
   scale_c = %s[] constant(%g)
@@ -239,12 +241,12 @@ ENTRY main {
 		elementType, elementType, elementType,
 		queryLiteral, keyLiteral, valueLiteral,
 		batchQueryLiteral, seqQ, numHeads, headDim,
+		batchQueryLiteral,
 		keyPrep,
-		batchQueryLiteral, batchKeyLiteral, batchValueLiteral,
 		batchKeyLiteral, scoreLiteral,
 		elementType, scale, scoreLiteral,
 		causalBlock, windowBlock, alibiBlock,
-		elementType, rowLiteral, scoreLiteral, scoreLiteral, scoreLiteral,
+		elementType, rowLiteral, scoreLiteral, scoreLiteral,
 		elementType, rowLiteral, scoreLiteral, scoreLiteral,
 		scoreLiteral, batchOutputLiteral, batchOutputLiteral,
 		outputLiteral, seqQ, numHeads*headDim), nil

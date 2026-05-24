@@ -10,6 +10,8 @@ import (
 	cpuactivation "github.com/theapemachine/puter/device/cpu/activation"
 )
 
+var referenceActivation = cpuactivation.New()
+
 const normEpsilon = 1e-5
 
 /*
@@ -21,28 +23,28 @@ type UnaryReference func(dst, src unsafe.Pointer, count int)
 ReferenceReLU returns the production CPU reference kernel for ReLU.
 */
 func ReferenceReLU(format dtype.DType) UnaryReference {
-	return productionUnaryReference(cpuactivation.ReLU, format)
+	return productionUnaryReference(referenceActivation.ReLU, format)
 }
 
 /*
 ReferenceExp returns the production CPU reference kernel for Exp.
 */
 func ReferenceExp(format dtype.DType) UnaryReference {
-	return productionUnaryReference(cpuactivation.Exp, format)
+	return productionUnaryReference(referenceActivation.Exp, format)
 }
 
 /*
 ReferenceGeluTanh returns the production CPU reference kernel for GeluTanh.
 */
 func ReferenceGeluTanh(format dtype.DType) UnaryReference {
-	return productionUnaryReference(cpuactivation.GeluTanh, format)
+	return productionUnaryReference(referenceActivation.GeluTanh, format)
 }
 
 /*
 ReferenceGelu returns the production CPU reference kernel for Gelu.
 */
 func ReferenceGelu(format dtype.DType) UnaryReference {
-	return productionUnaryReference(cpuactivation.Gelu, format)
+	return productionUnaryReference(referenceActivation.Gelu, format)
 }
 
 func productionUnaryReference(

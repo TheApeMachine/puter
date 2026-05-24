@@ -27,7 +27,7 @@ func TestElementwiseXLAParity(t *testing.T) {
 					convey.Convey(fmt.Sprintf("N=%d", count), func() {
 						left := xlaparity.RandomUnaryInput(count, 0xE100+int64(count))
 						right := xlaparity.RandomUnaryInput(count, 0xE200+int64(count))
-						wantBytes := computeBinaryReferenceBytes(left, right, storageDType, cpuelementwise.Add)
+						wantBytes := computeBinaryReferenceBytes(left, right, storageDType, cpuelementwise.New().Add)
 
 						leftTensor := harness.UploadVector(left, storageDType)
 						rightTensor := harness.UploadVector(right, storageDType)
@@ -132,7 +132,7 @@ func computeAxpyReferenceBytes(
 		panic(err)
 	}
 
-	cpuelementwise.Axpy(
+	cpuelementwise.New().Axpy(
 		unsafe.Pointer(&yBytes[0]),
 		unsafe.Pointer(&xBytes[0]),
 		count,

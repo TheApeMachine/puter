@@ -104,6 +104,111 @@ func (parityHarness *ParityHarness) DownloadFloat32(deviceTensor *DeviceTensor, 
 }
 
 /*
+UploadMatrix copies a row-major matrix into an XLA-resident tensor.
+*/
+func (parityHarness *ParityHarness) UploadMatrix(
+	values []float32,
+	rows, cols int,
+	format dtype.DType,
+) *DeviceTensor {
+	bytesIn, err := xlaparity.EncodeVector(values, format)
+
+	if err != nil {
+		panic(err)
+	}
+
+	shape, err := tensor.NewShape([]int{rows, cols})
+
+	if err != nil {
+		panic(err)
+	}
+
+	deviceTensor, err := parityHarness.backend.Upload(shape, format, bytesIn)
+
+	if err != nil {
+		panic(err)
+	}
+
+	residentTensor, ok := deviceTensor.(*DeviceTensor)
+
+	if !ok {
+		panic("xla parity: upload did not return DeviceTensor")
+	}
+
+	return residentTensor
+}
+
+/*
+UploadVolume copies a dense rank-3 tensor into an XLA-resident buffer.
+*/
+func (parityHarness *ParityHarness) UploadVolume(
+	values []float32,
+	dimension0, dimension1, dimension2 int,
+	format dtype.DType,
+) *DeviceTensor {
+	bytesIn, err := xlaparity.EncodeVector(values, format)
+
+	if err != nil {
+		panic(err)
+	}
+
+	shape, err := tensor.NewShape([]int{dimension0, dimension1, dimension2})
+
+	if err != nil {
+		panic(err)
+	}
+
+	deviceTensor, err := parityHarness.backend.Upload(shape, format, bytesIn)
+
+	if err != nil {
+		panic(err)
+	}
+
+	residentTensor, ok := deviceTensor.(*DeviceTensor)
+
+	if !ok {
+		panic("xla parity: upload did not return DeviceTensor")
+	}
+
+	return residentTensor
+}
+
+/*
+UploadInt32Vector copies int32 lanes into an XLA-resident tensor.
+*/
+func (parityHarness *ParityHarness) UploadInt32Vector(values []int32) *DeviceTensor {
+	bytesIn := make([]byte, len(values)*4)
+
+	for index, value := range values {
+		offset := index * 4
+		bytesIn[offset] = byte(value)
+		bytesIn[offset+1] = byte(value >> 8)
+		bytesIn[offset+2] = byte(value >> 16)
+		bytesIn[offset+3] = byte(value >> 24)
+	}
+
+	shape, err := tensor.NewShape([]int{len(values)})
+
+	if err != nil {
+		panic(err)
+	}
+
+	deviceTensor, err := parityHarness.backend.Upload(shape, dtype.Int32, bytesIn)
+
+	if err != nil {
+		panic(err)
+	}
+
+	residentTensor, ok := deviceTensor.(*DeviceTensor)
+
+	if !ok {
+		panic("xla parity: upload did not return DeviceTensor")
+	}
+
+	return residentTensor
+}
+
+/*
 ResidentPointer exposes the unsafe.Pointer token ComputeHost resolves.
 */
 func ResidentPointer(deviceTensor *DeviceTensor) unsafe.Pointer {

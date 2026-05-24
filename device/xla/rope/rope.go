@@ -1,31 +1,44 @@
 package rope
 
+import (
+	"unsafe"
+
+	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/puter/device"
+)
+
 /*
 RotaryEmbedding implements device.RotaryEmbedding for the XLA backend.
 */
 type RotaryEmbedding struct {
-    host Host
+	host Host
 }
 
 /*
 Host is the XLA dispatch surface rope operations call into.
 */
 type Host interface {
-    NeedsPlatform()
-    NotImplemented(string)
+	NeedsPlatform()
+	DispatchRoPE(
+		config device.RoPEConfig,
+		input, output unsafe.Pointer,
+		seqLen, numHeads, headDim int,
+		format dtype.DType,
+	)
+	DispatchRoPEPairs(
+		output, input, cosBuffer, sinBuffer unsafe.Pointer,
+		halfDim int,
+		format dtype.DType,
+	)
 }
 
 /*
 New wires a RotaryEmbedding receiver to its XLA dispatch host.
 */
 func New(host Host) RotaryEmbedding {
-    return RotaryEmbedding{host: host}
+	return RotaryEmbedding{host: host}
 }
 
 func (receiver *RotaryEmbedding) stubHost() {
-    receiver.host.NeedsPlatform()
-}
-
-func (receiver *RotaryEmbedding) unimplemented(methodName string) {
-	receiver.host.NotImplemented(methodName)
+	receiver.host.NeedsPlatform()
 }

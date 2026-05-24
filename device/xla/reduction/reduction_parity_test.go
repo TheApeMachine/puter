@@ -14,6 +14,8 @@ import (
 	xlaparity "github.com/theapemachine/puter/device/xla/internal/parity"
 )
 
+var referenceReduction = cpureduction.New()
+
 func TestReductionXLAParity(t *testing.T) {
 	harness := xla.NewParityHarness(t)
 	defer harness.Close()
@@ -28,35 +30,35 @@ func TestReductionXLAParity(t *testing.T) {
 			run: func(sourceTensor *xla.DeviceTensor, count int, format dtype.DType) float32 {
 				return harness.Backend().Sum(unsafe.Pointer(sourceTensor), count, format)
 			},
-			expect: cpureduction.Sum,
+			expect: referenceReduction.Sum,
 		},
 		{
 			name: "Prod",
 			run: func(sourceTensor *xla.DeviceTensor, count int, format dtype.DType) float32 {
 				return harness.Backend().Prod(unsafe.Pointer(sourceTensor), count, format)
 			},
-			expect: cpureduction.Prod,
+			expect: referenceReduction.Prod,
 		},
 		{
 			name: "ReduceMin",
 			run: func(sourceTensor *xla.DeviceTensor, count int, format dtype.DType) float32 {
 				return harness.Backend().ReduceMin(unsafe.Pointer(sourceTensor), count, format)
 			},
-			expect: cpureduction.ReduceMin,
+			expect: referenceReduction.ReduceMin,
 		},
 		{
 			name: "ReduceMax",
 			run: func(sourceTensor *xla.DeviceTensor, count int, format dtype.DType) float32 {
 				return harness.Backend().ReduceMax(unsafe.Pointer(sourceTensor), count, format)
 			},
-			expect: cpureduction.ReduceMax,
+			expect: referenceReduction.ReduceMax,
 		},
 		{
 			name: "L1Norm",
 			run: func(sourceTensor *xla.DeviceTensor, count int, format dtype.DType) float32 {
 				return harness.Backend().L1Norm(unsafe.Pointer(sourceTensor), count, format)
 			},
-			expect: cpureduction.L1Norm,
+			expect: referenceReduction.L1Norm,
 		},
 	}
 

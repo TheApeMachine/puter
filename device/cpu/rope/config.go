@@ -1,9 +1,8 @@
 package rope
 
-type RoPEConfig struct {
-	BaseFreq      float64
-	StartPosition int
-}
+import "github.com/theapemachine/puter/device"
+
+type RoPEConfig = device.RoPEConfig
 
 func DefaultRoPEConfig() RoPEConfig {
 	return RoPEConfig{BaseFreq: 10000.0, StartPosition: 0}

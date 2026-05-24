@@ -158,7 +158,7 @@ func runMatMulAddReducedPrecision(args ...tensor.Tensor) error {
 	inner := aDims[1]
 	cols := bDims[1]
 
-	matmul.Matmul(outPointer, leftPointer, rightPointer, rows, inner, cols, format)
+	matmul.New().Matmul(outPointer, leftPointer, rightPointer, rows, inner, cols, format)
 
 	for rowIndex := 0; rowIndex < rows; rowIndex++ {
 		rowBase := unsafe.Add(outPointer, uintptr(rowIndex*cols)*elementStride(format))

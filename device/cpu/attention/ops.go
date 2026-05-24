@@ -24,7 +24,7 @@ func (attention Attention) FlashAttention(
 	seqQ, seqK, depth, valueDim int,
 	format dtype.DType,
 ) {
-	ScaledDotProductAttention(
+	attention.ScaledDotProductAttention(
 		config, query, key, value, output,
 		seqQ, seqK, depth, valueDim, format,
 	)

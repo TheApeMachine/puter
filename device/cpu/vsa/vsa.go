@@ -2,6 +2,7 @@ package vsa
 
 import (
 	"github.com/theapemachine/manifesto/tensor"
+	"github.com/theapemachine/puter/device"
 )
 
 /*
@@ -18,9 +19,7 @@ These primitives compose into vector-symbolic memory operations
 that the platform's research workloads use directly.
 */
 
-type VSAConfig struct {
-	Shift int
-}
+type VSAConfig = device.VSAConfig
 
 func DefaultVSAConfig() VSAConfig {
 	return VSAConfig{Shift: 1}

@@ -1,7 +1,7 @@
 package layernorm
 
 /*
-Norm implements device.{'LayerNorm'} for the CPU backend.
+Norm implements device.LayerNorm for the CPU backend.
 */
 type Norm struct{}
 

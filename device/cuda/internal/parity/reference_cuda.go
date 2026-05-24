@@ -33,7 +33,7 @@ type SlopeParamReference func(dst, src unsafe.Pointer, count int, format dtype.D
 ReferenceReLU returns the production CPU reference kernel for ReLU.
 */
 func ReferenceReLU(format dtype.DType) UnaryReference {
-	return productionUnaryReference(cpuactivation.ReLU, format)
+	return productionUnaryReference(cpuactivation.New().ReLU, format)
 }
 
 /*
@@ -41,7 +41,7 @@ ReferenceSnake returns the production CPU reference kernel for Snake.
 */
 func ReferenceSnake(format dtype.DType, alpha float32) SlopeParamReference {
 	return func(dst, src unsafe.Pointer, count int, storageDType dtype.DType, _ float32) {
-		cpuactivation.Snake(dst, src, count, storageDType, alpha)
+		cpuactivation.New().Snake(dst, src, count, storageDType, alpha)
 	}
 }
 
@@ -50,7 +50,7 @@ ReferenceHardTanhRange returns the production CPU reference kernel for HardTanhR
 */
 func ReferenceHardTanhRange(format dtype.DType, minVal, maxVal float32) DualParamReference {
 	return func(dst, src unsafe.Pointer, count int, storageDType dtype.DType, _, _ float32) {
-		cpuactivation.HardTanhRange(dst, src, count, storageDType, minVal, maxVal)
+		cpuactivation.New().HardTanhRange(dst, src, count, storageDType, minVal, maxVal)
 	}
 }
 
@@ -59,7 +59,7 @@ ReferenceRReLU returns the production CPU reference kernel for RReLU.
 */
 func ReferenceRReLU(format dtype.DType, lower, upper float32) DualParamReference {
 	return func(dst, src unsafe.Pointer, count int, storageDType dtype.DType, _, _ float32) {
-		cpuactivation.RReLU(dst, src, count, storageDType, lower, upper)
+		cpuactivation.New().RReLU(dst, src, count, storageDType, lower, upper)
 	}
 }
 

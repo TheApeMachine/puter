@@ -8,9 +8,9 @@ import (
 )
 
 const (
-	huberDelta      = 1.0
-	bceEpsilon      = 1e-7
-	klEpsilon       = 1e-12
+	huberDelta = 1.0
+	bceEpsilon = 1e-7
+	klEpsilon  = 1e-12
 )
 
 func RenderPairLoss(
@@ -107,7 +107,9 @@ func pairLossBody(elementType, vectorLiteral, lossKind string) (string, error) {
   log_one_minus = %s log(one_minus_pred)
   term_a = %s multiply(targ, log_pred)
   term_b = %s multiply(subtract(one_b, targ), log_one_minus)
-  per_elem = %s subtract(negate(term_a), term_b)
+  zero_loss = %s[] constant(0)
+  zero_loss_b = %s broadcast(zero_loss), dimensions={}
+  per_elem = %s subtract(subtract(zero_loss_b, term_a), term_b)
 `, vectorLiteral, vectorLiteral,
 			elementType, bceEpsilon, vectorLiteral,
 			elementType, vectorLiteral,
@@ -116,6 +118,7 @@ func pairLossBody(elementType, vectorLiteral, lossKind string) (string, error) {
 			vectorLiteral,
 			vectorLiteral, vectorLiteral,
 			vectorLiteral, vectorLiteral,
+			elementType, vectorLiteral,
 			vectorLiteral), nil
 	case "kl":
 		return fmt.Sprintf(`  pred = %s parameter(0)
