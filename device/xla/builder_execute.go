@@ -41,7 +41,7 @@ func (builder *Builder) ExecuteUnary(
 		return err
 	}
 
-	return bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef())
+	return builder.recordExecute(bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef()))
 }
 
 /*
@@ -70,7 +70,7 @@ func (builder *Builder) ExecuteBinary(
 		return err
 	}
 
-	return bridge.executeBinary(C.XLAExecutableRef(executable.handle), left.bufferRef(), right.bufferRef(), output.bufferRef())
+	return builder.recordExecute(bridge.executeBinary(C.XLAExecutableRef(executable.handle), left.bufferRef(), right.bufferRef(), output.bufferRef()))
 }
 
 /*
@@ -95,7 +95,7 @@ func (builder *Builder) ExecuteReduction(
 		return err
 	}
 
-	return bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef())
+	return builder.recordExecute(bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef()))
 }
 
 func (builder *Builder) loadReductionExecutable(
@@ -164,7 +164,7 @@ func (builder *Builder) ExecuteDot(
 		return err
 	}
 
-	return bridge.executeBinary(C.XLAExecutableRef(executable.handle), left.bufferRef(), right.bufferRef(), output.bufferRef())
+	return builder.recordExecute(bridge.executeBinary(C.XLAExecutableRef(executable.handle), left.bufferRef(), right.bufferRef(), output.bufferRef()))
 }
 
 func (builder *Builder) loadDotExecutable(
@@ -227,7 +227,7 @@ func (builder *Builder) ExecuteMatmul(
 		return err
 	}
 
-	return bridge.executeBinary(C.XLAExecutableRef(executable.handle), left.bufferRef(), right.bufferRef(), output.bufferRef())
+	return builder.recordExecute(bridge.executeBinary(C.XLAExecutableRef(executable.handle), left.bufferRef(), right.bufferRef(), output.bufferRef()))
 }
 
 func (builder *Builder) loadMatmulExecutable(
@@ -292,7 +292,7 @@ func (builder *Builder) ExecutePool(
 		return err
 	}
 
-	return bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef())
+	return builder.recordExecute(bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef()))
 }
 
 func (builder *Builder) loadPoolExecutable(
@@ -374,11 +374,11 @@ func (builder *Builder) ExecuteConvolution(
 		return err
 	}
 
-	return bridge.executeVariadic(
+	return builder.recordExecute(bridge.executeVariadic(
 		C.XLAExecutableRef(executable.handle),
 		[]*DeviceTensor{input, weight, bias},
 		output,
-	)
+	))
 }
 
 func (builder *Builder) loadConvolutionExecutable(
@@ -511,7 +511,7 @@ func (builder *Builder) ExecuteVariadic(
 		return err
 	}
 
-	return bridge.executeVariadic(C.XLAExecutableRef(executable.handle), inputs, output)
+	return builder.recordExecute(bridge.executeVariadic(C.XLAExecutableRef(executable.handle), inputs, output))
 }
 
 /*
@@ -537,7 +537,7 @@ func (builder *Builder) ExecutePairLoss(
 		return err
 	}
 
-	return bridge.executeBinary(C.XLAExecutableRef(executable.handle), predictions.bufferRef(), targets.bufferRef(), output.bufferRef())
+	return builder.recordExecute(bridge.executeBinary(C.XLAExecutableRef(executable.handle), predictions.bufferRef(), targets.bufferRef(), output.bufferRef()))
 }
 
 func (builder *Builder) loadPairLossExecutable(
@@ -606,11 +606,11 @@ func (builder *Builder) ExecuteCrossEntropy(
 		return err
 	}
 
-	return bridge.executeVariadic(
+	return builder.recordExecute(bridge.executeVariadic(
 		C.XLAExecutableRef(executable.handle),
 		[]*DeviceTensor{logits, targets},
 		output,
-	)
+	))
 }
 
 func (builder *Builder) loadCrossEntropyExecutable(
@@ -681,7 +681,7 @@ func (builder *Builder) ExecuteRoPE(
 		return err
 	}
 
-	return bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef())
+	return builder.recordExecute(bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef()))
 }
 
 func (builder *Builder) loadRoPEExecutable(
@@ -887,6 +887,16 @@ func (builder *Builder) loadVariadicExecutable(
 		hloText, err = renderEmbeddingLookup(moduleName, context)
 	case "embedding_bag":
 		hloText, err = renderEmbeddingBag(moduleName, context)
+	case "matmul_bias_gelu":
+		hloText, err = hlo.RenderMatmulBiasGelu(
+			moduleName,
+			context.OutputDType,
+			context.InputShapes[0],
+			context.InputShapes[1],
+			context.OutputShape,
+		)
+	case "layernorm_residual":
+		hloText, err = hlo.RenderLayernormResidual(moduleName, context.OutputDType, inputShape)
 	default:
 		var ok bool
 		hloText, ok, err = renderCausalPhysicsVariadicHLO(
@@ -958,7 +968,7 @@ func (builder *Builder) ExecuteNullary(
 		return err
 	}
 
-	return bridge.executeNullary(C.XLAExecutableRef(executable.handle), output)
+	return builder.recordExecute(bridge.executeNullary(C.XLAExecutableRef(executable.handle), output))
 }
 
 func (builder *Builder) loadNullaryExecutable(
@@ -1035,7 +1045,7 @@ func (builder *Builder) ExecuteDropout(
 		return err
 	}
 
-	return bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef())
+	return builder.recordExecute(bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef()))
 }
 
 func (builder *Builder) loadDropoutExecutable(
@@ -1100,7 +1110,7 @@ func (builder *Builder) ExecuteGreedySample(
 		return err
 	}
 
-	return bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef())
+	return builder.recordExecute(bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef()))
 }
 
 /*
@@ -1126,7 +1136,7 @@ func (builder *Builder) ExecuteSoftmaxSort(
 		return err
 	}
 
-	return bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef())
+	return builder.recordExecute(bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef()))
 }
 
 func (builder *Builder) loadSoftmaxSortExecutable(

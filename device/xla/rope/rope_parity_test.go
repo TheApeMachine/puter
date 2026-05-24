@@ -5,6 +5,7 @@ package rope_test
 import (
 	"fmt"
 	"testing"
+	"unsafe"
 
 	"github.com/smartystreets/goconvey/convey"
 	"github.com/theapemachine/manifesto/dtype"
@@ -13,6 +14,8 @@ import (
 	"github.com/theapemachine/puter/device/xla"
 	xlaparity "github.com/theapemachine/puter/device/xla/internal/parity"
 )
+
+var referenceRoPE = cuprope.New()
 
 func TestRoPEXLAParity(t *testing.T) {
 	harness := xla.NewParityHarness(t)
@@ -64,7 +67,7 @@ func TestRoPEXLAParity(t *testing.T) {
 		input := xlaparity.RandomUnaryInput(total, 0x4400)
 		want := make([]float32, total)
 		config := device.RoPEConfig{BaseFreq: 10000.0, StartPosition: 0}
-		cuprope.RoPE(config, &input[0], &want[0], seqLen, numHeads, headDim, dtype.Float32)
+		referenceRoPE.RoPE(config, unsafe.Pointer(&input[0]), unsafe.Pointer(&want[0]), seqLen, numHeads, headDim, dtype.Float32)
 
 		inputTensor := harness.UploadVolume(input, seqLen, numHeads, headDim, dtype.Float32)
 		outputTensor := harness.UploadVolume(make([]float32, total), seqLen, numHeads, headDim, dtype.Float32)

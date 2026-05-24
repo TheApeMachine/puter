@@ -9,6 +9,8 @@
 #define VFMLA_S4(m, n, d)  WORD $(0x4E20CC00 | ((m) << 16) | ((n) << 5) | (d))
 #define VFRINTN_S4(n, d)   WORD $(0x4E218800 | ((n) << 5) | (d))
 #define VFCVTZS_S4(n, d)   WORD $(0x4EA1B800 | ((n) << 5) | (d))
+#define VCVTMS_S4(n, d)    WORD $(0x4EA1A800 | ((n) << 5) | (d))
+#define VFRINTN_S4(n, d)   WORD $(0x4E21A800 | ((n) << 5) | (d))
 #define VADD_S4(m, n, d)   WORD $(0x4EA08400 | ((m) << 16) | ((n) << 5) | (d))
 #define VSHL_S4_BY23(n, d) WORD $(0x4F375400 | ((n) << 5) | (d))
 #define VMOV_B16(src, dst) WORD $(0x4EA01C00 | ((src) << 16) | ((src) << 5) | (dst))
@@ -28,13 +30,16 @@ GLOBL samOneF32<>(SB), RODATA|NOPTR, $4
 
 DATA samExpC<>+0(SB)/4, $1.4426950408889634
 DATA samExpC<>+4(SB)/4, $0.6931471805599453
-DATA samExpC<>+12(SB)/4, $0.69314718
-DATA samExpC<>+16(SB)/4, $0.24022650
-DATA samExpC<>+20(SB)/4, $0.05550410
-DATA samExpC<>+24(SB)/4, $0.00961812
-DATA samExpC<>+28(SB)/4, $0.00133389
-DATA samExpC<>+32(SB)/4, $1.0
-GLOBL samExpC<>(SB), RODATA|NOPTR, $36
+DATA samExpC<>+8(SB)/4, $127.0
+DATA samExpC<>+12(SB)/4, $0.00019841270
+DATA samExpC<>+16(SB)/4, $0.0013888889
+DATA samExpC<>+20(SB)/4, $0.008333334
+DATA samExpC<>+24(SB)/4, $0.041666667
+DATA samExpC<>+28(SB)/4, $0.16666667
+DATA samExpC<>+32(SB)/4, $0.5
+DATA samExpC<>+36(SB)/4, $1.0
+DATA samExpC<>+40(SB)/4, $1.0
+GLOBL samExpC<>(SB), RODATA|NOPTR, $44
 
 DATA samSoftmaxClamp<>+0(SB)/4, $-87.33654
 GLOBL samSoftmaxClamp<>(SB), RODATA|NOPTR, $4
@@ -58,24 +63,21 @@ GLOBL samSoftmaxClamp<>(SB), RODATA|NOPTR, $4
 
 #define SAM_EXP_V0_TO_V6 \
 	VFMUL_S4(16, 0, 1) \
-	VFCVTZS_S4(1, 5) \
-	VFCMLTZ_S4(1, 7) \
-	VADD_S4(7, 5, 5) \
-	VSCVTF_S4(5, 2) \
-	VFSUB_S4(2, 1, 0) \
-	VMOV_B16(23, 3) \
-	VMOV_B16(22, 4) \
-	VFMLA_S4(0, 3, 4) \
-	VMOV_B16(21, 3) \
-	VFMLA_S4(0, 4, 3) \
-	VMOV_B16(20, 4) \
-	VFMLA_S4(0, 3, 4) \
+	VFRINTN_S4(1, 1) \
+	VFMUL_S4(17, 1, 2) \
+	VFSUB_S4(2, 0, 0) \
 	VMOV_B16(19, 3) \
-	VFMLA_S4(0, 4, 3) \
-	VMOV_B16(24, 4) \
-	VFMLA_S4(0, 3, 4) \
+	VMOV_B16(20, 4) ; VFMLA_S4(0, 3, 4) \
+	VMOV_B16(21, 3) ; VFMLA_S4(0, 4, 3) \
+	VMOV_B16(22, 4) ; VFMLA_S4(0, 3, 4) \
+	VMOV_B16(23, 3) ; VFMLA_S4(0, 4, 3) \
+	VMOV_B16(24, 4) ; VFMLA_S4(0, 3, 4) \
+	VMOV_B16(25, 3) ; VFMLA_S4(0, 4, 3) \
+	VMOV_B16(26, 4) ; VFMLA_S4(0, 3, 4) \
+	VFCVTZS_S4(1, 5) \
+	VADD_S4(27, 5, 5) \
 	VSHL_S4_BY23(5, 5) \
-	VADD_S4(5, 4, 6)
+	VFMUL_S4(5, 4, 6)
 
 // func GreedySampleFloat32NEONAsm(logits *float32, count int) int32
 TEXT ·GreedySampleFloat32NEONAsm(SB), NOSPLIT, $16-20
@@ -290,8 +292,18 @@ sam_softmax_exp_scalar_loop:
 	FMOVS (R0), F0
 	FSUBS F28, F0, F0
 	FDIVS F10, F0, F0
+	FSUBS F0, F30, F1
+	FMOVS $0, F2
+	FCMPS F1, F2
+	BPL  sam_softmax_exp_scalar_compute
+	FMOVS ZR, F6
+	B    sam_softmax_exp_scalar_store
+
+sam_softmax_exp_scalar_compute:
 	VDUP V0.S[0], V0.S4
 	SAM_EXP_V0_TO_V6
+
+sam_softmax_exp_scalar_store:
 	FMOVS F6, (R1)
 	FCVTSD F6, F6
 	FADDD F6, F31, F31

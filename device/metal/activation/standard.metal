@@ -38,15 +38,16 @@ struct TanhOp {
 
 struct GeluOp {
     float4 operator()(float4 value) const {
-        const float4 k = float4(0.7978845608028654f);
-        const float4 c = float4(0.044715f);
-        return float4(0.5f) * value * (float4(1.0f) + precise::tanh(k * (value + c * value * value * value)));
+        return float4(
+            metal_fast_gelu_tanh(value.x),
+            metal_fast_gelu_tanh(value.y),
+            metal_fast_gelu_tanh(value.z),
+            metal_fast_gelu_tanh(value.w)
+        );
     }
 
     float operator()(float value) const {
-        const float k = 0.7978845608028654f;
-        const float c = 0.044715f;
-        return 0.5f * value * (1.0f + precise::tanh(k * (value + c * value * value * value)));
+        return metal_fast_gelu_tanh(value);
     }
 };
 
@@ -179,12 +180,16 @@ struct LogSigmoidOp {
 
 struct GeluTanhOp {
     float4 operator()(float4 value) const {
-        float4 inner = metalGeluTanhAlpha * (value + metalGeluTanhBeta * value * value * value);
-        return float4(0.5f) * value * (float4(1.0f) + precise::tanh(inner));
+        return float4(
+            metal_fast_gelu_tanh(value.x),
+            metal_fast_gelu_tanh(value.y),
+            metal_fast_gelu_tanh(value.z),
+            metal_fast_gelu_tanh(value.w)
+        );
     }
+
     float operator()(float value) const {
-        float inner = metalGeluTanhAlpha * (value + metalGeluTanhBeta * value * value * value);
-        return 0.5f * value * (1.0f + precise::tanh(inner));
+        return metal_fast_gelu_tanh(value);
     }
 };
 

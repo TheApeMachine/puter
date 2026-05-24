@@ -132,10 +132,10 @@ func (backend *Backend) SupportedDTypes() []dtype.DType {
 }
 
 /*
-SupportedLayouts: dense only until Phase 9.
+SupportedLayouts includes dense and CSR sparse storage.
 */
 func (backend *Backend) SupportedLayouts() []tensor.Layout {
-	return []tensor.Layout{tensor.LayoutDense}
+	return []tensor.Layout{tensor.LayoutDense, tensor.LayoutSparseCSR}
 }
 
 /*
@@ -152,7 +152,7 @@ func (backend *Backend) Capabilities() tensor.Capabilities {
 	return tensor.Capabilities{
 		MaxBytes:         maxBytes,
 		SupportsAsync:    backend.bridge != nil,
-		SupportsSparse:   false,
+		SupportsSparse:   backend.bridge != nil,
 		SupportsAutograd: false,
 		NativeAlignment:  128,
 		NUMANodes:        1,
@@ -199,7 +199,7 @@ func (backend *Backend) UploadAsync(
 }
 
 /*
-UploadSparse stubs until Phase 9.
+UploadSparse stores CSR sparse tensors as XLA-resident value and index buffers.
 */
 func (backend *Backend) UploadSparse(
 	shape tensor.Shape,
@@ -208,7 +208,19 @@ func (backend *Backend) UploadSparse(
 	values []byte,
 	indices []tensor.SparseIndex,
 ) (tensor.SparseTensor, error) {
-	return nil, tensor.ErrLayoutUnsupported
+	if backend.closed.Load() {
+		return nil, tensor.ErrBackendClosed
+	}
+
+	if backend.bridge == nil {
+		return nil, tensor.ErrNeedsPlatformSetup
+	}
+
+	if layout != tensor.LayoutSparseCSR {
+		return nil, tensor.ErrLayoutUnsupported
+	}
+
+	return backend.uploadSparseCSR(shape, valueDType, values, indices)
 }
 
 /*

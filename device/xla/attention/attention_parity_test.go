@@ -4,6 +4,7 @@ package attention_test
 
 import (
 	"testing"
+	"unsafe"
 
 	"github.com/smartystreets/goconvey/convey"
 	"github.com/theapemachine/manifesto/dtype"
@@ -12,6 +13,8 @@ import (
 	"github.com/theapemachine/puter/device/xla"
 	xlaparity "github.com/theapemachine/puter/device/xla/internal/parity"
 )
+
+var referenceAttention = cpuattention.New()
 
 func TestAttentionXLAParity(t *testing.T) {
 	harness := xla.NewParityHarness(t)
@@ -28,9 +31,9 @@ func TestAttentionXLAParity(t *testing.T) {
 		value := xlaparity.RandomUnaryInput(seqK*valueDim, 0x5300)
 		want := make([]float32, seqQ*valueDim)
 
-		cpuattention.ScaledDotProductAttention(
+		referenceAttention.ScaledDotProductAttention(
 			cpuattention.DefaultFlashAttentionConfig(),
-			&query[0], &key[0], &value[0], &want[0],
+			unsafe.Pointer(&query[0]), unsafe.Pointer(&key[0]), unsafe.Pointer(&value[0]), unsafe.Pointer(&want[0]),
 			seqQ, seqK, depth, valueDim,
 			dtype.Float32,
 		)
@@ -69,9 +72,9 @@ func TestAttentionXLAParity(t *testing.T) {
 		value := xlaparity.RandomUnaryInput(seqK*valueDim, 0x5600)
 		want := make([]float32, seqQ*valueDim)
 
-		cpuattention.ScaledDotProductAttention(
+		referenceAttention.ScaledDotProductAttention(
 			device.FlashAttentionConfig{Causal: true},
-			&query[0], &key[0], &value[0], &want[0],
+			unsafe.Pointer(&query[0]), unsafe.Pointer(&key[0]), unsafe.Pointer(&value[0]), unsafe.Pointer(&want[0]),
 			seqQ, seqK, depth, valueDim,
 			dtype.Float32,
 		)
@@ -115,9 +118,9 @@ func TestAttentionXLAParity(t *testing.T) {
 		value := xlaparity.RandomUnaryInput(seqK*numHeads*headDim, 0x5900)
 		want := make([]float32, seqQ*numHeads*headDim)
 
-		cpuattention.MultiHeadAttention(
+		referenceAttention.MultiHeadAttention(
 			config,
-			&query[0], &key[0], &value[0], &want[0],
+			unsafe.Pointer(&query[0]), unsafe.Pointer(&key[0]), unsafe.Pointer(&value[0]), unsafe.Pointer(&want[0]),
 			seqQ, seqK,
 			dtype.Float32,
 		)
@@ -162,9 +165,9 @@ func TestAttentionXLAParity(t *testing.T) {
 		value := xlaparity.RandomUnaryInput(seqK*kvHeads*headDim, 0x5C00)
 		want := make([]float32, seqQ*numHeads*headDim)
 
-		cpuattention.MultiHeadAttention(
+		referenceAttention.MultiHeadAttention(
 			config,
-			&query[0], &key[0], &value[0], &want[0],
+			unsafe.Pointer(&query[0]), unsafe.Pointer(&key[0]), unsafe.Pointer(&value[0]), unsafe.Pointer(&want[0]),
 			seqQ, seqK,
 			dtype.Float32,
 		)

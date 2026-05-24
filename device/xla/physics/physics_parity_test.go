@@ -117,6 +117,207 @@ func TestPhysicsXLAParity(t *testing.T) {
 			})
 		}
 	})
+
+	convey.Convey("Given XLA QuantumPotential", t, func() {
+		spacing := float32(0.25)
+
+		for _, count := range []int{7, 64, 1024} {
+			convey.Convey(fmt.Sprintf("N=%d", count), func() {
+				density := xlaparity.RandomUnaryInput(count, 0xd600+int64(count))
+
+				for index := range density {
+					if density[index] <= 0 {
+						density[index] = float32(index%11+1) * 0.05
+					}
+				}
+
+				want := make([]float32, count)
+				referencePhysics.QuantumPotential(
+					unsafe.Pointer(&density[0]),
+					unsafe.Pointer(&want[0]),
+					count,
+					spacing,
+					dtype.Float32,
+				)
+
+				densityTensor := harness.UploadVector(density, dtype.Float32)
+				outputTensor := harness.UploadVector(make([]float32, count), dtype.Float32)
+				defer densityTensor.Close()
+				defer outputTensor.Close()
+
+				harness.Backend().QuantumPotential(
+					xla.ResidentPointer(densityTensor),
+					xla.ResidentPointer(outputTensor),
+					count,
+					spacing,
+					dtype.Float32,
+				)
+
+				got := harness.DownloadFloat32(outputTensor, dtype.Float32)
+				xlaparity.AssertFloat32SlicesWithinULP(t, got, want, 8)
+			})
+		}
+	})
+
+	convey.Convey("Given XLA BohmianVelocity", t, func() {
+		spacing := float32(0.25)
+
+		for _, count := range []int{7, 64, 1024} {
+			convey.Convey(fmt.Sprintf("N=%d", count), func() {
+				phase := xlaparity.RandomUnaryInput(count, 0xd700+int64(count))
+				want := make([]float32, count)
+				referencePhysics.BohmianVelocity(
+					unsafe.Pointer(&phase[0]),
+					unsafe.Pointer(&want[0]),
+					count,
+					spacing,
+					dtype.Float32,
+				)
+
+				phaseTensor := harness.UploadVector(phase, dtype.Float32)
+				outputTensor := harness.UploadVector(make([]float32, count), dtype.Float32)
+				defer phaseTensor.Close()
+				defer outputTensor.Close()
+
+				harness.Backend().BohmianVelocity(
+					xla.ResidentPointer(phaseTensor),
+					xla.ResidentPointer(outputTensor),
+					count,
+					spacing,
+					dtype.Float32,
+				)
+
+				got := harness.DownloadFloat32(outputTensor, dtype.Float32)
+				xlaparity.AssertFloat32SlicesWithinULP(t, got, want, 4)
+			})
+		}
+	})
+
+	convey.Convey("Given XLA MadelungContinuity", t, func() {
+		spacing := float32(0.25)
+
+		for _, count := range []int{7, 64, 1024} {
+			convey.Convey(fmt.Sprintf("N=%d", count), func() {
+				density := xlaparity.RandomUnaryInput(count, 0xd800+int64(count))
+				velocity := xlaparity.RandomUnaryInput(count, 0xd900+int64(count))
+				want := make([]float32, count)
+				referencePhysics.MadelungContinuity(
+					unsafe.Pointer(&density[0]),
+					unsafe.Pointer(&velocity[0]),
+					unsafe.Pointer(&want[0]),
+					count,
+					spacing,
+					dtype.Float32,
+				)
+
+				densityTensor := harness.UploadVector(density, dtype.Float32)
+				velocityTensor := harness.UploadVector(velocity, dtype.Float32)
+				outputTensor := harness.UploadVector(make([]float32, count), dtype.Float32)
+				defer densityTensor.Close()
+				defer velocityTensor.Close()
+				defer outputTensor.Close()
+
+				harness.Backend().MadelungContinuity(
+					xla.ResidentPointer(densityTensor),
+					xla.ResidentPointer(velocityTensor),
+					xla.ResidentPointer(outputTensor),
+					count,
+					spacing,
+					dtype.Float32,
+				)
+
+				got := harness.DownloadFloat32(outputTensor, dtype.Float32)
+				xlaparity.AssertFloat32SlicesWithinULP(t, got, want, 4)
+			})
+		}
+	})
+
+	convey.Convey("Given XLA FFT1D at power-of-two lengths", t, func() {
+		for _, count := range fftPowerOfTwoLengths {
+			convey.Convey(fmt.Sprintf("N=%d", count), func() {
+				runFFT1DParity(t, harness, count, 0xe100+int64(count), false)
+			})
+		}
+	})
+
+	convey.Convey("Given XLA IFFT1D at power-of-two lengths", t, func() {
+		for _, count := range fftPowerOfTwoLengths {
+			convey.Convey(fmt.Sprintf("N=%d", count), func() {
+				runFFT1DParity(t, harness, count, 0xe200+int64(count), true)
+			})
+		}
+	})
+}
+
+var fftPowerOfTwoLengths = []int{1, 64, 1024, 8192}
+
+func runFFT1DParity(
+	testingTB testing.TB,
+	harness *xla.ParityHarness,
+	count int,
+	seed int64,
+	inverse bool,
+) {
+	testingTB.Helper()
+
+	realIn := xlaparity.RandomUnaryInput(count, seed)
+	imagIn := xlaparity.RandomUnaryInput(count, seed+0x10)
+	wantReal := make([]float32, count)
+	wantImag := make([]float32, count)
+
+	if inverse {
+		referencePhysics.IFFT1D(
+			unsafe.Pointer(&realIn[0]),
+			unsafe.Pointer(&imagIn[0]),
+			unsafe.Pointer(&wantReal[0]),
+			unsafe.Pointer(&wantImag[0]),
+			count,
+			dtype.Float32,
+		)
+	} else {
+		referencePhysics.FFT1D(
+			unsafe.Pointer(&realIn[0]),
+			unsafe.Pointer(&imagIn[0]),
+			unsafe.Pointer(&wantReal[0]),
+			unsafe.Pointer(&wantImag[0]),
+			count,
+			dtype.Float32,
+		)
+	}
+
+	realInTensor := harness.UploadVector(realIn, dtype.Float32)
+	imagInTensor := harness.UploadVector(imagIn, dtype.Float32)
+	realOutTensor := harness.UploadVector(make([]float32, count), dtype.Float32)
+	imagOutTensor := harness.UploadVector(make([]float32, count), dtype.Float32)
+	defer realInTensor.Close()
+	defer imagInTensor.Close()
+	defer realOutTensor.Close()
+	defer imagOutTensor.Close()
+
+	if inverse {
+		harness.Backend().IFFT1D(
+			xla.ResidentPointer(realInTensor),
+			xla.ResidentPointer(imagInTensor),
+			xla.ResidentPointer(realOutTensor),
+			xla.ResidentPointer(imagOutTensor),
+			count,
+			dtype.Float32,
+		)
+	} else {
+		harness.Backend().FFT1D(
+			xla.ResidentPointer(realInTensor),
+			xla.ResidentPointer(imagInTensor),
+			xla.ResidentPointer(realOutTensor),
+			xla.ResidentPointer(imagOutTensor),
+			count,
+			dtype.Float32,
+		)
+	}
+
+	gotReal := harness.DownloadFloat32(realOutTensor, dtype.Float32)
+	gotImag := harness.DownloadFloat32(imagOutTensor, dtype.Float32)
+	xlaparity.AssertFloat32SlicesWithinULP(testingTB, gotReal, wantReal, 8)
+	xlaparity.AssertFloat32SlicesWithinULP(testingTB, gotImag, wantImag, 8)
 }
 
 func runLaplacianParity(
@@ -174,6 +375,34 @@ func runLaplacianParity(
 
 	got := harness.DownloadFloat32(outputTensor, dtype.Float32)
 	xlaparity.AssertFloat32SlicesWithinULP(testingTB, got, want, 4)
+}
+
+func BenchmarkFFT1DXLAParity(b *testing.B) {
+	harness := xla.NewParityHarness(b)
+	defer harness.Close()
+
+	count := 8192
+	realIn := xlaparity.RandomUnaryInput(count, 0xe300)
+	imagIn := xlaparity.RandomUnaryInput(count, 0xe400)
+	realInTensor := harness.UploadVector(realIn, dtype.Float32)
+	imagInTensor := harness.UploadVector(imagIn, dtype.Float32)
+	realOutTensor := harness.UploadVector(make([]float32, count), dtype.Float32)
+	imagOutTensor := harness.UploadVector(make([]float32, count), dtype.Float32)
+	defer realInTensor.Close()
+	defer imagInTensor.Close()
+	defer realOutTensor.Close()
+	defer imagOutTensor.Close()
+
+	for b.Loop() {
+		harness.Backend().FFT1D(
+			xla.ResidentPointer(realInTensor),
+			xla.ResidentPointer(imagInTensor),
+			xla.ResidentPointer(realOutTensor),
+			xla.ResidentPointer(imagOutTensor),
+			count,
+			dtype.Float32,
+		)
+	}
 }
 
 func BenchmarkGrad1DXLAParity(b *testing.B) {

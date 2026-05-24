@@ -36,11 +36,11 @@ func metalLayerNormRow(
 	for columnIndex := 0; columnIndex < columnCount; columnIndex++ {
 		loaded := roundedInput[columnIndex]
 		normalized := (loaded - mean) * invStdDev
-		stored := metalStorageStore(
-			normalized*roundedScale[columnIndex]+roundedBias[columnIndex],
+		scaled := normalized * roundedScale[columnIndex]
+		rowOutput[columnIndex] = metalStorageStore(
+			scaled+roundedBias[columnIndex],
 			storageDType,
 		)
-		rowOutput[columnIndex] = stored
 	}
 }
 
@@ -78,10 +78,10 @@ func metalGroupNormGroup(
 	for offset := 0; offset < groupSize; offset++ {
 		channelIndex := offset / spatial
 		normalized := (roundedInput[offset] - mean) * invStdDev
-		stored := metalStorageStore(
-			normalized*roundedScale[channelIndex]+roundedBias[channelIndex],
+		scaled := normalized * roundedScale[channelIndex]
+		groupOutput[offset] = metalStorageStore(
+			scaled+roundedBias[channelIndex],
 			storageDType,
 		)
-		groupOutput[offset] = stored
 	}
 }

@@ -76,6 +76,42 @@ func TestExecutableCacheReuse(t *testing.T) {
 	})
 }
 
+func TestBuilderCacheMetrics(t *testing.T) {
+	convey.Convey("Given a builder compile cache", t, func() {
+		builder := NewDefaultBuilder(DefaultBuilderTarget)
+		programKey := ProgramKey{
+			Operation: "relu",
+			DTypes:    []dtype.DType{dtype.Float32},
+			Shapes:    []tensor.Shape{mustShape(t, 64)},
+			Target:    DefaultBuilderTarget,
+		}
+		executable := &CompiledExecutable{key: programKey, handle: 1}
+
+		convey.Convey("It should count misses before compile and hits after", func() {
+			_, hit := builder.CachedExecutable(programKey)
+			convey.So(hit, convey.ShouldBeFalse)
+
+			metrics := builder.CacheMetrics()
+			convey.So(metrics.Misses, convey.ShouldEqual, 1)
+			convey.So(metrics.Hits, convey.ShouldEqual, 0)
+			convey.So(metrics.Compiles, convey.ShouldEqual, 0)
+
+			builder.RecordExecutable(programKey, executable)
+
+			metrics = builder.CacheMetrics()
+			convey.So(metrics.Compiles, convey.ShouldEqual, 1)
+
+			got, hit := builder.CachedExecutable(programKey)
+			convey.So(hit, convey.ShouldBeTrue)
+			convey.So(got, convey.ShouldEqual, executable)
+
+			metrics = builder.CacheMetrics()
+			convey.So(metrics.Hits, convey.ShouldEqual, 1)
+			convey.So(metrics.Misses, convey.ShouldEqual, 1)
+		})
+	})
+}
+
 func TestMapDType(t *testing.T) {
 	convey.Convey("Given supported dtypes", t, func() {
 		for _, elementFormat := range SupportedDTypeSet() {

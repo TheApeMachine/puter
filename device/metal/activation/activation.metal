@@ -9,6 +9,35 @@ constant float metalActivationSELUAlpha = 1.67326324235437728482f;
 constant float metalActivationSELUScale = 1.05070098735548049342f;
 constant float metalActivationLeakyReLUSlope = 0.01f;
 
+static inline float metal_fast_tanh(float value) {
+    if (value > 4.92f) {
+        return 1.0f;
+    }
+
+    if (value < -4.92f) {
+        return -1.0f;
+    }
+
+    float valueSquared = value * value;
+    float numerator = value * (
+        135135.0f + valueSquared * (17325.0f + valueSquared * (378.0f + valueSquared))
+    );
+    float denominator = 135135.0f + valueSquared * (
+        62370.0f + valueSquared * (3150.0f + valueSquared * 28.0f)
+    );
+
+    return numerator / denominator;
+}
+
+static inline float metal_fast_gelu_tanh(float value) {
+    double valueFloat64 = double(value);
+    double inner = 0.7978845608028654 * (
+        valueFloat64 + 0.044715 * valueFloat64 * valueFloat64 * valueFloat64
+    );
+
+    return float(0.5 * valueFloat64 * (1.0 + double(metal_fast_tanh(float(inner)))));
+}
+
 template <typename UnaryOp>
 static inline void activation_unary_float32(
     device const float4* inputVector,

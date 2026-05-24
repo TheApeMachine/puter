@@ -163,7 +163,7 @@ func registerStandardTransformerFusions() {
 		InputDTypes:    []dtype.DType{dtype.BFloat16, dtype.BFloat16, dtype.BFloat16},
 		OutputDType:    dtype.BFloat16,
 		Layout:         tensor.LayoutDense,
-		Backends:       []tensor.Location{tensor.Host, tensor.Metal, tensor.CUDA},
+		Backends:       []tensor.Location{tensor.Host, tensor.Metal, tensor.CUDA, tensor.XLA},
 		ParityULPBound: 2,
 	})
 
@@ -173,7 +173,7 @@ func registerStandardTransformerFusions() {
 		InputDTypes:    []dtype.DType{dtype.Float32, dtype.Float32, dtype.Float32},
 		OutputDType:    dtype.Float32,
 		Layout:         tensor.LayoutDense,
-		Backends:       []tensor.Location{tensor.Host, tensor.Metal, tensor.CUDA},
+		Backends:       []tensor.Location{tensor.Host, tensor.Metal, tensor.CUDA, tensor.XLA},
 		ParityULPBound: 1,
 	})
 
@@ -188,7 +188,19 @@ func registerStandardTransformerFusions() {
 		},
 		OutputDType:    dtype.Float16,
 		Layout:         tensor.LayoutDense,
-		Backends:       []tensor.Location{tensor.Host, tensor.CUDA},
+		Backends:       []tensor.Location{tensor.Host, tensor.CUDA, tensor.XLA},
+		ParityULPBound: 2,
+	})
+
+	Default.Register(Entry{
+		SourceOps: []string{"layernorm", "add"},
+		FusedOp:   "layernorm_residual",
+		InputDTypes: []dtype.DType{
+			dtype.Float32, dtype.Float32, dtype.Float32, dtype.Float32,
+		},
+		OutputDType:    dtype.Float32,
+		Layout:         tensor.LayoutDense,
+		Backends:       []tensor.Location{tensor.Host, tensor.CUDA, tensor.XLA},
 		ParityULPBound: 2,
 	})
 

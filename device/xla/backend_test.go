@@ -64,7 +64,7 @@ func TestBackend_UploadVariants_Stub(t *testing.T) {
 		convey.So(errors.Is(err, tensor.ErrNeedsPlatformSetup), convey.ShouldBeTrue)
 
 		_, err = backend.UploadSparse(shape, dtype.Float32, tensor.LayoutSparseCSR, nil, nil)
-		convey.So(errors.Is(err, tensor.ErrLayoutUnsupported), convey.ShouldBeTrue)
+		convey.So(errors.Is(err, tensor.ErrNeedsPlatformSetup), convey.ShouldBeTrue)
 	})
 }
 

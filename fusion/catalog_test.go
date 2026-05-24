@@ -35,7 +35,7 @@ func TestCatalog_Lookup_MatMulBiasGELU(t *testing.T) {
 			convey.So(entry, convey.ShouldBeNil)
 		})
 
-		convey.Convey("XLA backend without a registered entry should miss", func() {
+		convey.Convey("XLA backend should match bf16 matmul+add+gelu", func() {
 			entry := Default.Lookup(
 				[]string{"matmul", "add", "gelu"},
 				[]dtype.DType{dtype.BFloat16, dtype.BFloat16, dtype.BFloat16},
@@ -43,7 +43,8 @@ func TestCatalog_Lookup_MatMulBiasGELU(t *testing.T) {
 				tensor.XLA,
 			)
 
-			convey.So(entry, convey.ShouldBeNil)
+			convey.So(entry, convey.ShouldNotBeNil)
+			convey.So(entry.FusedOp, convey.ShouldEqual, "matmul_bias_gelu")
 		})
 	})
 }

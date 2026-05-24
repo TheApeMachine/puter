@@ -118,7 +118,8 @@ static inline void layernorm_rows(
 
     for (uint col = threadIndex; col < cols; col += normalizationThreadCount) {
         float normalized = (Storage::load(input, rowOffset + col) - mean) * invStdDev;
-        float value = normalized * Storage::load(scale, col) + Storage::load(bias, col);
+        float scaled = normalized * Storage::load(scale, col);
+        float value = scaled + Storage::load(bias, col);
         Storage::store(out, rowOffset + col, value);
     }
 }

@@ -2,6 +2,7 @@ package xla
 
 import (
 	"sync"
+	"sync/atomic"
 )
 
 /*
@@ -14,11 +15,25 @@ type CompiledExecutable struct {
 }
 
 /*
+CacheMetrics reports compile-cache and execution counters for XLA builders.
+*/
+type CacheMetrics struct {
+	Compiles int64
+	Hits     int64
+	Misses   int64
+	Executes int64
+}
+
+/*
 ExecutableCache stores compiled XLA executables keyed by ProgramKey digest.
 */
 type ExecutableCache struct {
 	mutex       sync.RWMutex
 	executables map[[32]byte]*CompiledExecutable
+	compiles    int64
+	hits        int64
+	misses      int64
+	executes    int64
 }
 
 /*
@@ -62,4 +77,32 @@ func (executableCache *ExecutableCache) Len() int {
 	count := len(executableCache.executables)
 	executableCache.mutex.RUnlock()
 	return count
+}
+
+/*
+Metrics returns a snapshot of compile-cache counters.
+*/
+func (executableCache *ExecutableCache) Metrics() CacheMetrics {
+	return CacheMetrics{
+		Compiles: atomic.LoadInt64(&executableCache.compiles),
+		Hits:     atomic.LoadInt64(&executableCache.hits),
+		Misses:   atomic.LoadInt64(&executableCache.misses),
+		Executes: atomic.LoadInt64(&executableCache.executes),
+	}
+}
+
+func (executableCache *ExecutableCache) recordHit() {
+	atomic.AddInt64(&executableCache.hits, 1)
+}
+
+func (executableCache *ExecutableCache) recordMiss() {
+	atomic.AddInt64(&executableCache.misses, 1)
+}
+
+func (executableCache *ExecutableCache) recordCompile() {
+	atomic.AddInt64(&executableCache.compiles, 1)
+}
+
+func (executableCache *ExecutableCache) recordExecute() {
+	atomic.AddInt64(&executableCache.executes, 1)
 }

@@ -112,7 +112,15 @@ func (builder *Builder) ProgramKeyFor(
 CachedExecutable returns a compile-cache hit or nil when absent.
 */
 func (builder *Builder) CachedExecutable(programKey ProgramKey) (*CompiledExecutable, bool) {
-	return builder.cache.Lookup(programKey)
+	executable, ok := builder.cache.Lookup(programKey)
+
+	if ok {
+		builder.cache.recordHit()
+		return executable, true
+	}
+
+	builder.cache.recordMiss()
+	return nil, false
 }
 
 /*
@@ -122,7 +130,23 @@ func (builder *Builder) RecordExecutable(
 	programKey ProgramKey,
 	executable *CompiledExecutable,
 ) {
+	builder.cache.recordCompile()
 	builder.cache.Store(programKey, executable)
+}
+
+/*
+CacheMetrics returns compile-cache counters for the builder.
+*/
+func (builder *Builder) CacheMetrics() CacheMetrics {
+	return builder.cache.Metrics()
+}
+
+func (builder *Builder) recordExecute(err error) error {
+	if err == nil {
+		builder.cache.recordExecute()
+	}
+
+	return err
 }
 
 /*
@@ -147,6 +171,7 @@ func NewDefaultBuilder(target string) *Builder {
 	RegisterConvolutionLowerings(registry)
 	RegisterResearchLowerings(registry)
 	RegisterCausalPhysicsLowerings(registry)
+	RegisterFusionLowerings(registry)
 
 	return NewBuilder(NewExecutableCache(), registry, target)
 }

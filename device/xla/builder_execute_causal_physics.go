@@ -335,7 +335,7 @@ func (builder *Builder) ExecuteVectorSliceCopy(
 		return err
 	}
 
-	return bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef())
+	return builder.recordExecute(bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef()))
 }
 
 func physicsSpacingInverse(spacing float32, square bool) float32 {

@@ -14,6 +14,8 @@ import (
 	xlaparity "github.com/theapemachine/puter/device/xla/internal/parity"
 )
 
+var referenceLayerNorm = cpulayernorm.New()
+
 func TestLayerNormXLAParity(t *testing.T) {
 	harness := xla.NewParityHarness(t)
 	defer harness.Close()
@@ -111,7 +113,7 @@ func layernormReferenceBytes(
 	}
 
 	outputBytes := make([]byte, len(inputBytes))
-	cpulayernorm.LayerNorm(
+	referenceLayerNorm.LayerNorm(
 		unsafe.Pointer(&inputBytes[0]),
 		unsafe.Pointer(&scaleBytes[0]),
 		unsafe.Pointer(&biasBytes[0]),
@@ -141,7 +143,7 @@ func rmsNormReferenceBytes(
 	}
 
 	outputBytes := make([]byte, len(inputBytes))
-	cpulayernorm.RMSNorm(
+	referenceLayerNorm.RMSNorm(
 		unsafe.Pointer(&inputBytes[0]),
 		unsafe.Pointer(&scaleBytes[0]),
 		unsafe.Pointer(&outputBytes[0]),

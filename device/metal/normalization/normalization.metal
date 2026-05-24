@@ -201,7 +201,8 @@ static inline void groupnorm_rows(
     for (uint offset = threadIndex; offset < groupSize; offset += normalizationThreadCount) {
         uint channel = channelStart + offset / spatial;
         float normalized = (Storage::load(input, groupOffset + offset) - mean) * invStdDev;
-        float value = normalized * Storage::load(scale, channel) + Storage::load(bias, channel);
+        float scaled = normalized * Storage::load(scale, channel);
+        float value = scaled + Storage::load(bias, channel);
         Storage::store(out, groupOffset + offset, value);
     }
 }

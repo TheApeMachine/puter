@@ -38,7 +38,7 @@ func (builder *Builder) ExecuteConvertUnary(
 		return err
 	}
 
-	return bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef())
+	return builder.recordExecute(bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef()))
 }
 
 func (builder *Builder) loadConvertExecutable(
@@ -149,7 +149,7 @@ func (builder *Builder) ExecuteResearchUnaryParam(
 		return err
 	}
 
-	return bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef())
+	return builder.recordExecute(bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef()))
 }
 
 func (builder *Builder) loadResearchUnaryParamExecutable(

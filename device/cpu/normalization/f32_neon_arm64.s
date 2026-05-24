@@ -6,6 +6,7 @@
 #define VFMUL_S4(m, n, d) WORD $(0x6E20DC00 | ((m) << 16) | ((n) << 5) | (d))
 #define VFADD_S4(m, n, d) WORD $(0x4E20D400 | ((m) << 16) | ((n) << 5) | (d))
 #define VFMLA_S4(m, n, d) WORD $(0x4E20CC00 | ((m) << 16) | ((n) << 5) | (d))
+#define VMOV_B16(src, dst) WORD $(0x4EA01C00 | ((src) << 16) | ((src) << 5) | (dst))
 #define VFADD_D2(m, n, d) WORD $(0x4E60D400 | ((m) << 16) | ((n) << 5) | (d))
 #define VFMUL_D2(m, n, d) WORD $(0x6E60DC00 | ((m) << 16) | ((n) << 5) | (d))
 #define FCVTL_2D(n, d)     WORD $(0x0E617800 | ((n) << 5) | (d))
@@ -130,15 +131,19 @@ norm_apply_loop16:
 	VFMUL_S4(17, 5, 5)
 	VFMUL_S4(17, 6, 6)
 	VFMUL_S4(17, 7, 7)
-	VFMUL_S4(18, 4, 4)
-	VFMUL_S4(18, 5, 5)
-	VFMUL_S4(18, 6, 6)
-	VFMUL_S4(18, 7, 7)
-	VFADD_S4(19, 4, 4)
-	VFADD_S4(19, 5, 5)
-	VFADD_S4(19, 6, 6)
-	VFADD_S4(19, 7, 7)
-	VST1 [V4.S4, V5.S4, V6.S4, V7.S4], (R0)
+	VFMUL_S4(17, 4, 4)
+	VFMUL_S4(17, 5, 5)
+	VFMUL_S4(17, 6, 6)
+	VFMUL_S4(17, 7, 7)
+	VMOV_B16(19, 8)
+	VMOV_B16(19, 9)
+	VMOV_B16(19, 10)
+	VMOV_B16(19, 11)
+	VFMLA_S4(18, 4, 8)
+	VFMLA_S4(18, 5, 9)
+	VFMLA_S4(18, 6, 10)
+	VFMLA_S4(18, 7, 11)
+	VST1 [V8.S4, V9.S4, V10.S4, V11.S4], (R0)
 
 	ADD  $64, R0
 	ADD  $64, R1
@@ -152,9 +157,10 @@ norm_apply_loop4:
 	VLD1 (R1), [V0.S4]
 	VFSUB_S4(16, 0, 4)
 	VFMUL_S4(17, 4, 4)
-	VFMUL_S4(18, 4, 4)
-	VFADD_S4(19, 4, 4)
-	VST1 [V4.S4], (R0)
+	VFMUL_S4(17, 4, 4)
+	VMOV_B16(19, 8)
+	VFMLA_S4(18, 4, 8)
+	VST1 [V8.S4], (R0)
 
 	ADD  $16, R0
 	ADD  $16, R1
@@ -167,10 +173,10 @@ norm_apply_scalar_tail:
 norm_apply_scalar_loop:
 	FMOVS (R1), F0
 	FSUBS F16, F0, F0
-	FMULS F17, F0, F2
-	FMULS F18, F2, F0
-	FADDS F19, F0, F0
-	FMOVS F0, (R0)
+	FMULS F17, F0, F0
+	FMOVS F19, F2
+	FMADD F2, F0, F18, F2
+	FMOVS F2, (R0)
 	ADD  $4, R0
 	ADD  $4, R1
 	SUB  $1, R2

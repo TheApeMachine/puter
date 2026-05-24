@@ -87,6 +87,102 @@ func TestVSAXLAParity(t *testing.T) {
 			})
 		}
 	})
+
+	convey.Convey("Given XLA VSA InversePermute", t, func() {
+		for _, count := range xlaparity.Lengths {
+			convey.Convey(fmt.Sprintf("N=%d", count), func() {
+				input := xlaparity.RandomUnaryInput(count, 0x6350+int64(count))
+				want := make([]float32, count)
+				referenceVSA.InversePermute(
+					device.VSAConfig{Shift: 3},
+					unsafe.Pointer(&input[0]),
+					unsafe.Pointer(&want[0]),
+					count,
+					dtype.Float32,
+				)
+
+				inputTensor := harness.UploadVector(input, dtype.Float32)
+				outputTensor := harness.UploadVector(make([]float32, count), dtype.Float32)
+				defer inputTensor.Close()
+				defer outputTensor.Close()
+
+				harness.Backend().InversePermute(
+					device.VSAConfig{Shift: 3},
+					xla.ResidentPointer(inputTensor),
+					xla.ResidentPointer(outputTensor),
+					count,
+					dtype.Float32,
+				)
+
+				got := harness.DownloadFloat32(outputTensor, dtype.Float32)
+				xlaparity.AssertFloat32SlicesWithinULP(t, got, want, 2)
+			})
+		}
+	})
+
+	convey.Convey("Given XLA VSA Bundle", t, func() {
+		for _, count := range xlaparity.Lengths {
+			convey.Convey(fmt.Sprintf("N=%d", count), func() {
+				left := xlaparity.RandomUnaryInput(count, 0x6600+int64(count))
+				right := xlaparity.RandomUnaryInput(count, 0x6700+int64(count))
+				want := make([]float32, count)
+				referenceVSA.Bundle(
+					unsafe.Pointer(&left[0]),
+					unsafe.Pointer(&right[0]),
+					unsafe.Pointer(&want[0]),
+					count,
+					dtype.Float32,
+				)
+
+				leftTensor := harness.UploadVector(left, dtype.Float32)
+				rightTensor := harness.UploadVector(right, dtype.Float32)
+				outputTensor := harness.UploadVector(make([]float32, count), dtype.Float32)
+				defer leftTensor.Close()
+				defer rightTensor.Close()
+				defer outputTensor.Close()
+
+				harness.Backend().Bundle(
+					xla.ResidentPointer(leftTensor),
+					xla.ResidentPointer(rightTensor),
+					xla.ResidentPointer(outputTensor),
+					count,
+					dtype.Float32,
+				)
+
+				got := harness.DownloadFloat32(outputTensor, dtype.Float32)
+				xlaparity.AssertFloat32SlicesWithinULP(t, got, want, 2)
+			})
+		}
+	})
+
+	convey.Convey("Given XLA VSA Similarity", t, func() {
+		for _, count := range xlaparity.Lengths {
+			convey.Convey(fmt.Sprintf("N=%d", count), func() {
+				left := xlaparity.RandomUnaryInput(count, 0x6800+int64(count))
+				right := xlaparity.RandomUnaryInput(count, 0x6900+int64(count))
+				want := referenceVSA.Similarity(
+					unsafe.Pointer(&left[0]),
+					unsafe.Pointer(&right[0]),
+					count,
+					dtype.Float32,
+				)
+
+				leftTensor := harness.UploadVector(left, dtype.Float32)
+				rightTensor := harness.UploadVector(right, dtype.Float32)
+				defer leftTensor.Close()
+				defer rightTensor.Close()
+
+				got := harness.Backend().Similarity(
+					xla.ResidentPointer(leftTensor),
+					xla.ResidentPointer(rightTensor),
+					count,
+					dtype.Float32,
+				)
+
+				xlaparity.AssertFloat32SlicesWithinULP(t, []float32{got}, []float32{want}, 4)
+			})
+		}
+	})
 }
 
 func BenchmarkVSABindXLAParity(b *testing.B) {
