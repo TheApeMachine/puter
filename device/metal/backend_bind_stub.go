@@ -7,7 +7,6 @@ import (
 
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
-	"github.com/theapemachine/qpool"
 	"github.com/theapemachine/puter/device/metal/activation"
 	"github.com/theapemachine/puter/device/metal/active_inference"
 	"github.com/theapemachine/puter/device/metal/attention"
@@ -31,6 +30,7 @@ import (
 	"github.com/theapemachine/puter/device/metal/rope"
 	"github.com/theapemachine/puter/device/metal/sampling"
 	"github.com/theapemachine/puter/device/metal/vsa"
+	"github.com/theapemachine/qpool"
 )
 
 func (backend *Backend) bindFamilies(computeHost *ComputeHost) {
@@ -57,6 +57,22 @@ func (backend *Backend) bindFamilies(computeHost *ComputeHost) {
 	backend.PredictiveCoding = predictive_coding.New(computeHost)
 	backend.Dequantization = dequant.New(computeHost)
 	backend.Quantization = quant.New(computeHost)
+}
+
+type metalBridge struct {
+	backend *Backend
+}
+
+func openMetalBridge(backend *Backend) (*metalBridge, error) {
+	return &metalBridge{backend: backend}, nil
+}
+
+func (bridge *metalBridge) recommendedMaxWorkingSet() int64 {
+	return 0
+}
+
+func (bridge *metalBridge) close() error {
+	return nil
 }
 
 type ComputeHost struct {

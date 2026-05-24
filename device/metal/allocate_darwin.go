@@ -11,7 +11,6 @@ import "C"
 import (
 	"fmt"
 	"math"
-	"unsafe"
 )
 
 func partialReductionCount(count uint32) uint32 {
@@ -20,10 +19,6 @@ func partialReductionCount(count uint32) uint32 {
 
 func reductionScratchBytes(count uint32) int64 {
 	return int64MulChecked(int64(partialReductionCount(count)), 4, "reductionScratchBytes", count)
-}
-
-func dotScratchBytes(count uint32) int64 {
-	return int64MulChecked(int64(partialReductionCount(count)), 8, "dotScratchBytes", count)
 }
 
 func crossEntropyScratchBytes(batch uint32) int64 {
@@ -90,22 +85,6 @@ func (bridge *metalBridge) readInt32Scalar(bufferRef C.MetalBufferRef) int32 {
 	}
 
 	return *(*int32)(contents)
-}
-
-func bufferRefFromPointer(pointer unsafe.Pointer) C.MetalBufferRef {
-	return C.MetalBufferRef(pointer)
-}
-
-func deviceRefFromContext(contextRef uintptr) C.MetalDeviceRef {
-	return C.MetalDeviceRef(unsafe.Pointer(contextRef))
-}
-
-func partialCountOrZero(count uint32) uint32 {
-	if count == 0 {
-		return 0
-	}
-
-	return partialReductionCount(count)
 }
 
 func int64MulChecked(left, right int64, operation string, input uint32) int64 {

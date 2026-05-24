@@ -41,6 +41,14 @@ func (host *ComputeHost) contextRef() uintptr {
 	return host.bridge.contextRef()
 }
 
+func (host *ComputeHost) devicePointer() unsafe.Pointer {
+	if host.bridge == nil {
+		return nil
+	}
+
+	return unsafe.Pointer(host.bridge.device)
+}
+
 func (host *ComputeHost) elementCount(pointers ...unsafe.Pointer) uint32 {
 	for _, pointer := range pointers {
 		deviceTensor := resolveDeviceTensor(pointer)
@@ -84,10 +92,10 @@ func (host *ComputeHost) BinaryElementwise(dst, left, right unsafe.Pointer, form
 	}
 
 	if err := elementwise.DispatchBinaryElementwiseRefs(
-		host.contextRef(),
-		uintptr(unsafe.Pointer(resolveBufferRef(dst))),
-		uintptr(unsafe.Pointer(resolveBufferRef(left))),
-		uintptr(unsafe.Pointer(resolveBufferRef(right))),
+		host.devicePointer(),
+		unsafe.Pointer(resolveBufferRef(dst)),
+		unsafe.Pointer(resolveBufferRef(left)),
+		unsafe.Pointer(resolveBufferRef(right)),
 		format,
 		kernel,
 		count,
@@ -124,9 +132,9 @@ func (host *ComputeHost) DispatchAxpy(y, x unsafe.Pointer, alpha float32, format
 	}
 
 	if err := elementwise.DispatchAxpyRefs(
-		host.contextRef(),
-		uintptr(unsafe.Pointer(resolveBufferRef(y))),
-		uintptr(unsafe.Pointer(resolveBufferRef(x))),
+		host.devicePointer(),
+		unsafe.Pointer(resolveBufferRef(y)),
+		unsafe.Pointer(resolveBufferRef(x)),
 		format,
 		alpha,
 		count,
@@ -517,9 +525,9 @@ func (host *ComputeHost) UnaryElementwise(dst, src unsafe.Pointer, format dtype.
 	}
 
 	if err := elementwise.DispatchUnaryMathRefs(
-		host.contextRef(),
-		uintptr(unsafe.Pointer(resolveBufferRef(dst))),
-		uintptr(unsafe.Pointer(resolveBufferRef(src))),
+		host.devicePointer(),
+		unsafe.Pointer(resolveBufferRef(dst)),
+		unsafe.Pointer(resolveBufferRef(src)),
 		format,
 		kernel,
 		count,

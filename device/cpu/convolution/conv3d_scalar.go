@@ -84,36 +84,3 @@ func Conv3DFloat32Scalar(
 		}
 	}
 }
-
-func conv3DPixelScalar(
-	config Conv3DConfig,
-	inputView, weightView []float32,
-	batchIndex, outChIndex, inChannels, inD, inH, inW, kD, kH, kW, outDIndex, outHIndex, outWIndex int,
-	biasValue float32,
-) float32 {
-	sum := biasValue
-
-	for inChIndex := range inChannels {
-		for kDIndex := range kD {
-			for kHIndex := range kH {
-				for kWIndex := range kW {
-					inDPos := outDIndex*config.StrideD + kDIndex*config.DilationD - config.PaddingD
-					inHPos := outHIndex*config.StrideH + kHIndex*config.DilationH - config.PaddingH
-					inWPos := outWIndex*config.StrideW + kWIndex*config.DilationW - config.PaddingW
-
-					if inDPos < 0 || inDPos >= inD ||
-						inHPos < 0 || inHPos >= inH ||
-						inWPos < 0 || inWPos >= inW {
-						continue
-					}
-
-					inputIndex := (((batchIndex*inChannels+inChIndex)*inD+inDPos)*inH+inHPos)*inW + inWPos
-					weightIndex := (((outChIndex*inChannels+inChIndex)*kD+kDIndex)*kH+kHIndex)*kW + kWIndex
-					sum += inputView[inputIndex] * weightView[weightIndex]
-				}
-			}
-		}
-	}
-
-	return sum
-}

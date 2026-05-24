@@ -2,27 +2,38 @@
 
 package cpu
 
-/*
-#include <stdlib.h>
-*/
-import "C"
-
 import (
+	"sync"
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/tensor"
+	"golang.org/x/sys/unix"
 )
+
+var unixMappings sync.Map
 
 func platformAllocateAligned(byteCount int64) (unsafe.Pointer, error) {
 	if byteCount <= 0 {
 		return nil, nil
 	}
 
-	var devicePointer unsafe.Pointer
+	pageSize := unix.Getpagesize()
+	mappedSize := int(((byteCount + int64(pageSize) - 1) / int64(pageSize)) * int64(pageSize))
 
-	if C.posix_memalign(&devicePointer, C.size_t(workspaceAlign), C.size_t(byteCount)) != 0 {
+	mapping, err := unix.Mmap(
+		-1,
+		0,
+		mappedSize,
+		unix.PROT_READ|unix.PROT_WRITE,
+		unix.MAP_ANON|unix.MAP_PRIVATE,
+	)
+
+	if err != nil {
 		return nil, tensor.ErrAllocatorExhausted
 	}
+
+	devicePointer := unsafe.Pointer(&mapping[0])
+	unixMappings.Store(devicePointer, mapping)
 
 	return devicePointer, nil
 }
@@ -32,5 +43,12 @@ func platformRelease(devicePointer unsafe.Pointer) {
 		return
 	}
 
-	C.free(devicePointer)
+	mappingValue, loaded := unixMappings.LoadAndDelete(devicePointer)
+
+	if !loaded {
+		return
+	}
+
+	mapping := mappingValue.([]byte)
+	_ = unix.Munmap(mapping)
 }

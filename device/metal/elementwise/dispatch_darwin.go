@@ -187,19 +187,19 @@ func DispatchAxpy(
 }
 
 func DispatchBinaryElementwiseRefs(
-	contextRef uintptr,
-	dstBuffer uintptr,
-	leftBuffer uintptr,
-	rightBuffer uintptr,
+	contextRef unsafe.Pointer,
+	dstBuffer unsafe.Pointer,
+	leftBuffer unsafe.Pointer,
+	rightBuffer unsafe.Pointer,
 	format dtype.DType,
 	kernel BinaryKernel,
 	count uint32,
 ) error {
 	return DispatchBinaryElementwise(
-		C.MetalDeviceRef(unsafe.Pointer(contextRef)),
-		C.MetalBufferRef(unsafe.Pointer(dstBuffer)),
-		C.MetalBufferRef(unsafe.Pointer(leftBuffer)),
-		C.MetalBufferRef(unsafe.Pointer(rightBuffer)),
+		C.MetalDeviceRef(contextRef),
+		C.MetalBufferRef(dstBuffer),
+		C.MetalBufferRef(leftBuffer),
+		C.MetalBufferRef(rightBuffer),
 		format,
 		kernel,
 		count,
@@ -207,17 +207,17 @@ func DispatchBinaryElementwiseRefs(
 }
 
 func DispatchUnaryMathRefs(
-	contextRef uintptr,
-	dstBuffer uintptr,
-	srcBuffer uintptr,
+	contextRef unsafe.Pointer,
+	dstBuffer unsafe.Pointer,
+	srcBuffer unsafe.Pointer,
 	format dtype.DType,
 	kernel UnaryKernel,
 	count uint32,
 ) error {
 	return DispatchUnaryMath(
-		C.MetalDeviceRef(unsafe.Pointer(contextRef)),
-		C.MetalBufferRef(unsafe.Pointer(dstBuffer)),
-		C.MetalBufferRef(unsafe.Pointer(srcBuffer)),
+		C.MetalDeviceRef(contextRef),
+		C.MetalBufferRef(dstBuffer),
+		C.MetalBufferRef(srcBuffer),
 		format,
 		kernel,
 		count,
@@ -225,17 +225,17 @@ func DispatchUnaryMathRefs(
 }
 
 func DispatchAxpyRefs(
-	contextRef uintptr,
-	yBuffer uintptr,
-	xBuffer uintptr,
+	contextRef unsafe.Pointer,
+	yBuffer unsafe.Pointer,
+	xBuffer unsafe.Pointer,
 	format dtype.DType,
 	alpha float32,
 	count uint32,
 ) error {
 	return DispatchAxpy(
-		C.MetalDeviceRef(unsafe.Pointer(contextRef)),
-		C.MetalBufferRef(unsafe.Pointer(yBuffer)),
-		C.MetalBufferRef(unsafe.Pointer(xBuffer)),
+		C.MetalDeviceRef(contextRef),
+		C.MetalBufferRef(yBuffer),
+		C.MetalBufferRef(xBuffer),
 		format,
 		alpha,
 		count,

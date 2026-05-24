@@ -2,29 +2,36 @@
 
 package cpu
 
-/*
-#include <stdlib.h>
-*/
-import "C"
-
 import (
+	"sync"
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/tensor"
+	"golang.org/x/sys/windows"
 )
+
+var windowsMappings sync.Map
 
 func platformAllocateAligned(byteCount int64) (unsafe.Pointer, error) {
 	if byteCount <= 0 {
 		return nil, nil
 	}
 
-	devicePointer := C._aligned_malloc(C.size_t(byteCount), C.size_t(workspaceAlign))
+	address, err := windows.VirtualAlloc(
+		0,
+		uintptr(byteCount),
+		windows.MEM_COMMIT|windows.MEM_RESERVE,
+		windows.PAGE_READWRITE,
+	)
 
-	if devicePointer == nil {
+	if err != nil {
 		return nil, tensor.ErrAllocatorExhausted
 	}
 
-	return unsafe.Pointer(devicePointer), nil
+	devicePointer := unsafe.Pointer(address)
+	windowsMappings.Store(devicePointer, address)
+
+	return devicePointer, nil
 }
 
 func platformRelease(devicePointer unsafe.Pointer) {
@@ -32,5 +39,12 @@ func platformRelease(devicePointer unsafe.Pointer) {
 		return
 	}
 
-	C._aligned_free(devicePointer)
+	addressValue, loaded := windowsMappings.LoadAndDelete(devicePointer)
+
+	if !loaded {
+		return
+	}
+
+	address := addressValue.(uintptr)
+	_ = windows.VirtualFree(address, 0, windows.MEM_RELEASE)
 }
