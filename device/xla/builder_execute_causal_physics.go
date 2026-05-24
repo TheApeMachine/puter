@@ -189,6 +189,47 @@ func renderCausalPhysicsUnaryHLO(
 		hloText, err := hlo.RenderLaplacian1D(moduleName, context.InputDTypes[0], count[0], invH2)
 
 		return hloText, true, err
+	case "laplacian2d":
+		if len(count) != 2 {
+			return "", false, &loweringError{message: "laplacian2d requires rank-2 input"}
+		}
+
+		invH2 := float32(0)
+
+		if len(floatParams) > 0 {
+			invH2 = float32(floatParams[0])
+		}
+
+		hloText, err := hlo.RenderLaplacian2D(
+			moduleName,
+			context.InputDTypes[0],
+			count[0],
+			count[1],
+			invH2,
+		)
+
+		return hloText, true, err
+	case "laplacian3d":
+		if len(count) != 3 {
+			return "", false, &loweringError{message: "laplacian3d requires rank-3 input"}
+		}
+
+		invH2 := float32(0)
+
+		if len(floatParams) > 0 {
+			invH2 = float32(floatParams[0])
+		}
+
+		hloText, err := hlo.RenderLaplacian3D(
+			moduleName,
+			context.InputDTypes[0],
+			count[0],
+			count[1],
+			count[2],
+			invH2,
+		)
+
+		return hloText, true, err
 	case "laplacian4":
 		invDen := float32(0)
 

@@ -53,19 +53,19 @@ func SamplingSoftmaxRowGeneric(logits, out []float32, temperature float32) {
 		}
 	}
 
-	var denominator float32
+	var denominator float64
 
 	for index, value := range logits {
 		shifted := cpumath.FastExp32((value - maximum) / temperature)
 		out[index] = shifted
-		denominator += shifted
+		denominator += float64(shifted)
 	}
 
 	if denominator == 0 {
 		return
 	}
 
-	scale := float32(1) / denominator
+	scale := float32(1.0 / denominator)
 
 	for index := range out {
 		out[index] *= scale

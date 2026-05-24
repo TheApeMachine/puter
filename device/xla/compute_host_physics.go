@@ -76,26 +76,50 @@ func (host *ComputeHost) DispatchLaplacian(
 	spacing float32,
 	format dtype.DType,
 ) {
-	if len(dims) != 1 {
-		host.dispatchError(&loweringError{message: "XLA laplacian currently supports rank-1 tensors"})
+	elementCount := 1
+
+	for _, dim := range dims {
+		elementCount *= dim
 	}
 
-	count := dims[0]
-
-	if count == 0 || host.bridge == nil {
+	if elementCount == 0 || host.bridge == nil {
 		return
 	}
 
-	inputShape, err := ShapeFromCount(count)
+	invH2 := float32(physicsSpacingInverse(spacing, true))
+	operationName := ""
+	var inputShape tensor.Shape
+	var err error
+
+	switch len(dims) {
+	case 1:
+		operationName = "laplacian1d"
+		inputShape, err = ShapeFromCount(dims[0])
+	case 2:
+		operationName = "laplacian2d"
+		inputShape, err = ShapeFromRowsCols(dims[0], dims[1])
+	case 3:
+		operationName = "laplacian3d"
+		inputShape, err = tensor.NewShape([]int{dims[0], dims[1], dims[2]})
+	default:
+		host.dispatchError(&loweringError{message: "XLA laplacian supports rank 1, 2, or 3 tensors"})
+	}
+
 	host.dispatchError(err)
 
-	context := LoweringContextForUnary(format, inputShape)
+	context := LoweringContext{
+		Target:      DefaultBuilderTarget,
+		InputDTypes: []dtype.DType{format},
+		InputShapes: []tensor.Shape{inputShape},
+		OutputDType: format,
+		OutputShape: inputShape,
+	}
 
 	host.dispatchError(host.builder.ExecuteResearchUnaryParam(
 		host.bridge,
-		"laplacian1d",
+		operationName,
 		context,
-		[]float64{float64(physicsSpacingInverse(spacing, true))},
+		[]float64{float64(invH2)},
 		nil,
 		host.requireDeviceTensor(input),
 		host.requireDeviceTensor(output),

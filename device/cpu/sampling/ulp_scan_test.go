@@ -18,15 +18,25 @@ func TestScanAllLengths(t *testing.T) {
 		SamplingSoftmaxRowFloat32NEONAsm(&logits[0], &got[0], 0.85, length)
 		maxULP := 0
 		worst := -1
-		for i := range want {
-			u := parity.Float32ULPDistance(got[i], want[i])
-			if u > maxULP {
-				maxULP = u
-				worst = i
+		for index := range want {
+			ulp := parity.Float32ULPDistance(got[index], want[index])
+			if ulp > maxULP {
+				maxULP = ulp
+				worst = index
 			}
 		}
-		fmt.Printf("N=%d maxULP=%d worst=%d got=%g want=%g\n", length, maxULP, worst, got[worst], want[worst])
+		if worst >= 0 {
+			fmt.Printf("N=%d maxULP=%d worst=%d got=%g want=%g\n", length, maxULP, worst, got[worst], want[worst])
+		} else {
+			fmt.Printf("N=%d maxULP=%d\n", length, maxULP)
+		}
 		if maxULP > 2 {
+			for index := range want {
+				ulp := parity.Float32ULPDistance(got[index], want[index])
+				if ulp > 2 {
+					fmt.Printf("  lane %d ulp=%d got=%g want=%g\n", index, ulp, got[index], want[index])
+				}
+			}
 			t.Fatalf("N=%d maxULP=%d", length, maxULP)
 		}
 	}

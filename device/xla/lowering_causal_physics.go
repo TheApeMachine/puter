@@ -12,6 +12,8 @@ func RegisterCausalPhysicsLowerings(registry *LoweringRegistry) {
 	registry.Register(UnaryParamLowering{operationName: "cholesky"})
 	registry.Register(UnaryParamLowering{operationName: "grad1d"})
 	registry.Register(UnaryParamLowering{operationName: "laplacian1d"})
+	registry.Register(UnaryParamLowering{operationName: "laplacian2d"})
+	registry.Register(UnaryParamLowering{operationName: "laplacian3d"})
 	registry.Register(UnaryParamLowering{operationName: "laplacian4"})
 	registry.Register(UnaryParamLowering{operationName: "central_difference_interior"})
 	registry.Register(NewVariadicLowering("madelung_continuity", 2))

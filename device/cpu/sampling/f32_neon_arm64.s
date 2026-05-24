@@ -39,8 +39,22 @@ GLOBL samExpC<>(SB), RODATA|NOPTR, $36
 DATA samSoftmaxClamp<>+0(SB)/4, $-87.33654
 GLOBL samSoftmaxClamp<>(SB), RODATA|NOPTR, $4
 
-#define SAM_ACCUM_V6_TO_F32_SUM \
-	VFADD_S4(6, 29, 29)
+#define SAM_ACCUM_V6_TO_F64_SUM \
+	SUB  $16, RSP ;\
+	VST1 [V6.S4], (RSP) ;\
+	FMOVS (RSP), F6 ;\
+	FCVTSD F6, F6 ;\
+	FADDD F6, F31, F31 ;\
+	FMOVS 4(RSP), F6 ;\
+	FCVTSD F6, F6 ;\
+	FADDD F6, F31, F31 ;\
+	FMOVS 8(RSP), F6 ;\
+	FCVTSD F6, F6 ;\
+	FADDD F6, F31, F31 ;\
+	FMOVS 12(RSP), F6 ;\
+	FCVTSD F6, F6 ;\
+	FADDD F6, F31, F31 ;\
+	ADD  $16, RSP
 
 #define SAM_EXP_V0_TO_V6 \
 	VFMUL_S4(16, 0, 1) \
@@ -241,7 +255,7 @@ sam_softmax_max_done:
 	VDUP V24.S[0], V24.S4
 	FMOVS samSoftmaxClamp<>(SB), F30
 	VDUP V30.S[0], V30.S4
-	VEOR V29.B16, V29.B16, V29.B16
+	FMOVD $0, F31
 
 sam_softmax_exp_loop4:
 	CMP  $4, R2
@@ -256,14 +270,12 @@ sam_softmax_exp_loop4:
 	SAM_EXP_V0_TO_V6
 	VBIC_B16(9, 6, 6)
 	VST1 [V6.S4], (R1)
-	SAM_ACCUM_V6_TO_F32_SUM
+	SAM_ACCUM_V6_TO_F64_SUM
 	ADD  $16, R1
 	SUB  $4, R2
 	B    sam_softmax_exp_loop4
 
 sam_softmax_exp_scalar:
-	VFADDP_S4(29, 29, 29)
-	FADDP_S(29, 31)
 	CBZ  R2, sam_softmax_normalize
 
 	MOVD count+24(FP), R6
@@ -280,22 +292,22 @@ sam_softmax_exp_scalar_loop:
 	FDIVS F10, F0, F0
 	VDUP V0.S[0], V0.S4
 	SAM_EXP_V0_TO_V6
-
-sam_softmax_exp_scalar_store:
 	FMOVS F6, (R1)
-	FADDS F6, F31, F31
+	FCVTSD F6, F6
+	FADDD F6, F31, F31
 	ADD  $4, R0
 	ADD  $4, R1
 	SUB  $1, R2
 	CBNZ R2, sam_softmax_exp_scalar_loop
 
 sam_softmax_normalize:
-	FMOVS $0, F15
-	FCMPS F31, F15
+	FMOVD $0, F15
+	FCMPD F31, F15
 	BEQ  sam_softmax_done
 
-	FMOVS samOneF32<>(SB), F8
-	FDIVS F31, F8, F8
+	FMOVD $1.0, F8
+	FDIVD F31, F8, F8
+	FCVTDS F8, F8
 	VDUP V8.S[0], V8.S4
 
 	MOVD out+8(FP), R0

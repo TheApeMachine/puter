@@ -92,6 +92,124 @@ ENTRY main {
 		elementType, invH2, vectorLiteral, vectorLiteral), nil
 }
 
+func RenderLaplacian2D(
+	moduleName string,
+	elementFormat dtype.DType,
+	rows, cols int,
+	invH2 float32,
+) (string, error) {
+	elementType, err := elementToken(elementFormat)
+
+	if err != nil {
+		return "", err
+	}
+
+	matrixLiteral := fmt.Sprintf("%s[%d,%d]{1,0}", elementType, rows, cols)
+	entryLayout := fmt.Sprintf("%s->%s", matrixLiteral, matrixLiteral)
+	four := float32(4)
+
+	return fmt.Sprintf(`HloModule %s, entry_computation_layout={%s}
+
+ENTRY main {
+  input = %s parameter(0)
+  tail_up = %s slice(input), slice={[1:%d], [0:%d]}
+  head_up = %s slice(input), slice={[0:1], [0:%d]}
+  up = %s concatenate(tail_up, head_up), dimensions={0}
+  tail_dn = %s slice(input), slice={[0:%d], [0:%d]}
+  head_dn = %s slice(input), slice={[%d:%d], [0:%d]}
+  down = %s concatenate(head_dn, tail_dn), dimensions={0}
+  tail_l = %s slice(input), slice={[0:%d], [1:%d]}
+  head_l = %s slice(input), slice={[0:%d], [0:1]}
+  left = %s concatenate(tail_l, head_l), dimensions={1}
+  tail_r = %s slice(input), slice={[0:%d], [0:%d]}
+  head_r = %s slice(input), slice={[0:%d], [%d:%d]}
+  right = %s concatenate(head_r, tail_r), dimensions={1}
+  sum_ud = %s add(up, down)
+  sum_lr = %s add(left, right)
+  sum_all = %s add(sum_ud, sum_lr)
+  four_c = %s[] constant(%g)
+  four_b = %s broadcast(four_c), dimensions={0,1}
+  scaled_center = %s multiply(input, four_b)
+  diff = %s subtract(sum_all, scaled_center)
+  scale = %s[] constant(%g)
+  scale_b = %s broadcast(scale), dimensions={0,1}
+  ROOT result = %s multiply(diff, scale_b)
+}
+`, moduleName, entryLayout,
+		matrixLiteral,
+		matrixLiteral, rows, cols, matrixLiteral, cols, matrixLiteral,
+		matrixLiteral, rows-1, cols, matrixLiteral, rows-1, rows, cols, matrixLiteral,
+		matrixLiteral, rows, cols, matrixLiteral, rows, matrixLiteral,
+		matrixLiteral, rows, cols-1, matrixLiteral, rows, cols-1, cols, matrixLiteral,
+		matrixLiteral, matrixLiteral, matrixLiteral, matrixLiteral,
+		elementType, four, matrixLiteral, matrixLiteral, matrixLiteral,
+		elementType, invH2, matrixLiteral, matrixLiteral), nil
+}
+
+func RenderLaplacian3D(
+	moduleName string,
+	elementFormat dtype.DType,
+	depth, rows, cols int,
+	invH2 float32,
+) (string, error) {
+	elementType, err := elementToken(elementFormat)
+
+	if err != nil {
+		return "", err
+	}
+
+	volumeLiteral := fmt.Sprintf("%s[%d,%d,%d]{2,1,0}", elementType, depth, rows, cols)
+	entryLayout := fmt.Sprintf("%s->%s", volumeLiteral, volumeLiteral)
+	six := float32(6)
+
+	return fmt.Sprintf(`HloModule %s, entry_computation_layout={%s}
+
+ENTRY main {
+  input = %s parameter(0)
+  tail_dm = %s slice(input), slice={[1:%d], [0:%d], [0:%d]}
+  head_dm = %s slice(input), slice={[0:1], [0:%d], [0:%d]}
+  dm = %s concatenate(tail_dm, head_dm), dimensions={0}
+  tail_dp = %s slice(input), slice={[0:%d], [0:%d], [0:%d]}
+  head_dp = %s slice(input), slice={[%d:%d], [0:%d], [0:%d]}
+  dp = %s concatenate(head_dp, tail_dp), dimensions={0}
+  tail_rm = %s slice(input), slice={[0:%d], [1:%d], [0:%d]}
+  head_rm = %s slice(input), slice={[0:%d], [0:1], [0:%d]}
+  rm = %s concatenate(tail_rm, head_rm), dimensions={1}
+  tail_rp = %s slice(input), slice={[0:%d], [0:%d], [0:%d]}
+  head_rp = %s slice(input), slice={[0:%d], [%d:%d], [0:%d]}
+  rp = %s concatenate(head_rp, tail_rp), dimensions={1}
+  tail_cm = %s slice(input), slice={[0:%d], [0:%d], [1:%d]}
+  head_cm = %s slice(input), slice={[0:%d], [0:%d], [0:1]}
+  cm = %s concatenate(tail_cm, head_cm), dimensions={2}
+  tail_cp = %s slice(input), slice={[0:%d], [0:%d], [0:%d]}
+  head_cp = %s slice(input), slice={[0:%d], [0:%d], [%d:%d]}
+  cp = %s concatenate(head_cp, tail_cp), dimensions={2}
+  sum01 = %s add(dm, dp)
+  sum23 = %s add(rm, rp)
+  sum45 = %s add(cm, cp)
+  sum0123 = %s add(sum01, sum23)
+  sum_all = %s add(sum45, sum0123)
+  six_c = %s[] constant(%g)
+  six_b = %s broadcast(six_c), dimensions={0,1,2}
+  scaled_center = %s multiply(input, six_b)
+  diff = %s subtract(sum_all, scaled_center)
+  scale = %s[] constant(%g)
+  scale_b = %s broadcast(scale), dimensions={0,1,2}
+  ROOT result = %s multiply(diff, scale_b)
+}
+`, moduleName, entryLayout,
+		volumeLiteral,
+		volumeLiteral, depth, rows, cols, volumeLiteral, rows, cols, volumeLiteral,
+		volumeLiteral, depth-1, rows, cols, volumeLiteral, depth-1, depth, rows, cols, volumeLiteral,
+		volumeLiteral, depth, rows, cols, volumeLiteral, depth, rows, volumeLiteral,
+		volumeLiteral, depth, rows-1, cols, volumeLiteral, depth, rows-1, rows, cols, volumeLiteral,
+		volumeLiteral, depth, rows, cols, volumeLiteral, depth, rows, volumeLiteral,
+		volumeLiteral, depth, rows, cols-1, volumeLiteral, depth, rows, cols-1, cols, volumeLiteral,
+		volumeLiteral, volumeLiteral, volumeLiteral, volumeLiteral, volumeLiteral,
+		elementType, six, volumeLiteral, volumeLiteral, volumeLiteral,
+		elementType, invH2, volumeLiteral, volumeLiteral), nil
+}
+
 func RenderLaplacian4(
 	moduleName string,
 	elementFormat dtype.DType,

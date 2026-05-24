@@ -92,6 +92,72 @@ func TestHawkesXLAParity(t *testing.T) {
 			})
 		}
 	})
+
+	convey.Convey("Given XLA HawkesLogLikelihood", t, func() {
+		for _, eventCount := range []int{1, 7, 64, 1024} {
+			convey.Convey(fmt.Sprintf("E=%d", eventCount), func() {
+				totalT := float32(10.0)
+				mu := float32(0.2)
+				alpha := float32(0.5)
+				beta := float32(1.0)
+				eventTimes := xlaparity.RandomUnaryInput(eventCount, 0xa600+int64(eventCount))
+				want := make([]float32, 1)
+				referenceHawkes.HawkesLogLikelihood(
+					unsafe.Pointer(&eventTimes[0]),
+					eventCount,
+					totalT, mu, alpha, beta,
+					unsafe.Pointer(&want[0]),
+					dtype.Float32,
+				)
+
+				eventTensor := harness.UploadVector(eventTimes, dtype.Float32)
+				outputTensor := harness.UploadVector(make([]float32, 1), dtype.Float32)
+				defer eventTensor.Close()
+				defer outputTensor.Close()
+
+				harness.Backend().HawkesLogLikelihood(
+					xla.ResidentPointer(eventTensor),
+					eventCount,
+					totalT, mu, alpha, beta,
+					xla.ResidentPointer(outputTensor),
+					dtype.Float32,
+				)
+
+				got := harness.DownloadFloat32(outputTensor, dtype.Float32)
+				xlaparity.AssertFloat32SlicesWithinULP(t, got, want, 8)
+			})
+		}
+	})
+
+	convey.Convey("Given XLA MarkovMutualInformation", t, func() {
+		for _, side := range []int{1, 7, 64} {
+			convey.Convey(fmt.Sprintf("%dx%d", side, side), func() {
+				joint := xlaparity.RandomUnaryInput(side*side, 0xa700+int64(side))
+				want := make([]float32, 1)
+				referenceHawkes.MarkovMutualInformation(
+					unsafe.Pointer(&joint[0]),
+					unsafe.Pointer(&want[0]),
+					side, side,
+					dtype.Float32,
+				)
+
+				jointTensor := harness.UploadMatrix(joint, side, side, dtype.Float32)
+				outputTensor := harness.UploadVector(make([]float32, 1), dtype.Float32)
+				defer jointTensor.Close()
+				defer outputTensor.Close()
+
+				harness.Backend().MarkovMutualInformation(
+					xla.ResidentPointer(jointTensor),
+					xla.ResidentPointer(outputTensor),
+					side, side,
+					dtype.Float32,
+				)
+
+				got := harness.DownloadFloat32(outputTensor, dtype.Float32)
+				xlaparity.AssertFloat32SlicesWithinULP(t, got, want, 8)
+			})
+		}
+	})
 }
 
 func TestMarkovBlanketPartitionXLAParity(t *testing.T) {
