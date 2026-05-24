@@ -131,10 +131,6 @@ norm_apply_loop16:
 	VFMUL_S4(17, 5, 5)
 	VFMUL_S4(17, 6, 6)
 	VFMUL_S4(17, 7, 7)
-	VFMUL_S4(17, 4, 4)
-	VFMUL_S4(17, 5, 5)
-	VFMUL_S4(17, 6, 6)
-	VFMUL_S4(17, 7, 7)
 	VMOV_B16(19, 8)
 	VMOV_B16(19, 9)
 	VMOV_B16(19, 10)
@@ -157,7 +153,6 @@ norm_apply_loop4:
 	VLD1 (R1), [V0.S4]
 	VFSUB_S4(16, 0, 4)
 	VFMUL_S4(17, 4, 4)
-	VFMUL_S4(17, 4, 4)
 	VMOV_B16(19, 8)
 	VFMLA_S4(18, 4, 8)
 	VST1 [V8.S4], (R0)
@@ -174,9 +169,9 @@ norm_apply_scalar_loop:
 	FMOVS (R1), F0
 	FSUBS F16, F0, F0
 	FMULS F17, F0, F0
-	FMOVS F19, F2
-	FMADD F2, F0, F18, F2
-	FMOVS F2, (R0)
+	FMULS F18, F0, F4
+	FADDS F19, F4, F4
+	FMOVS F4, (R0)
 	ADD  $4, R0
 	ADD  $4, R1
 	SUB  $1, R2

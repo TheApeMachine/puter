@@ -8,6 +8,9 @@ func GreedySampleFloat32NEONAsm(logits *float32, count int) int32
 //go:noescape
 func SamplingSoftmaxRowFloat32NEONAsm(logits, out *float32, temperature float32, count int)
 
+//go:noescape
+func samFastExp32OneNEONAsm(x float32) float32
+
 func GreedySampleF32NEON(logits *float32, count int) int32 {
 	if count == 0 {
 		return 0

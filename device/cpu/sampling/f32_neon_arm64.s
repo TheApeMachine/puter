@@ -8,9 +8,8 @@
 #define VFDIV_S4(m, n, d)  WORD $(0x6E20FC00 | ((m) << 16) | ((n) << 5) | (d))
 #define VFMLA_S4(m, n, d)  WORD $(0x4E20CC00 | ((m) << 16) | ((n) << 5) | (d))
 #define VFRINTN_S4(n, d)   WORD $(0x4E218800 | ((n) << 5) | (d))
+#define VFRINTM_S4(n, d)   WORD $(0x4E219800 | ((n) << 5) | (d))
 #define VFCVTZS_S4(n, d)   WORD $(0x4EA1B800 | ((n) << 5) | (d))
-#define VCVTMS_S4(n, d)    WORD $(0x4EA1A800 | ((n) << 5) | (d))
-#define VFRINTN_S4(n, d)   WORD $(0x4E21A800 | ((n) << 5) | (d))
 #define VADD_S4(m, n, d)   WORD $(0x4EA08400 | ((m) << 16) | ((n) << 5) | (d))
 #define VSHL_S4_BY23(n, d) WORD $(0x4F375400 | ((n) << 5) | (d))
 #define VMOV_B16(src, dst) WORD $(0x4EA01C00 | ((src) << 16) | ((src) << 5) | (dst))
@@ -26,20 +25,23 @@ GLOBL samOneF32<>(SB), RODATA|NOPTR, $4
 #define VFCMLTZ_S4(n, d)   WORD $(0x4EA0E800 | ((n) << 5) | (d))
 #define VFCMLT_S4(m, n, d) WORD $(0x6EA0E800 | ((m) << 16) | ((n) << 5) | (d))
 #define VSCVTF_S4(n, d)    WORD $(0x4E21D800 | ((n) << 5) | (d))
-#define VBIC_B16(m, n, d)  WORD $(0x4E601C00 | ((m) << 16) | ((n) << 5) | (d))
+#define VADD_I32(m, n, d)  WORD $(0x4EA08400 | ((m) << 16) | ((n) << 5) | (d))
 
 DATA samExpC<>+0(SB)/4, $1.4426950408889634
-DATA samExpC<>+4(SB)/4, $0.6931471805599453
 DATA samExpC<>+8(SB)/4, $127.0
-DATA samExpC<>+12(SB)/4, $0.00019841270
-DATA samExpC<>+16(SB)/4, $0.0013888889
-DATA samExpC<>+20(SB)/4, $0.008333334
-DATA samExpC<>+24(SB)/4, $0.041666667
-DATA samExpC<>+28(SB)/4, $0.16666667
-DATA samExpC<>+32(SB)/4, $0.5
-DATA samExpC<>+36(SB)/4, $1.0
-DATA samExpC<>+40(SB)/4, $1.0
-GLOBL samExpC<>(SB), RODATA|NOPTR, $44
+DATA samExpC<>+12(SB)/4, $0.69314718
+DATA samExpC<>+16(SB)/4, $0.24022650
+DATA samExpC<>+20(SB)/4, $0.05550410
+DATA samExpC<>+24(SB)/4, $0.00961812
+DATA samExpC<>+28(SB)/4, $0.00133389
+DATA samExpC<>+32(SB)/4, $1.0
+GLOBL samExpC<>(SB), RODATA|NOPTR, $36
+
+DATA samNegOneI32<>+0(SB)/4, $-1
+DATA samNegOneI32<>+4(SB)/4, $-1
+DATA samNegOneI32<>+8(SB)/4, $-1
+DATA samNegOneI32<>+12(SB)/4, $-1
+GLOBL samNegOneI32<>(SB), RODATA|NOPTR, $16
 
 DATA samSoftmaxClamp<>+0(SB)/4, $-87.33654
 GLOBL samSoftmaxClamp<>(SB), RODATA|NOPTR, $4
@@ -61,23 +63,56 @@ GLOBL samSoftmaxClamp<>(SB), RODATA|NOPTR, $4
 	FADDD F6, F31, F31 ;\
 	ADD  $16, RSP
 
+#define VBIC_B16(m, n, d)  WORD $(0x4E601C00 | ((m) << 16) | ((n) << 5) | (d))
+#define VBSL_B16(m, n, d)  WORD $(0x6E601C00 | ((m) << 16) | ((n) << 5) | (d))
+
+#define SAM_POLY_STEP(coef, accA, accB) \
+	VMOV_B16(coef, accB) ;\
+	VFMLA_S4(0, accA, accB)
+
+#define VAND_S4(m, n, d)   WORD $(0x4E201C00 | ((m) << 16) | ((n) << 5) | (d))
+
 #define SAM_EXP_V0_TO_V6 \
 	VFMUL_S4(16, 0, 1) \
-	VFRINTN_S4(1, 1) \
-	VFMUL_S4(17, 1, 2) \
-	VFSUB_S4(2, 0, 0) \
-	VMOV_B16(19, 3) \
-	VMOV_B16(20, 4) ; VFMLA_S4(0, 3, 4) \
-	VMOV_B16(21, 3) ; VFMLA_S4(0, 4, 3) \
-	VMOV_B16(22, 4) ; VFMLA_S4(0, 3, 4) \
-	VMOV_B16(23, 3) ; VFMLA_S4(0, 4, 3) \
-	VMOV_B16(24, 4) ; VFMLA_S4(0, 3, 4) \
-	VMOV_B16(25, 3) ; VFMLA_S4(0, 4, 3) \
-	VMOV_B16(26, 4) ; VFMLA_S4(0, 3, 4) \
 	VFCVTZS_S4(1, 5) \
-	VADD_S4(27, 5, 5) \
-	VSHL_S4_BY23(5, 5) \
-	VFMUL_S4(5, 4, 6)
+	VFCMLTZ_S4(1, 12) \
+	VAND_S4(12, 11, 13) \
+	VADD_S4(13, 5, 5) \
+	VSCVTF_S4(5, 2) \
+	VFSUB_S4(2, 1, 0) \
+	VMOV_B16(23, 3) \
+	SAM_POLY_STEP(22, 3, 4) \
+	SAM_POLY_STEP(21, 4, 3) \
+	SAM_POLY_STEP(20, 3, 4) \
+	SAM_POLY_STEP(19, 4, 3) \
+	SAM_POLY_STEP(24, 3, 4) \
+	VSHL_S4_BY23(5, 8) \
+	VADD_I32(8, 4, 6)
+
+// func samFastExp32OneNEONAsm(x float32) float32
+TEXT ·samFastExp32OneNEONAsm(SB), NOSPLIT, $0-12
+	FMOVS x+0(FP), F0
+	VDUP V0.S[0], V0.S4
+	MOVD $samExpC<>(SB), R3
+	FMOVS 0(R3), F16
+	VDUP V16.S[0], V16.S4
+	FMOVS 12(R3), F19
+	VDUP V19.S[0], V19.S4
+	FMOVS 16(R3), F20
+	VDUP V20.S[0], V20.S4
+	FMOVS 20(R3), F21
+	VDUP V21.S[0], V21.S4
+	FMOVS 24(R3), F22
+	VDUP V22.S[0], V22.S4
+	FMOVS 28(R3), F23
+	VDUP V23.S[0], V23.S4
+	FMOVS 32(R3), F24
+	VDUP V24.S[0], V24.S4
+	MOVD $samNegOneI32<>(SB), R3
+	VLD1 (R3), [V11.S4]
+	SAM_EXP_V0_TO_V6
+	FMOVS F6, ret+8(FP)
+	RET
 
 // func GreedySampleFloat32NEONAsm(logits *float32, count int) int32
 TEXT ·GreedySampleFloat32NEONAsm(SB), NOSPLIT, $16-20
@@ -255,9 +290,10 @@ sam_softmax_max_done:
 	VDUP V23.S[0], V23.S4
 	FMOVS 32(R3), F24
 	VDUP V24.S[0], V24.S4
+	MOVD $samNegOneI32<>(SB), R3
+	VLD1 (R3), [V11.S4]
 	FMOVS samSoftmaxClamp<>(SB), F30
 	VDUP V30.S[0], V30.S4
-	FMOVD $0, F31
 
 sam_softmax_exp_loop4:
 	CMP  $4, R2
@@ -268,17 +304,16 @@ sam_softmax_exp_loop4:
 	VFSUB_S4(28, 0, 0)
 	VFDIV_S4(10, 0, 0)
 	VFSUB_S4(30, 0, 8)
-	VFCMLTZ_S4(8, 9)
+	VFCMLTZ_S4(8, 7)
 	SAM_EXP_V0_TO_V6
-	VBIC_B16(9, 6, 6)
+	VBIC_B16(7, 6, 6)
 	VST1 [V6.S4], (R1)
-	SAM_ACCUM_V6_TO_F64_SUM
 	ADD  $16, R1
 	SUB  $4, R2
 	B    sam_softmax_exp_loop4
 
 sam_softmax_exp_scalar:
-	CBZ  R2, sam_softmax_normalize
+	CBZ  R2, sam_softmax_sum
 
 	MOVD count+24(FP), R6
 	SUB  R2, R6, R6
@@ -296,30 +331,42 @@ sam_softmax_exp_scalar_loop:
 	FMOVS $0, F2
 	FCMPS F1, F2
 	BPL  sam_softmax_exp_scalar_compute
-	FMOVS ZR, F6
+	FMOVS $0, F6
 	B    sam_softmax_exp_scalar_store
 
 sam_softmax_exp_scalar_compute:
 	VDUP V0.S[0], V0.S4
 	SAM_EXP_V0_TO_V6
+	FMOVS F6, F6
 
 sam_softmax_exp_scalar_store:
 	FMOVS F6, (R1)
-	FCVTSD F6, F6
-	FADDD F6, F31, F31
 	ADD  $4, R0
 	ADD  $4, R1
 	SUB  $1, R2
 	CBNZ R2, sam_softmax_exp_scalar_loop
 
+sam_softmax_sum:
+	MOVD out+8(FP), R0
+	MOVD count+24(FP), R2
+	FMOVS $0, F31
+
+sam_softmax_sum_loop:
+	CBZ  R2, sam_softmax_normalize
+
+	FMOVS (R0), F6
+	FADDS F6, F31, F31
+	ADD  $4, R0
+	SUB  $1, R2
+	B    sam_softmax_sum_loop
+
 sam_softmax_normalize:
-	FMOVD $0, F15
-	FCMPD F31, F15
+	FMOVS $0, F15
+	FCMPS F31, F15
 	BEQ  sam_softmax_done
 
-	FMOVD $1.0, F8
-	FDIVD F31, F8, F8
-	FCVTDS F8, F8
+	FMOVS $1.0, F8
+	FDIVS F31, F8, F8
 	VDUP V8.S[0], V8.S4
 
 	MOVD out+8(FP), R0
@@ -349,3 +396,4 @@ sam_softmax_scale_scalar_loop:
 
 sam_softmax_done:
 	RET
+
