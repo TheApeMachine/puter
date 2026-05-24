@@ -1,0 +1,74 @@
+#ifndef PUTER_DEVICE_METAL_INTERNAL_NORM_STATS_METALINC
+#define PUTER_DEVICE_METAL_INTERNAL_NORM_STATS_METALINC
+
+#include "../elementwise/elementwise_f64_soft.metalinc"
+
+constant ulong SF64_NORM_EPSILON = 0x3EE4F8B588E368F1u;
+constant ulong SF64_NORM_ZERO = 0x0u;
+
+static inline float metal_norm_mean_f32(ulong sum64, uint count) {
+    ulong count64 = metal_sf64_int_to64(int(count));
+    ulong mean64 = metal_sf64_div(sum64, count64);
+
+    return as_type<float>(metal_sf64_to32(mean64));
+}
+
+static inline ulong metal_norm_reduce_sum_sf64(
+    device const float* input,
+    threadgroup ulong* reduction,
+    uint baseOffset,
+    uint elementCount,
+    uint threadIndex,
+    uint threadCount
+) {
+    ulong localSum = SF64_NORM_ZERO;
+
+    for (uint index = threadIndex; index < elementCount; index += threadCount) {
+        float value = input[baseOffset + index];
+        localSum = metal_sf64_add(localSum, metal_sf32_to64(as_type<uint>(value)));
+    }
+
+    reduction[threadIndex] = localSum;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    for (uint stride = threadCount / 2; stride > 0; stride >>= 1) {
+        if (threadIndex < stride) {
+            reduction[threadIndex] = metal_sf64_add(
+                reduction[threadIndex],
+                reduction[threadIndex + stride]
+            );
+        }
+
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+
+    return reduction[0];
+}
+
+static inline float metal_norm_tree_reduce_f32(
+    threadgroup float* reduction,
+    uint threadIndex,
+    uint threadCount
+) {
+    for (uint stride = threadCount / 2; stride > 0; stride >>= 1) {
+        if (threadIndex < stride) {
+            reduction[threadIndex] += reduction[threadIndex + stride];
+        }
+
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+
+    return reduction[0];
+}
+
+static inline float metal_norm_inv_std_dev_f32(float varianceSum, uint count) {
+    ulong varSum64 = metal_sf32_to64(as_type<uint>(varianceSum));
+    ulong count64 = metal_sf64_int_to64(int(count));
+    ulong variance64 = metal_sf64_div(varSum64, count64);
+    ulong varianceWithEpsilon = metal_sf64_add(variance64, SF64_NORM_EPSILON);
+    float varianceMean = as_type<float>(metal_sf64_to32(varianceWithEpsilon));
+
+    return rsqrt(varianceMean);
+}
+
+#endif

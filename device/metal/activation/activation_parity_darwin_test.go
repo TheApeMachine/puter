@@ -41,10 +41,17 @@ func TestActivationStandardUnaryMetalParity(t *testing.T) {
 				kernel:    StandardExp,
 			},
 			{
-				name:      "Gelu",
+				name:      "GeluTanh",
 				maxULPF32: 8,
 				maxULPRed: 3,
 				reference: parity.ReferenceGeluTanh,
+				kernel:    StandardGeluTanh,
+			},
+			{
+				name:      "Gelu",
+				maxULPF32: 2,
+				maxULPRed: 3,
+				reference: parity.ReferenceGelu,
 				kernel:    StandardGelu,
 			},
 		}

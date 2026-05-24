@@ -1,0 +1,194 @@
+#ifndef PUTER_DEVICE_METAL_LAYERNORM_COMMON_METALINC
+#define PUTER_DEVICE_METAL_LAYERNORM_COMMON_METALINC
+
+#include <metal_stdlib>
+#include "../internal/norm_stats.metalinc"
+
+using namespace metal;
+
+constant uint normalizationThreadCount = 256; // Must match LAYERNORM_THREAD_COUNT in layernorm_thread_count.h.
+constant float layerNormEpsilonMetal = 1.0e-5f;
+constant float rmsNormEpsilonMetalDefault = 1.0e-6f;
+
+static inline float bf16_to_float_norm(ushort value) {
+    return as_type<float>(uint(value) << 16);
+}
+
+static inline ushort float_to_bf16_norm(float value) {
+    return ushort(as_type<uint>(value) >> 16);
+}
+
+struct Float32NormStorage {
+    static float load(device const float* values, uint index) {
+        return values[index];
+    }
+
+    static void store(device float* values, uint index, float value) {
+        values[index] = value;
+    }
+};
+
+struct Float16NormStorage {
+    static float load(device const half* values, uint index) {
+        return float(values[index]);
+    }
+
+    static void store(device half* values, uint index, float value) {
+        values[index] = half(value);
+    }
+};
+
+struct BFloat16NormStorage {
+    static float load(device const ushort* values, uint index) {
+        return bf16_to_float_norm(values[index]);
+    }
+
+    static void store(device ushort* values, uint index, float value) {
+        values[index] = float_to_bf16_norm(value);
+    }
+};
+
+template <typename Storage, typename Scalar>
+static inline float reduce_sum(
+    device const Scalar* input,
+    threadgroup float* reduction,
+    uint rowOffset,
+    uint cols,
+    uint threadIndex
+) {
+    float localSum = 0.0f;
+    float localCompensation = 0.0f;
+
+    for (uint col = threadIndex; col < cols; col += normalizationThreadCount) {
+        float value = Storage::load(input, rowOffset + col) - localCompensation;
+        float nextSum = localSum + value;
+        localCompensation = (nextSum - localSum) - value;
+        localSum = nextSum;
+    }
+
+    reduction[threadIndex] = localSum;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    for (uint stride = normalizationThreadCount / 2; stride > 0; stride >>= 1) {
+        if (threadIndex < stride) {
+            reduction[threadIndex] += reduction[threadIndex + stride];
+        }
+
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+
+    return reduction[0];
+}
+
+template <typename Storage, typename Scalar>
+static inline void compute_row_stats(
+    device const Scalar* input,
+    threadgroup float* reduction,
+    threadgroup ulong* sf64Reduction,
+    uint rowOffset,
+    constant uint& cols,
+    uint threadIndex,
+    thread float& mean,
+    thread float& invStdDev
+) {
+    ulong sum64 = SF64_NORM_ZERO;
+
+    for (uint col = threadIndex; col < cols; col += normalizationThreadCount) {
+        float value = Storage::load(input, rowOffset + col);
+        sum64 = metal_sf64_add(sum64, metal_sf32_to64(as_type<uint>(value)));
+    }
+
+    sf64Reduction[threadIndex] = sum64;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    for (uint stride = normalizationThreadCount / 2; stride > 0; stride >>= 1) {
+        if (threadIndex < stride) {
+            sf64Reduction[threadIndex] = metal_sf64_add(
+                sf64Reduction[threadIndex],
+                sf64Reduction[threadIndex + stride]
+            );
+        }
+
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+
+    mean = metal_norm_mean_f32(sf64Reduction[0], cols);
+    float localVariance = 0.0f;
+    float localCompensation = 0.0f;
+
+    for (uint col = threadIndex; col < cols; col += normalizationThreadCount) {
+        float delta = Storage::load(input, rowOffset + col) - mean;
+        float value = delta * delta - localCompensation;
+        float nextVariance = localVariance + value;
+        localCompensation = (nextVariance - localVariance) - value;
+        localVariance = nextVariance;
+    }
+
+    reduction[threadIndex] = localVariance;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    for (uint stride = normalizationThreadCount / 2; stride > 0; stride >>= 1) {
+        if (threadIndex < stride) {
+            reduction[threadIndex] += reduction[threadIndex + stride];
+        }
+
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+
+    invStdDev = metal_norm_inv_std_dev_f32(reduction[0], cols);
+}
+
+template <typename Storage, typename Scalar>
+static inline void layernorm_apply_row(
+    device const Scalar* input,
+    device const Scalar* scale,
+    device const Scalar* bias,
+    device Scalar* out,
+    uint rowOffset,
+    constant uint& cols,
+    float mean,
+    float invStdDev,
+    uint threadIndex
+);
+
+template <typename Storage, typename Scalar>
+static inline void layernorm_rows(
+    device const Scalar* input,
+    device const Scalar* scale,
+    device const Scalar* bias,
+    device Scalar* out,
+    threadgroup float* reduction,
+    threadgroup ulong* sf64Reduction,
+    constant uint& cols,
+    uint row,
+    uint threadIndex
+) {
+    uint rowOffset = row * cols;
+    float mean;
+    float invStdDev;
+
+    compute_row_stats<Storage, Scalar>(
+        input,
+        reduction,
+        sf64Reduction,
+        rowOffset,
+        cols,
+        threadIndex,
+        mean,
+        invStdDev
+    );
+
+    layernorm_apply_row<Storage, Scalar>(
+        input,
+        scale,
+        bias,
+        out,
+        rowOffset,
+        cols,
+        mean,
+        invStdDev,
+        threadIndex
+    );
+}
+
+#endif

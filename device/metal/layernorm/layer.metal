@@ -2,7 +2,6 @@
 
 using namespace metal;
 
-
 #define LAYERNORM_KERNEL(name, storage, scalar) \
 kernel void name( \
     device const scalar* input [[buffer(0)]], \
@@ -13,8 +12,11 @@ kernel void name( \
     uint row [[threadgroup_position_in_grid]], \
     uint threadIndex [[thread_position_in_threadgroup]] \
 ) { \
-    threadgroup float reduction[256]; \
-    layernorm_rows<storage, scalar>(input, scale, bias, out, reduction, cols, row, threadIndex); \
+    threadgroup float reduction[normalizationThreadCount]; \
+    threadgroup ulong sf64Reduction[normalizationThreadCount]; \
+    layernorm_rows<storage, scalar>( \
+        input, scale, bias, out, reduction, sf64Reduction, cols, row, threadIndex \
+    ); \
 }
 
 #define RMSNORM_KERNEL(name, storage, scalar) \

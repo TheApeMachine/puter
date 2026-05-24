@@ -20,6 +20,29 @@ int metal_dispatch_layernorm(
 	MetalStatus* status
 );
 
+int metal_dispatch_layernorm_stats(
+	MetalDeviceRef contextRef,
+	MetalBufferRef inputRef,
+	MetalBufferRef rowStatsRef,
+	uint32_t rows,
+	uint32_t cols,
+	uint64_t completionToken,
+	MetalStatus* status
+);
+
+int metal_dispatch_layernorm_apply(
+	MetalDeviceRef contextRef,
+	MetalBufferRef inputRef,
+	MetalBufferRef scaleRef,
+	MetalBufferRef biasRef,
+	MetalBufferRef outRef,
+	MetalBufferRef rowStatsRef,
+	uint32_t rows,
+	uint32_t cols,
+	uint64_t completionToken,
+	MetalStatus* status
+);
+
 #ifdef __cplusplus
 }
 #endif

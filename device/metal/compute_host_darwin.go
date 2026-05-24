@@ -8,12 +8,11 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/puter/device"
 	"github.com/theapemachine/puter/device/metal/activation"
+	"github.com/theapemachine/puter/device/metal/dropout"
 	"github.com/theapemachine/puter/device/metal/elementwise"
 	"github.com/theapemachine/puter/device/metal/layernorm"
-	"github.com/theapemachine/puter/device/metal/losses"
+	"github.com/theapemachine/puter/device/metal/matmul"
 	"github.com/theapemachine/puter/device/metal/normalization"
-	"github.com/theapemachine/puter/device/metal/reduction"
-	"github.com/theapemachine/puter/device/metal/sampling"
 )
 
 type ComputeHost struct {
@@ -78,7 +77,23 @@ func (host *ComputeHost) matrixRowsCols(pointer unsafe.Pointer) (rows uint32, co
 }
 
 func (host *ComputeHost) BinaryElementwise(dst, left, right unsafe.Pointer, format dtype.DType, kernel elementwise.BinaryKernel) {
-	host.unavailable()
+	count := host.elementCount(dst, left, right)
+
+	if count == 0 {
+		return
+	}
+
+	if err := elementwise.DispatchBinaryElementwiseRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(dst))),
+		uintptr(unsafe.Pointer(resolveBufferRef(left))),
+		uintptr(unsafe.Pointer(resolveBufferRef(right))),
+		format,
+		kernel,
+		count,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchALiBiBias(scores, slope, output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
@@ -102,7 +117,22 @@ func (host *ComputeHost) DispatchAvgPool2D(config device.PoolConfig, input, outp
 }
 
 func (host *ComputeHost) DispatchAxpy(y, x unsafe.Pointer, alpha float32, format dtype.DType) {
-	host.unavailable()
+	count := host.elementCount(y, x)
+
+	if count == 0 {
+		return
+	}
+
+	if err := elementwise.DispatchAxpyRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(y))),
+		uintptr(unsafe.Pointer(resolveBufferRef(x))),
+		format,
+		alpha,
+		count,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchBackdoorAdjustment(conditional, marginalZ, output unsafe.Pointer, xCount, zCount, yCount int, format dtype.DType) {
@@ -182,7 +212,20 @@ func (host *ComputeHost) DispatchDoIntervene(adjacency, intervened, output unsaf
 }
 
 func (host *ComputeHost) DispatchDropout(dst, src unsafe.Pointer, count int, config device.DropoutConfig, format dtype.DType) {
-	host.unavailable()
+	if count == 0 {
+		return
+	}
+
+	if err := dropout.DispatchDropoutRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(src))),
+		uintptr(unsafe.Pointer(resolveBufferRef(dst))),
+		uint32(count),
+		config,
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchExpectedFreeEnergy(predictedObs, preferredObs, predictedState, output unsafe.Pointer, obsCount, stateCount int, format dtype.DType) {
@@ -408,7 +451,22 @@ func (host *ComputeHost) LaunchRMSNorm(input, scale, output unsafe.Pointer, rows
 }
 
 func (host *ComputeHost) MatmulLaunch(out, left, right unsafe.Pointer, rows, inner, cols int, format dtype.DType) {
-	host.unavailable()
+	if rows == 0 || inner == 0 || cols == 0 {
+		return
+	}
+
+	if err := matmul.DispatchMatmulRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(left))),
+		uintptr(unsafe.Pointer(resolveBufferRef(right))),
+		uintptr(unsafe.Pointer(resolveBufferRef(out))),
+		format,
+		uint32(rows),
+		uint32(inner),
+		uint32(cols),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) PReLUV(dst, src, slopes unsafe.Pointer, format dtype.DType) {
@@ -452,7 +510,22 @@ func (host *ComputeHost) StandardUnary(dst, src unsafe.Pointer, format dtype.DTy
 }
 
 func (host *ComputeHost) UnaryElementwise(dst, src unsafe.Pointer, format dtype.DType, kernel elementwise.UnaryKernel) {
-	host.unavailable()
+	count := host.elementCount(dst, src)
+
+	if count == 0 {
+		return
+	}
+
+	if err := elementwise.DispatchUnaryMathRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(dst))),
+		uintptr(unsafe.Pointer(resolveBufferRef(src))),
+		format,
+		kernel,
+		count,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) UnaryParam(dst, src unsafe.Pointer, format dtype.DType, kernelName string, param float32) {
@@ -473,61 +546,4 @@ func (host *ComputeHost) UnaryParam(dst, src unsafe.Pointer, format dtype.DType,
 	); err != nil {
 		host.dispatchError(err)
 	}
-}
-
-func (host *ComputeHost) ReductionScalar(
-	values unsafe.Pointer,
-	count int,
-	format dtype.DType,
-	kernel reduction.ReductionKernel,
-) float32 {
-	host.unavailable()
-	return 0
-}
-
-func (host *ComputeHost) DotProduct(
-	left, right unsafe.Pointer,
-	count int,
-	format dtype.DType,
-) float32 {
-	host.unavailable()
-	return 0
-}
-
-func (host *ComputeHost) PairLossScalar(
-	predictions, targets unsafe.Pointer,
-	format dtype.DType,
-	kernel losses.LossKernel,
-) float32 {
-	host.unavailable()
-	return 0
-}
-
-func (host *ComputeHost) CrossEntropyScalar(
-	logits, targets unsafe.Pointer,
-	batchSize, classes int,
-	format dtype.DType,
-) float32 {
-	host.unavailable()
-	return 0
-}
-
-func (host *ComputeHost) SamplingIndex(
-	kernel sampling.SamplingKernel,
-	config device.SamplingConfig,
-	logits unsafe.Pointer,
-	vocabSize int,
-	format dtype.DType,
-) int32 {
-	host.unavailable()
-	return 0
-}
-
-func (host *ComputeHost) DispatchSimilarity(
-	left, right unsafe.Pointer,
-	count int,
-	format dtype.DType,
-) float32 {
-	host.unavailable()
-	return 0
 }

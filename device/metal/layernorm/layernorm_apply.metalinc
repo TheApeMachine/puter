@@ -1,0 +1,28 @@
+#ifndef PUTER_DEVICE_METAL_LAYERNORM_APPLY_METALINC
+#define PUTER_DEVICE_METAL_LAYERNORM_APPLY_METALINC
+
+template <typename Storage, typename Scalar>
+static inline void layernorm_apply_row(
+    device const Scalar* input,
+    device const Scalar* scale,
+    device const Scalar* bias,
+    device Scalar* out,
+    uint rowOffset,
+    constant uint& cols,
+    float mean,
+    float invStdDev,
+    uint threadIndex
+) {
+    for (uint col = threadIndex; col < cols; col += normalizationThreadCount) {
+        float inputValue = Storage::load(input, rowOffset + col);
+        float delta = inputValue - mean;
+        float normalized = delta * invStdDev;
+        float scaleValue = Storage::load(scale, col);
+        float scaled = normalized * scaleValue;
+        float biasValue = Storage::load(bias, col);
+        float result = scaled + biasValue;
+        Storage::store(out, rowOffset + col, result);
+    }
+}
+
+#endif

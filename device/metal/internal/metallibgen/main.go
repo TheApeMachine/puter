@@ -92,15 +92,34 @@ func (generator *Generator) SourceFiles() ([]string, error) {
 }
 
 func (generator *Generator) MetalArgs(source string) []string {
-	return []string{
+	args := []string{
 		"-sdk",
 		"macosx",
 		"metal",
+	}
+
+	if generator.needsStrictFP(source) {
+		// Apply-phase Metal sources use the *_apply.metal suffix so they compile with
+		// -ffp-contract=off; see internal/metallibgen/README.md before renaming.
+		args = append(args, "-ffp-contract=off")
+	}
+
+	return append(
+		args,
 		"-c",
 		source,
 		"-o",
 		generator.AirPath(source),
-	}
+	)
+}
+
+// needsStrictFP reports whether a Metal source must compile with -ffp-contract=off.
+// Apply-phase kernels use the *_apply.metal filename suffix; keep that convention
+// when adding or renaming apply sources so strict FP is not dropped silently.
+func (generator *Generator) needsStrictFP(source string) bool {
+	baseName := filepath.Base(source)
+
+	return strings.HasSuffix(baseName, "_apply.metal")
 }
 
 func (generator *Generator) MetallibArgs(sources []string) []string {

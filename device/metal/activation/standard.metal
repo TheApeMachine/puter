@@ -1,5 +1,6 @@
 #include <metal_stdlib>
 #include "activation.metal"
+#include "../elementwise/elementwise_f64_math.metalinc"
 #include "activation_ops_f16.metalinc"
 #include "activation_ops_bf16.metalinc"
 
@@ -38,16 +39,11 @@ struct TanhOp {
 
 struct GeluOp {
     float4 operator()(float4 value) const {
-        return float4(
-            metal_fast_gelu_tanh(value.x),
-            metal_fast_gelu_tanh(value.y),
-            metal_fast_gelu_tanh(value.z),
-            metal_fast_gelu_tanh(value.w)
-        );
+        return metal_gelu_float4(value);
     }
 
     float operator()(float value) const {
-        return metal_fast_gelu_tanh(value);
+        return metal_gelu_softfloat_scalar(value);
     }
 };
 
@@ -122,8 +118,6 @@ struct HardSwishOp {
 };
 
 constant float metalCeluAlpha = 1.0f;
-constant float metalGeluTanhAlpha = 0.7978845608028654f;
-constant float metalGeluTanhBeta = 0.044715f;
 constant float metalQuickGeluScale = 1.702f;
 constant float metalHardTanhMin = -1.0f;
 constant float metalHardTanhMax = 1.0f;

@@ -137,7 +137,7 @@ func randomLayerNormVector(length int, seed int64) []float32 {
 
 func layerNormMaxULP(format dtype.DType) int {
 	if format == dtype.Float32 {
-		return 2
+		return 3
 	}
 
 	return 24

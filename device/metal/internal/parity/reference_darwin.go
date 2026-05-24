@@ -7,12 +7,15 @@ import (
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/puter/device"
 	cpuactivation "github.com/theapemachine/puter/device/cpu/activation"
+	cpulayernorm "github.com/theapemachine/puter/device/cpu/layernorm"
+	cpunormalization "github.com/theapemachine/puter/device/cpu/normalization"
 )
 
 var referenceActivation = cpuactivation.New()
-
-const normEpsilon = 1e-5
+var referenceLayerNorm = cpulayernorm.New()
+var referenceNormalization = cpunormalization.New()
 
 /*
 UnaryReference computes the CPU production reference for a unary activation.
@@ -87,52 +90,97 @@ func ComputeUnaryReference(
 }
 
 /*
-GroupNormReference computes the GroupNorm reference matching Metal MSL reduction order.
+GroupNormReference computes GroupNorm using the CPU production dispatcher.
 */
 func GroupNormReference(
 	input, scale, bias []float32,
 	batch, channels, spatial, groups int,
 	storageDType dtype.DType,
 ) []float32 {
-	output := make([]float32, len(input))
-	channelsPerGroup := channels / groups
-	groupSize := channelsPerGroup * spatial
+	inputBytes, err := encodeVector(input, storageDType)
 
-	for batchIndex := 0; batchIndex < batch; batchIndex++ {
-		for groupIndex := 0; groupIndex < groups; groupIndex++ {
-			channelStart := groupIndex * channelsPerGroup
-			groupStart := batchIndex*channels*spatial + channelStart*spatial
-			groupInput := input[groupStart : groupStart+groupSize]
-			groupOutput := output[groupStart : groupStart+groupSize]
-			groupScale := scale[channelStart : channelStart+channelsPerGroup]
-			groupBias := bias[channelStart : channelStart+channelsPerGroup]
-
-			metalGroupNormGroup(groupInput, groupOutput, groupScale, groupBias, channelsPerGroup, spatial, storageDType)
-		}
+	if err != nil {
+		panic(err)
 	}
 
-	return output
+	scaleBytes, err := encodeVector(scale, storageDType)
+
+	if err != nil {
+		panic(err)
+	}
+
+	biasBytes, err := encodeVector(bias, storageDType)
+
+	if err != nil {
+		panic(err)
+	}
+
+	outputBytes := make([]byte, len(inputBytes))
+	referenceNormalization.GroupNorm(
+		device.GroupNormConfig{Groups: groups},
+		unsafe.Pointer(&inputBytes[0]),
+		unsafe.Pointer(&scaleBytes[0]),
+		unsafe.Pointer(&biasBytes[0]),
+		unsafe.Pointer(&outputBytes[0]),
+		batch,
+		channels,
+		spatial,
+		storageDType,
+	)
+
+	decoded, err := decodeVector(outputBytes, storageDType)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return decoded
 }
 
 /*
-LayerNormReference computes the LayerNorm reference matching Metal MSL reduction order.
+LayerNormReference computes LayerNorm using the CPU production dispatcher.
 */
 func LayerNormReference(
 	input, scale, bias []float32,
 	rows, cols int,
 	storageDType dtype.DType,
 ) []float32 {
-	output := make([]float32, len(input))
+	inputBytes, err := encodeVector(input, storageDType)
 
-	for rowIndex := 0; rowIndex < rows; rowIndex++ {
-		rowStart := rowIndex * cols
-		rowInput := input[rowStart : rowStart+cols]
-		rowOutput := output[rowStart : rowStart+cols]
-
-		metalLayerNormRow(rowInput, rowOutput, scale, bias, storageDType)
+	if err != nil {
+		panic(err)
 	}
 
-	return output
+	scaleBytes, err := encodeVector(scale, storageDType)
+
+	if err != nil {
+		panic(err)
+	}
+
+	biasBytes, err := encodeVector(bias, storageDType)
+
+	if err != nil {
+		panic(err)
+	}
+
+	outputBytes := make([]byte, len(inputBytes))
+	referenceLayerNorm.LayerNorm(
+		unsafe.Pointer(&inputBytes[0]),
+		unsafe.Pointer(&scaleBytes[0]),
+		unsafe.Pointer(&biasBytes[0]),
+		unsafe.Pointer(&outputBytes[0]),
+		rows,
+		cols,
+		storageDType,
+	)
+
+	decoded, err := decodeVector(outputBytes, storageDType)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return decoded
 }
 
 func decodeVector(bytesIn []byte, format dtype.DType) ([]float32, error) {

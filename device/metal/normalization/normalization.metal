@@ -179,10 +179,14 @@ static inline void groupnorm_rows(
     float mean = reduce_sum<Storage, Scalar>(input, reduction, groupOffset, groupSize, threadIndex) /
         float(groupSize);
     float localVariance = 0.0f;
+    float localCompensation = 0.0f;
 
     for (uint offset = threadIndex; offset < groupSize; offset += normalizationThreadCount) {
         float delta = Storage::load(input, groupOffset + offset) - mean;
-        localVariance += delta * delta;
+        float value = delta * delta - localCompensation;
+        float nextVariance = localVariance + value;
+        localCompensation = (nextVariance - localVariance) - value;
+        localVariance = nextVariance;
     }
 
     reduction[threadIndex] = localVariance;
@@ -196,14 +200,17 @@ static inline void groupnorm_rows(
         threadgroup_barrier(mem_flags::mem_threadgroup);
     }
 
-    float invStdDev = 1.0f / sqrt(reduction[0] / float(groupSize) + layerNormEpsilonMetal);
+    float invStdDev = rsqrt(reduction[0] / float(groupSize) + layerNormEpsilonMetal);
 
     for (uint offset = threadIndex; offset < groupSize; offset += normalizationThreadCount) {
         uint channel = channelStart + offset / spatial;
-        float normalized = (Storage::load(input, groupOffset + offset) - mean) * invStdDev;
-        float scaled = normalized * Storage::load(scale, channel);
-        float value = scaled + Storage::load(bias, channel);
-        Storage::store(out, groupOffset + offset, value);
+        float inputValue = Storage::load(input, groupOffset + offset);
+        float delta = inputValue - mean;
+        float normalized = delta * invStdDev;
+        float scaleValue = Storage::load(scale, channel);
+        float scaled = normalized * scaleValue;
+        float biasValue = Storage::load(bias, channel);
+        Storage::store(out, groupOffset + offset, scaled + biasValue);
     }
 }
 
@@ -302,7 +309,7 @@ kernel void name( \
     uint row [[threadgroup_position_in_grid]], \
     uint threadIndex [[thread_position_in_threadgroup]] \
 ) { \
-    threadgroup float reduction[256]; \
+    threadgroup float reduction[normalizationThreadCount]; \
     groupnorm_rows<storage, scalar>( \
         input, scale, bias, out, reduction, channels, spatial, groups, row, threadIndex \
     ); \

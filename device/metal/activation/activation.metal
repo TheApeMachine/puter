@@ -9,33 +9,82 @@ constant float metalActivationSELUAlpha = 1.67326324235437728482f;
 constant float metalActivationSELUScale = 1.05070098735548049342f;
 constant float metalActivationLeakyReLUSlope = 0.01f;
 
-static inline float metal_fast_tanh(float value) {
-    if (value > 4.92f) {
-        return 1.0f;
+constant float metalGeluTanhAlpha = 0.7978845608028654f;
+constant float metalGeluTanhBeta = 0.044715f;
+constant float metalFastExp32Log2E = 1.4426950408889634f;
+constant float metalFastExp32Ln2 = 0.6931471805599453f;
+constant float metalFastExp32Min = -87.33654f;
+constant float metalFastExp32Max = 88.72283f;
+constant float metalFastExp32Overflow = 0x1.fffffep127f;
+constant float metalFastExp32PolyC7 = 0.00019841270f;
+constant float metalFastExp32PolyC6 = 0.0013888889f;
+constant float metalFastExp32PolyC5 = 0.008333334f;
+constant float metalFastExp32PolyC4 = 0.041666667f;
+constant float metalFastExp32PolyC3 = 0.16666667f;
+constant float metalFastExp32PolyC2 = 0.5f;
+constant float metalFastExp32PolyC1 = 1.0f;
+constant float metalFastExp32PolyC0 = 1.0f;
+constant float metalFastExp32ExponentBias = 127.0f;
+
+static inline float metal_exp32_horner(float value) {
+    float scaled = value * metalFastExp32Log2E;
+    float roundedK = rint(scaled);
+    float fraction = value - roundedK * metalFastExp32Ln2;
+    float poly = metalFastExp32PolyC7;
+
+    poly = fma(fraction, poly, metalFastExp32PolyC6);
+    poly = fma(fraction, poly, metalFastExp32PolyC5);
+    poly = fma(fraction, poly, metalFastExp32PolyC4);
+    poly = fma(fraction, poly, metalFastExp32PolyC3);
+    poly = fma(fraction, poly, metalFastExp32PolyC2);
+    poly = fma(fraction, poly, metalFastExp32PolyC1);
+    poly = fma(fraction, poly, metalFastExp32PolyC0);
+
+    int32_t exponentInt = int32_t(roundedK);
+    uint scaleBits = as_type<uint>(exponentInt + 127) << 23;
+
+    return poly * as_type<float>(scaleBits);
+}
+
+static inline float metal_fast_exp32(float value) {
+    if (value < metalFastExp32Min) {
+        return 0.0f;
     }
 
-    if (value < -4.92f) {
-        return -1.0f;
+    if (value > metalFastExp32Max) {
+        return metalFastExp32Overflow;
     }
 
-    float valueSquared = value * value;
-    float numerator = value * (
-        135135.0f + valueSquared * (17325.0f + valueSquared * (378.0f + valueSquared))
-    );
-    float denominator = 135135.0f + valueSquared * (
-        62370.0f + valueSquared * (3150.0f + valueSquared * 28.0f)
-    );
+    return metal_exp32_horner(value);
+}
 
-    return numerator / denominator;
+static inline float metal_fast_tanh_exp32(float value) {
+    float expTwoValue = metal_fast_exp32(2.0f * value);
+
+    return (expTwoValue - 1.0f) / (expTwoValue + 1.0f);
 }
 
 static inline float metal_fast_gelu_tanh(float value) {
-    double valueFloat64 = double(value);
-    double inner = 0.7978845608028654 * (
-        valueFloat64 + 0.044715 * valueFloat64 * valueFloat64 * valueFloat64
-    );
+    float valueCubed = value * value * value;
+    float inner = metalGeluTanhAlpha * fma(metalGeluTanhBeta, valueCubed, value);
+    const float expInnerLimit = metalFastExp32Max * 0.5f;
 
-    return float(0.5 * valueFloat64 * (1.0 + double(metal_fast_tanh(float(inner)))));
+    if (inner >= expInnerLimit) {
+        return value;
+    }
+
+    if (inner <= -expInnerLimit) {
+        return 0.0f;
+    }
+
+    float tanhValue = metal_fast_tanh_exp32(inner);
+
+#pragma METAL fp_contract(off)
+    float onePlusTanh = 1.0f + tanhValue;
+    float scaled = value * onePlusTanh;
+
+    return 0.5f * scaled;
+#pragma METAL fp_contract(on)
 }
 
 template <typename UnaryOp>

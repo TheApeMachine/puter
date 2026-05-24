@@ -90,6 +90,100 @@ func DispatchLayerNormRefs(
 	)
 }
 
+func DispatchLayerNormStatsRefs(
+	contextRef uintptr,
+	inputBuffer uintptr,
+	statsBuffer uintptr,
+	rows uint32,
+	cols uint32,
+) error {
+	return DispatchLayerNormStats(
+		C.MetalDeviceRef(unsafe.Pointer(contextRef)),
+		C.MetalBufferRef(unsafe.Pointer(inputBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(statsBuffer)),
+		rows,
+		cols,
+	)
+}
+
+func DispatchLayerNormStats(
+	contextRef C.MetalDeviceRef,
+	inputBuffer C.MetalBufferRef,
+	statsBuffer C.MetalBufferRef,
+	rows uint32,
+	cols uint32,
+) error {
+	var status C.MetalStatus
+	code := C.metal_dispatch_layernorm_stats(
+		contextRef,
+		inputBuffer,
+		statsBuffer,
+		C.uint32_t(rows),
+		C.uint32_t(cols),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		return metalStatusError(status)
+	}
+
+	return nil
+}
+
+func DispatchLayerNormApplyRefs(
+	contextRef uintptr,
+	inputBuffer uintptr,
+	scaleBuffer uintptr,
+	biasBuffer uintptr,
+	outputBuffer uintptr,
+	statsBuffer uintptr,
+	rows uint32,
+	cols uint32,
+) error {
+	return DispatchLayerNormApply(
+		C.MetalDeviceRef(unsafe.Pointer(contextRef)),
+		C.MetalBufferRef(unsafe.Pointer(inputBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(scaleBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(biasBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(outputBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(statsBuffer)),
+		rows,
+		cols,
+	)
+}
+
+func DispatchLayerNormApply(
+	contextRef C.MetalDeviceRef,
+	inputBuffer C.MetalBufferRef,
+	scaleBuffer C.MetalBufferRef,
+	biasBuffer C.MetalBufferRef,
+	outputBuffer C.MetalBufferRef,
+	statsBuffer C.MetalBufferRef,
+	rows uint32,
+	cols uint32,
+) error {
+	var status C.MetalStatus
+	code := C.metal_dispatch_layernorm_apply(
+		contextRef,
+		inputBuffer,
+		scaleBuffer,
+		biasBuffer,
+		outputBuffer,
+		statsBuffer,
+		C.uint32_t(rows),
+		C.uint32_t(cols),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		return metalStatusError(status)
+	}
+
+	return nil
+}
+
 var errUnsupportedDType = errors.New("metal layernorm: unsupported dtype")
 
 func metalStatusError(status C.MetalStatus) error {
