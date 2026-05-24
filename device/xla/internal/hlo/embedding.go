@@ -95,7 +95,7 @@ ENTRY main {
 `, moduleName, entryLayout,
 		tableLiteral, indicesLiteral, offsetsLiteral,
 		indexCount, lookupLiteral, hidden,
-		indexCount, indexCount, indexCount, bagCount, bagCount, indexCount, bagCount,
+		indexCount, indexCount, indexCount, indexCount, bagCount, bagCount, indexCount, bagCount,
 		indexCount, indexCount, indexCount,
 		elementType, outputLiteral, outputLiteral), nil
 }

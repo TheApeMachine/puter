@@ -175,6 +175,6 @@ ENTRY main {
 		elementType, epsilon,
 		obsLiteral, obsLiteral, stateLiteral,
 		obsLiteral, obsLiteral, stateLiteral,
-		obsLiteral, obsLiteral, stateLiteral, obsLiteral, stateLiteral,
-		elementType, scalarLiteral, scalarLiteral, scalarLiteral), nil
+		obsLiteral, obsLiteral, stateLiteral, stateLiteral,
+		elementType, elementType, elementType, scalarLiteral), nil
 }

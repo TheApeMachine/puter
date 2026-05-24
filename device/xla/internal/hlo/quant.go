@@ -47,9 +47,9 @@ ENTRY main {
 		inputLiteral,
 		elementType, scale, inputLiteral,
 		inputLiteral, elementType, zeroPointFloat, inputLiteral,
-		inputLiteral, elementType, inputLiteral,
+		inputLiteral, inputLiteral,
 		elementType, inputLiteral, elementType, inputLiteral,
-		inputLiteral, elementType, inputLiteral,
+		inputLiteral, inputLiteral,
 		count), nil
 }
 

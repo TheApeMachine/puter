@@ -47,7 +47,7 @@ ENTRY main {
 		elementType, elementType, elementType,
 		weightLiteral, repLiteral, errorLiteral,
 		elementType, outDim, outDim, repLiteral,
-		elementType, learningRate, repLiteral, repLiteral, repLiteral, repLiteral), nil
+		elementType, learningRate, repLiteral, repLiteral, repLiteral), nil
 }
 
 func RenderUpdateWeights(
@@ -86,6 +86,6 @@ ENTRY main {
 `, moduleName, entryLayout,
 		weightLiteral, repLiteral, errorLiteral,
 		elementType, outDim, outDim, elementType, inDim, inDim,
-		weightLiteral, weightLiteral, weightLiteral, weightLiteral,
+		weightLiteral, weightLiteral, weightLiteral,
 		elementType, learningRate, weightLiteral, weightLiteral, weightLiteral), nil
 }

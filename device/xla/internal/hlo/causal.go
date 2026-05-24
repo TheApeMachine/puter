@@ -248,7 +248,9 @@ ENTRY main {
 		vectorLiteral, vectorLiteral, vectorLiteral,
 		vectorLiteral, vectorLiteral,
 		elementType, elementType, elementType,
-		elementType, epsilon, elementType, epsilon,
+		elementType, epsilon,
+		elementType, elementType, epsilon,
+		elementType,
 		elementType, elementType, elementType, epsilon, scalarLiteral), nil
 }
 
@@ -297,7 +299,7 @@ ENTRY main {
 `, moduleName, entryLayout,
 		elementType, elementType, elementType,
 		miLiteral, partitionLiteral, targetLabel, nodeCount,
-		nodeCount, nodeCount, nodeCount, nodeCount,
+		nodeCount, nodeCount, nodeCount, nodeCount, nodeCount,
 		miLiteral, miLiteral, elementType,
 		elementType, elementType, nodeCount,
 		elementType, elementType, outputLiteral), nil
@@ -351,7 +353,7 @@ ENTRY main {
 		elementType, elementType, elementType,
 		mediatorLiteral, outcomeLiteral, marginalLiteral,
 		elementType, xCount, outcomeLiteral,
-		elementType, xCount, yCount,
+		elementType, elementType, xCount, yCount,
 		elementType, xCount, mCount, xCount, mCount,
 		outcomeLiteral, outputLiteral, xCount, yCount), nil
 }

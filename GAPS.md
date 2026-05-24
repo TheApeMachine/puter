@@ -433,6 +433,55 @@ This is currently the **second-most-damaging** thing in the codebase, after the 
 
 ---
 
+## 6.6 Known pre-existing test failures (not P0-related)
+
+These exist in the tree from before the P0 contract migration and are documented here so the next agent running `make verify` recognises them and doesn't waste time hunting their cause through recent changes.
+
+### 6.6.1 Duplicate CGo symbols — `device/metal.test` and `pool.test` link errors
+
+`go test ./...` fails to link the `device/metal` and `puter/pool` test binaries with errors like:
+
+```
+duplicate symbol '_metal_transformer_status_set' in: …000011.o, …000027.o, …000054.o
+duplicate symbol '_metal_dispatch_pool2d'        in: …000015.o, …000045.o
+duplicate symbol '_metal_vision_kernel_name'     in: …000015.o, …000045.o
+duplicate symbol '_metal_dispatch_timestep_embedding' in: …000003.o, …000005.o
+duplicate symbol '_metal_vision_dispatch'        in: …000015.o, …000045.o
+duplicate symbol '_metal_vision_status_set'      in: …000015.o, …000045.o
+duplicate symbol '_metal_transformer_kernel_name' in: …000011.o, …000027.o, …000054.o
+duplicate symbol '_metal_transformer_dispatch'    in: …000011.o, …000027.o, …000054.o
+ld: 8 duplicate symbols
+```
+
+These are CGo-level — multiple `.m` files under `device/metal/.../native/` define the same C function (`metal_transformer_dispatch`, `metal_vision_dispatch`, etc.). Probably a copy-paste between two family bridges plus a leftover transformer/vision bridge that wasn't cleaned up when work moved into family quintets (§2.3.1). The Metal quintet rules forbid cross-family bridges, but these symbol names suggest pre-quintet leftovers that still get linked in.
+
+**Diagnostic next step:** `grep -rn "metal_transformer_dispatch\|metal_vision_dispatch\|metal_dispatch_pool2d\|metal_dispatch_timestep_embedding" device/metal/`. The first match per symbol that lives in a family quintet stays; any siblings in other locations should be deleted or renamed.
+
+**Action priority:** P3. Blocks `make verify` from going fully green but does not affect the `device.Backend` contract or the kernels themselves (they still build and pass parity individually — only the test-binary link step fails when both family object files get pulled in together).
+
+### 6.6.2 `device/cpu/allocate_test.go:24` — GoConvey type-strict assertion ✓ FIXED
+
+Was: `So(uintptr(pointer)%workspaceAlign, ShouldEqual, 0)` — GoConvey's `ShouldEqual` is type-strict and bare `0` is `int` while the left side is `uintptr`. One-line fix landed: `ShouldEqual, uintptr(0)`.
+
+### 6.6.3 Metal ULP precision drift — `activation`, `layernorm`, `normalization`
+
+Three Metal parity tests fail by 1–3 ULPs over their declared tolerance:
+
+```
+TestActivationStandardUnaryMetalParity: lane 26 got=-0.058651008 want=-0.058651045 ulp=10 max=8
+TestLayerNormMetalParity:               lane 16 got= 0.026889674 want= 0.026889682 ulp= 4 max=3
+TestLayerNormMetalApplyParity:          lane 16 got= 0.026889674 want= 0.026889682 ulp= 4 max=3
+TestGroupNormMetalParity:               lane 30 got=-0.1459909   want=-0.1459908   ulp= 6 max=3
+```
+
+These are Metal-vs-scalar differences in the low-order bits at specific lanes — most likely fused-multiply-add ordering or sub-ULP rounding in the MSL kernels' Welford / softmax / exp paths. Per AGENTS.md §1, the fix is to make the Metal kernel bitwise-match the scalar reference (or get within the declared ULP budget), NOT to widen the tolerance.
+
+**Diagnostic next step:** for each failing test, narrow the input that produces the failing lane, then trace which MSL operation introduces the drift. Likely candidates: replace `exp(x)` with the same polynomial the scalar uses, force FMA on/off consistently, or rework the reduction order in normalization variance.
+
+**Action priority:** P3. Real correctness issue but isolated to three Metal kernels; does not block contract work, planner work, or diffusion excision.
+
+---
+
 ## 7. What's *not* a gap
 
 Worth recording, since the audit also confirmed several things are in good shape:

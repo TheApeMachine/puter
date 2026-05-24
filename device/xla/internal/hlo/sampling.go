@@ -118,10 +118,11 @@ ENTRY main {
 		elementType, elementType, elementType,
 		elementType, elementType, elementType, elementType,
 		logitsLiteral, elementType, elementType, logitsLiteral,
-		elementType, elementType, elementType, elementType,
-		elementType, elementType, elementType, elementType,
-		elementType, temperature, elementType, elementType,
-		elementType, elementType, vocabSize,
+		logitsLiteral, elementType, temperature, logitsLiteral,
+		logitsLiteral, logitsLiteral, elementType, elementType,
+		logitsLiteral, logitsLiteral, vocabSize,
 		elementType, vocabSize, vocabSize,
-		elementType, vocabSize, vocabSize, elementType, elementType), nil
+		elementType, vocabSize,
+		vocabSize,
+		logitsLiteral, stackLiteral), nil
 }

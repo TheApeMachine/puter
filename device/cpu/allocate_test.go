@@ -21,7 +21,10 @@ func TestBackendAllocateAligned(t *testing.T) {
 			pointer, err := backend.allocateAligned(128)
 			So(err, ShouldBeNil)
 			So(pointer, ShouldNotBeNil)
-			So(uintptr(pointer)%workspaceAlign, ShouldEqual, 0)
+			// Match types: uintptr(pointer)%workspaceAlign is uintptr.
+			// GoConvey's ShouldEqual is type-strict; passing bare 0 (int)
+			// causes "type difference" failure.
+			So(uintptr(pointer)%workspaceAlign, ShouldEqual, uintptr(0))
 		})
 	})
 }

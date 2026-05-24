@@ -141,7 +141,7 @@ ENTRY main {
 		matrixLiteral, rows-1, cols, matrixLiteral, rows-1, rows, cols, matrixLiteral,
 		matrixLiteral, rows, cols, matrixLiteral, rows, matrixLiteral,
 		matrixLiteral, rows, cols-1, matrixLiteral, rows, cols-1, cols, matrixLiteral,
-		matrixLiteral, matrixLiteral, matrixLiteral, matrixLiteral,
+		matrixLiteral, matrixLiteral, matrixLiteral,
 		elementType, four, matrixLiteral, matrixLiteral, matrixLiteral,
 		elementType, invH2, matrixLiteral, matrixLiteral), nil
 }
@@ -272,6 +272,7 @@ ENTRY main {
 		vectorLiteral, vectorLiteral, vectorLiteral, vectorLiteral,
 		vectorLiteral, vectorLiteral, vectorLiteral, vectorLiteral,
 		vectorLiteral, vectorLiteral, vectorLiteral,
+		vectorLiteral, vectorLiteral, vectorLiteral,
 		elementType, invDen, vectorLiteral, vectorLiteral), nil
 }
 
@@ -371,7 +372,7 @@ ENTRY main {
 		elementType, outputLiteral,
 		outputLiteral, count-1, outputLiteral, count-1, outputLiteral,
 		outputLiteral, count-1, count, outputLiteral,
-		outputLiteral, elementType, invTwoDx, outputLiteral,
+		outputLiteral, elementType, invTwoDx, outputLiteral, outputLiteral,
 		elementType, elementType, count-1, count, count,
 		count, count, count, count, outputLiteral), nil
 }

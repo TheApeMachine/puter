@@ -59,10 +59,10 @@ ENTRY main {
 		eventLiteral, queryLiteral,
 		eventLiteral, queryCount, eventCount,
 		queryLiteral, queryCount, eventCount,
-		outputLiteral, -beta, outputLiteral, outputLiteral, outputLiteral,
-		alpha, outputLiteral, outputLiteral,
+		outputLiteral, elementType, -beta, outputLiteral, outputLiteral, outputLiteral,
+		elementType, alpha, outputLiteral, outputLiteral,
 		queryCount, eventCount, elementType, outputLiteral, outputLiteral,
-		elementType, queryLiteral, mu, queryLiteral, queryLiteral), nil
+		elementType, queryLiteral, queryCount, elementType, mu, queryLiteral, queryLiteral), nil
 }
 
 func RenderHawkesKernelMatrix(
@@ -106,8 +106,8 @@ ENTRY main {
 		eventLiteral,
 		eventLiteral, eventCount, eventCount,
 		eventLiteral, eventCount, eventCount,
-		outputLiteral, -beta, outputLiteral, outputLiteral, outputLiteral,
-		alpha, outputLiteral, outputLiteral,
+		outputLiteral, elementType, -beta, outputLiteral, outputLiteral, outputLiteral,
+		elementType, alpha, outputLiteral, outputLiteral,
 		eventCount, eventCount, eventCount, eventCount,
 		eventCount, eventCount, eventCount, eventCount,
 		eventCount, eventCount, elementType, outputLiteral, outputLiteral), nil
@@ -194,16 +194,16 @@ ENTRY main {
 		eventLiteral,
 		eventLiteral, eventCount, eventCount,
 		eventLiteral, eventCount, eventCount,
-		scalarLiteral, -beta, scalarLiteral, scalarLiteral, scalarLiteral,
-		alpha, scalarLiteral, scalarLiteral,
+		scalarLiteral, elementType, -beta, scalarLiteral, scalarLiteral, scalarLiteral,
+		elementType, alpha, scalarLiteral, scalarLiteral,
 		eventCount, eventCount, eventCount, eventCount,
 		eventCount, eventCount, eventCount, eventCount,
-		eventCount, eventCount, elementType, scalarLiteral, scalarLiteral,
-		elementType, scalarLiteral, mu, scalarLiteral, scalarLiteral,
-		elementType, minIntensity, scalarLiteral, scalarLiteral, scalarLiteral,
+		eventCount, eventCount,
 		elementType, scalarLiteral, scalarLiteral,
-		totalT, scalarLiteral, scalarLiteral, scalarLiteral, scalarLiteral,
-		elementType, alphaOverBeta, scalarLiteral, scalarLiteral, scalarLiteral, scalarLiteral), nil
+		elementType, elementType, eventCount, elementType, mu, scalarLiteral, scalarLiteral,
+		elementType, minIntensity, scalarLiteral, scalarLiteral, scalarLiteral,
+		elementType, elementType, elementType, totalT, scalarLiteral, scalarLiteral, scalarLiteral, scalarLiteral,
+		elementType, scalarLiteral, elementType, alphaOverBeta, scalarLiteral, scalarLiteral, scalarLiteral, scalarLiteral, scalarLiteral), nil
 }
 
 func RenderMarkovMutualInformation(
@@ -255,13 +255,9 @@ ENTRY main {
 		elementType, elementType, elementType,
 		elementType, elementType, elementType,
 		jointLiteral, elementType, epsilon,
-		elementType, xCount, elementType,
-		elementType, yCount, elementType,
-		elementType, xCount, yCount,
-		elementType, xCount, yCount,
-		jointLiteral, jointLiteral, jointLiteral, jointLiteral,
-		jointLiteral, jointLiteral, jointLiteral,
-		elementType, xCount, yCount,
+		jointLiteral, jointLiteral, jointLiteral, jointLiteral, jointLiteral, jointLiteral,
+		elementType, jointLiteral,
+		xCount, yCount,
 		jointLiteral, scalarLiteral), nil
 }
 
@@ -314,5 +310,5 @@ ENTRY main {
 		nodeCount, nodeCount, nodeCount, nodeCount, nodeCount, nodeCount,
 		nodeCount, nodeCount, nodeCount, nodeCount, nodeCount, nodeCount,
 		nodeCount, nodeCount, nodeCount, nodeCount, nodeCount, nodeCount,
-		nodeCount, nodeCount, nodeCount, nodeCount, nodeCount, nodeCount), nil
+		nodeCount, nodeCount, nodeCount), nil
 }
