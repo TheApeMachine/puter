@@ -160,7 +160,9 @@ func TestVSAXLAParity(t *testing.T) {
 			convey.Convey(fmt.Sprintf("N=%d", count), func() {
 				left := xlaparity.RandomUnaryInput(count, 0x6800+int64(count))
 				right := xlaparity.RandomUnaryInput(count, 0x6900+int64(count))
-				want := referenceVSA.Similarity(
+				var want float32
+				referenceVSA.Similarity(
+					unsafe.Pointer(&want),
 					unsafe.Pointer(&left[0]),
 					unsafe.Pointer(&right[0]),
 					count,
@@ -172,7 +174,9 @@ func TestVSAXLAParity(t *testing.T) {
 				defer leftTensor.Close()
 				defer rightTensor.Close()
 
-				got := harness.Backend().Similarity(
+				var got float32
+				harness.Backend().Similarity(
+					unsafe.Pointer(&got),
 					xla.ResidentPointer(leftTensor),
 					xla.ResidentPointer(rightTensor),
 					count,

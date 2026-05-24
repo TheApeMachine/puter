@@ -13,8 +13,8 @@ func (vsa *VSA) Bundle(left, right, output unsafe.Pointer, count int, format dty
 	vsa.host.DispatchBundle(left, right, output, count, format)
 }
 
-func (vsa *VSA) Similarity(left, right unsafe.Pointer, count int, format dtype.DType) float32 {
-	return vsa.host.DispatchSimilarity(left, right, count, format)
+func (vsa *VSA) Similarity(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
+	*(*float32)(dst) = vsa.host.DispatchSimilarity(left, right, count, format)
 }
 
 func (vsa *VSA) Bind(left, right, output unsafe.Pointer, count int, format dtype.DType) {

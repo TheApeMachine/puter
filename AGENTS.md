@@ -366,3 +366,102 @@ When writing compute kernels like SIMD/Assembly, Metal, Cuda, or XLA, you must o
 > !NOTE: While working on an arm64 machine, you are not expected to use cross-compiling to verify amd64 code. It is assumed that you will be mostly correct when it comes to the amd64 variants, and those will be tested on a compatible machine, and any minor issues will be resolved there.
 
 Please be mindful and respectful of the fact that this is extremely important to this project. Our machine learning research framework sets itself apart by having world-class implementations that don't just serve the traditional ML researcher, but also the ones on the very fringes of the field.
+
+---
+
+## 11. Architecture-Level Invariants
+
+These rules govern the *shape* of the codebase, not just kernel correctness. Sections 1-10 cover how a single kernel is implemented; this section covers what kinds of things may exist at all. They are derived directly from ARCHITECTURE.md and the audit in GAPS.md, and they are enforced by `scripts/check_banned.sh` (see §12).
+
+### 11.1 Manifest-first
+
+Every model architecture — language, vision, audio, diffusion, multimodal, or a research architecture nobody has named yet — compiles from YAML over the closed-world atomic op set declared on `device.Backend`. There are exactly two ways a manifest enters the system:
+
+1. **Hand-authored** YAML.
+2. **Synthesized from a HuggingFace checkpoint** by the `hf` loader, which reads `model_index.json`, `config.json`, and `*.safetensors` headers and *emits a manifest* from that metadata.
+
+Both paths converge into the same compiler over the same op set. The HF path is not a privileged shortcut.
+
+**Therefore:**
+
+- No Go packages dedicated to a specific model family. `manifesto/diffusion/`, `manifesto/llama/`, `manifesto/flux/` — all forbidden. Model-family logic lives in `manifesto/asset/template/` as YAML.
+- No `LlamaGenerator` / `FluxGenerator` / `SD3Generator` types in `hf`. There is one generator that composes manifests by including sub-manifests, parameterised by `config.json` fields.
+- No step-name dispatch for model-specific operations in the executor. Step kinds are domain-prefixed by op family (`math.matmul`, `attention.sdpa`), never by model (`diffusion.prepare_latents`).
+- When a primitive is missing — sigma schedules need `arange`, latent packing needs a generic permute, diffusion needs an RNG — **add the primitive**. Both the `device.Backend` method and the `template/operation/*.yml` recipe. Never the Go shortcut.
+
+The diffusion-Go contamination documented in GAPS.md §6.5 is the named example of this anti-pattern. Read it before touching anything in `manifesto/runtime/` or `hf/config/`.
+
+### 11.2 Zero-host-sync
+
+`device.Backend` methods that produce a single value write it to `dst unsafe.Pointer` on the device. They never return a Go scalar (`float32`, `int32`, `bool`, etc.). This is ARCHITECTURE.md §2.2. The current 16 violations are listed in GAPS.md §2.3 and are the P0 to fix.
+
+The reason is non-negotiable: any scalar return is a host-sync point. Async streams (CUDA, Metal Command Queues, XLA PJRT) cannot truthfully implement a contract that materializes a value back on the Go heap between dispatches. Host reads happen only at explicit execution boundaries via the `Executor.Wait` / sync-query path, never inline.
+
+If you need to add a method that "naturally" returns a scalar (a reduction, a dot product, a sampler index, a loss value), the correct signature is:
+
+```go
+Foo(dst, src unsafe.Pointer, count int, format dtype.DType)
+```
+
+with `dst` pointing to a 1-element device-resident slot the planner allocated for you.
+
+### 11.3 Closed-world: adding a `device.Backend` method
+
+Adding a method to `device.Backend` is a single change that touches:
+
+1. `device/interface.go` — the method declaration.
+2. `device/cpu/<family>/` — scalar reference + AVX-512 + AVX2 + SSE2 + NEON kernels + parity test + benchmark.
+3. `device/metal/<family>/` — full quintet per ARCHITECTURE.md §2.3.1 + parity test.
+4. `device/cuda/<family>/` — `.cu` per domain + bridge + parity test.
+5. `device/xla/<family>/` — HLO lowering + parity test.
+
+The `var _ device.Backend = (*Backend)(nil)` assertion in each backend root is the canary that catches missed implementations at compile time. `scripts/check_banned.sh §9` verifies the assertion exists; the Go compiler verifies its body.
+
+Do not land a partial method. The platform's correctness claim is *uniform across all backends*, not "the backends we got around to."
+
+### 11.4 Asset format (`kind:`)
+
+Every YAML in `manifesto/asset/` starts (on the first non-empty, non-comment line) with `kind: <Kind>`. The 13 remaining old-format files are listed in GAPS.md §6.5 and need migration. New assets must use the new format.
+
+### 11.5 Workspace lives outside the Go heap
+
+Per ARCHITECTURE.md §5.2: the execution workspace is allocated via `posix_memalign` / `cudaMalloc` / `MTLBuffer` / `PjRtBuffer`, never `make([]byte, workspaceSize)`. Native driver completion callbacks run on non-Go threads; calling into the Go runtime from them risks deadlocks during GC. Off-heap workspace makes `runtime.Pinner` unnecessary — its absence is the rule, not an absence of work.
+
+---
+
+## 12. Mechanical Enforcement
+
+`scripts/check_banned.sh` mechanically checks the most commonly violated rules from §11 and from ARCHITECTURE.md §7. It is run via `make check`, and is the **first** thing CI / pre-commit / pre-PR runs.
+
+Specifically it catches:
+
+1. Scalar returns on `device.Backend` (§11.2).
+2. Dtype-prefixed filenames outside `dequant/` and `quant/` (ARCHITECTURE.md §2.3).
+3. Catch-all backend files (`device_missing*`, `device_remaining*`, `*_stub_ops*`, `*_extra*`).
+4. Root forwarding shims (`backend_<family>.go`).
+5. Model-specific Go imports (§11.1).
+6. Go-heap workspace allocations (`make([]byte, ...workspace...)`).
+7. `runtime.Pinner` usage (review for async-path violation).
+8. Banned phrases in comments (`for now`, `fallback to Go`, etc.).
+9. Missing `var _ device.Backend = (*Backend)(nil)` assertions.
+10. Orphan kernel files at backend root.
+
+**Use `make verify`** to run `check` then `test` as the gate before claiming work is complete. Do not say "done" with `make check` showing red.
+
+If a rule needs to change, update this AGENTS.md *and* update `scripts/check_banned.sh` *and* note the change in the commit message. Do not edit the script to make your change pass — that is the named anti-pattern and a contract violation.
+
+---
+
+## 13. Companion Repositories
+
+This codebase is one of four that together implement ARCHITECTURE.md:
+
+- **`puter`** (this repo) — `device.Backend` implementations across CPU/Metal/CUDA/XLA.
+- **`manifesto`** — compiler / optimizer / codegen / scheduler / IR pipeline. See `manifesto/AGENTS.md`.
+- **`hf`** — HuggingFace ingestion: Hub client, safetensors parser, tokenizer, manifest synthesizer. See `hf/AGENTS.md`.
+- **`caramba`** — orchestrator / CLI / HTTP API / fusion catalog / research platform. See `caramba/AGENTS.md`.
+
+All four repos share §11 (architecture invariants). Each repo has its own `scripts/check_banned.sh` tuned to that repo's role. **Run `make check` in each repo before claiming a cross-repo change is done.**
+
+The current gap inventory lives in `GAPS.md` alongside this file. Update it when you close a gap.
+

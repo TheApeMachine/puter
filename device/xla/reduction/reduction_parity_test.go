@@ -20,6 +20,29 @@ func TestReductionXLAParity(t *testing.T) {
 	harness := xla.NewParityHarness(t)
 	defer harness.Close()
 
+	// Zero-host-sync (ARCHITECTURE.md §2.2): the public Reduction methods
+	// write into `dst`. We adapt them to the parity-test callback shape
+	// (which still returns float32 for comparison) by allocating a stack
+	// local. The reference path on CPU does the same internally via the
+	// `*Native` helpers.
+	runReduction := func(
+		op func(dst, values unsafe.Pointer, count int, format dtype.DType),
+		sourceTensor *xla.DeviceTensor, count int, format dtype.DType,
+	) float32 {
+		var result float32
+		op(unsafe.Pointer(&result), unsafe.Pointer(sourceTensor), count, format)
+		return result
+	}
+
+	expectReduction := func(
+		op func(dst, values unsafe.Pointer, count int, format dtype.DType),
+		values unsafe.Pointer, count int, format dtype.DType,
+	) float32 {
+		var result float32
+		op(unsafe.Pointer(&result), values, count, format)
+		return result
+	}
+
 	reductionCases := []struct {
 		name   string
 		run    func(sourceTensor *xla.DeviceTensor, count int, format dtype.DType) float32
@@ -28,37 +51,47 @@ func TestReductionXLAParity(t *testing.T) {
 		{
 			name: "Sum",
 			run: func(sourceTensor *xla.DeviceTensor, count int, format dtype.DType) float32 {
-				return harness.Backend().Sum(unsafe.Pointer(sourceTensor), count, format)
+				return runReduction(harness.Backend().Sum, sourceTensor, count, format)
 			},
-			expect: referenceReduction.Sum,
+			expect: func(values unsafe.Pointer, count int, format dtype.DType) float32 {
+				return expectReduction(referenceReduction.Sum, values, count, format)
+			},
 		},
 		{
 			name: "Prod",
 			run: func(sourceTensor *xla.DeviceTensor, count int, format dtype.DType) float32 {
-				return harness.Backend().Prod(unsafe.Pointer(sourceTensor), count, format)
+				return runReduction(harness.Backend().Prod, sourceTensor, count, format)
 			},
-			expect: referenceReduction.Prod,
+			expect: func(values unsafe.Pointer, count int, format dtype.DType) float32 {
+				return expectReduction(referenceReduction.Prod, values, count, format)
+			},
 		},
 		{
 			name: "ReduceMin",
 			run: func(sourceTensor *xla.DeviceTensor, count int, format dtype.DType) float32 {
-				return harness.Backend().ReduceMin(unsafe.Pointer(sourceTensor), count, format)
+				return runReduction(harness.Backend().ReduceMin, sourceTensor, count, format)
 			},
-			expect: referenceReduction.ReduceMin,
+			expect: func(values unsafe.Pointer, count int, format dtype.DType) float32 {
+				return expectReduction(referenceReduction.ReduceMin, values, count, format)
+			},
 		},
 		{
 			name: "ReduceMax",
 			run: func(sourceTensor *xla.DeviceTensor, count int, format dtype.DType) float32 {
-				return harness.Backend().ReduceMax(unsafe.Pointer(sourceTensor), count, format)
+				return runReduction(harness.Backend().ReduceMax, sourceTensor, count, format)
 			},
-			expect: referenceReduction.ReduceMax,
+			expect: func(values unsafe.Pointer, count int, format dtype.DType) float32 {
+				return expectReduction(referenceReduction.ReduceMax, values, count, format)
+			},
 		},
 		{
 			name: "L1Norm",
 			run: func(sourceTensor *xla.DeviceTensor, count int, format dtype.DType) float32 {
-				return harness.Backend().L1Norm(unsafe.Pointer(sourceTensor), count, format)
+				return runReduction(harness.Backend().L1Norm, sourceTensor, count, format)
 			},
-			expect: referenceReduction.L1Norm,
+			expect: func(values unsafe.Pointer, count int, format dtype.DType) float32 {
+				return expectReduction(referenceReduction.L1Norm, values, count, format)
+			},
 		},
 	}
 

@@ -109,12 +109,15 @@ func RunMatMulInt8(args ...tensor.Tensor) error {
 
 		for col := range cols {
 			colSlice := packed[col*inner : col*inner+inner]
-			outRow[col] = int32(dot.Default.Dot(
+			var result float32
+			dot.Default.Dot(
+				unsafe.Pointer(&result),
 				unsafe.Pointer(&rowSlice[0]),
 				unsafe.Pointer(&colSlice[0]),
 				inner,
 				dtype.Int8,
-			))
+			)
+			outRow[col] = int32(result)
 		}
 	}
 

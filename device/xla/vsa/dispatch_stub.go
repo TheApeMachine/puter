@@ -12,9 +12,9 @@ func (vsa *VSA) Bundle(left, right, output unsafe.Pointer, count int, format dty
 	vsa.stubHost()
 }
 
-func (vsa *VSA) Similarity(left, right unsafe.Pointer, count int, format dtype.DType) float32 {
+func (vsa *VSA) Similarity(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
 	vsa.stubHost()
-	return 0
+	*(*float32)(dst) = 0
 }
 
 func (vsa *VSA) Bind(left, right, output unsafe.Pointer, count int, format dtype.DType) {

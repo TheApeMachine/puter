@@ -35,7 +35,9 @@ func TestDotXLAParity(t *testing.T) {
 						defer leftTensor.Close()
 						defer rightTensor.Close()
 
-						got := harness.Backend().Dot(
+						var got float32
+						harness.Backend().Dot(
+							unsafe.Pointer(&got),
 							unsafe.Pointer(leftTensor),
 							unsafe.Pointer(rightTensor),
 							count,
@@ -73,5 +75,12 @@ func dotReference(left, right []float32, format dtype.DType) float32 {
 		format,
 	)
 
-	return cpureduction.New().Sum(unsafe.Pointer(&productBytes[0]), count, format)
+	var result float32
+	cpureduction.New().Sum(
+		unsafe.Pointer(&result),
+		unsafe.Pointer(&productBytes[0]),
+		count,
+		format,
+	)
+	return result
 }

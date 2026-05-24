@@ -9,30 +9,31 @@ import (
 )
 
 func (losses *Losses) BinaryCrossEntropy(
-	predictions, targets unsafe.Pointer,
+	dst, predictions, targets unsafe.Pointer,
 	count int,
 	format dtype.DType,
-) float32 {
+) {
 	_ = count
 
-	return losses.host.PairLossScalar(predictions, targets, format, KernelBinaryCrossEntropy)
+	*(*float32)(dst) = losses.host.PairLossScalar(predictions, targets, format, KernelBinaryCrossEntropy)
 }
 
 func (losses *Losses) KLDivergence(
-	predictions, targets unsafe.Pointer,
+	dst, predictions, targets unsafe.Pointer,
 	count int,
 	format dtype.DType,
-) float32 {
+) {
 	_ = count
 
-	return losses.host.PairLossScalar(predictions, targets, format, KernelKLDivergence)
+	*(*float32)(dst) = losses.host.PairLossScalar(predictions, targets, format, KernelKLDivergence)
 }
 
 func (losses *Losses) CrossEntropy(
+	dst unsafe.Pointer,
 	logits unsafe.Pointer,
 	targets unsafe.Pointer,
 	batchSize, classes int,
 	format dtype.DType,
-) float32 {
-	return losses.host.CrossEntropyScalar(logits, targets, batchSize, classes, format)
+) {
+	*(*float32)(dst) = losses.host.CrossEntropyScalar(logits, targets, batchSize, classes, format)
 }

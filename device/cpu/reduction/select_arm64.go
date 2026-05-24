@@ -64,16 +64,21 @@ func SumFP16NEON(values *uint16, count int) uint16 {
 	return SumFloat16NEONAsm(values, count)
 }
 
+// Host-side convenience helpers — see select_amd64.go for design rationale.
+
 func SumFloat32Native(values []float32) float32 {
 	if len(values) == 0 {
 		return 0
 	}
 
-	return Default.Sum(
+	var result float32
+	Default.Sum(
+		unsafe.Pointer(&result),
 		unsafe.Pointer(&values[0]),
 		len(values),
 		dtype.Float32,
 	)
+	return result
 }
 
 func SumBFloat16Native(values []dtype.BF16) dtype.BF16 {
@@ -81,11 +86,14 @@ func SumBFloat16Native(values []dtype.BF16) dtype.BF16 {
 		return 0
 	}
 
-	return dtype.NewBfloat16FromFloat32(Default.Sum(
+	var result float32
+	Default.Sum(
+		unsafe.Pointer(&result),
 		unsafe.Pointer(&values[0]),
 		len(values),
 		dtype.BFloat16,
-	))
+	)
+	return dtype.NewBfloat16FromFloat32(result)
 }
 
 func SumFloat16Native(values []dtype.F16) dtype.F16 {
@@ -93,11 +101,14 @@ func SumFloat16Native(values []dtype.F16) dtype.F16 {
 		return 0
 	}
 
-	return dtype.Fromfloat32(Default.Sum(
+	var result float32
+	Default.Sum(
+		unsafe.Pointer(&result),
 		unsafe.Pointer(&values[0]),
 		len(values),
 		dtype.Float16,
-	))
+	)
+	return dtype.Fromfloat32(result)
 }
 
 func ReduceProdFloat32Native(values []float32) float32 {
@@ -105,11 +116,14 @@ func ReduceProdFloat32Native(values []float32) float32 {
 		return 0
 	}
 
-	return Default.Prod(
+	var result float32
+	Default.Prod(
+		unsafe.Pointer(&result),
 		unsafe.Pointer(&values[0]),
 		len(values),
 		dtype.Float32,
 	)
+	return result
 }
 
 func ReduceMinFloat32Native(values []float32) float32 {
@@ -117,11 +131,14 @@ func ReduceMinFloat32Native(values []float32) float32 {
 		return 0
 	}
 
-	return Default.ReduceMin(
+	var result float32
+	Default.ReduceMin(
+		unsafe.Pointer(&result),
 		unsafe.Pointer(&values[0]),
 		len(values),
 		dtype.Float32,
 	)
+	return result
 }
 
 func ReduceMaxFloat32Native(values []float32) float32 {
@@ -129,11 +146,14 @@ func ReduceMaxFloat32Native(values []float32) float32 {
 		return 0
 	}
 
-	return Default.ReduceMax(
+	var result float32
+	Default.ReduceMax(
+		unsafe.Pointer(&result),
 		unsafe.Pointer(&values[0]),
 		len(values),
 		dtype.Float32,
 	)
+	return result
 }
 
 func L1NormFloat32Native(values []float32) float32 {
@@ -141,11 +161,14 @@ func L1NormFloat32Native(values []float32) float32 {
 		return 0
 	}
 
-	return Default.L1Norm(
+	var result float32
+	Default.L1Norm(
+		unsafe.Pointer(&result),
 		unsafe.Pointer(&values[0]),
 		len(values),
 		dtype.Float32,
 	)
+	return result
 }
 
 var (

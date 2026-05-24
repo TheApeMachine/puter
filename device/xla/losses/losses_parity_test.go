@@ -16,6 +16,19 @@ import (
 
 var referenceLosses = cpulosses.New()
 
+// Zero-host-sync (ARCHITECTURE.md §2.2): the public loss methods write
+// into `dst`. The parity test compares the result as a float32 — we
+// adapt by allocating a stack local and bridging through it.
+
+func runPairLoss(
+	op func(dst, predictions, targets unsafe.Pointer, count int, format dtype.DType),
+	predictions, targets unsafe.Pointer, count int, format dtype.DType,
+) float32 {
+	var result float32
+	op(unsafe.Pointer(&result), predictions, targets, count, format)
+	return result
+}
+
 func TestLossesXLAParity(t *testing.T) {
 	harness := xla.NewParityHarness(t)
 	defer harness.Close()
@@ -28,62 +41,47 @@ func TestLossesXLAParity(t *testing.T) {
 		{
 			name: "MSE",
 			run: func(predictions, targets *xla.DeviceTensor, count int, format dtype.DType) float32 {
-				return harness.Backend().MSE(
-					xla.ResidentPointer(predictions),
-					xla.ResidentPointer(targets),
-					count,
-					format,
-				)
+				return runPairLoss(harness.Backend().MSE, xla.ResidentPointer(predictions), xla.ResidentPointer(targets), count, format)
 			},
-			expect: referenceLosses.MSE,
+			expect: func(predictions, targets unsafe.Pointer, count int, format dtype.DType) float32 {
+				return runPairLoss(referenceLosses.MSE, predictions, targets, count, format)
+			},
 		},
 		{
 			name: "MAE",
 			run: func(predictions, targets *xla.DeviceTensor, count int, format dtype.DType) float32 {
-				return harness.Backend().MAE(
-					xla.ResidentPointer(predictions),
-					xla.ResidentPointer(targets),
-					count,
-					format,
-				)
+				return runPairLoss(harness.Backend().MAE, xla.ResidentPointer(predictions), xla.ResidentPointer(targets), count, format)
 			},
-			expect: referenceLosses.MAE,
+			expect: func(predictions, targets unsafe.Pointer, count int, format dtype.DType) float32 {
+				return runPairLoss(referenceLosses.MAE, predictions, targets, count, format)
+			},
 		},
 		{
 			name: "Huber",
 			run: func(predictions, targets *xla.DeviceTensor, count int, format dtype.DType) float32 {
-				return harness.Backend().Huber(
-					xla.ResidentPointer(predictions),
-					xla.ResidentPointer(targets),
-					count,
-					format,
-				)
+				return runPairLoss(harness.Backend().Huber, xla.ResidentPointer(predictions), xla.ResidentPointer(targets), count, format)
 			},
-			expect: referenceLosses.Huber,
+			expect: func(predictions, targets unsafe.Pointer, count int, format dtype.DType) float32 {
+				return runPairLoss(referenceLosses.Huber, predictions, targets, count, format)
+			},
 		},
 		{
 			name: "BinaryCrossEntropy",
 			run: func(predictions, targets *xla.DeviceTensor, count int, format dtype.DType) float32 {
-				return harness.Backend().BinaryCrossEntropy(
-					xla.ResidentPointer(predictions),
-					xla.ResidentPointer(targets),
-					count,
-					format,
-				)
+				return runPairLoss(harness.Backend().BinaryCrossEntropy, xla.ResidentPointer(predictions), xla.ResidentPointer(targets), count, format)
 			},
-			expect: referenceLosses.BinaryCrossEntropy,
+			expect: func(predictions, targets unsafe.Pointer, count int, format dtype.DType) float32 {
+				return runPairLoss(referenceLosses.BinaryCrossEntropy, predictions, targets, count, format)
+			},
 		},
 		{
 			name: "KLDivergence",
 			run: func(predictions, targets *xla.DeviceTensor, count int, format dtype.DType) float32 {
-				return harness.Backend().KLDivergence(
-					xla.ResidentPointer(predictions),
-					xla.ResidentPointer(targets),
-					count,
-					format,
-				)
+				return runPairLoss(harness.Backend().KLDivergence, xla.ResidentPointer(predictions), xla.ResidentPointer(targets), count, format)
 			},
-			expect: referenceLosses.KLDivergence,
+			expect: func(predictions, targets unsafe.Pointer, count int, format dtype.DType) float32 {
+				return runPairLoss(referenceLosses.KLDivergence, predictions, targets, count, format)
+			},
 		},
 	}
 
@@ -148,7 +146,9 @@ func TestLossesXLAParity(t *testing.T) {
 							targetBytes[offset+3] = byte(value >> 24)
 						}
 
-						want := referenceLosses.CrossEntropy(
+						var want float32
+						referenceLosses.CrossEntropy(
+							unsafe.Pointer(&want),
 							unsafe.Pointer(&logits[0]),
 							unsafe.Pointer(&targetBytes[0]),
 							batchSize,
@@ -161,7 +161,9 @@ func TestLossesXLAParity(t *testing.T) {
 						defer logitsTensor.Close()
 						defer targetsTensor.Close()
 
-						got := harness.Backend().CrossEntropy(
+						var got float32
+						harness.Backend().CrossEntropy(
+							unsafe.Pointer(&got),
 							xla.ResidentPointer(logitsTensor),
 							xla.ResidentPointer(targetsTensor),
 							batchSize,

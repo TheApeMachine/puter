@@ -25,7 +25,9 @@ func TestGreedySampleXLAParity(t *testing.T) {
 		for _, count := range xlaparity.Lengths {
 			convey.Convey(fmt.Sprintf("N=%d", count), func() {
 				logits := xlaparity.RandomUnaryInput(count, 0x5500+int64(count))
-				want := referenceSampling.GreedySample(
+				var want int32
+				referenceSampling.GreedySample(
+					unsafe.Pointer(&want),
 					unsafe.Pointer(&logits[0]),
 					count,
 					dtype.Float32,
@@ -34,7 +36,9 @@ func TestGreedySampleXLAParity(t *testing.T) {
 				logitsTensor := harness.UploadVector(logits, dtype.Float32)
 				defer logitsTensor.Close()
 
-				got := harness.Backend().GreedySample(
+				var got int32
+				harness.Backend().GreedySample(
+					unsafe.Pointer(&got),
 					xla.ResidentPointer(logitsTensor),
 					count,
 					dtype.Float32,
@@ -60,20 +64,24 @@ func TestTopKSampleXLAParity(t *testing.T) {
 		for _, count := range xlaparity.Lengths {
 			convey.Convey(fmt.Sprintf("N=%d", count), func() {
 				logits := xlaparity.RandomUnaryInput(count, 0x5600+int64(count))
-				want := referenceSampling.TopKSample(
-					config,
+				var want int32
+				referenceSampling.TopKSample(
+					unsafe.Pointer(&want),
 					unsafe.Pointer(&logits[0]),
 					count,
+					config,
 					dtype.Float32,
 				)
 
 				logitsTensor := harness.UploadVector(logits, dtype.Float32)
 				defer logitsTensor.Close()
 
-				got := harness.Backend().TopKSample(
-					config,
+				var got int32
+				harness.Backend().TopKSample(
+					unsafe.Pointer(&got),
 					xla.ResidentPointer(logitsTensor),
 					count,
+					config,
 					dtype.Float32,
 				)
 
@@ -97,20 +105,24 @@ func TestTopPSampleXLAParity(t *testing.T) {
 		for _, count := range xlaparity.Lengths {
 			convey.Convey(fmt.Sprintf("N=%d", count), func() {
 				logits := xlaparity.RandomUnaryInput(count, 0x5700+int64(count))
-				want := referenceSampling.TopPSample(
-					config,
+				var want int32
+				referenceSampling.TopPSample(
+					unsafe.Pointer(&want),
 					unsafe.Pointer(&logits[0]),
 					count,
+					config,
 					dtype.Float32,
 				)
 
 				logitsTensor := harness.UploadVector(logits, dtype.Float32)
 				defer logitsTensor.Close()
 
-				got := harness.Backend().TopPSample(
-					config,
+				var got int32
+				harness.Backend().TopPSample(
+					unsafe.Pointer(&got),
 					xla.ResidentPointer(logitsTensor),
 					count,
+					config,
 					dtype.Float32,
 				)
 

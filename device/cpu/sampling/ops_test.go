@@ -18,7 +18,8 @@ func TestGreedySampleFloat32Native(t *testing.T) {
 func TestGreedySample(t *testing.T) {
 	logits := []float32{0.1, 0.2, 0.9, 0.3, 0.4}
 
-	token := Default.GreedySample(unsafe.Pointer(&logits[0]), len(logits), dtype.Float32)
+	var token int32
+	Default.GreedySample(unsafe.Pointer(&token), unsafe.Pointer(&logits[0]), len(logits), dtype.Float32)
 
 	if token != 2 {
 		t.Fatalf("token=%d want=2", token)

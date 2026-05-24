@@ -22,12 +22,15 @@ func TestLossesCUDAParity(t *testing.T) {
 			convey.Convey(fmt.Sprintf("N=%d", count), func() {
 				predictions := parity.RandomUnaryInput(count, 0x2100+int64(count))
 				targets := parity.RandomUnaryInput(count, 0x2200+int64(count))
-				want := []float32{cpulosses.New().MSE(
+				var wantScalar float32
+				cpulosses.New().MSE(
+					unsafe.Pointer(&wantScalar),
 					unsafe.Pointer(&predictions[0]),
 					unsafe.Pointer(&targets[0]),
 					count,
 					dtype.Float32,
-				)}
+				)
+				want := []float32{wantScalar}
 				partialCount := (count + 255) / 256
 
 				predictionsTensor := harness.UploadVector(predictions, dtype.Float32)

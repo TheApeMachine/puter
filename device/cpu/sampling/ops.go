@@ -12,20 +12,29 @@ func requireSamplingFloat32(format dtype.DType) {
 	}
 }
 
-func (sampling Sampling) GreedySample(logits unsafe.Pointer, vocabSize int, format dtype.DType) int32 {
+/*
+GreedySample writes the argmax index of `logits` into `*dst` as int32.
+Zero-host-sync per ARCHITECTURE.md §2.2.
+*/
+func (sampling Sampling) GreedySample(dst, logits unsafe.Pointer, vocabSize int, format dtype.DType) {
 	if vocabSize == 0 {
-		return 0
+		*(*int32)(dst) = 0
+		return
 	}
 
 	requireSamplingFloat32(format)
 
 	logitView := unsafe.Slice((*float32)(logits), vocabSize)
-	return GreedySampleFloat32Native(logitView)
+	*(*int32)(dst) = GreedySampleFloat32Native(logitView)
 }
 
-func (sampling Sampling) TopKSample(config SamplingConfig, logits unsafe.Pointer, vocabSize int, format dtype.DType) int32 {
+/*
+TopKSample writes the sampled token index into `*dst` as int32.
+*/
+func (sampling Sampling) TopKSample(dst, logits unsafe.Pointer, vocabSize int, config SamplingConfig, format dtype.DType) {
 	if vocabSize == 0 {
-		return 0
+		*(*int32)(dst) = 0
+		return
 	}
 
 	requireSamplingFloat32(format)
@@ -37,16 +46,20 @@ func (sampling Sampling) TopKSample(config SamplingConfig, logits unsafe.Pointer
 		topK = vocabSize
 	}
 
-	return TopKSampleFloat32Native(logitView, config.Temperature, topK, config.Seed)
+	*(*int32)(dst) = TopKSampleFloat32Native(logitView, config.Temperature, topK, config.Seed)
 }
 
-func (sampling Sampling) TopPSample(config SamplingConfig, logits unsafe.Pointer, vocabSize int, format dtype.DType) int32 {
+/*
+TopPSample writes the sampled token index into `*dst` as int32.
+*/
+func (sampling Sampling) TopPSample(dst, logits unsafe.Pointer, vocabSize int, config SamplingConfig, format dtype.DType) {
 	if vocabSize == 0 {
-		return 0
+		*(*int32)(dst) = 0
+		return
 	}
 
 	requireSamplingFloat32(format)
 
 	logitView := unsafe.Slice((*float32)(logits), vocabSize)
-	return TopPSampleFloat32Native(logitView, config.Temperature, config.TopP, config.Seed)
+	*(*int32)(dst) = TopPSampleFloat32Native(logitView, config.Temperature, config.TopP, config.Seed)
 }

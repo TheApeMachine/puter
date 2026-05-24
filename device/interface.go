@@ -90,15 +90,20 @@ type Elementwise interface {
 }
 
 type Reduction interface {
-	Sum(values unsafe.Pointer, count int, format dtype.DType) float32
-	Prod(values unsafe.Pointer, count int, format dtype.DType) float32
-	ReduceMin(values unsafe.Pointer, count int, format dtype.DType) float32
-	ReduceMax(values unsafe.Pointer, count int, format dtype.DType) float32
-	L1Norm(values unsafe.Pointer, count int, format dtype.DType) float32
+	// Sum writes the elementwise sum of `values` into `*dst`. Zero-host-sync
+	// per ARCHITECTURE.md §2.2: the scalar lives on the device, the caller
+	// does not read it back synchronously.
+	Sum(dst, values unsafe.Pointer, count int, format dtype.DType)
+	Prod(dst, values unsafe.Pointer, count int, format dtype.DType)
+	ReduceMin(dst, values unsafe.Pointer, count int, format dtype.DType)
+	ReduceMax(dst, values unsafe.Pointer, count int, format dtype.DType)
+	L1Norm(dst, values unsafe.Pointer, count int, format dtype.DType)
 }
 
 type Dot interface {
-	Dot(left, right unsafe.Pointer, count int, format dtype.DType) float32
+	// Dot writes the inner product of `left` and `right` into `*dst`.
+	// Zero-host-sync per ARCHITECTURE.md §2.2.
+	Dot(dst, left, right unsafe.Pointer, count int, format dtype.DType)
 }
 
 type Matmul interface {
@@ -176,23 +181,29 @@ type Dropout interface {
 }
 
 type Losses interface {
-	MSE(predictions, targets unsafe.Pointer, count int, format dtype.DType) float32
-	MAE(predictions, targets unsafe.Pointer, count int, format dtype.DType) float32
-	Huber(predictions, targets unsafe.Pointer, count int, format dtype.DType) float32
-	BinaryCrossEntropy(predictions, targets unsafe.Pointer, count int, format dtype.DType) float32
-	KLDivergence(predictions, targets unsafe.Pointer, count int, format dtype.DType) float32
+	// Each loss writes its scalar result into `*dst` (ARCHITECTURE.md §2.2).
+	MSE(dst, predictions, targets unsafe.Pointer, count int, format dtype.DType)
+	MAE(dst, predictions, targets unsafe.Pointer, count int, format dtype.DType)
+	Huber(dst, predictions, targets unsafe.Pointer, count int, format dtype.DType)
+	BinaryCrossEntropy(dst, predictions, targets unsafe.Pointer, count int, format dtype.DType)
+	KLDivergence(dst, predictions, targets unsafe.Pointer, count int, format dtype.DType)
 	CrossEntropy(
+		dst unsafe.Pointer,
 		logits unsafe.Pointer,
 		targets unsafe.Pointer,
 		batchSize, classes int,
 		format dtype.DType,
-	) float32
+	)
 }
 
 type Sampling interface {
-	GreedySample(logits unsafe.Pointer, vocabSize int, format dtype.DType) int32
-	TopKSample(config SamplingConfig, logits unsafe.Pointer, vocabSize int, format dtype.DType) int32
-	TopPSample(config SamplingConfig, logits unsafe.Pointer, vocabSize int, format dtype.DType) int32
+	// GreedySample writes the argmax token index of `logits` into `*dst`
+	// as int32. Zero-host-sync per ARCHITECTURE.md §2.2.
+	GreedySample(dst, logits unsafe.Pointer, vocabSize int, format dtype.DType)
+	// TopKSample writes the sampled token index into `*dst` as int32.
+	TopKSample(dst, logits unsafe.Pointer, vocabSize int, config SamplingConfig, format dtype.DType)
+	// TopPSample writes the sampled token index into `*dst` as int32.
+	TopPSample(dst, logits unsafe.Pointer, vocabSize int, config SamplingConfig, format dtype.DType)
 }
 
 type Embedding interface {
@@ -383,7 +394,9 @@ type VSA interface {
 	Bundle(left, right, output unsafe.Pointer, count int, format dtype.DType)
 	Permute(config VSAConfig, input, output unsafe.Pointer, count int, format dtype.DType)
 	InversePermute(config VSAConfig, input, output unsafe.Pointer, count int, format dtype.DType)
-	Similarity(left, right unsafe.Pointer, count int, format dtype.DType) float32
+	// Similarity writes the dot-product similarity of `left` and `right`
+	// into `*dst`. Zero-host-sync per ARCHITECTURE.md §2.2.
+	Similarity(dst, left, right unsafe.Pointer, count int, format dtype.DType)
 }
 
 type ActiveInference interface {

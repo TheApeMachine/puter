@@ -8,7 +8,7 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 )
 
-func (sampling *Sampling) GreedySample(logits unsafe.Pointer, vocabSize int, format dtype.DType) int32 {
+func (sampling *Sampling) GreedySample(dst, logits unsafe.Pointer, vocabSize int, format dtype.DType) {
 	sampling.stubHost()
-	return 0
+	*(*int32)(dst) = 0
 }

@@ -9,28 +9,35 @@ import (
 	"github.com/theapemachine/puter/device"
 )
 
+/*
+Sampling methods write the sampled token index into `*dst` as int32
+(ARCHITECTURE.md §2.2). The XLA host currently materializes the result
+through PJRT to a host int32 and stores it at dst; once the planner /
+executable cache work lands (GAPS.md §2.5–2.6) the result will be
+written directly into the caller's PjRtBuffer slot.
+*/
 func (sampling *Sampling) TopKSample(
-	config device.SamplingConfig,
-	logits unsafe.Pointer,
+	dst, logits unsafe.Pointer,
 	vocabSize int,
+	config device.SamplingConfig,
 	format dtype.DType,
-) int32 {
-	return sampling.host.DispatchTopKSample(config, logits, vocabSize, format)
+) {
+	*(*int32)(dst) = sampling.host.DispatchTopKSample(config, logits, vocabSize, format)
 }
 
 func (sampling *Sampling) TopPSample(
-	config device.SamplingConfig,
-	logits unsafe.Pointer,
+	dst, logits unsafe.Pointer,
 	vocabSize int,
+	config device.SamplingConfig,
 	format dtype.DType,
-) int32 {
-	return sampling.host.DispatchTopPSample(config, logits, vocabSize, format)
+) {
+	*(*int32)(dst) = sampling.host.DispatchTopPSample(config, logits, vocabSize, format)
 }
 
 func (sampling *Sampling) GreedySample(
-	logits unsafe.Pointer,
+	dst, logits unsafe.Pointer,
 	vocabSize int,
 	format dtype.DType,
-) int32 {
-	return sampling.host.DispatchGreedySample(logits, vocabSize, format)
+) {
+	*(*int32)(dst) = sampling.host.DispatchGreedySample(logits, vocabSize, format)
 }

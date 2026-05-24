@@ -6,31 +6,36 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 )
 
-func (losses Losses) MSE(predictions, targets unsafe.Pointer, count int, format dtype.DType) float32 {
-	return dispatchMSE(predictions, targets, count, format)
+/*
+Each loss writes its scalar result into `*dst`. Zero-host-sync per
+ARCHITECTURE.md §2.2.
+*/
+func (losses Losses) MSE(dst, predictions, targets unsafe.Pointer, count int, format dtype.DType) {
+	*(*float32)(dst) = dispatchMSE(predictions, targets, count, format)
 }
 
-func (losses Losses) MAE(predictions, targets unsafe.Pointer, count int, format dtype.DType) float32 {
-	return dispatchMAE(predictions, targets, count, format)
+func (losses Losses) MAE(dst, predictions, targets unsafe.Pointer, count int, format dtype.DType) {
+	*(*float32)(dst) = dispatchMAE(predictions, targets, count, format)
 }
 
-func (losses Losses) Huber(predictions, targets unsafe.Pointer, count int, format dtype.DType) float32 {
-	return dispatchHuber(predictions, targets, count, format)
+func (losses Losses) Huber(dst, predictions, targets unsafe.Pointer, count int, format dtype.DType) {
+	*(*float32)(dst) = dispatchHuber(predictions, targets, count, format)
 }
 
-func (losses Losses) BinaryCrossEntropy(predictions, targets unsafe.Pointer, count int, format dtype.DType) float32 {
-	return dispatchBinaryCrossEntropy(predictions, targets, count, format)
+func (losses Losses) BinaryCrossEntropy(dst, predictions, targets unsafe.Pointer, count int, format dtype.DType) {
+	*(*float32)(dst) = dispatchBinaryCrossEntropy(predictions, targets, count, format)
 }
 
-func (losses Losses) KLDivergence(predictions, targets unsafe.Pointer, count int, format dtype.DType) float32 {
-	return dispatchKLDivergence(predictions, targets, count, format)
+func (losses Losses) KLDivergence(dst, predictions, targets unsafe.Pointer, count int, format dtype.DType) {
+	*(*float32)(dst) = dispatchKLDivergence(predictions, targets, count, format)
 }
 
 func (losses Losses) CrossEntropy(
+	dst unsafe.Pointer,
 	logits unsafe.Pointer,
 	targets unsafe.Pointer,
 	batchSize, classes int,
 	format dtype.DType,
-) float32 {
-	return dispatchCrossEntropy(logits, targets, batchSize, classes, format)
+) {
+	*(*float32)(dst) = dispatchCrossEntropy(logits, targets, batchSize, classes, format)
 }

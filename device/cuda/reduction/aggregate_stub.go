@@ -4,32 +4,31 @@ package reduction
 
 import (
 	"unsafe"
-	
+
 	"github.com/theapemachine/manifesto/dtype"
 )
 
-func (reduction *Reduction) Sum(values unsafe.Pointer, count int, format dtype.DType,) float32 {
+func (reduction *Reduction) Sum(dst, values unsafe.Pointer, count int, format dtype.DType) {
 	reduction.stubHost()
-	return 0
+	*(*float32)(dst) = 0
 }
 
-func (reduction *Reduction) Prod(values unsafe.Pointer, count int, format dtype.DType,) float32 {
+func (reduction *Reduction) Prod(dst, values unsafe.Pointer, count int, format dtype.DType) {
 	reduction.stubHost()
-	return 0
+	*(*float32)(dst) = 0
 }
 
-func (reduction *Reduction) ReduceMin(values unsafe.Pointer, count int, format dtype.DType,) float32 {
+func (reduction *Reduction) ReduceMin(dst, values unsafe.Pointer, count int, format dtype.DType) {
 	reduction.stubHost()
-	return 0
+	*(*float32)(dst) = 0
 }
 
-func (reduction *Reduction) ReduceMax(values unsafe.Pointer, count int, format dtype.DType,) float32 {
+func (reduction *Reduction) ReduceMax(dst, values unsafe.Pointer, count int, format dtype.DType) {
 	reduction.stubHost()
-	return 0
+	*(*float32)(dst) = 0
 }
 
-func (reduction *Reduction) L1Norm(values unsafe.Pointer, count int, format dtype.DType,) float32 {
+func (reduction *Reduction) L1Norm(dst, values unsafe.Pointer, count int, format dtype.DType) {
 	reduction.stubHost()
-	return 0
+	*(*float32)(dst) = 0
 }
-

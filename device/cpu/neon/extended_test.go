@@ -57,7 +57,9 @@ func TestReductionSum(t *testing.T) {
 		inputView, _ := input.Float32Native()
 		copy(inputView, []float32{1, 2, 3, 4})
 
-		total := reduction.New().Sum(
+		var total float32
+		reduction.New().Sum(
+			unsafe.Pointer(&total),
 			unsafe.Pointer(&inputView[0]),
 			len(inputView),
 			dtype.Float32,
@@ -79,7 +81,9 @@ func TestMSELoss(t *testing.T) {
 		targetView, _ := targets.Float32Native()
 		copy(targetView, []float32{1, 3, 5})
 
-		mean := losses.New().MSE(
+		var mean float32
+		losses.New().MSE(
+			unsafe.Pointer(&mean),
 			unsafe.Pointer(&predView[0]),
 			unsafe.Pointer(&targetView[0]),
 			len(predView),
@@ -98,7 +102,8 @@ func TestGreedySample(t *testing.T) {
 		logitView, _ := logits.Float32Native()
 		copy(logitView, []float32{0.1, 0.2, 0.9, 0.3, 0.4})
 
-		token := sampling.New().GreedySample(unsafe.Pointer(&logitView[0]), len(logitView), dtype.Float32)
+		var token int32
+		sampling.New().GreedySample(unsafe.Pointer(&token), unsafe.Pointer(&logitView[0]), len(logitView), dtype.Float32)
 		convey.So(token, convey.ShouldEqual, int32(2))
 	})
 }

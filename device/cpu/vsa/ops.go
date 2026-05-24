@@ -58,9 +58,14 @@ func (vsa VSA) InversePermute(config VSAConfig, input, output unsafe.Pointer, co
 	vsa.Permute(inverted, input, output, count, format)
 }
 
-func (vsa VSA) Similarity(left, right unsafe.Pointer, count int, format dtype.DType) float32 {
+/*
+Similarity writes the dot-product similarity of `left` and `right` into
+`*dst`. Zero-host-sync per ARCHITECTURE.md §2.2.
+*/
+func (vsa VSA) Similarity(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
 	if count == 0 {
-		return 0
+		*(*float32)(dst) = 0
+		return
 	}
 
 	requireVSAFloat32(format)
@@ -68,7 +73,7 @@ func (vsa VSA) Similarity(left, right unsafe.Pointer, count int, format dtype.DT
 	leftView := unsafe.Slice((*float32)(left), count)
 	rightView := unsafe.Slice((*float32)(right), count)
 
-	return VsaSimilarityFloat32Native(leftView, rightView)
+	*(*float32)(dst) = VsaSimilarityFloat32Native(leftView, rightView)
 }
 
 func requireVSAFloat32(format dtype.DType) {

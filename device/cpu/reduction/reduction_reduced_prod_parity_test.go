@@ -140,7 +140,8 @@ func TestProdBF16NativeParity(t *testing.T) {
 			convey.Convey(fmt.Sprintf("It should match ProdBF16Generic for N=%d", length), func() {
 				values := randomReductionBF16Slice(length, 0x5300+int64(length))
 				want := ProdBF16Generic(&values[0], length)
-				got := Default.Prod(unsafe.Pointer(&values[0]), length, dtype.BFloat16)
+				var got float32
+				Default.Prod(unsafe.Pointer(&got), unsafe.Pointer(&values[0]), length, dtype.BFloat16)
 
 				assertProdF32Parity(t, got, want)
 			})

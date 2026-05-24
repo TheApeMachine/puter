@@ -10,19 +10,19 @@ import (
 )
 
 func (sampling *Sampling) TopKSample(
-	config device.SamplingConfig,
-	logits unsafe.Pointer,
+	dst, logits unsafe.Pointer,
 	vocabSize int,
+	config device.SamplingConfig,
 	format dtype.DType,
-) int32 {
-	return sampling.host.SamplingIndex(KernelTopK, config, logits, vocabSize, format)
+) {
+	*(*int32)(dst) = sampling.host.SamplingIndex(KernelTopK, config, logits, vocabSize, format)
 }
 
 func (sampling *Sampling) TopPSample(
-	config device.SamplingConfig,
-	logits unsafe.Pointer,
+	dst, logits unsafe.Pointer,
 	vocabSize int,
+	config device.SamplingConfig,
 	format dtype.DType,
-) int32 {
-	return sampling.host.SamplingIndex(KernelTopP, config, logits, vocabSize, format)
+) {
+	*(*int32)(dst) = sampling.host.SamplingIndex(KernelTopP, config, logits, vocabSize, format)
 }

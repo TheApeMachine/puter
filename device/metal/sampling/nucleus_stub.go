@@ -9,12 +9,12 @@ import (
 	"github.com/theapemachine/puter/device"
 )
 
-func (sampling *Sampling) TopKSample(config device.SamplingConfig, logits unsafe.Pointer, vocabSize int, format dtype.DType) int32 {
+func (sampling *Sampling) TopKSample(dst, logits unsafe.Pointer, vocabSize int, config device.SamplingConfig, format dtype.DType) {
 	sampling.stubHost()
-	return 0
+	*(*int32)(dst) = 0
 }
 
-func (sampling *Sampling) TopPSample(config device.SamplingConfig, logits unsafe.Pointer, vocabSize int, format dtype.DType) int32 {
+func (sampling *Sampling) TopPSample(dst, logits unsafe.Pointer, vocabSize int, config device.SamplingConfig, format dtype.DType) {
 	sampling.stubHost()
-	return 0
+	*(*int32)(dst) = 0
 }

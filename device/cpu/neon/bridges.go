@@ -72,7 +72,7 @@ func runGreedySample(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	out[0] = sampling.Default.GreedySample(unsafe.Pointer(&logits[0]), len(logits), dtype.Float32)
+	sampling.Default.GreedySample(unsafe.Pointer(&out[0]), unsafe.Pointer(&logits[0]), len(logits), dtype.Float32)
 
 	return nil
 }
@@ -98,10 +98,11 @@ func runTopKSampleDefault(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	out[0] = sampling.Default.TopKSample(
-		sampling.DefaultSamplingConfig(),
+	sampling.Default.TopKSample(
+		unsafe.Pointer(&out[0]),
 		unsafe.Pointer(&logits[0]),
 		len(logits),
+		sampling.DefaultSamplingConfig(),
 		dtype.Float32,
 	)
 
@@ -129,10 +130,11 @@ func runTopPSampleDefault(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	out[0] = sampling.Default.TopPSample(
-		sampling.DefaultSamplingConfig(),
+	sampling.Default.TopPSample(
+		unsafe.Pointer(&out[0]),
 		unsafe.Pointer(&logits[0]),
 		len(logits),
+		sampling.DefaultSamplingConfig(),
 		dtype.Float32,
 	)
 
