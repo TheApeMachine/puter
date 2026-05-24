@@ -7,7 +7,7 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 )
 
-func GLU(
+func (activation Activation) GLU(
 	dst, packed unsafe.Pointer,
 	batch, halfCount int,
 	format dtype.DType,
@@ -15,7 +15,7 @@ func GLU(
 	dispatchGatedPacked(dst, packed, batch, halfCount, format, gluPackedKernel, math.FastGLU32)
 }
 
-func GeGLU(
+func (activation Activation) GeGLU(
 	dst, packed unsafe.Pointer,
 	batch, halfCount int,
 	format dtype.DType,
@@ -23,7 +23,7 @@ func GeGLU(
 	dispatchGatedPacked(dst, packed, batch, halfCount, format, geGLUPackedKernel, math.FastGeGLU32)
 }
 
-func GeGLUTanh(
+func (activation Activation) GeGLUTanh(
 	dst, packed unsafe.Pointer,
 	batch, halfCount int,
 	format dtype.DType,
@@ -31,7 +31,7 @@ func GeGLUTanh(
 	dispatchGatedPacked(dst, packed, batch, halfCount, format, geGLUTanhPackedKernel, math.FastGeGLUTanh32)
 }
 
-func SwiGLU(
+func (activation Activation) SwiGLU(
 	dst, packed unsafe.Pointer,
 	batch, halfCount int,
 	format dtype.DType,
@@ -39,7 +39,7 @@ func SwiGLU(
 	dispatchGatedPacked(dst, packed, batch, halfCount, format, swiGLUPackedKernel, math.FastSwiGLU32)
 }
 
-func ReGLU(
+func (activation Activation) ReGLU(
 	dst, packed unsafe.Pointer,
 	batch, halfCount int,
 	format dtype.DType,
@@ -47,7 +47,7 @@ func ReGLU(
 	dispatchGatedPacked(dst, packed, batch, halfCount, format, reGLUPackedKernel, math.FastReGLU32)
 }
 
-func SiGLU(
+func (activation Activation) SiGLU(
 	dst, packed unsafe.Pointer,
 	batch, halfCount int,
 	format dtype.DType,
@@ -55,7 +55,7 @@ func SiGLU(
 	dispatchGatedPacked(dst, packed, batch, halfCount, format, siGLUPackedKernel, math.FastSiGLU32)
 }
 
-func GLUTensors(
+func (activation Activation) GLUTensors(
 	dst, gate, up unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -63,7 +63,7 @@ func GLUTensors(
 	dispatchGatedTensors(dst, gate, up, count, format, gluTensorsKernel, math.FastGLU32)
 }
 
-func GeGLUTensors(
+func (activation Activation) GeGLUTensors(
 	dst, gate, up unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -71,7 +71,7 @@ func GeGLUTensors(
 	dispatchGatedTensors(dst, gate, up, count, format, geGLUTensorsKernel, math.FastGeGLU32)
 }
 
-func GeGLUTanhTensors(
+func (activation Activation) GeGLUTanhTensors(
 	dst, gate, up unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -79,7 +79,7 @@ func GeGLUTanhTensors(
 	dispatchGatedTensors(dst, gate, up, count, format, geGLUTanhTensorsKernel, math.FastGeGLUTanh32)
 }
 
-func SwiGLUTensors(
+func (activation Activation) SwiGLUTensors(
 	dst, gate, up unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -87,7 +87,7 @@ func SwiGLUTensors(
 	dispatchGatedTensors(dst, gate, up, count, format, swiGLUTensorsKernel, math.FastSwiGLU32)
 }
 
-func ReGLUTensors(
+func (activation Activation) ReGLUTensors(
 	dst, gate, up unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -95,7 +95,7 @@ func ReGLUTensors(
 	dispatchGatedTensors(dst, gate, up, count, format, reGLUTensorsKernel, math.FastReGLU32)
 }
 
-func SiGLUTensors(
+func (activation Activation) SiGLUTensors(
 	dst, gate, up unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -103,7 +103,7 @@ func SiGLUTensors(
 	dispatchGatedTensors(dst, gate, up, count, format, siGLUTensorsKernel, math.FastSiGLU32)
 }
 
-func LinGLU(
+func (activation Activation) LinGLU(
 	dst, packed unsafe.Pointer,
 	batch, halfCount int,
 	format dtype.DType,
@@ -111,7 +111,7 @@ func LinGLU(
 	dispatchGatedPacked(dst, packed, batch, halfCount, format, linGLUPackedKernel, math.FastLinGLU32)
 }
 
-func SeGLU(
+func (activation Activation) SeGLU(
 	dst, packed unsafe.Pointer,
 	batch, halfCount int,
 	format dtype.DType,
@@ -119,7 +119,7 @@ func SeGLU(
 	dispatchGatedPacked(dst, packed, batch, halfCount, format, seGLUPackedKernel, math.FastSeGLU32)
 }
 
-func LinGLUTensors(
+func (activation Activation) LinGLUTensors(
 	dst, gate, up unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -127,7 +127,7 @@ func LinGLUTensors(
 	dispatchGatedTensors(dst, gate, up, count, format, linGLUTensorsKernel, math.FastLinGLU32)
 }
 
-func SeGLUTensors(
+func (activation Activation) SeGLUTensors(
 	dst, gate, up unsafe.Pointer,
 	count int,
 	format dtype.DType,

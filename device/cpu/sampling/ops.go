@@ -12,7 +12,7 @@ func requireSamplingFloat32(format dtype.DType) {
 	}
 }
 
-func GreedySample(logits unsafe.Pointer, vocabSize int, format dtype.DType) int32 {
+func (sampling Sampling) GreedySample(logits unsafe.Pointer, vocabSize int, format dtype.DType) int32 {
 	if vocabSize == 0 {
 		return 0
 	}
@@ -23,7 +23,7 @@ func GreedySample(logits unsafe.Pointer, vocabSize int, format dtype.DType) int3
 	return GreedySampleFloat32Native(logitView)
 }
 
-func TopKSample(config SamplingConfig, logits unsafe.Pointer, vocabSize int, format dtype.DType) int32 {
+func (sampling Sampling) TopKSample(config SamplingConfig, logits unsafe.Pointer, vocabSize int, format dtype.DType) int32 {
 	if vocabSize == 0 {
 		return 0
 	}
@@ -40,7 +40,7 @@ func TopKSample(config SamplingConfig, logits unsafe.Pointer, vocabSize int, for
 	return TopKSampleFloat32Native(logitView, config.Temperature, topK, config.Seed)
 }
 
-func TopPSample(config SamplingConfig, logits unsafe.Pointer, vocabSize int, format dtype.DType) int32 {
+func (sampling Sampling) TopPSample(config SamplingConfig, logits unsafe.Pointer, vocabSize int, format dtype.DType) int32 {
 	if vocabSize == 0 {
 		return 0
 	}

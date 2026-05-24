@@ -8,7 +8,7 @@ import (
 	"github.com/theapemachine/puter/device"
 )
 
-func Dequant(
+func (dequantization Dequantization) Dequant(
 	dst, src unsafe.Pointer,
 	count int,
 	config device.DequantInt8Config,
@@ -36,7 +36,7 @@ func Dequant(
 	DequantInt8Native(dstView, srcView, config.Scale, config.ZeroPoint)
 }
 
-func Dequant4(
+func (dequantization Dequantization) Dequant4(
 	dst, src unsafe.Pointer,
 	pairCount int,
 	config device.DequantInt4Config,

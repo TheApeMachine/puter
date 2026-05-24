@@ -6,7 +6,7 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 )
 
-func ApplyMask(input, mask, output unsafe.Pointer, count int, format dtype.DType) {
+func (masking Masking) ApplyMask(input, mask, output unsafe.Pointer, count int, format dtype.DType) {
 	if count == 0 {
 		return
 	}
@@ -38,7 +38,7 @@ func ApplyMask(input, mask, output unsafe.Pointer, count int, format dtype.DType
 	}
 }
 
-func CausalMask(output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
+func (masking Masking) CausalMask(output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
 	if seqQ == 0 || seqK == 0 {
 		return
 	}
@@ -79,7 +79,7 @@ func CausalMask(output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
 	}
 }
 
-func ALiBiBias(
+func (masking Masking) ALiBiBias(
 	scores, slope, output unsafe.Pointer,
 	seqQ, seqK int,
 	format dtype.DType,

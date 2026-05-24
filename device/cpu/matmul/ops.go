@@ -6,7 +6,7 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 )
 
-func Matmul(
+func (gemm Gemm) Matmul(
 	out, left, right unsafe.Pointer,
 	rows, inner, cols int,
 	format dtype.DType,

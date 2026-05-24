@@ -7,7 +7,7 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 )
 
-func Dropout(
+func (dropoutLayer DropoutLayer) Dropout(
 	dst, src unsafe.Pointer,
 	count int,
 	config DropoutConfig,
@@ -24,7 +24,7 @@ func Dropout(
 	runDropoutF32(dst, src, count, config)
 }
 
-func DropoutSeedState(seed uint64) [4]uint32 {
+func (dropoutLayer DropoutLayer) DropoutSeedState(seed uint64) [4]uint32 {
 	return [4]uint32{
 		uint32(seed),
 		uint32(seed >> 32),

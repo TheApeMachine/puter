@@ -6,7 +6,7 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 )
 
-func Conv2D(
+func (convolution Convolution) Conv2D(
 	config Conv2DConfig,
 	input, weight, bias, output unsafe.Pointer,
 	batch, inChannels, inHeight, inWidth,
@@ -24,7 +24,7 @@ func Conv2D(
 	)
 }
 
-func Conv1D(
+func (convolution Convolution) Conv1D(
 	config Conv1DConfig,
 	input, weight, bias, output unsafe.Pointer,
 	batch, inChannels, inLength, outChannels, kernelLength, outLength int,
@@ -38,7 +38,7 @@ func Conv1D(
 	)
 }
 
-func Conv3D(
+func (convolution Convolution) Conv3D(
 	config Conv3DConfig,
 	input, weight, bias, output unsafe.Pointer,
 	batch, inChannels, inD, inH, inW,
@@ -54,7 +54,7 @@ func Conv3D(
 	)
 }
 
-func ConvTranspose2D(
+func (convolution Convolution) ConvTranspose2D(
 	config Conv2DConfig,
 	input, weight, bias, output unsafe.Pointer,
 	batch, inChannels, inHeight, inWidth,

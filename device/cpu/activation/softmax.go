@@ -6,11 +6,11 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 )
 
-func Softmax(dst, src unsafe.Pointer, count int, format dtype.DType) {
+func (activation Activation) Softmax(dst, src unsafe.Pointer, count int, format dtype.DType) {
 	dispatchSoftmax(dst, src, count, format, false)
 }
 
-func LogSoftmax(dst, src unsafe.Pointer, count int, format dtype.DType) {
+func (activation Activation) LogSoftmax(dst, src unsafe.Pointer, count int, format dtype.DType) {
 	dispatchSoftmax(dst, src, count, format, true)
 }
 

@@ -269,6 +269,217 @@ func (builder *Builder) loadMatmulExecutable(
 	return compiled, nil
 }
 
+/*
+ExecutePool compiles (or loads from cache) and executes a rank-4 pool operation.
+*/
+func (builder *Builder) ExecutePool(
+	bridge *xlaBridge,
+	operationName string,
+	context LoweringContext,
+	intParams []int64,
+	input *DeviceTensor,
+	output *DeviceTensor,
+) error {
+	programKey, err := builder.ProgramKeyFor(operationName, context, nil, intParams)
+
+	if err != nil {
+		return err
+	}
+
+	executable, err := builder.loadPoolExecutable(bridge, programKey, context, intParams)
+
+	if err != nil {
+		return err
+	}
+
+	return bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef())
+}
+
+func (builder *Builder) loadPoolExecutable(
+	bridge *xlaBridge,
+	programKey ProgramKey,
+	context LoweringContext,
+	intParams []int64,
+) (*CompiledExecutable, error) {
+	if cached, ok := builder.CachedExecutable(programKey); ok {
+		return cached, nil
+	}
+
+	if len(context.InputShapes) != 1 {
+		return nil, &loweringError{message: "pool requires one input shape"}
+	}
+
+	inputShape := context.InputShapes[0]
+	outputShape := context.OutputShape
+	moduleName := fmt.Sprintf("puter_%s", programKey.Operation)
+
+	var hloText string
+	var err error
+
+	switch programKey.Operation {
+	case "max_pool2d":
+		poolParams := poolParamsFromIntParams(intParams, inputShape, outputShape)
+		hloText, err = hlo.RenderMaxPool2D(moduleName, context.OutputDType, inputShape, outputShape, poolParams)
+	case "avg_pool2d":
+		poolParams := poolParamsFromIntParams(intParams, inputShape, outputShape)
+		hloText, err = hlo.RenderAvgPool2D(moduleName, context.OutputDType, inputShape, outputShape, poolParams)
+	case "adaptive_max_pool2d":
+		hloText, err = hlo.RenderAdaptiveMaxPool2D(moduleName, context.OutputDType, inputShape, outputShape)
+	case "adaptive_avg_pool2d":
+		hloText, err = hlo.RenderAdaptiveAvgPool2D(moduleName, context.OutputDType, inputShape, outputShape)
+	default:
+		return nil, &loweringError{message: "unknown XLA pool operation: " + programKey.Operation}
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	executableRef, err := bridge.compileHLO(hloText)
+
+	if err != nil {
+		return nil, err
+	}
+
+	compiled := &CompiledExecutable{
+		key:    programKey,
+		handle: uintptr(executableRef),
+	}
+	builder.RecordExecutable(programKey, compiled)
+	return compiled, nil
+}
+
+/*
+ExecuteVariadic compiles (or loads from cache) and executes a multi-input XLA program.
+*/
+func (builder *Builder) ExecuteVariadic(
+	bridge *xlaBridge,
+	operationName string,
+	context LoweringContext,
+	floatParams []float64,
+	intParams []int64,
+	inputs []*DeviceTensor,
+	output *DeviceTensor,
+) error {
+	programKey, err := builder.ProgramKeyFor(operationName, context, floatParams, intParams)
+
+	if err != nil {
+		return err
+	}
+
+	executable, err := builder.loadVariadicExecutable(bridge, programKey, context, floatParams, intParams)
+
+	if err != nil {
+		return err
+	}
+
+	return bridge.executeVariadic(C.XLAExecutableRef(executable.handle), inputs, output)
+}
+
+func (builder *Builder) loadVariadicExecutable(
+	bridge *xlaBridge,
+	programKey ProgramKey,
+	context LoweringContext,
+	floatParams []float64,
+	intParams []int64,
+) (*CompiledExecutable, error) {
+	if cached, ok := builder.CachedExecutable(programKey); ok {
+		return cached, nil
+	}
+
+	moduleName := fmt.Sprintf("puter_%s", programKey.Operation)
+	inputShape := context.InputShapes[0]
+
+	var hloText string
+	var err error
+
+	switch programKey.Operation {
+	case "layer_norm":
+		hloText, err = hlo.RenderLayerNorm(moduleName, context.OutputDType, inputShape)
+	case "rms_norm":
+		hloText, err = hlo.RenderRMSNorm(moduleName, context.OutputDType, inputShape)
+	case "batch_norm_eval":
+		hloText, err = hlo.RenderBatchNormEval(moduleName, context.OutputDType, inputShape)
+	case "instance_norm":
+		hloText, err = hlo.RenderInstanceNorm(moduleName, context.OutputDType, inputShape)
+	case "group_norm":
+		groups := 1
+
+		if len(intParams) > 0 {
+			groups = int(intParams[0])
+		}
+
+		hloText, err = hlo.RenderGroupNorm(moduleName, context.OutputDType, inputShape, groups)
+	default:
+		return nil, &loweringError{message: "unknown XLA variadic operation: " + programKey.Operation}
+	}
+
+	_ = floatParams
+
+	if err != nil {
+		return nil, err
+	}
+
+	executableRef, err := bridge.compileHLO(hloText)
+
+	if err != nil {
+		return nil, err
+	}
+
+	compiled := &CompiledExecutable{
+		key:    programKey,
+		handle: uintptr(executableRef),
+	}
+	builder.RecordExecutable(programKey, compiled)
+	return compiled, nil
+}
+
+func poolParamsFromIntParams(
+	intParams []int64,
+	inputShape tensor.Shape,
+	outputShape tensor.Shape,
+) hlo.PoolParams {
+	inputDimensions := inputShape.Dims()
+	outputDimensions := outputShape.Dims()
+
+	kernelH := int64(0)
+	kernelW := int64(0)
+	strideH := int64(0)
+	strideW := int64(0)
+	paddingH := int64(0)
+	paddingW := int64(0)
+
+	if len(intParams) > 0 {
+		kernelH = intParams[0]
+	}
+
+	if len(intParams) > 1 {
+		kernelW = intParams[1]
+	}
+
+	if len(intParams) > 2 {
+		strideH = intParams[2]
+	}
+
+	if len(intParams) > 3 {
+		strideW = intParams[3]
+	}
+
+	if len(intParams) > 4 {
+		paddingH = intParams[4]
+	}
+
+	if len(intParams) > 5 {
+		paddingW = intParams[5]
+	}
+
+	return hlo.ResolvePoolParams(
+		kernelH, kernelW, strideH, strideW, paddingH, paddingW,
+		int64(inputDimensions[2]), int64(inputDimensions[3]),
+		int64(outputDimensions[2]), int64(outputDimensions[3]),
+	)
+}
+
 func (builder *Builder) loadExecutable(
 	bridge *xlaBridge,
 	programKey ProgramKey,
@@ -365,6 +576,50 @@ func ShapeFromMatmul(rows, inner, cols int) (tensor.Shape, tensor.Shape, tensor.
 	}
 
 	return leftShape, rightShape, outputShape, nil
+}
+
+/*
+ShapeFromNCHW builds a dense rank-4 NCHW shape.
+*/
+func ShapeFromNCHW(batch, channels, height, width int) (tensor.Shape, error) {
+	if batch <= 0 || channels <= 0 || height <= 0 || width <= 0 {
+		return tensor.Shape{}, &loweringError{message: "invalid XLA NCHW shape"}
+	}
+
+	return tensor.NewShape([]int{batch, channels, height, width})
+}
+
+/*
+ShapeFromBCS builds a dense rank-3 BCS shape.
+*/
+func ShapeFromBCS(batch, channels, spatial int) (tensor.Shape, error) {
+	if batch <= 0 || channels <= 0 || spatial <= 0 {
+		return tensor.Shape{}, &loweringError{message: "invalid XLA BCS shape"}
+	}
+
+	return tensor.NewShape([]int{batch, channels, spatial})
+}
+
+/*
+ShapeFromRowsCols builds a dense rank-2 matrix shape.
+*/
+func ShapeFromRowsCols(rows, cols int) (tensor.Shape, error) {
+	if rows <= 0 || cols <= 0 {
+		return tensor.Shape{}, &loweringError{message: "invalid XLA row matrix shape"}
+	}
+
+	return tensor.NewShape([]int{rows, cols})
+}
+
+/*
+ShapeFromVector builds a dense rank-1 shape.
+*/
+func ShapeFromVector(count int) (tensor.Shape, error) {
+	if count <= 0 {
+		return tensor.Shape{}, &loweringError{message: "invalid XLA vector shape"}
+	}
+
+	return tensor.NewShape([]int{count})
 }
 
 /*

@@ -7,7 +7,7 @@ import (
 	"github.com/theapemachine/puter/device/cpu/math"
 )
 
-func PReLU(
+func (activation Activation) PReLU(
 	dst, src unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -28,7 +28,7 @@ func PReLU(
 	})
 }
 
-func PReLUV(
+func (activation Activation) PReLUV(
 	dst, src, slopes unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -63,7 +63,7 @@ func PReLUV(
 	)
 }
 
-func LeakyReLUSlope(
+func (activation Activation) LeakyReLUSlope(
 	dst, src unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -84,7 +84,7 @@ func LeakyReLUSlope(
 	})
 }
 
-func ELUAlpha(
+func (activation Activation) ELUAlpha(
 	dst, src unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -105,7 +105,7 @@ func ELUAlpha(
 	})
 }
 
-func CELUAlpha(
+func (activation Activation) CELUAlpha(
 	dst, src unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -126,7 +126,7 @@ func CELUAlpha(
 	})
 }
 
-func Threshold(
+func (activation Activation) Threshold(
 	dst, src unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -147,7 +147,7 @@ func Threshold(
 	})
 }
 
-func HardTanhRange(
+func (activation Activation) HardTanhRange(
 	dst, src unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -169,7 +169,7 @@ func HardTanhRange(
 	})
 }
 
-func Snake(
+func (activation Activation) Snake(
 	dst, src unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -190,7 +190,7 @@ func Snake(
 	})
 }
 
-func HardShrink(
+func (activation Activation) HardShrink(
 	dst, src unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -211,7 +211,7 @@ func HardShrink(
 	})
 }
 
-func SoftShrink(
+func (activation Activation) SoftShrink(
 	dst, src unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -232,7 +232,7 @@ func SoftShrink(
 	})
 }
 
-func RReLU(
+func (activation Activation) RReLU(
 	dst, src unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -267,7 +267,7 @@ func RReLU(
 	})
 }
 
-func SnakeParametric(
+func (activation Activation) SnakeParametric(
 	dst, src unsafe.Pointer,
 	count int,
 	format dtype.DType,

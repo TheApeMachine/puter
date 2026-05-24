@@ -6,7 +6,7 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 )
 
-func Lookup(
+func (embedding Embedding) Lookup(
 	table, indices, output unsafe.Pointer,
 	vocab, hidden, indexCount int,
 	format dtype.DType,
@@ -14,7 +14,7 @@ func Lookup(
 	dispatchLookup(table, indices, output, vocab, hidden, indexCount, format)
 }
 
-func Bag(
+func (embedding Embedding) Bag(
 	table, indices, offsets, output unsafe.Pointer,
 	vocab, hidden, bagCount, indexCount int,
 	format dtype.DType,

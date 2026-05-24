@@ -599,3 +599,43 @@ int xla_execute_binary(
     PJRT_Buffer* outputs[] = {(PJRT_Buffer*)outputWrapper->pjrtBuffer};
     return xla_execute_impl(clientRef, executableRef, inputs, 2, outputs, status);
 }
+
+int xla_execute_variadic(
+    XLAClientRef clientRef,
+    XLAExecutableRef executableRef,
+    XLABufferRef* inputs,
+    int inputCount,
+    XLABufferRef output,
+    XLAStatus* status
+) {
+    if (inputs == NULL || inputCount <= 0) {
+        XLAStatus localStatus;
+        xla_status_set(&localStatus, -1, "invalid XLA variadic execute request");
+        if (status != NULL) {
+            *status = localStatus;
+        }
+        return -1;
+    }
+
+    XLABuffer** inputWrappers = (XLABuffer**)inputs;
+    PJRT_Buffer** pjrtInputs = (PJRT_Buffer**)calloc((size_t)inputCount, sizeof(PJRT_Buffer*));
+
+    if (pjrtInputs == NULL) {
+        XLAStatus localStatus;
+        xla_status_set(&localStatus, -1, "XLA variadic execute allocation failed");
+        if (status != NULL) {
+            *status = localStatus;
+        }
+        return -1;
+    }
+
+    for (int inputIndex = 0; inputIndex < inputCount; inputIndex++) {
+        pjrtInputs[inputIndex] = (PJRT_Buffer*)inputWrappers[inputIndex]->pjrtBuffer;
+    }
+
+    XLABuffer* outputWrapper = (XLABuffer*)output;
+    PJRT_Buffer* outputs[] = {(PJRT_Buffer*)outputWrapper->pjrtBuffer};
+    int result = xla_execute_impl(clientRef, executableRef, pjrtInputs, (size_t)inputCount, outputs, status);
+    free(pjrtInputs);
+    return result;
+}

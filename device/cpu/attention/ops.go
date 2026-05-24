@@ -6,7 +6,7 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 )
 
-func ScaledDotProductAttention(
+func (attention Attention) ScaledDotProductAttention(
 	config FlashAttentionConfig,
 	query, key, value, output unsafe.Pointer,
 	seqQ, seqK, depth, valueDim int,
@@ -18,7 +18,7 @@ func ScaledDotProductAttention(
 	)
 }
 
-func FlashAttention(
+func (attention Attention) FlashAttention(
 	config FlashAttentionConfig,
 	query, key, value, output unsafe.Pointer,
 	seqQ, seqK, depth, valueDim int,
@@ -30,7 +30,7 @@ func FlashAttention(
 	)
 }
 
-func MultiHeadAttention(
+func (attention Attention) MultiHeadAttention(
 	config MultiHeadAttentionConfig,
 	query, key, value, output unsafe.Pointer,
 	seqQ, seqK int,

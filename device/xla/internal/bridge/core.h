@@ -71,6 +71,15 @@ int xla_execute_binary(
     XLAStatus* status
 );
 
+int xla_execute_variadic(
+    XLAClientRef client,
+    XLAExecutableRef executable,
+    XLABufferRef* inputs,
+    int inputCount,
+    XLABufferRef output,
+    XLAStatus* status
+);
+
 #ifdef __cplusplus
 }
 #endif

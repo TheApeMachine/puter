@@ -12,7 +12,7 @@ func requireRoPEFloat32(format dtype.DType) {
 	}
 }
 
-func RoPE(
+func (rotaryEmbedding RotaryEmbedding) RoPE(
 	config RoPEConfig,
 	input, output unsafe.Pointer,
 	seqLen, numHeads, headDim int,
@@ -21,7 +21,7 @@ func RoPE(
 	dispatchRoPE(config, input, output, seqLen, numHeads, headDim, format)
 }
 
-func RoPEPairs(
+func (rotaryEmbedding RotaryEmbedding) RoPEPairs(
 	output, input, cosBuffer, sinBuffer unsafe.Pointer,
 	halfDim int,
 	format dtype.DType,

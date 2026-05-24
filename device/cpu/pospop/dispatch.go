@@ -101,7 +101,7 @@ var count64func = func() func(*[64]int, []uint64) {
 // add the results to counts.  Each element of counts keeps track of a
 // different place; counts[0] for 0x01, counts[1] for 0x02, and so on to
 // counts[7] for 0x80.
-func CountString(counts *[8]int, str string) {
+func (posPop PosPop) CountString(counts *[8]int, str string) {
 	buf := unsafe.Slice(unsafe.StringData(str), len(str))
 	count8func(counts, buf)
 }
@@ -110,7 +110,7 @@ func CountString(counts *[8]int, str string) {
 // add the results to counts.  Each element of counts keeps track of a
 // different place; counts[0] for 0x01, counts[1] for 0x02, and so on to
 // counts[7] for 0x80.
-func Count8(counts *[8]int, buf []uint8) {
+func (posPop PosPop) Count8(counts *[8]int, buf []uint8) {
 	count8func(counts, buf)
 }
 
@@ -118,7 +118,7 @@ func Count8(counts *[8]int, buf []uint8) {
 // add the results to counts.  Each element of counts keeps track of a
 // different place; counts[0] for 0x0001, counts[1] for 0x0002, and so
 // on to counts[15] for 0x8000.
-func Count16(counts *[16]int, buf []uint16) {
+func (posPop PosPop) Count16(counts *[16]int, buf []uint16) {
 	count16func(counts, buf)
 }
 
@@ -126,7 +126,7 @@ func Count16(counts *[16]int, buf []uint16) {
 // add the results to counts.  Each element of counts keeps track of a
 // different place; counts[0] for 0x0000001, counts[1] for 0x00000002,
 // and so on to counts[31] for 0x80000000.
-func Count32(counts *[32]int, buf []uint32) {
+func (posPop PosPop) Count32(counts *[32]int, buf []uint32) {
 	count32func(counts, buf)
 }
 
@@ -134,6 +134,6 @@ func Count32(counts *[32]int, buf []uint32) {
 // add the results to counts.  Each element of counts keeps track of a
 // different place; counts[0] for 0x000000000000001, counts[1] for
 // 0x0000000000000002, and so on to counts[63] for 0x8000000000000000.
-func Count64(counts *[64]int, buf []uint64) {
+func (posPop PosPop) Count64(counts *[64]int, buf []uint64) {
 	count64func(counts, buf)
 }

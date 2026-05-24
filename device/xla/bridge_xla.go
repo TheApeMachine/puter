@@ -204,6 +204,38 @@ func (bridge *xlaBridge) executeBinary(
 	return nil
 }
 
+func (bridge *xlaBridge) executeVariadic(
+	executableRef C.XLAExecutableRef,
+	inputs []*DeviceTensor,
+	output *DeviceTensor,
+) error {
+	if len(inputs) == 0 {
+		return &loweringError{message: "XLA variadic execute requires inputs"}
+	}
+
+	bufferRefs := make([]C.XLABufferRef, len(inputs))
+
+	for inputIndex, inputTensor := range inputs {
+		bufferRefs[inputIndex] = inputTensor.bufferRef()
+	}
+
+	var status C.XLAStatus
+	code := C.xla_execute_variadic(
+		bridge.client,
+		executableRef,
+		(*C.XLABufferRef)(unsafe.Pointer(&bufferRefs[0])),
+		C.int(len(bufferRefs)),
+		output.bufferRef(),
+		&status,
+	)
+
+	if code != 0 {
+		return bridgeStatusError(status)
+	}
+
+	return nil
+}
+
 func (bridge *xlaBridge) releaseBuffer(bufferRef C.XLABufferRef) {
 	if bufferRef != nil {
 		C.xla_buffer_release(bufferRef)

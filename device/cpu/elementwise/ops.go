@@ -6,7 +6,7 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 )
 
-func Add(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
+func (elementwise Elementwise) Add(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
 	if format == dtype.Float64 {
 		if count == 0 {
 			return
@@ -23,28 +23,28 @@ func Add(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
 	)
 }
 
-func Sub(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
+func (elementwise Elementwise) Sub(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
 	dispatchBinary(
 		dst, left, right, count, format, runSubF32, runSubF16, runSubBF16,
 		func(leftValue, rightValue float32) float32 { return leftValue - rightValue },
 	)
 }
 
-func Mul(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
+func (elementwise Elementwise) Mul(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
 	dispatchBinary(
 		dst, left, right, count, format, runMulF32, runMulF16, runMulBF16,
 		func(leftValue, rightValue float32) float32 { return leftValue * rightValue },
 	)
 }
 
-func Div(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
+func (elementwise Elementwise) Div(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
 	dispatchBinary(
 		dst, left, right, count, format, runDivF32, runDivF16, runDivBF16,
 		func(leftValue, rightValue float32) float32 { return leftValue / rightValue },
 	)
 }
 
-func Max(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
+func (elementwise Elementwise) Max(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
 	dispatchBinary(
 		dst, left, right, count, format, runMaxF32, runMaxF16, runMaxBF16,
 		func(leftValue, rightValue float32) float32 {
@@ -57,7 +57,7 @@ func Max(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
 	)
 }
 
-func Min(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
+func (elementwise Elementwise) Min(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
 	dispatchBinary(
 		dst, left, right, count, format, runMinF32, runMinF16, runMinBF16,
 		func(leftValue, rightValue float32) float32 {
@@ -70,22 +70,22 @@ func Min(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
 	)
 }
 
-func Abs(dst, src unsafe.Pointer, count int, format dtype.DType) {
+func (elementwise Elementwise) Abs(dst, src unsafe.Pointer, count int, format dtype.DType) {
 	dispatchUnary(dst, src, count, format, runAbsF32, runAbsF16, runAbsBF16)
 }
 
-func Neg(dst, src unsafe.Pointer, count int, format dtype.DType) {
+func (elementwise Elementwise) Neg(dst, src unsafe.Pointer, count int, format dtype.DType) {
 	dispatchUnary(dst, src, count, format, runNegF32, runNegF16, runNegBF16)
 }
 
-func Sqrt(dst, src unsafe.Pointer, count int, format dtype.DType) {
+func (elementwise Elementwise) Sqrt(dst, src unsafe.Pointer, count int, format dtype.DType) {
 	dispatchUnary(dst, src, count, format, runSqrtF32, runSqrtF16, runSqrtBF16)
 }
 
-func ReLU(dst, src unsafe.Pointer, count int, format dtype.DType) {
+func (elementwise Elementwise) ReLU(dst, src unsafe.Pointer, count int, format dtype.DType) {
 	dispatchUnary(dst, src, count, format, runReluF32, runReluF16, runReluBF16)
 }
 
-func Axpy(y, x unsafe.Pointer, count int, alpha float32, format dtype.DType) {
+func (elementwise Elementwise) Axpy(y, x unsafe.Pointer, count int, alpha float32, format dtype.DType) {
 	dispatchAxpy(y, x, count, alpha, format, runAxpyF32, runAxpyF16, runAxpyBF16)
 }

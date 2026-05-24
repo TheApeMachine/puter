@@ -12,7 +12,7 @@ func requireHawkesFloat32(format dtype.DType) {
 	}
 }
 
-func HawkesIntensity(
+func (hawkes Hawkes) HawkesIntensity(
 	eventTimes, queryTimes, output unsafe.Pointer,
 	eventCount, queryCount int,
 	mu, alpha, beta float32,
@@ -31,7 +31,7 @@ func HawkesIntensity(
 	HawkesIntensityNative(eventView, queryView, outputView, mu, alpha, beta)
 }
 
-func HawkesKernelMatrix(
+func (hawkes Hawkes) HawkesKernelMatrix(
 	eventTimes, output unsafe.Pointer,
 	eventCount int,
 	alpha, beta float32,
@@ -49,7 +49,7 @@ func HawkesKernelMatrix(
 	HawkesKernelMatrixNative(eventView, outputView, alpha, beta)
 }
 
-func HawkesLogLikelihood(
+func (hawkes Hawkes) HawkesLogLikelihood(
 	eventTimes unsafe.Pointer,
 	eventCount int,
 	totalT, mu, alpha, beta float32,
@@ -68,7 +68,7 @@ func HawkesLogLikelihood(
 	HawkesLogLikelihoodNative(eventView, totalT, mu, alpha, beta, outputView)
 }
 
-func MarkovMutualInformation(
+func (hawkes Hawkes) MarkovMutualInformation(
 	joint, output unsafe.Pointer,
 	xCount, yCount int,
 	format dtype.DType,
@@ -85,7 +85,7 @@ func MarkovMutualInformation(
 	MarkovMutualInformationNative(jointView, xCount, yCount, outputView)
 }
 
-func MarkovBlanketPartition(
+func (hawkes Hawkes) MarkovBlanketPartition(
 	adjacency, internal, output unsafe.Pointer,
 	nodeCount, internalCount int,
 	format dtype.DType,

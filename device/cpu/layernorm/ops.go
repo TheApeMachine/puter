@@ -6,7 +6,7 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 )
 
-func LayerNorm(
+func (norm Norm) LayerNorm(
 	input, scale, bias, output unsafe.Pointer,
 	rows, lastDim int,
 	format dtype.DType,
@@ -14,7 +14,7 @@ func LayerNorm(
 	dispatchLayerNorm(input, scale, bias, output, rows, lastDim, format)
 }
 
-func RMSNorm(
+func (norm Norm) RMSNorm(
 	input, scale, output unsafe.Pointer,
 	rows, lastDim int,
 	format dtype.DType,

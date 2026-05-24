@@ -12,7 +12,7 @@ func requirePredictiveCodingFloat32(format dtype.DType) {
 	}
 }
 
-func Prediction(
+func (predictiveCoding PredictiveCoding) Prediction(
 	weights, representation, output unsafe.Pointer,
 	outDim, inDim int,
 	format dtype.DType,
@@ -30,7 +30,7 @@ func Prediction(
 	PredictionFloat32Native(weightsView, representationView, outputView, outDim, inDim)
 }
 
-func PredictionError(
+func (predictiveCoding PredictiveCoding) PredictionError(
 	observed, predicted, output unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -48,7 +48,7 @@ func PredictionError(
 	PredictionErrorFloat32Native(observedView, predictedView, outputView)
 }
 
-func UpdateRepresentation(
+func (predictiveCoding PredictiveCoding) UpdateRepresentation(
 	config PredictiveCodingConfig,
 	weights, representation, predictionError, output unsafe.Pointer,
 	outDim, inDim int,
@@ -71,7 +71,7 @@ func UpdateRepresentation(
 	)
 }
 
-func UpdateWeights(
+func (predictiveCoding PredictiveCoding) UpdateWeights(
 	config PredictiveCodingConfig,
 	weights, representation, predictionError, output unsafe.Pointer,
 	outDim, inDim int,

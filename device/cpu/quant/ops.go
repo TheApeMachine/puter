@@ -7,7 +7,7 @@ import (
 	"github.com/theapemachine/puter/device"
 )
 
-func Quant(
+func (quantization Quantization) Quant(
 	dst, src unsafe.Pointer,
 	count int,
 	config device.DequantInt8Config,

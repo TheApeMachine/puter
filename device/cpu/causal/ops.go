@@ -13,7 +13,7 @@ func requireCausalFloat32(format dtype.DType) {
 	}
 }
 
-func Cholesky(input, output unsafe.Pointer, matrixOrder int, format dtype.DType) {
+func (causal Causal) Cholesky(input, output unsafe.Pointer, matrixOrder int, format dtype.DType) {
 	requireCausalFloat32(format)
 
 	if matrixOrder == 0 {
@@ -52,7 +52,7 @@ func Cholesky(input, output unsafe.Pointer, matrixOrder int, format dtype.DType)
 	}
 }
 
-func BackdoorAdjustment(
+func (causal Causal) BackdoorAdjustment(
 	conditional, marginalZ, output unsafe.Pointer,
 	xCount, zCount, yCount int,
 	format dtype.DType,
@@ -73,7 +73,7 @@ func BackdoorAdjustment(
 	)
 }
 
-func FrontdoorAdjustment(
+func (causal Causal) FrontdoorAdjustment(
 	mediatorGivenX, outcomeGivenXM, marginalX, output unsafe.Pointer,
 	xCount, mediatorCount, yCount int,
 	format dtype.DType,
@@ -99,7 +99,7 @@ func FrontdoorAdjustment(
 	)
 }
 
-func DoIntervene(
+func (causal Causal) DoIntervene(
 	adjacency, intervened, output unsafe.Pointer,
 	nodeCount, intervenedCount int,
 	format dtype.DType,
@@ -117,7 +117,7 @@ func DoIntervene(
 	DoInterveneFloat32Native(outputView, adjacencyView, intervenedView, nodeCount)
 }
 
-func CATE(treated, control, output unsafe.Pointer, count int, format dtype.DType) {
+func (causal Causal) CATE(treated, control, output unsafe.Pointer, count int, format dtype.DType) {
 	requireCausalFloat32(format)
 
 	if count == 0 {
@@ -131,7 +131,7 @@ func CATE(treated, control, output unsafe.Pointer, count int, format dtype.DType
 	CateFloat32Native(treatedView, controlView, outputView)
 }
 
-func Counterfactual(
+func (causal Causal) Counterfactual(
 	observedY, observedX, counterfactualX, output unsafe.Pointer,
 	count int,
 	slope float32,
@@ -153,7 +153,7 @@ func Counterfactual(
 	)
 }
 
-func IVEstimate(
+func (causal Causal) IVEstimate(
 	instrument, treatment, outcome unsafe.Pointer,
 	count int,
 	output unsafe.Pointer,
@@ -173,7 +173,7 @@ func IVEstimate(
 	outputView[0] = IvEstimateFloat32Native(instrumentView, treatmentView, outcomeView)
 }
 
-func DAGMarkovFactorization(
+func (causal Causal) DAGMarkovFactorization(
 	conditionals unsafe.Pointer,
 	conditionalCount int,
 	output unsafe.Pointer,
@@ -197,7 +197,7 @@ func DAGMarkovFactorization(
 	outputView[0] = float32(product)
 }
 
-func MarkovFlowActive(
+func (causal Causal) MarkovFlowActive(
 	mutualInformation, partition, output unsafe.Pointer,
 	nodeCount int,
 	format dtype.DType,
@@ -205,7 +205,7 @@ func MarkovFlowActive(
 	markovFlow(mutualInformation, partition, output, nodeCount, 2, format)
 }
 
-func MarkovFlowInternal(
+func (causal Causal) MarkovFlowInternal(
 	mutualInformation, partition, output unsafe.Pointer,
 	nodeCount int,
 	format dtype.DType,

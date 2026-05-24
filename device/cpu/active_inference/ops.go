@@ -6,7 +6,7 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 )
 
-func FreeEnergy(
+func (activeInference ActiveInference) FreeEnergy(
 	likelihood, posterior, prior, output unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -18,7 +18,7 @@ func FreeEnergy(
 	dispatchFreeEnergy(likelihood, posterior, prior, output, count, format)
 }
 
-func ExpectedFreeEnergy(
+func (activeInference ActiveInference) ExpectedFreeEnergy(
 	predictedObs, preferredObs, predictedState, output unsafe.Pointer,
 	obsCount, stateCount int,
 	format dtype.DType,
@@ -33,7 +33,7 @@ func ExpectedFreeEnergy(
 	)
 }
 
-func BeliefUpdate(likelihood, prior, output unsafe.Pointer, count int, format dtype.DType) {
+func (activeInference ActiveInference) BeliefUpdate(likelihood, prior, output unsafe.Pointer, count int, format dtype.DType) {
 	if count == 0 {
 		return
 	}
@@ -41,7 +41,7 @@ func BeliefUpdate(likelihood, prior, output unsafe.Pointer, count int, format dt
 	dispatchBeliefUpdate(likelihood, prior, output, count, format)
 }
 
-func PrecisionWeight(errors, precision, output unsafe.Pointer, count int, format dtype.DType) {
+func (activeInference ActiveInference) PrecisionWeight(errors, precision, output unsafe.Pointer, count int, format dtype.DType) {
 	if count == 0 {
 		return
 	}

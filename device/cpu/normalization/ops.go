@@ -6,7 +6,7 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 )
 
-func GroupNorm(
+func (normalization Normalization) GroupNorm(
 	config GroupNormConfig,
 	input, scale, bias, output unsafe.Pointer,
 	batch, channels, spatial int,
@@ -15,7 +15,7 @@ func GroupNorm(
 	dispatchGroupNorm(config, input, scale, bias, output, batch, channels, spatial, format)
 }
 
-func InstanceNorm(
+func (normalization Normalization) InstanceNorm(
 	input, scale, bias, output unsafe.Pointer,
 	batch, channels, spatial int,
 	format dtype.DType,
@@ -23,7 +23,7 @@ func InstanceNorm(
 	dispatchInstanceNorm(input, scale, bias, output, batch, channels, spatial, format)
 }
 
-func BatchNormEval(
+func (normalization Normalization) BatchNormEval(
 	input, scale, bias, mean, variance, output unsafe.Pointer,
 	batch, channels, spatial int,
 	format dtype.DType,

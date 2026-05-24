@@ -12,7 +12,7 @@ func requirePhysicsFloat32(format dtype.DType) {
 	}
 }
 
-func Laplacian(
+func (physics Physics) Laplacian(
 	input, output unsafe.Pointer,
 	dims []int,
 	spacing float32,
@@ -52,7 +52,7 @@ func Laplacian(
 	}
 }
 
-func Laplacian4(input, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {
+func (physics Physics) Laplacian4(input, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {
 	requirePhysicsFloat32(format)
 
 	if count == 0 {
@@ -74,7 +74,7 @@ func Laplacian4(input, output unsafe.Pointer, count int, spacing float32, format
 	Laplacian4Float32Native(inputView, outputView, invDen)
 }
 
-func Grad1D(input, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {
+func (physics Physics) Grad1D(input, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {
 	requirePhysicsFloat32(format)
 
 	if count == 0 {
@@ -95,11 +95,11 @@ func Grad1D(input, output unsafe.Pointer, count int, spacing float32, format dty
 	Grad1DFloat32Native(inputView, outputView, invTwoDx)
 }
 
-func Divergence1D(input, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {
+func (physics Physics) Divergence1D(input, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {
 	Grad1D(input, output, count, spacing, format)
 }
 
-func FFT1D(
+func (physics Physics) FFT1D(
 	realIn, imagIn, realOut, imagOut unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -119,7 +119,7 @@ func FFT1D(
 	)
 }
 
-func IFFT1D(
+func (physics Physics) IFFT1D(
 	realIn, imagIn, realOut, imagOut unsafe.Pointer,
 	count int,
 	format dtype.DType,
@@ -139,7 +139,7 @@ func IFFT1D(
 	)
 }
 
-func QuantumPotential(
+func (physics Physics) QuantumPotential(
 	density, output unsafe.Pointer,
 	count int,
 	spacing float32,
@@ -165,7 +165,7 @@ func QuantumPotential(
 	QuantumPotentialFloat32Native(densityView, outputView, invH2, scale)
 }
 
-func BohmianVelocity(
+func (physics Physics) BohmianVelocity(
 	phase, output unsafe.Pointer,
 	count int,
 	spacing float32,
@@ -193,7 +193,7 @@ func BohmianVelocity(
 	CentralDifferenceInteriorFloat32Native(phaseView, outputView, inverseDoubleDx)
 }
 
-func MadelungContinuity(
+func (physics Physics) MadelungContinuity(
 	density, velocity, residual unsafe.Pointer,
 	count int,
 	spacing float32,

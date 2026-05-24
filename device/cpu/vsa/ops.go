@@ -6,7 +6,7 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 )
 
-func Bind(left, right, output unsafe.Pointer, count int, format dtype.DType) {
+func (vsa VSA) Bind(left, right, output unsafe.Pointer, count int, format dtype.DType) {
 	if count == 0 {
 		return
 	}
@@ -20,7 +20,7 @@ func Bind(left, right, output unsafe.Pointer, count int, format dtype.DType) {
 	VsaBindFloat32Native(outputView, leftView, rightView)
 }
 
-func Bundle(left, right, output unsafe.Pointer, count int, format dtype.DType) {
+func (vsa VSA) Bundle(left, right, output unsafe.Pointer, count int, format dtype.DType) {
 	if count == 0 {
 		return
 	}
@@ -34,7 +34,7 @@ func Bundle(left, right, output unsafe.Pointer, count int, format dtype.DType) {
 	VsaBundleFloat32Native(outputView, leftView, rightView)
 }
 
-func Permute(config VSAConfig, input, output unsafe.Pointer, count int, format dtype.DType) {
+func (vsa VSA) Permute(config VSAConfig, input, output unsafe.Pointer, count int, format dtype.DType) {
 	if count == 0 {
 		return
 	}
@@ -52,12 +52,12 @@ func Permute(config VSAConfig, input, output unsafe.Pointer, count int, format d
 	VsaPermuteFloat32Native(outputView, inputView, shift)
 }
 
-func InversePermute(config VSAConfig, input, output unsafe.Pointer, count int, format dtype.DType) {
+func (vsa VSA) InversePermute(config VSAConfig, input, output unsafe.Pointer, count int, format dtype.DType) {
 	config.Shift = -config.Shift
 	Permute(config, input, output, count, format)
 }
 
-func Similarity(left, right unsafe.Pointer, count int, format dtype.DType) float32 {
+func (vsa VSA) Similarity(left, right unsafe.Pointer, count int, format dtype.DType) float32 {
 	if count == 0 {
 		return 0
 	}
