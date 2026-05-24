@@ -55,7 +55,7 @@ func Conv1DFloat32(config Conv1DConfig, input, weight, bias, output tensor.Tenso
 	kernelLength := wDims[2]
 	outLength := outDims[2]
 
-	Conv1D(
+	Default.Conv1D(
 		config,
 		unsafe.Pointer(unsafe.SliceData(inputView)),
 		unsafe.Pointer(unsafe.SliceData(weightView)),
@@ -114,7 +114,7 @@ func Conv3DFloat32(config Conv3DConfig, input, weight, bias, output tensor.Tenso
 	outH := outDims[3]
 	outW := outDims[4]
 
-	Conv3D(
+	Default.Conv3D(
 		config,
 		unsafe.Pointer(unsafe.SliceData(inputView)),
 		unsafe.Pointer(unsafe.SliceData(weightView)),
@@ -172,7 +172,7 @@ func ConvTranspose2DFloat32(config Conv2DConfig, input, weight, bias, output ten
 	outHeight := outDims[2]
 	outWidth := outDims[3]
 
-	ConvTranspose2D(
+	Default.ConvTranspose2D(
 		config,
 		unsafe.Pointer(unsafe.SliceData(inputView)),
 		unsafe.Pointer(unsafe.SliceData(weightView)),

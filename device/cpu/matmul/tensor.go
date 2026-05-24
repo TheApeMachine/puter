@@ -58,7 +58,7 @@ func runMatMulFloat32(args ...tensor.Tensor) error {
 		outView[index] = 0
 	}
 
-	Matmul(
+	Default.Matmul(
 		unsafe.Pointer(&outView[0]),
 		unsafe.Pointer(&leftView[0]),
 		unsafe.Pointer(&rightView[0]),
@@ -104,7 +104,7 @@ func runMatMulFloat64(args ...tensor.Tensor) error {
 		outView[index] = 0
 	}
 
-	Matmul(
+	Default.Matmul(
 		unsafe.Pointer(&outView[0]),
 		unsafe.Pointer(&leftView[0]),
 		unsafe.Pointer(&rightView[0]),
@@ -154,7 +154,7 @@ func runMatMulReducedPrecision(args []tensor.Tensor, format dtype.DType) error {
 		return err
 	}
 
-	Matmul(outPointer, leftPointer, rightPointer, rows, inner, cols, format)
+	Default.Matmul(outPointer, leftPointer, rightPointer, rows, inner, cols, format)
 
 	return nil
 }

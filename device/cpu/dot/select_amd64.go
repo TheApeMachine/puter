@@ -14,7 +14,7 @@ func DotFloat32Native(left, right []float32) float32 {
 		return 0
 	}
 
-	return Dot(
+	return Default.Dot(
 		unsafe.Pointer(&left[0]),
 		unsafe.Pointer(&right[0]),
 		len(left),
@@ -27,7 +27,7 @@ func DotBFloat16Native(left, right []dtype.BF16) dtype.BF16 {
 		return 0
 	}
 
-	return dtype.NewBfloat16FromFloat32(Dot(
+	return dtype.NewBfloat16FromFloat32(Default.Dot(
 		unsafe.Pointer(&left[0]),
 		unsafe.Pointer(&right[0]),
 		len(left),
@@ -40,7 +40,7 @@ func DotFloat16Native(left, right []dtype.F16) dtype.F16 {
 		return 0
 	}
 
-	return dtype.Fromfloat32(Dot(
+	return dtype.Fromfloat32(Default.Dot(
 		unsafe.Pointer(&left[0]),
 		unsafe.Pointer(&right[0]),
 		len(left),
@@ -53,7 +53,7 @@ func DotInt8Native(left, right []int8) int32 {
 		return 0
 	}
 
-	return int32(Dot(
+	return int32(Default.Dot(
 		unsafe.Pointer(&left[0]),
 		unsafe.Pointer(&right[0]),
 		len(left),

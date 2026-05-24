@@ -11,3 +11,5 @@ New constructs a Normalization receiver for CPU dispatch.
 func New() Normalization {
 	return Normalization{}
 }
+
+var Default = New()

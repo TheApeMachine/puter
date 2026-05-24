@@ -11,3 +11,5 @@ New constructs a Masking receiver for CPU dispatch.
 func New() Masking {
 	return Masking{}
 }
+
+var Default = New()

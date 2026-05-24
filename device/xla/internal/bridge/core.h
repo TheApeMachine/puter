@@ -80,6 +80,13 @@ int xla_execute_variadic(
     XLAStatus* status
 );
 
+int xla_execute_nullary(
+    XLAClientRef client,
+    XLAExecutableRef executable,
+    XLABufferRef output,
+    XLAStatus* status
+);
+
 #ifdef __cplusplus
 }
 #endif

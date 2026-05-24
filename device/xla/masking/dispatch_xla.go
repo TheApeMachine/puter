@@ -4,6 +4,7 @@ package masking
 
 import (
 	"unsafe"
+
 	"github.com/theapemachine/manifesto/dtype"
 )
 
@@ -12,7 +13,7 @@ func (masking *Masking) ApplyMask(
 	count int,
 	format dtype.DType,
 ) {
-	masking.unimplemented("ApplyMask")
+	masking.host.DispatchApplyMask(input, mask, output, count, format)
 }
 
 func (masking *Masking) CausalMask(
@@ -20,7 +21,7 @@ func (masking *Masking) CausalMask(
 	seqQ, seqK int,
 	format dtype.DType,
 ) {
-	masking.unimplemented("CausalMask")
+	masking.host.DispatchCausalMask(output, seqQ, seqK, format)
 }
 
 func (masking *Masking) ALiBiBias(
@@ -28,6 +29,5 @@ func (masking *Masking) ALiBiBias(
 	seqQ, seqK int,
 	format dtype.DType,
 ) {
-	masking.unimplemented("ALiBiBias")
+	masking.host.DispatchALiBiBias(scores, slope, output, seqQ, seqK, format)
 }
-

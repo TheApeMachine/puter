@@ -530,7 +530,12 @@ static int xla_execute_impl(
     XLAExecutable* loaded = (XLAExecutable*)executableRef;
     XLAContext* context = xla_context_from_ref(clientRef);
 
-    if (loaded == NULL || context == NULL || context->api == NULL || inputs == NULL || outputs == NULL) {
+    if (loaded == NULL || context == NULL || context->api == NULL || outputs == NULL) {
+        xla_status_set(status, -1, "invalid XLA execute request");
+        return -1;
+    }
+
+    if (numInputs > 0 && inputs == NULL) {
         xla_status_set(status, -1, "invalid XLA execute request");
         return -1;
     }
@@ -638,4 +643,15 @@ int xla_execute_variadic(
     int result = xla_execute_impl(clientRef, executableRef, pjrtInputs, (size_t)inputCount, outputs, status);
     free(pjrtInputs);
     return result;
+}
+
+int xla_execute_nullary(
+    XLAClientRef clientRef,
+    XLAExecutableRef executableRef,
+    XLABufferRef output,
+    XLAStatus* status
+) {
+    XLABuffer* outputWrapper = (XLABuffer*)output;
+    PJRT_Buffer* outputs[] = {(PJRT_Buffer*)outputWrapper->pjrtBuffer};
+    return xla_execute_impl(clientRef, executableRef, NULL, 0, outputs, status);
 }

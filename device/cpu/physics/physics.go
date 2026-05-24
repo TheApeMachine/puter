@@ -11,3 +11,5 @@ New constructs a Physics receiver for CPU dispatch.
 func New() Physics {
 	return Physics{}
 }
+
+var Default = New()

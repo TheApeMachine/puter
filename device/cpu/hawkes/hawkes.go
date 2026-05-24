@@ -11,3 +11,5 @@ New constructs a Hawkes receiver for CPU dispatch.
 func New() Hawkes {
 	return Hawkes{}
 }
+
+var Default = New()

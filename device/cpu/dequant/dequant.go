@@ -11,3 +11,5 @@ New constructs a Dequantization receiver for CPU dispatch.
 func New() Dequantization {
 	return Dequantization{}
 }
+
+var Default = New()

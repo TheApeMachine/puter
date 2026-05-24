@@ -11,3 +11,5 @@ New constructs a Causal receiver for CPU dispatch.
 func New() Causal {
 	return Causal{}
 }
+
+var Default = New()

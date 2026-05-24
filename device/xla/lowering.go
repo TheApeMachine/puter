@@ -143,6 +143,7 @@ func NewDefaultBuilder(target string) *Builder {
 	RegisterLossLowerings(registry)
 	RegisterRopeLowerings(registry)
 	RegisterAttentionLowerings(registry)
+	RegisterAuxLowerings(registry)
 
 	return NewBuilder(NewExecutableCache(), registry, target)
 }

@@ -90,7 +90,7 @@ func Conv2DFloat32(
 		return err
 	}
 
-	Conv2D(
+	Default.Conv2D(
 		config,
 		unsafe.Pointer(unsafe.SliceData(inputView)),
 		unsafe.Pointer(unsafe.SliceData(weightView)),

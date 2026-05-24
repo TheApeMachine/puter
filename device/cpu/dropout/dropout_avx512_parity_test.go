@@ -38,7 +38,7 @@ func TestDropoutF32AVX512Parity(t *testing.T) {
 				source := randomDropoutFloat32Slice(length, 0xD08+int64(length))
 				got := make([]float32, length)
 				want := make([]float32, length)
-				seedGot := DropoutSeedState(0xC0FFEE)
+				seedGot := Default.DropoutSeedState(0xC0FFEE)
 				seedWant := seedGot
 				keepProb := float32(0.75)
 
@@ -55,7 +55,7 @@ func TestDropoutF32AVX512Parity(t *testing.T) {
 					source := randomDropoutFloat32Slice(length, 0xA5EED+int64(length))
 					got := make([]float32, length)
 					want := make([]float32, length)
-					seedGot := DropoutSeedState(0xFEEDFACE)
+					seedGot := Default.DropoutSeedState(0xFEEDFACE)
 					seedWant := seedGot
 					keepProb := float32(0.75)
 					scale := float32(1.0 / keepProb)

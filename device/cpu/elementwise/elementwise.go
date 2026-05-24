@@ -11,3 +11,5 @@ New constructs a Elementwise receiver for CPU dispatch.
 func New() Elementwise {
 	return Elementwise{}
 }
+
+var Default = New()

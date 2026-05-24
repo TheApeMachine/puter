@@ -104,7 +104,7 @@ func conv2DTyped(
 		return tensor.ErrDTypeMismatch
 	}
 
-	Conv2D(
+	Default.Conv2D(
 		config,
 		inputPointer, weightPointer, biasPointer, outputPointer,
 		batch, inChannels, inHeight, inWidth,
@@ -165,7 +165,7 @@ func conv1DTyped(
 		return tensor.ErrDTypeMismatch
 	}
 
-	Conv1D(
+	Default.Conv1D(
 		config,
 		inputPointer, weightPointer, biasPointer, outputPointer,
 		batch, inChannels, inLength, outChannels, kernelLength, outLength,
@@ -232,7 +232,7 @@ func conv3DTyped(
 		return tensor.ErrDTypeMismatch
 	}
 
-	Conv3D(
+	Default.Conv3D(
 		config,
 		inputPointer, weightPointer, biasPointer, outputPointer,
 		batch, inChannels, inD, inH, inW,
@@ -359,7 +359,7 @@ func convTranspose2DTyped(
 		return tensor.ErrDTypeMismatch
 	}
 
-	ConvTranspose2D(
+	Default.ConvTranspose2D(
 		config,
 		inputPointer, weightPointer, biasPointer, outputPointer,
 		batch, inChannels, inHeight, inWidth,

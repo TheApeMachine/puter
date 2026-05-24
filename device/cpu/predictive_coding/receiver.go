@@ -11,3 +11,5 @@ New constructs a PredictiveCoding receiver for CPU dispatch.
 func New() PredictiveCoding {
 	return PredictiveCoding{}
 }
+
+var Default = New()

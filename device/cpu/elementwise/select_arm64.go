@@ -109,7 +109,7 @@ func AddFloat32Native(dst, left, right []float32) {
 		return
 	}
 
-	Add(
+	Default.Add(
 		unsafe.Pointer(&dst[0]),
 		unsafe.Pointer(&left[0]),
 		unsafe.Pointer(&right[0]),
@@ -123,7 +123,7 @@ func SubFloat32Native(dst, left, right []float32) {
 		return
 	}
 
-	Sub(
+	Default.Sub(
 		unsafe.Pointer(&dst[0]),
 		unsafe.Pointer(&left[0]),
 		unsafe.Pointer(&right[0]),
@@ -137,7 +137,7 @@ func MulFloat32Native(dst, left, right []float32) {
 		return
 	}
 
-	Mul(
+	Default.Mul(
 		unsafe.Pointer(&dst[0]),
 		unsafe.Pointer(&left[0]),
 		unsafe.Pointer(&right[0]),
@@ -151,7 +151,7 @@ func DivFloat32Native(dst, left, right []float32) {
 		return
 	}
 
-	Div(
+	Default.Div(
 		unsafe.Pointer(&dst[0]),
 		unsafe.Pointer(&left[0]),
 		unsafe.Pointer(&right[0]),
@@ -165,7 +165,7 @@ func MaxFloat32Native(dst, left, right []float32) {
 		return
 	}
 
-	Max(
+	Default.Max(
 		unsafe.Pointer(&dst[0]),
 		unsafe.Pointer(&left[0]),
 		unsafe.Pointer(&right[0]),
@@ -179,7 +179,7 @@ func MinFloat32Native(dst, left, right []float32) {
 		return
 	}
 
-	Min(
+	Default.Min(
 		unsafe.Pointer(&dst[0]),
 		unsafe.Pointer(&left[0]),
 		unsafe.Pointer(&right[0]),
@@ -193,7 +193,7 @@ func AddFloat64Native(dst, left, right []float64) {
 		return
 	}
 
-	Add(
+	Default.Add(
 		unsafe.Pointer(&dst[0]),
 		unsafe.Pointer(&left[0]),
 		unsafe.Pointer(&right[0]),
@@ -207,7 +207,7 @@ func AxpyFloat32Native(y, x []float32, alpha float32) {
 		return
 	}
 
-	Axpy(
+	Default.Axpy(
 		unsafe.Pointer(&y[0]),
 		unsafe.Pointer(&x[0]),
 		len(y),
@@ -221,7 +221,7 @@ func AbsFloat32Native(dst, src []float32) {
 		return
 	}
 
-	Abs(unsafe.Pointer(&dst[0]), unsafe.Pointer(&src[0]), len(dst), dtype.Float32)
+	Default.Abs(unsafe.Pointer(&dst[0]), unsafe.Pointer(&src[0]), len(dst), dtype.Float32)
 }
 
 func NegFloat32Native(dst, src []float32) {
@@ -229,7 +229,7 @@ func NegFloat32Native(dst, src []float32) {
 		return
 	}
 
-	Neg(unsafe.Pointer(&dst[0]), unsafe.Pointer(&src[0]), len(dst), dtype.Float32)
+	Default.Neg(unsafe.Pointer(&dst[0]), unsafe.Pointer(&src[0]), len(dst), dtype.Float32)
 }
 
 func SqrtFloat32Native(dst, src []float32) {
@@ -237,7 +237,7 @@ func SqrtFloat32Native(dst, src []float32) {
 		return
 	}
 
-	Sqrt(unsafe.Pointer(&dst[0]), unsafe.Pointer(&src[0]), len(dst), dtype.Float32)
+	Default.Sqrt(unsafe.Pointer(&dst[0]), unsafe.Pointer(&src[0]), len(dst), dtype.Float32)
 }
 
 func ReluFloat32Native(dst, src []float32) {
@@ -245,7 +245,7 @@ func ReluFloat32Native(dst, src []float32) {
 		return
 	}
 
-	ReLU(unsafe.Pointer(&dst[0]), unsafe.Pointer(&src[0]), len(dst), dtype.Float32)
+	Default.ReLU(unsafe.Pointer(&dst[0]), unsafe.Pointer(&src[0]), len(dst), dtype.Float32)
 }
 
 func AddBFloat16Native(dst, left, right []dtype.BF16) {

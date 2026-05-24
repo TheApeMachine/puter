@@ -11,3 +11,5 @@ New constructs an Attention receiver for CPU dispatch.
 func New() Attention {
 	return Attention{}
 }
+
+var Default = New()

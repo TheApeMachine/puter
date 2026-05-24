@@ -15,7 +15,7 @@ func BenchmarkDropoutF32AVX512(b *testing.B) {
 
 	source := randomDropoutFloat32Slice(8192, 1)
 	destination := make([]float32, len(source))
-	seedState := DropoutSeedState(0xC0FFEE)
+	seedState := Default.DropoutSeedState(0xC0FFEE)
 	keepProb := float32(0.75)
 	length := len(source)
 
@@ -30,7 +30,7 @@ func BenchmarkDropoutF32AVX512(b *testing.B) {
 func BenchmarkDropoutF32Generic(b *testing.B) {
 	source := randomDropoutFloat32Slice(8192, 2)
 	destination := make([]float32, len(source))
-	seedState := DropoutSeedState(0xC0FFEE)
+	seedState := Default.DropoutSeedState(0xC0FFEE)
 	keepProb := float32(0.75)
 	length := len(source)
 

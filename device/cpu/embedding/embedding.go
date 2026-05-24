@@ -11,3 +11,5 @@ New constructs a Embedding receiver for CPU dispatch.
 func New() Embedding {
 	return Embedding{}
 }
+
+var Default = New()

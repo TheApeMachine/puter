@@ -1,29 +1,36 @@
 package sampling
 
+import (
+	"unsafe"
+
+	"github.com/theapemachine/manifesto/dtype"
+)
+
 /*
 Sampling implements device.Sampling for the XLA backend.
 */
 type Sampling struct {
-    host Host
+	host Host
 }
 
 /*
 Host is the XLA dispatch surface sampling operations call into.
 */
 type Host interface {
-    NeedsPlatform()
-    NotImplemented(string)
+	NeedsPlatform()
+	DispatchGreedySample(logits unsafe.Pointer, vocabSize int, format dtype.DType) int32
+	NotImplemented(string)
 }
 
 /*
 New wires a Sampling receiver to its XLA dispatch host.
 */
 func New(host Host) Sampling {
-    return Sampling{host: host}
+	return Sampling{host: host}
 }
 
 func (receiver *Sampling) stubHost() {
-    receiver.host.NeedsPlatform()
+	receiver.host.NeedsPlatform()
 }
 
 func (receiver *Sampling) unimplemented(methodName string) {

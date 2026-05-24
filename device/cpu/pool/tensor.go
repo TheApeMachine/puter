@@ -75,7 +75,7 @@ func adaptivePool2DFloat32(input, out tensor.Tensor, useMax bool) error {
 	}
 
 	if useMax {
-		AdaptiveMaxPool2D(
+		Default.AdaptiveMaxPool2D(
 			unsafe.Pointer(&inputView[0]),
 			unsafe.Pointer(&outputView[0]),
 			batch, channels, inHeight, inWidth, outHeight, outWidth,
@@ -85,7 +85,7 @@ func adaptivePool2DFloat32(input, out tensor.Tensor, useMax bool) error {
 		return nil
 	}
 
-	AdaptiveAvgPool2D(
+	Default.AdaptiveAvgPool2D(
 		unsafe.Pointer(&inputView[0]),
 		unsafe.Pointer(&outputView[0]),
 		batch, channels, inHeight, inWidth, outHeight, outWidth,
@@ -136,7 +136,7 @@ func pool2DFloat32(
 	}
 
 	if useMax {
-		MaxPool2D(
+		Default.MaxPool2D(
 			config,
 			unsafe.Pointer(&inputView[0]),
 			unsafe.Pointer(&outputView[0]),
@@ -147,7 +147,7 @@ func pool2DFloat32(
 		return nil
 	}
 
-	AvgPool2D(
+	Default.AvgPool2D(
 		config,
 		unsafe.Pointer(&inputView[0]),
 		unsafe.Pointer(&outputView[0]),

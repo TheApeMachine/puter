@@ -743,6 +743,12 @@ func (builder *Builder) loadVariadicExecutable(
 		hloText, err = renderScaledDotProductAttention(moduleName, context, intParams)
 	case "multi_head_attention":
 		hloText, err = renderMultiHeadAttention(moduleName, context, floatParams, intParams)
+	case "alibi_bias":
+		hloText, err = renderALiBiBias(moduleName, context)
+	case "embedding_lookup":
+		hloText, err = renderEmbeddingLookup(moduleName, context)
+	case "embedding_bag":
+		hloText, err = renderEmbeddingBag(moduleName, context)
 	default:
 		return nil, &loweringError{message: "unknown XLA variadic operation: " + programKey.Operation}
 	}
@@ -765,6 +771,298 @@ func (builder *Builder) loadVariadicExecutable(
 	}
 	builder.RecordExecutable(programKey, compiled)
 	return compiled, nil
+}
+
+/*
+ExecuteNullary compiles (or loads from cache) and executes an input-free XLA program.
+*/
+func (builder *Builder) ExecuteNullary(
+	bridge *xlaBridge,
+	operationName string,
+	context LoweringContext,
+	intParams []int64,
+	output *DeviceTensor,
+) error {
+	programKey, err := builder.ProgramKeyFor(operationName, context, nil, intParams)
+
+	if err != nil {
+		return err
+	}
+
+	executable, err := builder.loadNullaryExecutable(bridge, programKey, context, intParams)
+
+	if err != nil {
+		return err
+	}
+
+	return bridge.executeNullary(C.XLAExecutableRef(executable.handle), output)
+}
+
+func (builder *Builder) loadNullaryExecutable(
+	bridge *xlaBridge,
+	programKey ProgramKey,
+	context LoweringContext,
+	intParams []int64,
+) (*CompiledExecutable, error) {
+	if cached, ok := builder.CachedExecutable(programKey); ok {
+		return cached, nil
+	}
+
+	moduleName := fmt.Sprintf("puter_%s", programKey.Operation)
+	var hloText string
+	var err error
+
+	switch programKey.Operation {
+	case "causal_mask":
+		seqQ, seqK, shapeErr := matrixDimensions(intParams, context.OutputShape)
+
+		if shapeErr != nil {
+			return nil, shapeErr
+		}
+
+		hloText, err = hlo.RenderCausalMask(moduleName, context.OutputDType, seqQ, seqK)
+	default:
+		return nil, &loweringError{message: "unknown XLA nullary operation: " + programKey.Operation}
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	executableRef, err := bridge.compileHLO(hloText)
+
+	if err != nil {
+		return nil, err
+	}
+
+	compiled := &CompiledExecutable{
+		key:    programKey,
+		handle: uintptr(executableRef),
+	}
+	builder.RecordExecutable(programKey, compiled)
+	return compiled, nil
+}
+
+/*
+ExecuteDropout compiles (or loads from cache) and executes inverted dropout.
+*/
+func (builder *Builder) ExecuteDropout(
+	bridge *xlaBridge,
+	context LoweringContext,
+	rate float32,
+	seed uint64,
+	input *DeviceTensor,
+	output *DeviceTensor,
+) error {
+	floatParams := []float64{float64(rate)}
+	intParams := []int64{
+		int64(uint32(seed)),
+		int64(uint32(seed >> 32)),
+	}
+
+	programKey, err := builder.ProgramKeyFor("dropout", context, floatParams, intParams)
+
+	if err != nil {
+		return err
+	}
+
+	executable, err := builder.loadDropoutExecutable(bridge, programKey, context, rate, seed)
+
+	if err != nil {
+		return err
+	}
+
+	return bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef())
+}
+
+func (builder *Builder) loadDropoutExecutable(
+	bridge *xlaBridge,
+	programKey ProgramKey,
+	context LoweringContext,
+	rate float32,
+	seed uint64,
+) (*CompiledExecutable, error) {
+	if cached, ok := builder.CachedExecutable(programKey); ok {
+		return cached, nil
+	}
+
+	if len(context.InputShapes) != 1 {
+		return nil, &loweringError{message: "dropout requires one input shape"}
+	}
+
+	hloText, err := hlo.RenderDropout(
+		fmt.Sprintf("puter_%s", programKey.Operation),
+		context.OutputDType,
+		context.InputShapes[0],
+		rate,
+		seed,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	executableRef, err := bridge.compileHLO(hloText)
+
+	if err != nil {
+		return nil, err
+	}
+
+	compiled := &CompiledExecutable{
+		key:    programKey,
+		handle: uintptr(executableRef),
+	}
+	builder.RecordExecutable(programKey, compiled)
+	return compiled, nil
+}
+
+/*
+ExecuteGreedySample compiles (or loads from cache) and executes argmax to scalar int32.
+*/
+func (builder *Builder) ExecuteGreedySample(
+	bridge *xlaBridge,
+	context LoweringContext,
+	input *DeviceTensor,
+	output *DeviceTensor,
+) error {
+	programKey, err := builder.ProgramKeyFor("greedy_sample", context, nil, nil)
+
+	if err != nil {
+		return err
+	}
+
+	executable, err := builder.loadGreedySampleExecutable(bridge, programKey, context)
+
+	if err != nil {
+		return err
+	}
+
+	return bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef())
+}
+
+func (builder *Builder) loadGreedySampleExecutable(
+	bridge *xlaBridge,
+	programKey ProgramKey,
+	context LoweringContext,
+) (*CompiledExecutable, error) {
+	if cached, ok := builder.CachedExecutable(programKey); ok {
+		return cached, nil
+	}
+
+	if len(context.InputShapes) != 1 {
+		return nil, &loweringError{message: "greedy sample requires one input shape"}
+	}
+
+	vocabSize := context.InputShapes[0].Dims()[0]
+
+	hloText, err := hlo.RenderGreedySample(
+		fmt.Sprintf("puter_%s", programKey.Operation),
+		context.InputDTypes[0],
+		vocabSize,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	executableRef, err := bridge.compileHLO(hloText)
+
+	if err != nil {
+		return nil, err
+	}
+
+	compiled := &CompiledExecutable{
+		key:    programKey,
+		handle: uintptr(executableRef),
+	}
+	builder.RecordExecutable(programKey, compiled)
+	return compiled, nil
+}
+
+func renderALiBiBias(
+	moduleName string,
+	context LoweringContext,
+) (string, error) {
+	if len(context.InputShapes) != 2 {
+		return "", &loweringError{message: "ALiBi bias requires scores and slope shapes"}
+	}
+
+	scoreDimensions := context.InputShapes[0].Dims()
+
+	if len(scoreDimensions) != 2 {
+		return "", &loweringError{message: "ALiBi scores must be rank-2"}
+	}
+
+	return hlo.RenderALiBiBias(
+		moduleName,
+		context.OutputDType,
+		scoreDimensions[0],
+		scoreDimensions[1],
+	)
+}
+
+func renderEmbeddingLookup(
+	moduleName string,
+	context LoweringContext,
+) (string, error) {
+	if len(context.InputShapes) != 2 {
+		return "", &loweringError{message: "embedding lookup requires table and indices shapes"}
+	}
+
+	tableDimensions := context.InputShapes[0].Dims()
+	indexCount := context.InputShapes[1].Dims()[0]
+
+	if len(tableDimensions) != 2 {
+		return "", &loweringError{message: "embedding table must be rank-2"}
+	}
+
+	return hlo.RenderEmbeddingLookup(
+		moduleName,
+		context.OutputDType,
+		tableDimensions[0],
+		tableDimensions[1],
+		indexCount,
+	)
+}
+
+func renderEmbeddingBag(
+	moduleName string,
+	context LoweringContext,
+) (string, error) {
+	if len(context.InputShapes) != 3 {
+		return "", &loweringError{message: "embedding bag requires table, indices, and offsets shapes"}
+	}
+
+	tableDimensions := context.InputShapes[0].Dims()
+	indexCount := context.InputShapes[1].Dims()[0]
+	bagCount := context.InputShapes[2].Dims()[0]
+
+	if len(tableDimensions) != 2 {
+		return "", &loweringError{message: "embedding table must be rank-2"}
+	}
+
+	return hlo.RenderEmbeddingBag(
+		moduleName,
+		context.OutputDType,
+		tableDimensions[0],
+		tableDimensions[1],
+		bagCount,
+		indexCount,
+	)
+}
+
+func matrixDimensions(intParams []int64, outputShape tensor.Shape) (int, int, error) {
+	outputDimensions := outputShape.Dims()
+
+	if len(outputDimensions) == 2 {
+		return outputDimensions[0], outputDimensions[1], nil
+	}
+
+	if len(intParams) >= 2 {
+		return int(intParams[0]), int(intParams[1]), nil
+	}
+
+	return 0, 0, &loweringError{message: "matrix operation requires rank-2 output or int params"}
 }
 
 func poolParamsFromIntParams(

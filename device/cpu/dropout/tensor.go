@@ -28,7 +28,7 @@ func DropoutFloat32(config DropoutConfig, input, output tensor.Tensor) error {
 		return nil
 	}
 
-	Dropout(
+	Default.Dropout(
 		unsafe.Pointer(&outView[0]),
 		unsafe.Pointer(&inView[0]),
 		len(inView),

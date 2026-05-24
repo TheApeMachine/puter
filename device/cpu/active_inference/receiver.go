@@ -11,3 +11,5 @@ New constructs an ActiveInference receiver for CPU dispatch.
 func New() ActiveInference {
 	return ActiveInference{}
 }
+
+var Default = New()

@@ -11,3 +11,5 @@ New constructs a Quantization receiver for CPU dispatch.
 func New() Quantization {
 	return Quantization{}
 }
+
+var Default = New()

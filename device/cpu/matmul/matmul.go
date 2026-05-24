@@ -11,3 +11,5 @@ New constructs a Gemm receiver for CPU dispatch.
 func New() Gemm {
 	return Gemm{}
 }
+
+var Default = New()

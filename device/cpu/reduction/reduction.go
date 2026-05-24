@@ -11,3 +11,5 @@ New constructs a Reduction receiver for CPU dispatch.
 func New() Reduction {
 	return Reduction{}
 }
+
+var Default = New()

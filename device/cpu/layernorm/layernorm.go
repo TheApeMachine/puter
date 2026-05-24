@@ -11,3 +11,5 @@ New constructs a Norm receiver for CPU dispatch.
 func New() Norm {
 	return Norm{}
 }
+
+var Default = New()

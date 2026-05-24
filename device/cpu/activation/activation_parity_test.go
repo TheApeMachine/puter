@@ -86,7 +86,7 @@ func BenchmarkActivationF16LUTExp(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		Exp(
+		Default.Exp(
 			unsafe.Pointer(&destination[0]),
 			unsafe.Pointer(&source[0]),
 			count,
@@ -103,7 +103,7 @@ func BenchmarkActivationBF16LUTExp(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		Exp(
+		Default.Exp(
 			unsafe.Pointer(&destination[0]),
 			unsafe.Pointer(&source[0]),
 			count,

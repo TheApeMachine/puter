@@ -12,7 +12,7 @@ func runDropoutF32(dst, src unsafe.Pointer, count int, config DropoutConfig) {
 	}
 
 	keepProb := float32(1.0 - config.Rate)
-	seedState := DropoutSeedState(config.Seed)
+	seedState := Default.DropoutSeedState(config.Seed)
 
 	dropoutF32Kernel(
 		(*float32)(dst),

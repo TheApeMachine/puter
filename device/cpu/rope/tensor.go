@@ -46,7 +46,7 @@ func RunRoPEFloat32(config RoPEConfig, input, output tensor.Tensor) error {
 		return err
 	}
 
-	RoPE(
+	Default.RoPE(
 		config,
 		unsafe.Pointer(&inputView[0]),
 		unsafe.Pointer(&outputView[0]),

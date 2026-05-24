@@ -11,3 +11,5 @@ New constructs a VSA receiver for CPU dispatch.
 func New() VSA {
 	return VSA{}
 }
+
+var Default = New()

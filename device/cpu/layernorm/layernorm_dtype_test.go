@@ -92,7 +92,7 @@ func runLayerNormDType(
 		biasView, _ := bias.Float32Native()
 		outView, _ := out.Float32Native()
 
-		LayerNorm(
+		Default.LayerNorm(
 			unsafe.Pointer(&inputView[0]),
 			unsafe.Pointer(&scaleView[0]),
 			unsafe.Pointer(&biasView[0]),
@@ -107,7 +107,7 @@ func runLayerNormDType(
 		biasView, _ := bias.Float16Native()
 		outView, _ := out.Float16Native()
 
-		LayerNorm(
+		Default.LayerNorm(
 			unsafe.Pointer(&inputView[0]),
 			unsafe.Pointer(&scaleView[0]),
 			unsafe.Pointer(&biasView[0]),
@@ -122,7 +122,7 @@ func runLayerNormDType(
 		biasView, _ := bias.BFloat16Native()
 		outView, _ := out.BFloat16Native()
 
-		LayerNorm(
+		Default.LayerNorm(
 			unsafe.Pointer(&inputView[0]),
 			unsafe.Pointer(&scaleView[0]),
 			unsafe.Pointer(&biasView[0]),
@@ -145,7 +145,7 @@ func runRMSNormDType(
 		scaleView, _ := scale.Float32Native()
 		outView, _ := out.Float32Native()
 
-		RMSNorm(
+		Default.RMSNorm(
 			unsafe.Pointer(&inputView[0]),
 			unsafe.Pointer(&scaleView[0]),
 			unsafe.Pointer(&outView[0]),
@@ -158,7 +158,7 @@ func runRMSNormDType(
 		scaleView, _ := scale.Float16Native()
 		outView, _ := out.Float16Native()
 
-		RMSNorm(
+		Default.RMSNorm(
 			unsafe.Pointer(&inputView[0]),
 			unsafe.Pointer(&scaleView[0]),
 			unsafe.Pointer(&outView[0]),
@@ -171,7 +171,7 @@ func runRMSNormDType(
 		scaleView, _ := scale.BFloat16Native()
 		outView, _ := out.BFloat16Native()
 
-		RMSNorm(
+		Default.RMSNorm(
 			unsafe.Pointer(&inputView[0]),
 			unsafe.Pointer(&scaleView[0]),
 			unsafe.Pointer(&outView[0]),

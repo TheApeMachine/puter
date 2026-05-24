@@ -11,3 +11,5 @@ New constructs a Convolution receiver for CPU dispatch.
 func New() Convolution {
 	return Convolution{}
 }
+
+var Default = New()

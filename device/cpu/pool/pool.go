@@ -11,3 +11,5 @@ New constructs a Pool receiver for CPU dispatch.
 func New() Pool {
 	return Pool{}
 }
+
+var Default = New()

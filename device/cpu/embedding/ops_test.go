@@ -12,7 +12,7 @@ func TestLookup(t *testing.T) {
 	indices := []int32{2, 0}
 	output := make([]float32, 4)
 
-	Lookup(
+	Default.Lookup(
 		unsafe.Pointer(&table[0]),
 		unsafe.Pointer(&indices[0]),
 		unsafe.Pointer(&output[0]),

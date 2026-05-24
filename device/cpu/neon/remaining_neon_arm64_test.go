@@ -181,7 +181,7 @@ func TestDropoutFloat32NativeParity(t *testing.T) {
 			src := randFloat32Slice(elementCount, 0xD00)
 			got := make([]float32, elementCount)
 			want := make([]float32, elementCount)
-			SeedNEON := dropout.DropoutSeedState(0xD00)
+			SeedNEON := dropout.Default.DropoutSeedState(0xD00)
 			seedScalar := SeedNEON
 			keepProb := float32(0.75)
 

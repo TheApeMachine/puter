@@ -96,7 +96,7 @@ func (physics Physics) Grad1D(input, output unsafe.Pointer, count int, spacing f
 }
 
 func (physics Physics) Divergence1D(input, output unsafe.Pointer, count int, spacing float32, format dtype.DType) {
-	Grad1D(input, output, count, spacing, format)
+	Default.Grad1D(input, output, count, spacing, format)
 }
 
 func (physics Physics) FFT1D(

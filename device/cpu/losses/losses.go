@@ -11,3 +11,5 @@ New constructs a Losses receiver for CPU dispatch.
 func New() Losses {
 	return Losses{}
 }
+
+var Default = New()

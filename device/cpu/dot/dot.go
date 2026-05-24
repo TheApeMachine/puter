@@ -11,3 +11,5 @@ New constructs a Product receiver for CPU dispatch.
 func New() Product {
 	return Product{}
 }
+
+var Default = New()

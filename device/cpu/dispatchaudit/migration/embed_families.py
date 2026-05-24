@@ -5,7 +5,7 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 FAMILIES = [
     ("activation", "Activation", "activation", ["ops.go", "ops_extra.go", "softmax.go", "gated.go", "param.go"]),

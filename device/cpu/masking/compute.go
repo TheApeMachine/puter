@@ -38,7 +38,7 @@ func runApplyMaskBFloat16(args ...tensor.Tensor) error {
 		return nil
 	}
 
-	ApplyMask(
+	Default.ApplyMask(
 		unsafe.Pointer(&input[0]),
 		unsafe.Pointer(&mask[0]),
 		unsafe.Pointer(&out[0]),
@@ -80,7 +80,7 @@ func runApplyMaskFloat16(args ...tensor.Tensor) error {
 		return nil
 	}
 
-	ApplyMask(
+	Default.ApplyMask(
 		unsafe.Pointer(&input[0]),
 		unsafe.Pointer(&mask[0]),
 		unsafe.Pointer(&out[0]),
@@ -112,7 +112,7 @@ func runCausalMaskBFloat16(args ...tensor.Tensor) error {
 		return nil
 	}
 
-	CausalMask(unsafe.Pointer(&out[0]), dims[0], dims[1], dtype.BFloat16)
+	Default.CausalMask(unsafe.Pointer(&out[0]), dims[0], dims[1], dtype.BFloat16)
 
 	return nil
 }
@@ -138,7 +138,7 @@ func runCausalMaskFloat16(args ...tensor.Tensor) error {
 		return nil
 	}
 
-	CausalMask(unsafe.Pointer(&out[0]), dims[0], dims[1], dtype.Float16)
+	Default.CausalMask(unsafe.Pointer(&out[0]), dims[0], dims[1], dtype.Float16)
 
 	return nil
 }
@@ -176,7 +176,7 @@ func runALiBiBiasBFloat16(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	ALiBiBias(
+	Default.ALiBiBias(
 		unsafe.Pointer(&scores[0]),
 		unsafe.Pointer(&slope[0]),
 		unsafe.Pointer(&out[0]),
@@ -220,7 +220,7 @@ func runALiBiBiasFloat16(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	ALiBiBias(
+	Default.ALiBiBias(
 		unsafe.Pointer(&scores[0]),
 		unsafe.Pointer(&slope[0]),
 		unsafe.Pointer(&out[0]),
@@ -262,7 +262,7 @@ func runApplyMask(args ...tensor.Tensor) error {
 		return nil
 	}
 
-	ApplyMask(
+	Default.ApplyMask(
 		unsafe.Pointer(&input[0]),
 		unsafe.Pointer(&mask[0]),
 		unsafe.Pointer(&out[0]),
@@ -294,7 +294,7 @@ func runCausalMask(args ...tensor.Tensor) error {
 		return nil
 	}
 
-	CausalMask(unsafe.Pointer(&out[0]), dims[0], dims[1], dtype.Float32)
+	Default.CausalMask(unsafe.Pointer(&out[0]), dims[0], dims[1], dtype.Float32)
 
 	return nil
 }
@@ -332,7 +332,7 @@ func runALiBiBias(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	ALiBiBias(
+	Default.ALiBiBias(
 		unsafe.Pointer(&scores[0]),
 		unsafe.Pointer(&slope[0]),
 		unsafe.Pointer(&out[0]),

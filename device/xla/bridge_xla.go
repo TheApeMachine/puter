@@ -236,6 +236,20 @@ func (bridge *xlaBridge) executeVariadic(
 	return nil
 }
 
+func (bridge *xlaBridge) executeNullary(
+	executableRef C.XLAExecutableRef,
+	output *DeviceTensor,
+) error {
+	var status C.XLAStatus
+	code := C.xla_execute_nullary(bridge.client, executableRef, output.bufferRef(), &status)
+
+	if code != 0 {
+		return bridgeStatusError(status)
+	}
+
+	return nil
+}
+
 func (bridge *xlaBridge) releaseBuffer(bufferRef C.XLABufferRef) {
 	if bufferRef != nil {
 		C.xla_buffer_release(bufferRef)

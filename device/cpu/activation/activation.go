@@ -11,3 +11,5 @@ New constructs a Activation receiver for CPU dispatch.
 func New() Activation {
 	return Activation{}
 }
+
+var Default = New()

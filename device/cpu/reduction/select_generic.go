@@ -13,7 +13,7 @@ func SumFloat32Native(values []float32) float32 {
 		return 0
 	}
 
-	return Sum(
+	return Default.Sum(
 		unsafe.Pointer(&values[0]),
 		len(values),
 		dtype.Float32,
@@ -25,7 +25,7 @@ func SumBFloat16Native(values []dtype.BF16) dtype.BF16 {
 		return 0
 	}
 
-	return dtype.NewBfloat16FromFloat32(Sum(
+	return dtype.NewBfloat16FromFloat32(Default.Sum(
 		unsafe.Pointer(&values[0]),
 		len(values),
 		dtype.BFloat16,
@@ -37,7 +37,7 @@ func SumFloat16Native(values []dtype.F16) dtype.F16 {
 		return 0
 	}
 
-	return dtype.Fromfloat32(Sum(
+	return dtype.Fromfloat32(Default.Sum(
 		unsafe.Pointer(&values[0]),
 		len(values),
 		dtype.Float16,
@@ -49,7 +49,7 @@ func ReduceProdFloat32Native(values []float32) float32 {
 		return 0
 	}
 
-	return Prod(
+	return Default.Prod(
 		unsafe.Pointer(&values[0]),
 		len(values),
 		dtype.Float32,
@@ -61,7 +61,7 @@ func ReduceMinFloat32Native(values []float32) float32 {
 		return 0
 	}
 
-	return ReduceMin(
+	return Default.ReduceMin(
 		unsafe.Pointer(&values[0]),
 		len(values),
 		dtype.Float32,
@@ -73,7 +73,7 @@ func ReduceMaxFloat32Native(values []float32) float32 {
 		return 0
 	}
 
-	return ReduceMax(
+	return Default.ReduceMax(
 		unsafe.Pointer(&values[0]),
 		len(values),
 		dtype.Float32,
@@ -85,7 +85,7 @@ func L1NormFloat32Native(values []float32) float32 {
 		return 0
 	}
 
-	return L1Norm(
+	return Default.L1Norm(
 		unsafe.Pointer(&values[0]),
 		len(values),
 		dtype.Float32,
