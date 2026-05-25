@@ -6,7 +6,6 @@ package rope
 #cgo CFLAGS: -x objective-c -fobjc-arc -I${SRCDIR} -I${SRCDIR}/../internal/bridge
 #cgo LDFLAGS: -framework Metal -framework Foundation -framework CoreFoundation
 
-#include "native/rope.m"
 #include "native/rotate.m"
 */
 import "C"

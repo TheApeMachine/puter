@@ -36,6 +36,7 @@ SKIP_FILE_NAMES: frozenset[str] = frozenset(
 
 ALLOWED_SUFFIXES: tuple[str, ...] = (
     ".go",
+    ".py",
     ".yml",
     ".tsx",
     ".ts",
@@ -43,11 +44,16 @@ ALLOWED_SUFFIXES: tuple[str, ...] = (
     ".h",
     ".cu",
     ".m",
+    ".mm"
     ".metal",
+    ".metalinc",
     ".cpp",
     ".tex",
     ".c",
+    ".cc",
+    ".cuh"
 )
+
 
 
 def repository_root(start: Path) -> Path:

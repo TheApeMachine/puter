@@ -1,6 +1,7 @@
 #include "conv2d.h"
 #include "convolution.h"
 #include "../pool/pool.h"
+#include "../pool/bridge_private.h"
 #include "../internal/bridge/core_private.h"
 
 #include <Foundation/Foundation.h>

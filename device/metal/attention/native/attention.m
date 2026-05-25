@@ -6,11 +6,6 @@
 #include <Metal/Metal.h>
 #include <stdio.h>
 
-typedef void (^MetalTransformerEncodeBlock)(
-    id<MTLComputeCommandEncoder> encoder,
-    id<MTLBuffer> validationBuffer
-);
-
 static void metal_transformer_status_clear(MetalStatus* status) {
     if (status == NULL) {
         return;
