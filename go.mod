@@ -12,9 +12,9 @@ replace github.com/theapemachine/manifesto => ../manifesto
 
 require (
 	github.com/smartystreets/goconvey v1.8.1
-	github.com/theapemachine/errnie v1.2.0
-	github.com/theapemachine/manifesto v1.2.2
-	github.com/theapemachine/qpool v1.2.2
+	github.com/theapemachine/errnie v1.2.3
+	github.com/theapemachine/manifesto v1.2.3
+	github.com/theapemachine/qpool v1.2.3
 	golang.org/x/sys v0.43.0
 )
 
@@ -37,9 +37,9 @@ require (
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/gopherjs/gopherjs v1.17.2 // indirect
+	github.com/gopherjs/gopherjs v1.20.2 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
-	github.com/smarty/assertions v1.15.0 // indirect
+	github.com/smarty/assertions v1.16.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
