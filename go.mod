@@ -13,8 +13,8 @@ go 1.26.1
 require (
 	github.com/smartystreets/goconvey v1.8.1
 	github.com/theapemachine/errnie v1.2.0
-	github.com/theapemachine/manifesto v0.0.1
-	github.com/theapemachine/qpool v0.0.3
+	github.com/theapemachine/manifesto v1.2.2
+	github.com/theapemachine/qpool v1.2.2
 	golang.org/x/sys v0.43.0
 )
 
