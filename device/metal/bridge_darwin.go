@@ -313,6 +313,28 @@ func (deviceTensor *DeviceTensor) RawBytes() (dtype.DType, []byte, error) {
 	return deviceTensor.backend.bridge.download(deviceTensor)
 }
 
+/*
+DispatchPointer returns an unsafe.Pointer to the DeviceTensor struct
+itself. The Metal compute host's resolveDeviceTensor unwraps this back
+into a *DeviceTensor and then pulls the MTLBuffer out via the .buffer
+field. This indirection is why Metal kernels can run through the same
+puter/execution dispatcher that drives the CPU backend: every device
+backend agrees that an unsafe.Pointer in the dispatch path is "whatever
+the backend needs to find its resident storage", and each backend
+implements its own resolve step.
+
+Returning the struct pointer rather than the buffer handle directly
+preserves the shape/dtype/state metadata the bridge uses for validation
+(see resolveDeviceTensor: it checks .buffer != nil before unwrapping).
+*/
+func (deviceTensor *DeviceTensor) DispatchPointer() unsafe.Pointer {
+	if deviceTensor == nil || deviceTensor.closed.Load() || deviceTensor.buffer == nil {
+		return nil
+	}
+
+	return unsafe.Pointer(deviceTensor)
+}
+
 func (deviceTensor *DeviceTensor) Slice(start, length int) (tensor.Tensor, error) {
 	return nil, tensor.ErrLayoutUnsupported
 }

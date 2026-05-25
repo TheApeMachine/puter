@@ -10,6 +10,7 @@ import (
 	"github.com/theapemachine/puter/device/metal/activation"
 	"github.com/theapemachine/puter/device/metal/dropout"
 	"github.com/theapemachine/puter/device/metal/elementwise"
+	"github.com/theapemachine/puter/device/metal/embedding"
 	"github.com/theapemachine/puter/device/metal/layernorm"
 	"github.com/theapemachine/puter/device/metal/matmul"
 	"github.com/theapemachine/puter/device/metal/normalization"
@@ -450,12 +451,62 @@ func (host *ComputeHost) LaunchLayerNorm(input, scale, bias, output unsafe.Point
 	}
 }
 
+/*
+LaunchLookup dispatches the embedding-table gather kernel on the active
+Metal context. The dispatcher passes table/indices/output as unsafe
+pointers to DeviceTensor structs (see metal.DeviceTensor.DispatchPointer
+and puter/execution.pointerOf); resolveBufferRef walks each pointer back
+to its MTLBuffer handle before handing them to the embedding bridge.
+
+vocab/hidden/indexCount are the kernel's shape constants. indexCount ==
+0 is a legal no-op (no tokens to embed); we short-circuit so the kernel
+isn't launched with a zero grid.
+*/
 func (host *ComputeHost) LaunchLookup(table, indices, output unsafe.Pointer, vocab, hidden, indexCount int, format dtype.DType) {
-	host.unavailable()
+	if indexCount == 0 || hidden == 0 || vocab == 0 {
+		return
+	}
+
+	if err := embedding.DispatchLookupRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(table))),
+		uintptr(unsafe.Pointer(resolveBufferRef(indices))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(vocab),
+		uint32(hidden),
+		uint32(indexCount),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
+/*
+LaunchRMSNorm runs the per-dtype RMSNorm kernel from
+device/metal/layernorm/layer.metal. The dispatcher hands input/scale/out
+as unsafe pointers to DeviceTensor structs; resolveBufferRef unwraps
+them to MTLBuffer handles before the dispatch call.
+
+The CPU contract is "rows × lastDim" — Metal's RMSNorm kernel agrees
+(one threadgroup per row, threads sum across cols), so the two ints map
+directly to the Metal call.
+*/
 func (host *ComputeHost) LaunchRMSNorm(input, scale, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {
-	host.unavailable()
+	if rows == 0 || lastDim == 0 {
+		return
+	}
+
+	if err := layernorm.DispatchRMSNormRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(scale))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(rows),
+		uint32(lastDim),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) MatmulLaunch(out, left, right unsafe.Pointer, rows, inner, cols int, format dtype.DType) {

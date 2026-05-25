@@ -132,6 +132,51 @@ func (devicePool *Pool) MemoryBackend() (tensor.Backend, DeviceID, error) {
 }
 
 /*
+PinTo narrows the pool's resident device set to a single Location, releasing
+every discovered backend that does not match. The pinned device becomes both
+the unique choice for execution.Backend.pickDevice and the only candidate
+visible to MemoryBackend.
+
+Used by callers that need deterministic backend selection ahead of the
+backend-aware dispatcher work — for example, GAPS.md §8.3 step 6 brings
+chat.yml up on CPU before validating the same chain against Metal, so
+caramba pins the pool to tensor.Host until the Metal buffer-handle
+plumbing (§3.1, lines 1223-1237) is in place.
+
+Returns an error if no discovered device matches the requested location; in
+that case the pool is left untouched so the caller can fall back.
+*/
+func (devicePool *Pool) PinTo(location tensor.Location) error {
+	if devicePool == nil {
+		return ErrDeviceNotFound
+	}
+
+	target := DeviceID{Location: location, Index: 0}
+
+	keep, ok := devicePool.devices[target]
+
+	if !ok {
+		return ErrDeviceNotFound
+	}
+
+	for deviceID, backend := range devicePool.devices {
+		if deviceID == target {
+			continue
+		}
+
+		if closer, ok := backend.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
+
+		delete(devicePool.devices, deviceID)
+	}
+
+	devicePool.devices[target] = keep
+
+	return nil
+}
+
+/*
 WorkerPool returns the shared goroutine pool used by discovered devices.
 */
 func (devicePool *Pool) WorkerPool() *qpool.Q {

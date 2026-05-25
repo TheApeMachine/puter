@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/theapemachine/manifesto/ast"
+	"github.com/theapemachine/manifesto/ir"
 	"github.com/theapemachine/manifesto/runtime"
 	"github.com/theapemachine/puter/pool"
 )
@@ -16,6 +18,7 @@ ARCHITECTURE.md.
 type Backend struct {
 	devicePool *pool.Pool
 	weights    WeightStore
+	workspaces *WorkspaceMap
 }
 
 /*
@@ -25,6 +28,7 @@ func New(devicePool *pool.Pool) *Backend {
 	return &Backend{
 		devicePool: devicePool,
 		weights:    nilWeightStore{},
+		workspaces: NewWorkspaceMap(),
 	}
 }
 
@@ -48,9 +52,59 @@ func (backend *Backend) WithWeights(store WeightStore) *Backend {
 }
 
 /*
-Close releases backend-owned resources.
+Workspaces returns the backend's per-graph WorkspaceMap so the
+orchestrator and session can register planner output before the first
+dispatch. The map starts empty; callers attach one entry per compiled
+graph via WorkspaceMap.Attach.
+*/
+func (backend *Backend) Workspaces() *WorkspaceMap {
+	if backend == nil {
+		return nil
+	}
+
+	return backend.workspaces
+}
+
+/*
+AttachWorkspace satisfies manifesto/runtime.WorkspaceAttacher. The
+orchestrator calls this once per compiled graph after the planner
+populates the topology's WorkspaceLayout. The backend allocates the
+off-heap region via manifesto/tensor.Allocate, pre-builds tensor
+handles for every planned port, and indexes those tensors by
+ast.GraphNode ID so the dispatcher can look up node outputs without
+per-call allocation.
+*/
+func (backend *Backend) AttachWorkspace(
+	graphName string,
+	graph *ast.Graph,
+	topology *ir.Topology,
+) error {
+	if backend == nil {
+		return fmt.Errorf("execution: nil backend")
+	}
+
+	if backend.workspaces == nil {
+		backend.workspaces = NewWorkspaceMap()
+	}
+
+	return backend.workspaces.Attach(graphName, graph, topology)
+}
+
+/*
+Close releases backend-owned resources, including every attached
+workspace's mmap/slab allocation. Safe to call multiple times; the
+WorkspaceMap's own Close is idempotent.
 */
 func (backend *Backend) Close() error {
+	if backend == nil {
+		return nil
+	}
+
+	if backend.workspaces != nil {
+		_ = backend.workspaces.Close()
+		backend.workspaces = nil
+	}
+
 	return nil
 }
 
@@ -113,11 +167,13 @@ func (backend *Backend) CallGraph(
 	}
 
 	dispatcher := newDispatcher(
+		request.GraphName,
 		request.Graph,
 		request.Plan,
 		deviceBackend,
 		memory,
 		weights,
+		backend.workspaces,
 	)
 
 	for name, value := range request.Inputs {

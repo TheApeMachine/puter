@@ -56,19 +56,23 @@ parent execution.Backend.
 type dispatcher struct {
 	values        *valueTable
 	graph         *ast.Graph
+	graphName     string
 	plan          *runtime.ExecutionPlan
 	nodeByID      map[string]*ast.GraphNode
 	deviceBackend executionDevice
 	memory        tensor.Backend
 	weights       WeightStore
+	workspaces    *WorkspaceMap
 }
 
 func newDispatcher(
+	graphName string,
 	graph *ast.Graph,
 	plan *runtime.ExecutionPlan,
 	deviceBackend executionDevice,
 	memory tensor.Backend,
 	weights WeightStore,
+	workspaces *WorkspaceMap,
 ) *dispatcher {
 	nodeByID := make(map[string]*ast.GraphNode, len(graph.Nodes))
 
@@ -83,12 +87,66 @@ func newDispatcher(
 	return &dispatcher{
 		values:        newValueTable(),
 		graph:         graph,
+		graphName:     graphName,
 		plan:          plan,
 		nodeByID:      nodeByID,
 		deviceBackend: deviceBackend,
 		memory:        memory,
 		weights:       weights,
+		workspaces:    workspaces,
 	}
+}
+
+/*
+workspaceOutput returns the pre-planned workspace tensor for one node's
+output, or nil when the graph has no attached workspace for this node
+(e.g., a graph the planner couldn't size, or a backend that bypasses
+the workspace path entirely). Handlers call this in place of
+dispatcher.memory.Upload(...) for output allocation; when it returns a
+tensor the handler writes through that tensor's DispatchPointer.
+
+The lookup is by graph name + node ID. Both are known at dispatcher
+construction time, so this is a flat map probe — no allocation, no
+contention.
+*/
+func (dispatcher *dispatcher) workspaceOutput(nodeID string) tensor.Tensor {
+	if dispatcher.workspaces == nil {
+		return nil
+	}
+
+	t, ok := dispatcher.workspaces.OutputFor(dispatcher.graphName, nodeID)
+
+	if !ok {
+		return nil
+	}
+
+	return t
+}
+
+/*
+allocateOutput is the single entry point every handler uses to acquire
+its output tensor. When the backend has an attached workspace for this
+graph, the planner-allocated tensor is returned with zero per-call
+allocation. When there is no workspace (unit tests of the dispatcher,
+or backends that bypass the planner entirely), the helper falls back
+to dispatcher.memory.Upload(...) for the legacy per-call allocation
+path so those callers continue to work.
+
+shape, dataType, and byteCount must agree (shape.Bytes(dataType) ==
+byteCount). The fallback path verifies through Upload; the workspace
+path trusts the planner produced a correctly-sized region.
+*/
+func (dispatcher *dispatcher) allocateOutput(
+	node *ast.GraphNode,
+	shape tensor.Shape,
+	dataType dtype.DType,
+	byteCount int,
+) (tensor.Tensor, error) {
+	if output := dispatcher.workspaceOutput(node.ID); output != nil {
+		return output, nil
+	}
+
+	return dispatcher.memory.Upload(shape, dataType, make([]byte, byteCount))
 }
 
 /*
@@ -239,15 +297,43 @@ func (dispatcher *dispatcher) allocateLike(reference []float32, count int) (tens
 }
 
 /*
-pointerOf returns an unsafe.Pointer into the first element of one tensor's
-Float32 storage. Used to bridge tensor.Tensor → device.Backend's
-unsafe.Pointer contract. Callers must ensure the tensor remains live for
-the duration of the device call (the dispatcher holds it through the
-valueTable for the rest of the graph call).
+DispatchPointer is the optional interface a tensor.Tensor implementation
+advertises when it can produce the unsafe.Pointer the active device.Backend
+expects. Host-resident tensors return a pointer into their byte storage;
+device-resident tensors return a pointer to the device-tensor struct itself,
+which each backend's bridge unwraps (see puter/device/metal's
+resolveDeviceTensor / resolveBufferRef pair).
+
+This is the bridge that lets one dispatcher dispatch into any backend
+without hard-coding tensor types. Implementations that don't advertise it
+fall back to the legacy Float32Native path below.
+*/
+type DispatchPointer interface {
+	DispatchPointer() unsafe.Pointer
+}
+
+/*
+pointerOf returns an unsafe.Pointer suitable for handing to the active
+device.Backend's kernels. For tensors that implement DispatchPointer
+(host buffers, Metal DeviceTensor, future CUDA/XLA device tensors) the
+returned pointer is whatever that backend's bridge expects. For tensors
+that don't, we fall back to Float32Native — the legacy behaviour kept so
+mock tensors in tests keep working.
+
+The second return value is the element count, derived from Tensor.Len(),
+so callers can inspect length without an extra interface call.
+
+Callers must keep the originating tensor live for the duration of the
+device call. The dispatcher's valueTable retains every tensor it produces
+until the graph call returns, so this is enforced naturally.
 */
 func pointerOf(input tensor.Tensor) (unsafe.Pointer, int, error) {
 	if input == nil {
 		return nil, 0, fmt.Errorf("execution: tensor is required")
+	}
+
+	if dispatchable, ok := input.(DispatchPointer); ok {
+		return dispatchable.DispatchPointer(), input.Len(), nil
 	}
 
 	storage, err := input.Float32Native()

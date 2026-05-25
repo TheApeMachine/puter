@@ -103,51 +103,13 @@ static int metal_norm_dispatch(
     }
 }
 
-int metal_dispatch_rmsnorm(
-    MetalDeviceRef contextRef,
-    int elementDType,
-    MetalBufferRef inputRef,
-    MetalBufferRef scaleRef,
-    MetalBufferRef outRef,
-    uint32_t rows,
-    uint32_t cols,
-    float epsilon,
-    uint64_t completionToken,
-    MetalStatus* status
-) {
-    if (inputRef == NULL || scaleRef == NULL || outRef == NULL) {
-        metal_norm_status_set(status, -2, "nil Metal buffer");
-        return -2;
-    }
-
-    char kernelName[128];
-    int nameCode = metal_norm_kernel_name(
-        kernelName,
-        sizeof(kernelName),
-        "rmsnorm",
-        elementDType,
-        status
-    );
-
-    if (nameCode != 0) {
-        return nameCode;
-    }
-
-    return metal_norm_dispatch(
-        contextRef,
-        kernelName,
-        rows,
-        completionToken,
-        status,
-        ^(id<MTLComputeCommandEncoder> encoder) {
-            [encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
-            [encoder setBuffer:(__bridge id<MTLBuffer>)scaleRef offset:0 atIndex:1];
-            [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:2];
-            [encoder setBytes:&cols length:sizeof(cols) atIndex:3];
-            [encoder setBytes:&epsilon length:sizeof(epsilon) atIndex:4];
-        }
-    );
-}
+// metal_dispatch_rmsnorm previously lived here as a pre-quintet
+// leftover (see GAPS.md §6.6.1: duplicate cgo symbols from before
+// the family-quintet reorganization landed). RMSNorm belongs to the
+// `layernorm` family per ARCHITECTURE.md §2.3 — the canonical
+// implementation now lives in device/metal/layernorm/native/layer.m
+// and is exposed to Go via layernorm.DispatchRMSNormRefs. Removed
+// from here to clear the duplicate-symbol link error.
 
 int metal_dispatch_adaptive_rmsnorm(
     MetalDeviceRef contextRef,

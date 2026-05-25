@@ -184,6 +184,71 @@ func DispatchLayerNormApply(
 	return nil
 }
 
+/*
+DispatchRMSNorm launches the per-dtype RMSNorm kernel
+(rmsnorm_<dtype>) declared in layer.metal. RMSNorm has no bias, so the
+buffer binding is one short relative to LayerNorm: input, scale, out,
+cols. See native/layer.m::metal_dispatch_rmsnorm for the encoder shape.
+*/
+func DispatchRMSNorm(
+	contextRef C.MetalDeviceRef,
+	inputBuffer C.MetalBufferRef,
+	scaleBuffer C.MetalBufferRef,
+	outputBuffer C.MetalBufferRef,
+	format dtype.DType,
+	rows uint32,
+	cols uint32,
+) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
+	var status C.MetalStatus
+	code := C.metal_dispatch_layernorm_rmsnorm(
+		contextRef,
+		elementFormat,
+		inputBuffer,
+		scaleBuffer,
+		outputBuffer,
+		C.uint32_t(rows),
+		C.uint32_t(cols),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		return metalStatusError(status)
+	}
+
+	return nil
+}
+
+/*
+DispatchRMSNormRefs is the uintptr entry point used by the runtime
+dispatcher. Mirrors DispatchLayerNormRefs.
+*/
+func DispatchRMSNormRefs(
+	contextRef uintptr,
+	inputBuffer uintptr,
+	scaleBuffer uintptr,
+	outputBuffer uintptr,
+	format dtype.DType,
+	rows uint32,
+	cols uint32,
+) error {
+	return DispatchRMSNorm(
+		C.MetalDeviceRef(unsafe.Pointer(contextRef)),
+		C.MetalBufferRef(unsafe.Pointer(inputBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(scaleBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(outputBuffer)),
+		format,
+		rows,
+		cols,
+	)
+}
+
 var errUnsupportedDType = errors.New("metal layernorm: unsupported dtype")
 
 func metalStatusError(status C.MetalStatus) error {

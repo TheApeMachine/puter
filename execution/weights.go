@@ -33,6 +33,23 @@ type WeightStore interface {
 }
 
 /*
+TransposedLookup is an optional capability advertised by a WeightStore
+implementation. Callers that need the row-major transpose of a 2-D
+weight (most commonly, projection.linear consumers that have to compute
+y = x @ W.T for a HuggingFace-style nn.Linear weight stored as
+[out_features, in_features]) type-assert to this interface, falling back
+to a plain Lookup + an inline transpose when the implementation does not
+provide one.
+
+Implementations are encouraged to cache the materialized transpose so
+the per-token forward pass does not pay the copy cost on every call.
+*/
+type TransposedLookup interface {
+	Lookup(name string) (tensor.Tensor, error)
+	LookupTransposed(name string) (tensor.Tensor, error)
+}
+
+/*
 nilWeightStore is the default fallback when no weight store is injected.
 It returns ErrWeightNotFound for every lookup so graphs with weighted
 nodes fail loudly with a clear message rather than silently producing

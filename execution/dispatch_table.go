@@ -105,6 +105,13 @@ func handleEmbeddingToken(dispatcher *dispatcher, node *ast.GraphNode) error {
 		return fmt.Errorf("embedding.token cannot derive vocab/hidden dims")
 	}
 
+	// Pack the host-side token IDs into an Int32 byte buffer and upload it
+	// through the active memory backend so the kernel sees a resident
+	// tensor handle rather than a Go heap pointer. ARCHITECTURE.md §7
+	// bans passing Go slice headers to Metal/CUDA/XLA — the dispatcher
+	// can't predict which backend will run, so we always upload. CPU
+	// (HostBackend) returns a HostTensor that aliases the upload bytes;
+	// Metal returns a DeviceTensor over an MTLBuffer.
 	indexBytes := make([]byte, len(indices)*4)
 
 	for index, value := range indices {
@@ -136,7 +143,7 @@ func handleEmbeddingToken(dispatcher *dispatcher, node *ast.GraphNode) error {
 		return err
 	}
 
-	output, err := dispatcher.memory.Upload(outputShape, dtype.Float32, make([]byte, outputBytes))
+	output, err := dispatcher.allocateOutput(node, outputShape, dtype.Float32, outputBytes)
 
 	if err != nil {
 		return err
@@ -199,7 +206,7 @@ func handleRMSNorm(dispatcher *dispatcher, node *ast.GraphNode) error {
 
 	rows, lastDim := matrixDims(input)
 
-	output, err := dispatcher.memory.Upload(input.Shape(), dtype.Float32, zeroBytes(rows*lastDim))
+	output, err := dispatcher.allocateOutput(node, input.Shape(), dtype.Float32, rows*lastDim*4)
 
 	if err != nil {
 		return err
@@ -278,7 +285,7 @@ func handleLayerNorm(dispatcher *dispatcher, node *ast.GraphNode) error {
 
 	rows, lastDim := matrixDims(input)
 
-	output, err := dispatcher.memory.Upload(input.Shape(), dtype.Float32, zeroBytes(rows*lastDim))
+	output, err := dispatcher.allocateOutput(node, input.Shape(), dtype.Float32, rows*lastDim*4)
 
 	if err != nil {
 		return err
@@ -346,7 +353,22 @@ func handleMatmul(dispatcher *dispatcher, node *ast.GraphNode) error {
 			return fmt.Errorf("projection.linear requires Weights.TensorName")
 		}
 
-		right, err = dispatcher.weights.Lookup(node.Weights.TensorName)
+		// HuggingFace stores nn.Linear weights as [out_features, in_features]
+		// and the canonical forward pass computes y = x @ W.T. The generic
+		// device.Matmul kernel expects row-major [inner, cols], so we ask
+		// the weight store for the transposed handle when it offers one.
+		// Without this every projection.linear would surface as a shape
+		// mismatch the moment the dispatcher runs against real Llama-style
+		// weights (e.g. k_proj's [512, 2048] vs the post-norm hidden state
+		// [seq, 2048]).
+		if transposed, ok := dispatcher.weights.(TransposedLookup); ok {
+			right, err = transposed.LookupTransposed(node.Weights.TensorName)
+		} else {
+			return fmt.Errorf(
+				"projection.linear weight %q: weight store does not implement TransposedLookup; HuggingFace Linear weights need a transposed view (see puter/execution.TransposedLookup)",
+				node.Weights.TensorName,
+			)
+		}
 
 		if err != nil {
 			return fmt.Errorf("projection.linear weight %q: %w", node.Weights.TensorName, err)
@@ -384,7 +406,7 @@ func handleMatmul(dispatcher *dispatcher, node *ast.GraphNode) error {
 		return err
 	}
 
-	output, err := dispatcher.memory.Upload(outputShape, dtype.Float32, zeroBytes(rows*cols))
+	output, err := dispatcher.allocateOutput(node, outputShape, dtype.Float32, rows*cols*4)
 
 	if err != nil {
 		return err
@@ -451,7 +473,7 @@ func handleBinaryElementwise(operation binaryOp) opHandler {
 
 		count := left.Len()
 
-		output, err := dispatcher.memory.Upload(left.Shape(), dtype.Float32, zeroBytes(count))
+		output, err := dispatcher.allocateOutput(node, left.Shape(), dtype.Float32, count*4)
 
 		if err != nil {
 			return err
@@ -519,7 +541,7 @@ func handleUnaryActivation(activation unaryActivation) opHandler {
 
 		count := input.Len()
 
-		output, err := dispatcher.memory.Upload(input.Shape(), dtype.Float32, zeroBytes(count))
+		output, err := dispatcher.allocateOutput(node, input.Shape(), dtype.Float32, count*4)
 
 		if err != nil {
 			return err

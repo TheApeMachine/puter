@@ -336,3 +336,59 @@ int metal_dispatch_layernorm(
 		}
 	);
 }
+
+/*
+metal_dispatch_rmsnorm runs one of the RMSNORM_KERNEL specializations
+declared in device/metal/layernorm/layer.metal (rmsnorm_float32 /
+rmsnorm_float16 / rmsnorm_bfloat16). The kernel takes input, scale, out
+and cols; we bind them in the same order at buffer indices 0..3 and
+launch one threadgroup per row with LAYERNORM_THREAD_COUNT threads each,
+matching the dispatch shape used by metal_dispatch_layernorm above.
+
+Distinct from metal_dispatch_layernorm because RMSNorm has no bias term
+and no two-pass stats/apply split: variance is computed inline against
+the zero mean per RMSNorm's definition (no mean centering).
+*/
+int metal_dispatch_layernorm_rmsnorm(
+	MetalDeviceRef contextRef,
+	int elementDType,
+	MetalBufferRef inputRef,
+	MetalBufferRef scaleRef,
+	MetalBufferRef outRef,
+	uint32_t rows,
+	uint32_t cols,
+	uint64_t completionToken,
+	MetalStatus* status
+) {
+	if (inputRef == NULL || scaleRef == NULL || outRef == NULL) {
+		metal_layernorm_status_set(status, -2, "nil Metal buffer");
+		return -2;
+	}
+
+	char kernelName[128];
+	int nameCode = metal_layernorm_kernel_name(
+		kernelName,
+		sizeof(kernelName),
+		"rmsnorm",
+		elementDType,
+		status
+	);
+
+	if (nameCode != 0) {
+		return nameCode;
+	}
+
+	return metal_layernorm_dispatch(
+		contextRef,
+		kernelName,
+		rows,
+		completionToken,
+		status,
+		^(id<MTLComputeCommandEncoder> encoder) {
+			[encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
+			[encoder setBuffer:(__bridge id<MTLBuffer>)scaleRef offset:0 atIndex:1];
+			[encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:2];
+			[encoder setBytes:&cols length:sizeof(cols) atIndex:3];
+		}
+	);
+}

@@ -86,10 +86,12 @@ func TestDispatcherRunsFusedNode(t *testing.T) {
 		}
 
 		dispatcher := newDispatcher(
+			"test",
 			graph, plan,
 			noopDeviceBackend{},
 			memory,
 			nilWeightStore{},
+			nil,
 		)
 
 		dispatcher.values.set("x", xTensor)
@@ -127,10 +129,12 @@ func TestDispatcherFailsOnUnknownOp(t *testing.T) {
 		}
 
 		dispatcher := newDispatcher(
+			"test",
 			graph, plan,
 			noopDeviceBackend{},
 			tensor.NewHostBackend(),
 			nilWeightStore{},
+			nil,
 		)
 
 		err := dispatcher.run()
@@ -162,10 +166,12 @@ func TestDispatcherFailsOnMissingWeight(t *testing.T) {
 		}
 
 		dispatcher := newDispatcher(
+			"test",
 			graph, plan,
 			noopDeviceBackend{},
 			tensor.NewHostBackend(),
 			nilWeightStore{},
+			nil,
 		)
 
 		dispatcher.values.set("tokens", []int{1, 2, 3})
