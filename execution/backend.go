@@ -10,17 +10,41 @@ import (
 
 /*
 Backend executes manifest graph.call steps through discovered device backends.
-It implements manifesto/runtime.Backend and dispatches via device.Backend per ARCHITECTURE.md.
+It implements manifesto/runtime.Backend and dispatches via device.Backend per
+ARCHITECTURE.md.
 */
 type Backend struct {
 	devicePool *pool.Pool
+	weights    WeightStore
 }
 
 /*
 New constructs an execution backend over a discovered device pool.
 */
 func New(devicePool *pool.Pool) *Backend {
-	return &Backend{devicePool: devicePool}
+	return &Backend{
+		devicePool: devicePool,
+		weights:    nilWeightStore{},
+	}
+}
+
+/*
+WithWeights injects the weight store used to resolve safetensors-backed
+parameters during graph.call dispatch. Returns the receiver so the call
+can be chained from caramba's wire-up.
+*/
+func (backend *Backend) WithWeights(store WeightStore) *Backend {
+	if backend == nil {
+		return nil
+	}
+
+	if store == nil {
+		store = nilWeightStore{}
+	}
+
+	backend.weights = store
+
+	return backend
 }
 
 /*
@@ -32,6 +56,21 @@ func (backend *Backend) Close() error {
 
 /*
 CallGraph executes one graph.call program step on the active device backend.
+
+The dispatcher walks request.Plan.Layers, looking up each node by ID in
+request.Graph and routing to one of three execution paths:
+
+ 1. Fused nodes (Op == optimizer.FuseOp) run the codegen-attached
+    CPUKernel directly.
+ 2. Known device ops (Embedding, RMSNorm, Matmul, Add, etc.) route to
+    the active device.Backend method.
+ 3. Anything else returns a clear "unsupported op" error so missing
+    coverage is visible.
+
+Inputs declared on the graph.call step (request.Inputs) seed the value
+table; the table grows as each node writes its output. At the end of the
+walk, the named outputs (request.Graph.Outputs or, when absent, the
+graph's logical sink) are collected into GraphCallResult.Outputs.
 */
 func (backend *Backend) CallGraph(
 	ctx context.Context,
@@ -43,8 +82,110 @@ func (backend *Backend) CallGraph(
 		return runtime.GraphCallResult{}, fmt.Errorf("execution: device pool is required")
 	}
 
-	return runtime.GraphCallResult{}, fmt.Errorf(
-		"execution: graph %q dispatch is not implemented",
-		request.GraphName,
+	if request.Graph == nil {
+		return runtime.GraphCallResult{}, fmt.Errorf(
+			"execution: graph %q is missing the ast.Graph payload", request.GraphName,
+		)
+	}
+
+	if request.Plan == nil {
+		return runtime.GraphCallResult{}, fmt.Errorf(
+			"execution: graph %q is missing an execution plan", request.GraphName,
+		)
+	}
+
+	deviceBackend, err := backend.pickDevice()
+
+	if err != nil {
+		return runtime.GraphCallResult{}, err
+	}
+
+	memory, _, err := backend.devicePool.MemoryBackend()
+
+	if err != nil {
+		return runtime.GraphCallResult{}, err
+	}
+
+	weights := backend.weights
+
+	if weights == nil {
+		weights = nilWeightStore{}
+	}
+
+	dispatcher := newDispatcher(
+		request.Graph,
+		request.Plan,
+		deviceBackend,
+		memory,
+		weights,
 	)
+
+	for name, value := range request.Inputs {
+		dispatcher.values.set(name, value)
+	}
+
+	if err := dispatcher.run(); err != nil {
+		return runtime.GraphCallResult{}, fmt.Errorf(
+			"execution: graph %q: %w", request.GraphName, err,
+		)
+	}
+
+	outputs := backend.collectOutputs(dispatcher, request)
+
+	return runtime.GraphCallResult{Outputs: outputs}, nil
+}
+
+/*
+pickDevice returns the highest-precedence device backend on the pool. CPU
+is always the safe fallback (the host backend implements device.Backend
+fully); Metal is preferred when available on Darwin.
+*/
+func (backend *Backend) pickDevice() (executionDevice, error) {
+	for _, deviceID := range backend.devicePool.DeviceIDs() {
+		deviceBackend, err := backend.devicePool.Device(deviceID)
+
+		if err != nil {
+			continue
+		}
+
+		return deviceBackend, nil
+	}
+
+	return nil, fmt.Errorf("execution: no device backends registered")
+}
+
+/*
+collectOutputs reads each declared output port out of the value table and
+returns them under their public name. When the graph declares no outputs
+the dispatcher emits the value table's final entry (typically the last
+node's output).
+*/
+func (backend *Backend) collectOutputs(
+	dispatcher *dispatcher,
+	request runtime.GraphCallRequest,
+) map[string]any {
+	outputs := make(map[string]any, len(request.Graph.Outputs))
+
+	if len(request.Graph.Outputs) > 0 {
+		for name, ref := range request.Graph.Outputs {
+			if value, ok := dispatcher.values.get(ref); ok {
+				outputs[name] = value
+			}
+		}
+
+		return outputs
+	}
+
+	// No explicit outputs: return the last node's value under its node ID.
+	if len(request.Graph.Nodes) == 0 {
+		return outputs
+	}
+
+	finalNode := request.Graph.Nodes[len(request.Graph.Nodes)-1]
+
+	if value, ok := dispatcher.values.get(finalNode.ID); ok {
+		outputs[finalNode.ID] = value
+	}
+
+	return outputs
 }

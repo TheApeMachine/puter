@@ -2,7 +2,7 @@ module github.com/theapemachine/puter
 
 go 1.26.1
 
-// replace github.com/theapemachine/manifesto => ../manifesto
+replace github.com/theapemachine/manifesto => ../manifesto
 
 // replace github.com/theapemachine/errnie => ../errnie
 

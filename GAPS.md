@@ -18,12 +18,12 @@ The single most damaging gap is **§2.2 zero-host-sync** — the `device.Backend
 
 ## 1. Repository roles
 
-| Repo | Actual role | Spec section it owns |
-|---|---|---|
-| **puter** | `device.Backend` implementations: CPU (scalar + AVX-512/AVX2/SSE2/NEON), Metal, CUDA, XLA. Owns the family tree under `device/<backend>/`. | §2 (`device/interface.go`), §2.3 (backend layout), §3.1 (XLA target). |
+| Repo          | Actual role                                                                                                                                                                                      | Spec section it owns                                                                             |
+|---------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|
+| **puter**     | `device.Backend` implementations: CPU (scalar + AVX-512/AVX2/SSE2/NEON), Metal, CUDA, XLA. Owns the family tree under `device/<backend>/`.                                                       | §2 (`device/interface.go`), §2.3 (backend layout), §3.1 (XLA target).                            |
 | **manifesto** | HuggingFace checkpoint compiler today. YAML manifest parser, recipe expander, checkpoint binder, minimal sequential executor. Should own the full compiler/optimizer/codegen/scheduler pipeline. | §1 (manifesto stack), §4 (PortType + composition), §5 (memory planning), §6 (IR), §8 Phases 2–5. |
-| **hf** | HuggingFace Hub client, safetensors parser, tokenizer, model config → manifest generator. Implements manifesto's `Hub` and `Host` interfaces. | §1 (checkpoint tokens / safetensors), §6 (`WeightToken *types.Token`). |
-| **caramba** | Application/orchestrator. Wires puter + manifesto + hf together, exposes HTTP API, CLI (`program`, `chat`, `research`, `serve`), tuner, research project scaffolding. | Consumer of §1 stack; partial owner of fusion catalog and Phase 7 verification. |
+| **hf**        | HuggingFace Hub client, safetensors parser, tokenizer, model config → manifest generator. Implements manifesto's `Hub` and `Host` interfaces.                                                    | §1 (checkpoint tokens / safetensors), §6 (`WeightToken *types.Token`).                           |
+| **caramba**   | Application/orchestrator. Wires puter + manifesto + hf together, exposes HTTP API, CLI (`program`, `chat`, `research`, `serve`), tuner, research project scaffolding.                            | Consumer of §1 stack; partial owner of fusion catalog and Phase 7 verification.                  |
 
 ---
 
@@ -33,33 +33,33 @@ The single most damaging gap is **§2.2 zero-host-sync** — the `device.Backend
 
 Families listed in §2.3 of the spec. Cell = source present (not necessarily correct or parity-tested).
 
-| Family | CPU scalar | AVX-512 | AVX2 | SSE2 | NEON | Metal | CUDA | XLA |
-|---|---|---|---|---|---|---|---|---|
-| activation | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| elementwise | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| reduction | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| dot | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| matmul | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| pool | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| convolution | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| dropout | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| losses | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| sampling | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| embedding | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| normalization | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| layernorm | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| rope | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| hawkes | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| physics | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| causal | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| masking | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ (under attention/) | ✓ | partial |
-| attention | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| vsa | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| active_inference | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| predictive_coding | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| dequant | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| quant | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | partial |
-| pospop *(host only)* | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | n/a | n/a |
+| Family               | CPU scalar | AVX-512 | AVX2 | SSE2 | NEON | Metal                | CUDA | XLA     |
+|----------------------|------------|---------|------|------|------|----------------------|------|---------|
+| activation           | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| elementwise          | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| reduction            | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| dot                  | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| matmul               | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| pool                 | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| convolution          | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| dropout              | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| losses               | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| sampling             | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| embedding            | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| normalization        | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| layernorm            | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| rope                 | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| hawkes               | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| physics              | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| causal               | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| masking              | ✓          | ✓       | ✓    | ✓    | ✓    | ✓ (under attention/) | ✓    | partial |
+| attention            | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| vsa                  | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| active_inference     | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| predictive_coding    | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| dequant              | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| quant                | ✓          | ✓       | ✓    | ✓    | ✓    | ✓                    | ✓    | partial |
+| pospop *(host only)* | ✓          | ✓       | ✓    | ✓    | ✓    | n/a                  | n/a  | n/a     |
 
 XLA is marked "partial" across the board because the build is gated behind `//go:build xla`, `bridge_stub.go` returns `ErrNeedsPlatformSetup`, and the spec's pre-resolved `[]*PjRtBuffer` slot table indexed by `offset >> 6` (§3.1 lines 1223–1237) is not in place. Coverage cannot be verified without an XLA-enabled build environment.
 
@@ -82,13 +82,13 @@ The spec (§2.2) is unambiguous: "All operations that reduce tensors to single v
 
 **P0a contract migration status: all 16 methods migrated, `make check §1 = 0`.**
 
-| Family | Methods | Contract migrated? | Kernel writes on device? |
-|---|---|---|---|
-| Reduction | Sum, Prod, ReduceMin, ReduceMax, L1Norm | ✓ done | ✗ P0b — Metal/CUDA/XLA still do internal device→host scalar transfer |
-| Dot | Dot | ✓ done | ✗ P0b |
-| Losses | MSE, MAE, Huber, BinaryCrossEntropy, KLDivergence, CrossEntropy | ✓ done | ✗ P0b |
-| Sampling | GreedySample, TopKSample, TopPSample | ✓ done | ✗ P0b |
-| VSA | Similarity | ✓ done | ✗ P0b |
+| Family    | Methods                                                         | Contract migrated? | Kernel writes on device?                                             |
+|-----------|-----------------------------------------------------------------|--------------------|----------------------------------------------------------------------|
+| Reduction | Sum, Prod, ReduceMin, ReduceMax, L1Norm                         | ✓ done             | ✗ P0b — Metal/CUDA/XLA still do internal device→host scalar transfer |
+| Dot       | Dot                                                             | ✓ done             | ✗ P0b                                                                |
+| Losses    | MSE, MAE, Huber, BinaryCrossEntropy, KLDivergence, CrossEntropy | ✓ done             | ✗ P0b                                                                |
+| Sampling  | GreedySample, TopKSample, TopPSample                            | ✓ done             | ✗ P0b                                                                |
+| VSA       | Similarity                                                      | ✓ done             | ✗ P0b                                                                |
 
 **P0a — Interface contract.** Public method signatures take `dst unsafe.Pointer` and return nothing. CPU implementation writes `*(*float32)(dst) = computedValue`. Metal/CUDA/XLA implementations temporarily store the host-returned scalar from `host.ReductionScalar(...)` into `*(*float32)(dst)` — same observable behavior as the old code, but the *interface* is now compatible with async dispatch.
 
@@ -138,24 +138,24 @@ Manifesto today is a **HuggingFace checkpoint compiler with a sequential interpr
 
 ### 3.1 Pipeline stage coverage
 
-| Spec stage | Phase | Status | Where (if any) | Notes |
-|---|---|---|---|---|
-| YAML parser + block macro expansion | 2.1 | ✓ partial | `parse/`, `expand/`, `lower/`, `ast/`, `catalog/`, `registry/` | Parses, expands `extends`/`repeat`, lowers shapes. No semantic-level macro expansion (active inference blocks, causal heads) yet. |
-| `PortType` (DType, ShapeSchema, LayoutSchema, SemanticKind, Constraints) | 2.2 | ✗ | — | Type doesn't exist. `Port` in `ir/` is just `Tensor *tensor.Tensor`. |
-| Hindley-Milner port unification | 2.2 | ✗ | — | Not implemented. |
-| Adaptor synthesis (Transpose/Cast/Reshape insertion) | 2.3 | ✗ | — | Not implemented. |
-| `FusionAST` + elementwise clustering | 3.1 | ✗ | — | No fusion type, no fusion pass. |
-| CPU JIT codegen (LLVM → AVX-512/AVX2/SSE2/NEON) | 3.2a | ✗ | — | No LLVM bindings, no IR builder. |
-| GPU JIT codegen (MSL / PTX) | 3.2b | ✗ | — | Kernel source generators not present. |
-| XLA HLO lowering + PJRT compile cache | 3.2c | ✗ | — | Not present in manifesto; stub bridge in `puter/device/xla`. |
-| Cache-tiling for Matmul/Conv | 3.3 | ✗ | — | Not implemented. |
-| Liveness analysis (`[Start, End]` per port) | 4.1 | ✗ | — | Not implemented. |
-| Interval-coloring allocator + 64-byte alignment | 4.2 | ✗ | — | Not implemented. |
-| Symbolic stride solver (`StrideFormula`, `ResolveOffset`) | 4.3 | ✗ | — | Not implemented. |
-| DAG scheduler (stream partition + semaphores) | 4.4 | ✗ partial | `runtime/plan.go` `ExecutionPlan.Layers [][]string` | Topological layering exists. No stream mapping, no `StreamID`/`SyncBarriers` on nodes, no hardware-queue dispatch. |
-| Flat 64-byte aligned workspace | 5.1 | ✗ | `tensor/arena.go`, `tensor/slab.go` | Native allocators exist (mmap on Linux/Darwin), but not driven by a static interval allocator. |
-| Async non-blocking executor | 5.2 | ✗ | `runtime/executor.go` | Sequential host-side dispatch; map-based input lookups (compile-time, but no streams). |
-| Parity harness (CPU scalar vs SIMD vs GPU vs XLA) | 7.1 | ✗ | — | Not present in manifesto. |
+| Spec stage                                                               | Phase | Status    | Where (if any)                                                 | Notes                                                                                                                             |
+|--------------------------------------------------------------------------|-------|-----------|----------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| YAML parser + block macro expansion                                      | 2.1   | ✓ partial | `parse/`, `expand/`, `lower/`, `ast/`, `catalog/`, `registry/` | Parses, expands `extends`/`repeat`, lowers shapes. No semantic-level macro expansion (active inference blocks, causal heads) yet. |
+| `PortType` (DType, ShapeSchema, LayoutSchema, SemanticKind, Constraints) | 2.2   | ✗         | —                                                              | Type doesn't exist. `Port` in `ir/` is just `Tensor *tensor.Tensor`.                                                              |
+| Hindley-Milner port unification                                          | 2.2   | ✗         | —                                                              | Not implemented.                                                                                                                  |
+| Adaptor synthesis (Transpose/Cast/Reshape insertion)                     | 2.3   | ✗         | —                                                              | Not implemented.                                                                                                                  |
+| `FusionAST` + elementwise clustering                                     | 3.1   | ✓         | `manifesto/optimizer/fusion_ast.go`, `fuse.go`, `constant_fold.go`, `rewrite.go` | FusionAST/ASTNode types match spec blueprint §1. `optimizer.Fuse` clusters DAG-shaped subgraphs (chains + sibling fan-in like SwiGLU and residual Add). Constant folding + identity elim + scale-into-Linear flag also land. Tests cover the patterns. |
+| CPU JIT codegen (LLVM → AVX-512/AVX2/SSE2/NEON)                          | 3.2a  | ✗         | `manifesto/codegen/cpu.go`                                     | What exists: a tree-walking Go interpreter (`CPUKernel.Run` calls `evalCPU` per element). No LLVM bindings, no IR builder, no SIMD. The interpreter is a reference evaluator for correctness — it is **not** the spec's JIT codegen path. Phase 3.2a needs LLVM + CPUID-driven AVX-512/AVX2/SSE2/NEON emission, both still missing. |
+| GPU JIT codegen (MSL / PTX)                                              | 3.2b  | ✗ partial | `manifesto/codegen/metal.go`                                   | MSL **source generator** ships (`MetalKernel.Source` returns `kernel void` source per blueprint §2). What's missing: `MTLLibrary` compilation, pipeline state object caching, and `puter/device/metal` integration that loads + dispatches the compiled pipeline. No CUDA/PTX path either. |
+| XLA HLO lowering + PJRT compile cache                                    | 3.2c  | ✗         | —                                                              | Not present in manifesto; stub bridge in `puter/device/xla`.                                                                      |
+| Cache-tiling for Matmul/Conv                                             | 3.3   | ✗ partial | `manifesto/optimizer/tiling.go`                                | `optimizer.Tile` attaches a `TileConfig` struct as metadata on every Matmul/Conv node, sized to fit a default L1 budget. **No consumer reads it.** The tiled matmul loops themselves don't exist — codegen for heavy ops is unwritten. The annotation is wiring only. |
+| Liveness analysis (`[Start, End]` per port)                              | 4.1   | ✗         | —                                                              | Not implemented.                                                                                                                  |
+| Interval-coloring allocator + 64-byte alignment                          | 4.2   | ✗         | —                                                              | Not implemented.                                                                                                                  |
+| Symbolic stride solver (`StrideFormula`, `ResolveOffset`)                | 4.3   | ✗         | —                                                              | Not implemented.                                                                                                                  |
+| DAG scheduler (stream partition + semaphores)                            | 4.4   | ✗ partial | `runtime/plan.go` `ExecutionPlan.Layers [][]string`            | Topological layering exists. No stream mapping, no `StreamID`/`SyncBarriers` on nodes, no hardware-queue dispatch.                |
+| Flat 64-byte aligned workspace                                           | 5.1   | ✗         | `tensor/arena.go`, `tensor/slab.go`                            | Native allocators exist (mmap on Linux/Darwin), but not driven by a static interval allocator.                                    |
+| Async non-blocking executor                                              | 5.2   | ✗         | `runtime/executor.go`                                          | Sequential host-side dispatch; map-based input lookups (compile-time, but no streams).                                            |
+| Parity harness (CPU scalar vs SIMD vs GPU vs XLA)                        | 7.1   | ✗         | —                                                              | Not present in manifesto.                                                                                                         |
 
 ### 3.1.b Static memory planner (Phase 4.1–4.2) — **LANDED**
 
@@ -259,16 +259,16 @@ Within manifesto's current scope (host-side compilation + sequential dispatch) t
 
 `hf` is the cleanest of the four relative to its declared scope. It is the safetensors / Hub / tokenizer / config / runtime-Host layer manifesto depends on. The architecture references its outputs primarily in §1 ("checkpoint tokens attach weight metadata after the graph is compiled") and §6 (`WeightToken *types.Token` on `Node`).
 
-| Spec touchpoint | Status |
-|---|---|
-| Safetensors → `types.Token` with `Span{Offset, Length}` | ✓ |
-| Hub client with revision pinning, ETag/SHA caching, parallel snapshot | ✓ |
-| Tokenizer load + encode/decode + chat templates | ✓ |
-| Model config → manifest YAML | ✓ Llama only |
-| `manifesto/runtime.Host` (ReadLine, Encode, EmitToken, WriteImage) | ✓ |
-| `manifesto/resolve.Hub` adapter | ✓ |
-| Dtype coverage (F32, F16, BF16, I8, I4) | ✓ |
-| No Go-heap leakage into device workspace | ✓ |
+| Spec touchpoint                                                       | Status       |
+|-----------------------------------------------------------------------|--------------|
+| Safetensors → `types.Token` with `Span{Offset, Length}`               | ✓            |
+| Hub client with revision pinning, ETag/SHA caching, parallel snapshot | ✓            |
+| Tokenizer load + encode/decode + chat templates                       | ✓            |
+| Model config → manifest YAML                                          | ✓ Llama only |
+| `manifesto/runtime.Host` (ReadLine, Encode, EmitToken, WriteImage)    | ✓            |
+| `manifesto/resolve.Hub` adapter                                       | ✓            |
+| Dtype coverage (F32, F16, BF16, I8, I4)                               | ✓            |
+| No Go-heap leakage into device workspace                              | ✓            |
 
 ### 4.2 Gaps
 
@@ -291,19 +291,19 @@ It does not implement any of §2–§5 itself. It consumes what's there.
 
 ### 5.2 Spec touchpoints owned by caramba
 
-| Area | Status |
-|---|---|
-| End-to-end program load → compile → execute glue (`cmd/program.go`) | ✓ |
-| Device backend wiring (`pkg/backend/compute/backend.go`) | ✓ |
-| Sharding mesh declaration | ✓ |
-| Fusion catalog (`pkg/backend/compute/fusion/catalog.go`) — `matmul+bias+gelu`, `layernorm+residual`, `dequant+matmul` | ⚠️ seeded, **no parity tests** |
-| Distributed compute (`distributed/`, `collective/`: process group, AllReduce, AllGather) | ✗ stubs |
-| Compute HTTP handlers (`pkg/backend/compute/service.go` `operation`, `optimizer`, `block`) | ✗ all return nil stubs |
-| Phase 7 verification harness | ✗ |
-| Model checkpoint → device memory (`modelscope/`) | ✗ listing only |
-| Network/DHT (`pkg/network/dht/`) | ⚠️ scaffolded, never invoked |
-| Notary/ledger (`pkg/notary/`) | ⚠️ defined, unused |
-| TUI (`pkg/tui/`) | ⚠️ coded, not wired into any cmd |
+| Area                                                                                                                  | Status                           |
+|-----------------------------------------------------------------------------------------------------------------------|----------------------------------|
+| End-to-end program load → compile → execute glue (`cmd/program.go`)                                                   | ✓                                |
+| Device backend wiring (`pkg/backend/compute/backend.go`)                                                              | ✓                                |
+| Sharding mesh declaration                                                                                             | ✓                                |
+| Fusion catalog (`pkg/backend/compute/fusion/catalog.go`) — `matmul+bias+gelu`, `layernorm+residual`, `dequant+matmul` | ⚠️ seeded, **no parity tests**   |
+| Distributed compute (`distributed/`, `collective/`: process group, AllReduce, AllGather)                              | ✗ stubs                          |
+| Compute HTTP handlers (`pkg/backend/compute/service.go` `operation`, `optimizer`, `block`)                            | ✗ all return nil stubs           |
+| Phase 7 verification harness                                                                                          | ✗                                |
+| Model checkpoint → device memory (`modelscope/`)                                                                      | ✗ listing only                   |
+| Network/DHT (`pkg/network/dht/`)                                                                                      | ⚠️ scaffolded, never invoked     |
+| Notary/ledger (`pkg/notary/`)                                                                                         | ⚠️ defined, unused               |
+| TUI (`pkg/tui/`)                                                                                                      | ⚠️ coded, not wired into any cmd |
 
 ### 5.3 Notable bit of debt
 
@@ -331,7 +331,7 @@ This is the order I'd suggest. Each item is roughly self-contained.
 ### P1 — foundational compiler work
 4. **Excise diffusion-specific Go (§6.5).** Delete `manifesto/diffusion/` package and `manifesto/runtime/{scheduler,latents,executor_diffusion,pipeline_scheduler}*.go`. Remove `scheduler.*` and `diffusion.prepare_latents` step dispatch from `executor.go`. Requires landing RNG / shape-inference / scalar-arithmetic atomics first (see §6.5 sequencing).
 5. **PortType unification + adaptor synthesis (§4.1–§4.2).** Without this, the compiler can't validate connections or auto-insert Transpose/Cast/Reshape.
-6. **FusionAST + elementwise fusion pass (§4.3).** This is the data structure all JIT codegen lowers from. The blueprint code (`compiler.FusionAST`, `compiler.ASTNode`) in the doc's bottom half is concrete enough to drop in.
+6. **FusionAST + elementwise fusion pass (§4.3).** ✓ **partial — front-end only.** What landed 2026-05-25: `manifesto/optimizer/` with the spec's `FusionAST`/`ASTNode` types, a recursive DAG-shaped fusion pass (`optimizer.Fuse`) covering chains and tree patterns (SwiGLU `Mul(Sigmoid(gate), up)`, residual `Add(Add(a, b), c)`), `optimizer.ConstantFold`, `optimizer.Rewrite` (identity elim + scale-into-Linear flag), and `optimizer.Tile` which **attaches a TileConfig struct as metadata only — no consumer reads it yet**. `manifesto/codegen` ships two things that are **not** the spec's Phase 3.2 JIT codegen: (a) `codegen.CPUKernel` is a tree-walking Go interpreter that evaluates the AST per element — no LLVM, no SIMD, no JIT; it's a reference evaluator only. (b) `codegen.MetalKernel` emits an MSL *source string* but nothing compiles it — no `MTLLibrary` invocation, no pipeline state object, no integration with `puter/device/metal`. `compiler.CompileAssets` runs `optimizer.Run → codegen.AttachKernels` and attaches the interpreter to each `FuseOp`, which is enough to execute fused subgraphs correctly through the new dispatcher, but it does not satisfy Phase 3.2a (CPU LLVM JIT) or Phase 3.2b (Metal/CUDA pipeline compilation). Those two remain **✗**.
 7. **Liveness analysis + interval-coloring allocator (§5.1).** The blueprint code (`scheduler.MemoryPlanner.AllocateOffsets`) is also concrete. 64-byte alignment is non-negotiable.
 8. **Symbolic stride solver (§5.1 + §4 of blueprints).** Required for dynamic batch/seq dimensions.
 
@@ -410,13 +410,13 @@ The `Executor` struct holds `schedulers map[string]*FlowMatchEulerDiscrete` and 
 
 Before deletion, the corresponding atomics need to exist somewhere reachable from a YAML recipe. Cross-reference with §2 of this doc:
 
-| Diffusion code does | Atomic that should replace it | Status |
-|---|---|---|
-| `SamplePackedLatents` Gaussian draw | A general `RandomNormal` / `Gaussian` device op (or a host-side `RNG` host op writing to the workspace at session start) | **Missing** — no RNG op in `device/interface.go`. Either add one to `device.Backend` or treat noise as a host-prepared input tensor. |
-| `PackLatents` NCHW → N·HW·C | A general `Permute` or `Reshape` atomic | Partial — `device/cpu/shape/` exists but is unplanned (§2.2 above); the shape adaptor really wants to live in manifesto's adaptor-synthesis pass (§4.2 of spec), not as a device family. |
-| `FlowMatchEulerDiscrete.Timesteps()` sigma schedule | Either a host-prepared constant tensor (computed once when the manifest is compiled) or a YAML expression of `arange` + scalar math over atomic elementwise ops. | **Missing** primitives — no `arange`, no scalar-broadcast math primitive declared at manifest level. |
-| `Delta(timestep)` scheduler step | YAML recipe over the same elementwise atomics | **Missing** — no manifest-level recipe primitives. |
-| `LatentLayout` dimension math | Manifest-level shape inference (`manifesto/lower`) reading scalar fields from the program declaration | Partial — `lower/` does shape inference; needs to know how to derive `packed_height = (height / latent_downsample) / 2 * 2` etc. from declared variables. That's arithmetic, not a new feature — but the manifest format needs to support it. |
+| Diffusion code does                                 | Atomic that should replace it                                                                                                                                    | Status                                                                                                                                                                                                                                        |
+|-----------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `SamplePackedLatents` Gaussian draw                 | A general `RandomNormal` / `Gaussian` device op (or a host-side `RNG` host op writing to the workspace at session start)                                         | **Missing** — no RNG op in `device/interface.go`. Either add one to `device.Backend` or treat noise as a host-prepared input tensor.                                                                                                          |
+| `PackLatents` NCHW → N·HW·C                         | A general `Permute` or `Reshape` atomic                                                                                                                          | Partial — `device/cpu/shape/` exists but is unplanned (§2.2 above); the shape adaptor really wants to live in manifesto's adaptor-synthesis pass (§4.2 of spec), not as a device family.                                                      |
+| `FlowMatchEulerDiscrete.Timesteps()` sigma schedule | Either a host-prepared constant tensor (computed once when the manifest is compiled) or a YAML expression of `arange` + scalar math over atomic elementwise ops. | **Missing** primitives — no `arange`, no scalar-broadcast math primitive declared at manifest level.                                                                                                                                          |
+| `Delta(timestep)` scheduler step                    | YAML recipe over the same elementwise atomics                                                                                                                    | **Missing** — no manifest-level recipe primitives.                                                                                                                                                                                            |
+| `LatentLayout` dimension math                       | Manifest-level shape inference (`manifesto/lower`) reading scalar fields from the program declaration                                                            | Partial — `lower/` does shape inference; needs to know how to derive `packed_height = (height / latent_downsample) / 2 * 2` etc. from declared variables. That's arithmetic, not a new feature — but the manifest format needs to support it. |
 
 ### Removal sequencing
 
@@ -453,14 +453,14 @@ The right design is symmetric with the rest of the platform: the HF loader compo
 
 `/Users/theapemachine/go/src/github.com/theapemachine/manifesto/asset/` is already the canonical location and **it's already mostly populated**:
 
-| Asset directory | Purpose | Count |
-|---|---|---|
-| `template/operation/` | Atomic op definitions — `math/matmul.yml`, `math/rmsnorm.yml`, `attention/sdpa.yml`, `attention/gqa.yml`, `shape/transpose.yml`, `activation/swiglu.yml`, `positional/`, `tokenizer/`, `state/`, etc. | ~110 files |
-| `template/block/` | Composite blocks — `active_inference/`, `causal/`, `energy/`, `hawkes/`, `markov_blanket/`, `memory/`, `predictive_coding/`, `vsa/` | ~15 files |
-| `template/optimizer/` | Optimizer recipes — `adagrad/`, `adam/`, `hebbian/`, `lars/`, `lbfgs/`, `lion/`, `rmsprop/`, `sgd/` | ~10 files |
-| `template/model/architecture/` | Full architecture topologies — `flux2.yml` is the worked example, comment-headed with the variables the include caller supplies | small |
-| `template/model/{audio,diffusion,llm,vision}/` | Model-family-specific recipes that compose architectures | small |
-| `template/manifest/`, `template/runtime/`, `template/devteam/`, `template/latex/` | Meta-templates and program scaffolds | small |
+| Asset directory                                                                   | Purpose                                                                                                                                                                                               | Count      |
+|-----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| `template/operation/`                                                             | Atomic op definitions — `math/matmul.yml`, `math/rmsnorm.yml`, `attention/sdpa.yml`, `attention/gqa.yml`, `shape/transpose.yml`, `activation/swiglu.yml`, `positional/`, `tokenizer/`, `state/`, etc. | ~110 files |
+| `template/block/`                                                                 | Composite blocks — `active_inference/`, `causal/`, `energy/`, `hawkes/`, `markov_blanket/`, `memory/`, `predictive_coding/`, `vsa/`                                                                   | ~15 files  |
+| `template/optimizer/`                                                             | Optimizer recipes — `adagrad/`, `adam/`, `hebbian/`, `lars/`, `lbfgs/`, `lion/`, `rmsprop/`, `sgd/`                                                                                                   | ~10 files  |
+| `template/model/architecture/`                                                    | Full architecture topologies — `flux2.yml` is the worked example, comment-headed with the variables the include caller supplies                                                                       | small      |
+| `template/model/{audio,diffusion,llm,vision}/`                                    | Model-family-specific recipes that compose architectures                                                                                                                                              | small      |
+| `template/manifest/`, `template/runtime/`, `template/devteam/`, `template/latex/` | Meta-templates and program scaffolds                                                                                                                                                                  | small      |
 
 **174 YAML files total. 161 already use the new format (top line `kind: ...`). 13 are still old format and need migration:**
 
@@ -560,16 +560,16 @@ After the Go excision (§6.5), the platform has the closed-world atomic contract
 
 ### 6.7.1 Atomic ops required (and their status)
 
-| Op | Family | Status | Used for |
-|---|---|---|---|
-| `random.normal` | random (new) | ✓ CPU scalar, ✓ NEON Philox, ⚠ Metal (functional, ULP envelope documented), ✗ AMD64, ✗ CUDA, ✗ XLA | Initial noise tensor |
-| `math.arange` | math | ✗ missing | Timestep array generation |
-| `math.linspace` | math | ✗ missing | Alternative scheduler base (sigma schedules from `linspace(1, 0, N)`) |
-| `math.scalar_broadcast` | elementwise | ✗ missing (could compose from existing) | `sigma * x` style operations |
-| `shape.permute` | shape | partial — `transpose`/`reshape` exist; need general N-d permute | NCHW ↔ packed-latent grid |
-| `math.add`, `math.mul`, `math.sub`, `math.div` | math | ✓ exist | Sigma scaling, residual update |
-| `control.loop_each` | control | ✓ exists | The denoising loop body |
-| `state.update` | state | ✓ exists | Tracking step_index across the loop |
+| Op                                             | Family       | Status                                                                                             | Used for                                                              |
+|------------------------------------------------|--------------|----------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------|
+| `random.normal`                                | random (new) | ✓ CPU scalar, ✓ NEON Philox, ⚠ Metal (functional, ULP envelope documented), ✗ AMD64, ✗ CUDA, ✗ XLA | Initial noise tensor                                                  |
+| `math.arange`                                  | math         | ✗ missing                                                                                          | Timestep array generation                                             |
+| `math.linspace`                                | math         | ✗ missing                                                                                          | Alternative scheduler base (sigma schedules from `linspace(1, 0, N)`) |
+| `math.scalar_broadcast`                        | elementwise  | ✗ missing (could compose from existing)                                                            | `sigma * x` style operations                                          |
+| `shape.permute`                                | shape        | partial — `transpose`/`reshape` exist; need general N-d permute                                    | NCHW ↔ packed-latent grid                                             |
+| `math.add`, `math.mul`, `math.sub`, `math.div` | math         | ✓ exist                                                                                            | Sigma scaling, residual update                                        |
+| `control.loop_each`                            | control      | ✓ exists                                                                                           | The denoising loop body                                               |
+| `state.update`                                 | state        | ✓ exists                                                                                           | Tracking step_index across the loop                                   |
 
 **Net new YAML to write under `manifesto/asset/template/operation/`:**
 - `random/normal.yml` — references the device.Backend RandomNormal method (step 6 of the RandomNormal sequence)
@@ -740,6 +740,99 @@ Worth recording, since the audit also confirmed several things are in good shape
 - No root forwarding shims (`backend_<family>.go`).
 - `hf` does not leak Go heap slices into device code paths.
 - All four x86 ISA paths (AVX-512, AVX2, SSE2) plus NEON exist for CPU. The spec's late addendum about not dropping AVX2/SSE2 is already honored.
+
+---
+
+## 8. End-to-end runnability gap — `caramba --program runtime/chat.yml`
+
+Audit date: 2026-05-25. Re-checked the path from `caramba/cmd/root.go` → `chat.yml` → first emitted token. The kernels and the parser pieces work in isolation, but four sequential links between them are missing or stubbed. Each one is by itself small; the chain has to be completed end-to-end before any program YAML, FLUX or otherwise, can run.
+
+The current state of the runtime path, in execution order:
+
+| # | Stage                                                                                                                 | File                                                         | Status                                                                                                                                                                                                                                                                                                                                    |
+|---|-----------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | `runtime/chat.yml` parsed into `*ast.Program`, `program.Includes["model"] = "hf://meta-llama/Llama-3.2-1B-Instruct"`  | `manifesto/parse/parser.go`                                  | ✓ works                                                                                                                                                                                                                                                                                                                                   |
+| 2 | `compiler.CompileAssets` resolves the include and produces `Graphs["model"]` + `ComputeGraphs["model"]`               | `manifesto/compiler/program.go`, `includes.go`               | ✓ **LANDED 2026-05-25** — `ProgramCompiler` now accepts a `compiler.IncludeResolver` (via `WithIncludeResolver`), walks `program.Includes`, and routes each entry through the resolver. `OrchestratorOptions.IncludeResolver` carries one through from caramba.                                                                           |
+| 3 | The `hf://…` reference is resolved into a model block YAML via `hfconfig.GenerateYAML(config, source)`                | `hf/program/include_resolver.go`, `hf/config/generator.go`   | ✓ **LANDED 2026-05-25** — `program.NewIncludeResolver` is wired into `caramba/cmd/program.go`. For each `hf://repo-id[#component]` include it downloads `config.json` via `resolve.Hub`, decodes via `hfconfig.ParseConfig`, and emits block YAML via `hfconfig.GenerateYAML`.                                                            |
+| 4 | The parsed `ast.Topology` is lowered into a verified `dag.Graph` with proper input/output wiring                      | `manifesto/compiler/topology_lower.go`, `topology_expand.go` | ✓ **LANDED 2026-05-25** — `LowerTopology(*ast.Topology) → *LoweredGraph` materializes both an `ast.Graph` (carrying Op, Attributes, Weights per node) and a parallel `dag.Graph` (carrying scheduling layout). Handles `control.repeat` template substitution (`${i}`, `${i+1}`) over template bodies. Tests in `topology_lower_test.go`. |
+| 5 | `ProgramSession` builds an `ExecutionPlan` per compute graph                                                          | `manifesto/runtime/plan.go`, `session.go`                    | ✓ works — now driven by stage 2's populated `ComputeGraphs`.                                                                                                                                                                                                                                                                              |
+| 6 | `execution.Backend.CallGraph` dispatches the plan's layers through `device.Backend` methods on the active device pool | `puter/execution/backend.go`, `dispatch.go`, `dispatch_table.go`, `values.go`, `weights.go` | ✓ **LANDED 2026-05-25** — dispatcher walks `request.Plan.Layers`, resolves each node ID against `request.Graph.Nodes`, and routes to one of three paths: (a) `Op == optimizer.FuseOp` invokes the codegen-attached `CPUKernel`; (b) known device ops route through a narrow `executionDevice` interface — `embedding.token`→`Lookup`, `math.rmsnorm`→`RMSNorm`, `math.layernorm`→`LayerNorm`, `projection.linear`/`math.matmul`→`Matmul`, elementwise add/sub/mul/div, activation relu/sigmoid/tanh/gelu/swish; (c) unknown ops surface a clear "unsupported op" error. Weights resolve via an injected `WeightStore` (ErrWeightNotFound is a clean diagnostic). Three unit tests cover the fused-node happy path, the unsupported-op error, and the missing-weight error.                                                                                          |
+| 7 | The CPU and Metal `device.Backend` families execute the kernels                                                       | `puter/device/cpu/*`, `puter/device/metal/*`                 | ✓ kernels exist (per §2 matrix) and are now called by stage 6.                                                                                                                                                                                                                                                                            |
+
+The diffusion path (`asset/template/runtime/diffusion.yml` for FLUX Klein-2 4B) hits the same chain — it just has a different include (`hf://black-forest-labs/FLUX.2-Klein-4B`) and a denoising loop instead of a decode loop. Nothing about the chain is model-family-specific, which is good: fixing it once unlocks both runtimes.
+
+### 8.1 What "minimally working" looks like
+
+For CPU + Metal only (XLA and CUDA are out of scope per the user's current direction):
+
+1.  `compiler.CompileAssets` in `manifesto/compiler/program.go`:
+    *   Add a `Pool` field (already there) wired to `resolve.Hub` (passed through from the orchestrator).
+    *   Walk `program.Includes`. For each `name: source` entry:
+        *   `hf://…` → fetch `config.json` via the hub, decode into `hfconfig.Config`, call `hfconfig.GenerateYAML(config, source)` to get block YAML.
+        *   Local asset path (no scheme) → read via the catalog FS.
+    *   Parse the block YAML through `parse.BlockModelFromYAML` → `ast.Topology` (via `block.TopologyAST()`).
+    *   Lower the topology into a `dag.Graph` (stage 4 below).
+    *   Build an `ast.Graph` wrapper (`Outputs`, `InputShapes`, `Topology`) and stash it under `Graphs[name]` and `ComputeGraphs[name]`.
+2.  New `manifesto/lower` package (or expand existing `lower/` location):
+    *   `LowerTopology(*ast.Topology) (*dag.Graph, error)` — for each topology node, create a `dag.Node` with a stable ID, attach `Inputs` by looking up their producer node IDs, validate via `graph.Verify()`.
+    *   This is structurally similar to the existing `manifesto/compiler/node_draft.go` but operates on `ast.Topology` rather than on checkpoint tokens.
+3.  `execution.Backend.CallGraph` in `puter/execution/backend.go`:
+    *   Walk `request.Plan.Layers` (topologically layered node IDs).
+    *   For each node, dispatch by op kind to the device backend chosen by `devicePool` (CPU or Metal):
+        *   `embedding.token` → `Embedding.Lookup`
+        *   `math.rmsnorm` → `LayerNorm.RMSNorm`
+        *   `projection.linear` → `Matmul.Matmul`
+        *   `positional.rope` → `RoPE.RoPE`
+        *   `attention.sdpa` / `attention.flash` → `Attention.ScaledDotProductAttention` / `Attention.FlashAttention`
+        *   `attention.kv_cache.write` / `read_concat` → `attention/` Metal-only ops; CPU equivalents exist under `device/cpu/attention/`
+        *   `activation.swiglu` → `Activation.SwiGLU` (or `SwiGLUTensors`)
+        *   `math.add` → `Elementwise.Add`
+    *   Materialize per-node weight pointers via the HF safetensors token table (already produced by `hf/safetensors/parser.go`).
+    *   Materialize per-node output tensors via `tensor.Backend.Upload`/`Allocate`.
+    *   Write the graph's declared output ports back into `GraphCallResult.Outputs`.
+4.  CPU and Metal device pickers (`puter/pool`) already do CPU+Metal discovery. No XLA/CUDA dependency.
+
+### 8.2 Why this matters for §6.7 (FLUX-via-YAML)
+
+The §6.7 rewrite plan assumes the chain in §8 already works. Adding atomic ops, migrating YAMLs, and writing a diffusion runtime program are all downstream of compiler stages 2–4 actually being implemented. The FLUX Klein-2 4B runtime YAML can be drafted today, but it will sit dormant until the chain lights up.
+
+### 8.3 Priority order, given the user's "CPU + Metal only" direction
+
+1.  ~~**8.1 step 1** (compiler resolves Includes via HF loader)~~ — **DONE 2026-05-25**.
+2.  ~~**8.1 step 2** (topology → dag.Graph lowering)~~ — **DONE 2026-05-25**.
+3.  ~~**8.1 step 3** (execution.Backend.CallGraph dispatch)~~ — **DONE 2026-05-25**.
+4.  ~~Diffusion runtime YAML for FLUX Klein-2 4B~~ (`asset/template/runtime/diffusion.yml`) — **DONE 2026-05-25** (a `caramba diffusion` subcommand also landed in `caramba/cmd/diffusion.go`). The YAML compiles today; execution still depends on a few atomic ops (`random.normal`, `math.linspace`, `math.scalar_broadcast`) that don't exist yet — see §6.7.1 — plus a real `WeightStore` implementation backed by `hf/safetensors`.
+5.  **WeightStore implementation** — concrete `puter/execution.WeightStore` backed by `hf/safetensors` parsing. The dispatcher's hook exists (`execution.Backend.WithWeights`) but caramba currently wires the nil fallback. End-to-end token emission needs real weight loading.
+6.  Once chat.yml emits a token on CPU, validate the same chain on Metal, then verify FLUX Klein-2 4B end-to-end.
+
+XLA gating (§6.6.1 metal test link errors, §6.6.3 metal ULP drift) is unchanged P3 and does not block the chat path.
+
+### 8.4 Specifics of step 3 — dispatcher design
+
+The dispatcher in `puter/execution/backend.go` walks `request.Plan.Layers` and for each node ID resolves the matching `*ast.GraphNode` from `request.Graph.Nodes`. From there:
+
+*   **Op routing.** A switch on `astNode.Op` maps to one `device.Backend` method. Indicative table:
+
+    | `ast.GraphNode.Op`  | `device.Backend` method               |
+    |---------------------|---------------------------------------|
+    | `embedding.token`   | `Embedding.Lookup`                    |
+    | `math.rmsnorm`      | `LayerNorm.RMSNorm`                   |
+    | `math.layernorm`    | `LayerNorm.LayerNorm`                 |
+    | `projection.linear` | `Matmul.Matmul`                       |
+    | `positional.rope`   | `RoPE.RoPE`                           |
+    | `attention.sdpa`    | `Attention.ScaledDotProductAttention` |
+    | `attention.flash`   | `Attention.FlashAttention`            |
+    | `activation.swiglu` | `Activation.SwiGLU`                   |
+    | `math.add`          | `Elementwise.Add`                     |
+    | `math.mul`          | `Elementwise.Mul`                     |
+
+*   **Weight binding.** Each `ast.GraphNode.Weights.TensorName` is resolved through the HuggingFace safetensors index (`hf/safetensors`) into an `unsafe.Pointer` + shape. Weights are cached per session — load-once, dispatch-many. The dispatcher does not allocate weight buffers per call.
+
+*   **Activation buffers.** Output tensors for each node are materialized from the `runtime.tensor.Backend` (`stateMemory` injected via the orchestrator). For the §3.1.b static memory planner once it lands, these become workspace offsets; until then, per-node `tensor.Tensor` handles are fine.
+
+*   **Device selection.** `puter/pool.Pool.MemoryBackend()` already picks CPU vs Metal based on host availability. The dispatcher reads the active backend and calls its method directly — no per-call device routing inside the loop.
+
+*   **Output forwarding.** When a `step.Out` ref starts with `state.`, the result is committed to the `StateStore`; otherwise it lands in the executor's `values` map. Both paths already work in `runtime/executor.go::runGraphCall`; the dispatcher only needs to populate `GraphCallResult.Outputs`.
 
 ---
 
