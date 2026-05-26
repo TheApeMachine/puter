@@ -27,6 +27,7 @@ struct BFloat16SamplingStorage {
     }
 };
 
+__attribute__((unused))
 static inline bool sampling_candidate_before(
     float leftScore,
     uint leftIndex,

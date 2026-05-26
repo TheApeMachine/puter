@@ -35,6 +35,7 @@ struct BFloat16CausalStorage {
     }
 };
 
+__attribute__((unused))
 static inline float causal_safe_positive(float value) {
     return max(value, 1.0e-12f);
 }
@@ -161,6 +162,7 @@ static inline void counterfactual_kernel(
     Storage::store(out, index, value);
 }
 
+__attribute__((unused))
 static inline void causal_reduce_sum(threadgroup float* values, uint threadIndex) {
     threadgroup_barrier(mem_flags::mem_threadgroup);
 

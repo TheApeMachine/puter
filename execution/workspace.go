@@ -146,7 +146,7 @@ func (workspace *Workspace) materializePort(
 	// accidentally extend into adjacent ports.
 	aliased := workspace.storage[interval.Offset:end:end]
 
-	shape, err := resolveShape(port.Type.ShapeSchema, port.Type.DType)
+	shape, err := resolveShape(port.Type.ShapeSchema, port.Type.DType, workspace.layout.Bindings)
 
 	if err != nil {
 		return fmt.Errorf("execution: port %d shape: %w", port.ID, err)
@@ -219,15 +219,23 @@ Scalar (rank-0) shapes return an empty Shape, which downstream kernels
 treat as a one-element tensor (matching the convention in
 ir.PortByteSize).
 */
-func resolveShape(schema ir.ShapeSchema, dataType dtype.DType) (tensor.Shape, error) {
+func resolveShape(schema ir.ShapeSchema, dataType dtype.DType, bindings ir.SymbolMap) (tensor.Shape, error) {
 	dims := make([]int, 0, len(schema.Dimensions))
 
 	for index, dimension := range schema.Dimensions {
 		if dimension.IsSymbolic() {
-			return tensor.Shape{}, fmt.Errorf(
-				"dim[%d] symbol %q unresolved at workspace materialization",
-				index, dimension.Symbol,
-			)
+			value, ok := bindings[dimension.Symbol]
+
+			if !ok {
+				return tensor.Shape{}, fmt.Errorf(
+					"dim[%d] symbol %q unresolved at workspace materialization",
+					index, dimension.Symbol,
+				)
+			}
+
+			dims = append(dims, int(value))
+
+			continue
 		}
 
 		dims = append(dims, int(dimension.Static))

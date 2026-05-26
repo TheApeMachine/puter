@@ -5,6 +5,7 @@ using namespace metal;
 #pragma METAL fp math_mode(safe)
 #pragma METAL fp contract(off)
 
+__attribute__((unused))
 constant float physicsPi = 3.14159265358979323846f;
 
 static inline float physics_bf16_to_float(ushort value) {

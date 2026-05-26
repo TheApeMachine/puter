@@ -12,6 +12,7 @@ static inline ushort hawkes_markov_float_to_bf16(float value) {
     return ushort(as_type<uint>(value) >> 16);
 }
 
+__attribute__((unused))
 static inline float hawkes_markov_safe_positive(float value) {
     return max(value, 1.0e-12f);
 }
@@ -36,6 +37,7 @@ struct BFloat16HawkesMarkovStorage {
     }
 };
 
+__attribute__((unused))
 static inline float hawkes_kahan_add(float sum, float addend, thread float* compensation) {
     float y = addend - *compensation;
     float t = sum + y;
@@ -43,6 +45,7 @@ static inline float hawkes_kahan_add(float sum, float addend, thread float* comp
     return t;
 }
 
+__attribute__((unused))
 static inline float hawkes_markov_reduce(threadgroup float* reduction, uint threadIndex) {
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
@@ -58,6 +61,7 @@ static inline float hawkes_markov_reduce(threadgroup float* reduction, uint thre
 }
 
 // Matches cpu/hawkes hawkesExpC + activation.ExpF32NEON (VFRINTN, VFCVTZS, VFMLA Horner, VFMUL scale).
+__attribute__((unused))
 static inline float metal_hawkes_exp32(float value) {
     const float log2e = 1.4426950408889634f;
     const float ln2 = 0.6931471805599453f;

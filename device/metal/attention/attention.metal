@@ -43,6 +43,7 @@ struct BFloat16TransformerStorage {
     }
 };
 
+__attribute__((unused))
 static inline void set_transformer_error(device atomic_uint* errorFlag) {
     atomic_store_explicit(errorFlag, 1u, memory_order_relaxed);
 }
@@ -163,6 +164,7 @@ static inline void attention_scores_tiled(
     }
 }
 
+__attribute__((unused))
 static inline void attention_softmax_row(
     device float* scores,
     threadgroup float* reduction,
@@ -322,6 +324,7 @@ static inline void flash_attention_online(
     }
 }
 
+__attribute__((unused))
 static inline bool attention_variant_keeps_key(
     uint row,
     uint keyIndex,
@@ -421,6 +424,7 @@ static inline void multi_head_attention_online(
     }
 }
 
+__attribute__((unused))
 static inline float llama3_scaled_inv_freq(
     float invFreq,
     uint originalContext,
@@ -555,6 +559,7 @@ static inline ushort masking_float_to_bf16(float value) {
     return ushort(as_type<uint>(value) >> 16);
 }
 
+__attribute__((unused))
 static inline float4 masking_bf16_to_float4(ushort4 value) {
     return float4(
         masking_bf16_to_float(value.x),
@@ -564,6 +569,7 @@ static inline float4 masking_bf16_to_float4(ushort4 value) {
     );
 }
 
+__attribute__((unused))
 static inline ushort4 masking_float4_to_bf16(float4 value) {
     return ushort4(
         masking_float_to_bf16(value.x),
@@ -577,10 +583,12 @@ static inline float masking_neg_inf_float32() {
     return as_type<float>(0xFF800000u);
 }
 
+__attribute__((unused))
 static inline half masking_neg_inf_float16() {
     return as_type<half>(ushort(0xFC00));
 }
 
+__attribute__((unused))
 static inline ushort masking_neg_inf_bfloat16() {
     return masking_float_to_bf16(masking_neg_inf_float32());
 }

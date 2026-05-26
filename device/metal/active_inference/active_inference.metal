@@ -15,6 +15,7 @@ static inline ushort active_float_to_bf16(float value) {
     return ushort(as_type<uint>(value) >> 16);
 }
 
+__attribute__((unused))
 static inline float active_safe_positive(float value) {
     return max(value, 1.0e-12f);
 }

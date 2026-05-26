@@ -2,6 +2,7 @@
 
 using namespace metal;
 
+__attribute__((unused))
 constant float predictiveCodingLearningRate = 1.0e-2f;
 
 static inline float research_bf16_to_float(ushort value) {

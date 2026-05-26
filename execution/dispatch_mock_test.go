@@ -4,6 +4,7 @@ import (
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/puter/device"
 )
 
 /*
@@ -64,6 +65,18 @@ func (noopDeviceBackend) Gelu(dst, src unsafe.Pointer, count int, format dtype.D
 
 func (noopDeviceBackend) Silu(dst, src unsafe.Pointer, count int, format dtype.DType) {
 	panic("noopDeviceBackend.Silu invoked")
+}
+
+func (noopDeviceBackend) SwiGLUTensors(dst, gate, up unsafe.Pointer, count int, format dtype.DType) {
+	panic("noopDeviceBackend.SwiGLUTensors invoked")
+}
+
+func (noopDeviceBackend) RoPE(config device.RoPEConfig, input, output unsafe.Pointer, seqLen, numHeads, headDim int, format dtype.DType) {
+	panic("noopDeviceBackend.RoPE invoked")
+}
+
+func (noopDeviceBackend) MultiHeadAttention(config device.MultiHeadAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
+	panic("noopDeviceBackend.MultiHeadAttention invoked")
 }
 
 var _ executionDevice = noopDeviceBackend{}

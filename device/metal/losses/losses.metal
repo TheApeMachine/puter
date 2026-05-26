@@ -42,6 +42,7 @@ struct BFloat16LossStorage {
     }
 };
 
+__attribute__((unused))
 static inline void set_loss_error(device atomic_uint* errorFlag) {
     atomic_store_explicit(errorFlag, 1u, memory_order_relaxed);
 }

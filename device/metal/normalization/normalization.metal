@@ -3,8 +3,12 @@
 using namespace metal;
 
 constant uint normalizationThreadCount = 256;
+
+// Used by groupnorm / instancenorm / batchnorm kernels below. Clang's
+// -Wunneeded-internal-declaration fires because it folds the constant
+// into uses; the attribute silences the noise without changing codegen.
+__attribute__((unused))
 constant float layerNormEpsilonMetal = 1.0e-5f;
-constant float rmsNormEpsilonMetalDefault = 1.0e-6f;
 
 static inline float bf16_to_float_norm(ushort value) {
     return as_type<float>(uint(value) << 16);
@@ -34,6 +38,7 @@ static inline float2 ds_add_float(float2 value, float addend) {
     return ds_renorm(sum, value.y + error);
 }
 
+__attribute__((unused))
 static inline float2 ds_add_pair(float2 left, float2 right) {
     float2 withHigh = ds_add_float(left, right.x);
     return ds_add_float(withHigh, right.y);
@@ -43,10 +48,12 @@ static inline float2 ds_neg(float2 value) {
     return float2(-value.x, -value.y);
 }
 
+__attribute__((unused))
 static inline float2 ds_sub_from_float(float value, float2 subtrahend) {
     return ds_add_float(ds_neg(subtrahend), value);
 }
 
+__attribute__((unused))
 static inline float2 ds_mul_pair(float2 left, float2 right) {
     float product = left.x * right.x;
     float error = fma(left.x, right.x, -product) + left.x * right.y + left.y * right.x;
@@ -59,14 +66,17 @@ static inline float2 ds_mul_float(float2 value, float scalar) {
     return ds_renorm(product, error);
 }
 
+__attribute__((unused))
 static inline float2 ds_div_count(float2 value, uint count) {
     return ds_mul_float(value, 1.0f / float(count));
 }
 
+__attribute__((unused))
 static inline float ds_to_float(float2 value) {
     return value.x + value.y;
 }
 
+__attribute__((unused))
 static inline float ds_inv_sqrt(float2 value, float epsilon) {
     float high = value.x + epsilon;
     float estimate = refined_inv_sqrt_norm(high);

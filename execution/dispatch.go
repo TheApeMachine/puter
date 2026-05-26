@@ -10,6 +10,7 @@ import (
 	"github.com/theapemachine/manifesto/optimizer"
 	"github.com/theapemachine/manifesto/runtime"
 	"github.com/theapemachine/manifesto/tensor"
+	"github.com/theapemachine/puter/device"
 )
 
 /*
@@ -39,12 +40,25 @@ type executionDevice interface {
 	Mul(dst, left, right unsafe.Pointer, count int, format dtype.DType)
 	Div(dst, left, right unsafe.Pointer, count int, format dtype.DType)
 
-	// Activation family (subset).
+	// Activation family (subset). SwiGLUTensors takes the gate and up
+	// projections as separate tensors and writes silu(gate) * up to dst
+	// — used by Llama-style MLPs after gate_proj / up_proj.
 	ReLU(dst, src unsafe.Pointer, count int, format dtype.DType)
 	Sigmoid(dst, src unsafe.Pointer, count int, format dtype.DType)
 	Tanh(dst, src unsafe.Pointer, count int, format dtype.DType)
 	Gelu(dst, src unsafe.Pointer, count int, format dtype.DType)
 	Silu(dst, src unsafe.Pointer, count int, format dtype.DType)
+	SwiGLUTensors(dst, gate, up unsafe.Pointer, count int, format dtype.DType)
+
+	// RoPE family. Applies rotary position embeddings in place on the
+	// per-head query/key tensors. Config carries the base frequency and
+	// the starting absolute position so KV-cache extends correctly.
+	RoPE(config device.RoPEConfig, input, output unsafe.Pointer, seqLen, numHeads, headDim int, format dtype.DType)
+
+	// Attention family. MultiHeadAttention covers both MHA and GQA via
+	// MultiHeadAttentionConfig.KVHeadCount (1 = MQA, == NumHeads = MHA,
+	// in-between = GQA — Llama-3.2-1B uses 32 / 8 = GQA with KV ratio 4).
+	MultiHeadAttention(config device.MultiHeadAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK int, format dtype.DType)
 }
 
 /*

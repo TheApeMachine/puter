@@ -5,8 +5,14 @@
 
 using namespace metal;
 
+// Referenced by selu / leaky_relu kernels in standard.metal via include;
+// standalone compilation of activation.metal sees no caller and Clang
+// would warn -Wunused-const-variable without the attribute.
+__attribute__((unused))
 constant float metalActivationSELUAlpha = 1.67326324235437728482f;
+__attribute__((unused))
 constant float metalActivationSELUScale = 1.05070098735548049342f;
+__attribute__((unused))
 constant float metalActivationLeakyReLUSlope = 0.01f;
 
 constant float metalGeluTanhAlpha = 0.7978845608028654f;
@@ -24,7 +30,6 @@ constant float metalFastExp32PolyC3 = 0.16666667f;
 constant float metalFastExp32PolyC2 = 0.5f;
 constant float metalFastExp32PolyC1 = 1.0f;
 constant float metalFastExp32PolyC0 = 1.0f;
-constant float metalFastExp32ExponentBias = 127.0f;
 
 static inline float metal_exp32_horner(float value) {
     float scaled = value * metalFastExp32Log2E;
@@ -64,6 +69,10 @@ static inline float metal_fast_tanh_exp32(float value) {
     return (expTwoValue - 1.0f) / (expTwoValue + 1.0f);
 }
 
+// Called from standard.metal's gelu_tanh kernels via `#include
+// "activation.metal"`. Standalone compilation of activation.metal sees
+// no caller, so silence -Wunused-function with __attribute__((unused)).
+__attribute__((unused))
 static inline float metal_fast_gelu_tanh(float value) {
     float valueCubed = value * value * value;
     float inner = metalGeluTanhAlpha * fma(metalGeluTanhBeta, valueCubed, value);
