@@ -67,6 +67,10 @@ func (noopDeviceBackend) Silu(dst, src unsafe.Pointer, count int, format dtype.D
 	panic("noopDeviceBackend.Silu invoked")
 }
 
+func (noopDeviceBackend) SwiGLU(dst, packed unsafe.Pointer, batch, halfCount int, format dtype.DType) {
+	panic("noopDeviceBackend.SwiGLU invoked")
+}
+
 func (noopDeviceBackend) SwiGLUTensors(dst, gate, up unsafe.Pointer, count int, format dtype.DType) {
 	panic("noopDeviceBackend.SwiGLUTensors invoked")
 }

@@ -40,14 +40,13 @@ type executionDevice interface {
 	Mul(dst, left, right unsafe.Pointer, count int, format dtype.DType)
 	Div(dst, left, right unsafe.Pointer, count int, format dtype.DType)
 
-	// Activation family (subset). SwiGLUTensors takes the gate and up
-	// projections as separate tensors and writes silu(gate) * up to dst
-	// — used by Llama-style MLPs after gate_proj / up_proj.
+	// Activation family (subset).
 	ReLU(dst, src unsafe.Pointer, count int, format dtype.DType)
 	Sigmoid(dst, src unsafe.Pointer, count int, format dtype.DType)
 	Tanh(dst, src unsafe.Pointer, count int, format dtype.DType)
 	Gelu(dst, src unsafe.Pointer, count int, format dtype.DType)
 	Silu(dst, src unsafe.Pointer, count int, format dtype.DType)
+	SwiGLU(dst, packed unsafe.Pointer, batch, halfCount int, format dtype.DType)
 	SwiGLUTensors(dst, gate, up unsafe.Pointer, count int, format dtype.DType)
 
 	// RoPE family. Applies rotary position embeddings in place on the
@@ -55,9 +54,7 @@ type executionDevice interface {
 	// the starting absolute position so KV-cache extends correctly.
 	RoPE(config device.RoPEConfig, input, output unsafe.Pointer, seqLen, numHeads, headDim int, format dtype.DType)
 
-	// Attention family. MultiHeadAttention covers both MHA and GQA via
-	// MultiHeadAttentionConfig.KVHeadCount (1 = MQA, == NumHeads = MHA,
-	// in-between = GQA — Llama-3.2-1B uses 32 / 8 = GQA with KV ratio 4).
+	// Attention family.
 	MultiHeadAttention(config device.MultiHeadAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK int, format dtype.DType)
 }
 
@@ -200,13 +197,23 @@ func (dispatcher *dispatcher) runNode(node *ast.GraphNode) error {
 		return dispatcher.runFusedNode(node)
 	}
 
-	handler, ok := opTable[node.Op]
-
-	if !ok {
-		return fmt.Errorf("unsupported op %q (no dispatcher registered)", node.Op)
+	if node.Op == "value.assign" {
+		return dispatcher.runAssign(node)
 	}
 
-	return handler(dispatcher, node)
+	registry, err := defaultOperationRegistry()
+
+	if err != nil {
+		return err
+	}
+
+	bind, err := registry.Bind(node)
+
+	if err != nil {
+		return err
+	}
+
+	return runBoundNode(dispatcher, node, bind)
 }
 
 /*
@@ -289,8 +296,7 @@ func (dispatcher *dispatcher) runFusedNode(node *ast.GraphNode) error {
 
 /*
 allocateLike returns a new host tensor of the requested length, initialised
-to zero. Used both by the fused kernel runner and by the elementwise
-shape-preserving op handlers in dispatch_table.go.
+to zero. Used by the fused kernel runner.
 */
 func (dispatcher *dispatcher) allocateLike(reference []float32, count int) (tensor.Tensor, error) {
 	_ = reference
@@ -308,6 +314,22 @@ func (dispatcher *dispatcher) allocateLike(reference []float32, count int) (tens
 	}
 
 	return dispatcher.memory.Upload(shape, dtype.Float32, make([]byte, byteCount))
+}
+
+func (dispatcher *dispatcher) runAssign(node *ast.GraphNode) error {
+	if len(node.Inputs) != 1 {
+		return fmt.Errorf("value.assign expects exactly one input, got %d", len(node.Inputs))
+	}
+
+	value, ok := dispatcher.values.get(node.Inputs[0])
+
+	if !ok {
+		return fmt.Errorf("value.assign input %q not found", node.Inputs[0])
+	}
+
+	dispatcher.values.set(node.ID, value)
+
+	return nil
 }
 
 /*

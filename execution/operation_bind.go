@@ -13,15 +13,16 @@ OperationBind is the executable mapping from one manifest operation to one
 device.Backend method or executor intrinsic.
 */
 type OperationBind struct {
-	Operation     string
-	InputNames    []string
-	OutputNames   []string
-	Method        string
-	ConfigStruct  string
-	ConfigFields  map[string]asset.BindArg
-	Output        asset.BindOutput
-	Args          []asset.BindArg
-	selectedInput int
+	Operation      string
+	InputNames     []string
+	OutputNames    []string
+	Method         string
+	ConfigStruct   string
+	ConfigFields   map[string]asset.BindArg
+	ConfigDefaults map[string]any
+	Output         asset.BindOutput
+	Args           []asset.BindArg
+	selectedInput  int
 }
 
 type operationSchema struct {
@@ -90,8 +91,23 @@ func (registry *operationRegistry) Bind(node *ast.GraphNode) (OperationBind, err
 	bind.Operation = node.Op
 	bind.InputNames = portNames(entry.schema.Inputs)
 	bind.OutputNames = portNames(entry.schema.Outputs)
+	bind.ConfigDefaults = configDefaults(entry.schema.Config)
 
 	return bind, nil
+}
+
+func configDefaults(params []asset.ConfigParam) map[string]any {
+	defaults := make(map[string]any)
+
+	for _, param := range params {
+		if param.Default == nil {
+			continue
+		}
+
+		defaults[param.Name] = param.Default
+	}
+
+	return defaults
 }
 
 func (schema operationSchema) bindForNode(node *ast.GraphNode) (OperationBind, error) {

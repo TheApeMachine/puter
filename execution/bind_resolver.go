@@ -1,10 +1,7 @@
 package execution
 
 import (
-	"encoding/binary"
 	"fmt"
-	"math"
-	"strconv"
 	"strings"
 
 	"github.com/theapemachine/manifesto/asset"
@@ -299,14 +296,63 @@ func (resolver *bindResolver) resolveConfigRef(parts []string) (any, error) {
 
 	switch parts[2] {
 	case "int":
-		return configInt(resolver.node, parts[1], 0), nil
+		return configInt(resolver.node, parts[1], resolver.defaultConfigInt(parts[1])), nil
 	case "float":
-		return float32(configFloat(resolver.node, parts[1], 0)), nil
+		return float32(configFloat(resolver.node, parts[1], resolver.defaultConfigFloat(parts[1]))), nil
 	case "bool":
-		return configBool(resolver.node, parts[1], false), nil
+		return configBool(resolver.node, parts[1], resolver.defaultConfigBool(parts[1])), nil
 	default:
 		return nil, fmt.Errorf("unknown config type %q", parts[2])
 	}
+}
+
+func (resolver *bindResolver) defaultConfigInt(key string) int {
+	value, ok := resolver.bind.ConfigDefaults[key]
+
+	if !ok {
+		return 0
+	}
+
+	asInt, err := scalarInt(value)
+
+	if err != nil {
+		return 0
+	}
+
+	return asInt
+}
+
+func (resolver *bindResolver) defaultConfigFloat(key string) float64 {
+	value, ok := resolver.bind.ConfigDefaults[key]
+
+	if !ok {
+		return 0
+	}
+
+	switch typed := value.(type) {
+	case float64:
+		return typed
+	case float32:
+		return float64(typed)
+	case int:
+		return float64(typed)
+	case int64:
+		return float64(typed)
+	default:
+		return 0
+	}
+}
+
+func (resolver *bindResolver) defaultConfigBool(key string) bool {
+	value, ok := resolver.bind.ConfigDefaults[key]
+
+	if !ok {
+		return false
+	}
+
+	asBool, ok := value.(bool)
+
+	return ok && asBool
 }
 
 func tensorProperty(input tensor.Tensor, property string) (any, error) {
