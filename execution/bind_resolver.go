@@ -147,15 +147,41 @@ func (resolver *bindResolver) allocateOutput() (tensor.Tensor, error) {
 		return nil, err
 	}
 
-	if !output.Shape().Equal(resolver.outputShape) {
-		return nil, fmt.Errorf("shape %v does not match planned %v", output.Shape().Dims(), resolver.outputShape.Dims())
-	}
+	return resolver.outputView(output, byteCount)
+}
 
+func (resolver *bindResolver) outputView(output tensor.Tensor, byteCount int) (tensor.Tensor, error) {
 	if output.DType() != resolver.outputDType {
 		return nil, fmt.Errorf("dtype %s does not match planned %s", output.DType(), resolver.outputDType)
 	}
 
-	return output, nil
+	if output.Shape().Equal(resolver.outputShape) {
+		return output, nil
+	}
+
+	if output.Bytes() < byteCount {
+		return nil, fmt.Errorf(
+			"workspace output %v has %d bytes, need %d bytes for live shape %v",
+			output.Shape().Dims(),
+			output.Bytes(),
+			byteCount,
+			resolver.outputShape.Dims(),
+		)
+	}
+
+	view, err := output.Slice(0, resolver.outputShape.Len())
+
+	if err != nil {
+		return nil, fmt.Errorf("slice workspace output %v to %v: %w", output.Shape().Dims(), resolver.outputShape.Dims(), err)
+	}
+
+	reshaped, err := view.Reshape(resolver.outputShape.Dims())
+
+	if err != nil {
+		return nil, fmt.Errorf("reshape workspace output %v to %v: %w", output.Shape().Dims(), resolver.outputShape.Dims(), err)
+	}
+
+	return reshaped, nil
 }
 
 func (resolver *bindResolver) resolveConfigFields() (map[string]any, error) {

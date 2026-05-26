@@ -234,6 +234,7 @@ log_done:
 #define VMAX_S4(m, n, d)   WORD $(0x6EA0F400 | ((m) << 16) | ((n) << 5) | (d))
 #define VFABS_S4(n, d)     WORD $(0x6EA0F000 | ((n) << 5) | (d))
 #define VBSL_B16(m, n, d)  WORD $(0x6E601C00 | ((m) << 16) | ((n) << 5) | (d))
+#define VFCMLTZ_S4(n, d)   WORD $(0x4EA0E800 | ((n) << 5) | (d))
 
 // ReLU follows the element-wise loop shape but holds a zero vector in V8
 // across the entire function so the inner loop only pays for FCMGT
@@ -300,6 +301,58 @@ relu_done:
 
 #define VFNEG_S4(n, d)     WORD $(0x6EA0F800 | ((n) << 5) | (d))
 
+DATA  actFastExpC<>+0(SB)/4, $1.4426950408889634
+DATA  actFastExpC<>+4(SB)/4, $0.00133389
+DATA  actFastExpC<>+8(SB)/4, $0.00961812
+DATA  actFastExpC<>+12(SB)/4, $0.05550410
+DATA  actFastExpC<>+16(SB)/4, $0.24022650
+DATA  actFastExpC<>+20(SB)/4, $0.69314718
+DATA  actFastExpC<>+24(SB)/4, $1.0
+DATA  actFastExpC<>+28(SB)/4, $-87.33654
+DATA  actFastExpC<>+32(SB)/4, $88.72283
+DATA  actFastExpC<>+36(SB)/4, $0x7f7fffff
+GLOBL actFastExpC<>(SB), 8, $40
+
+#define LOAD_FAST_EXP_CONSTS \
+    MOVD $actFastExpC<>(SB), R9      \
+    FMOVS  0(R9), F16 ; VDUP V16.S[0], V16.S4 \
+    FMOVS  4(R9), F17 ; VDUP V17.S[0], V17.S4 \
+    FMOVS  8(R9), F18 ; VDUP V18.S[0], V18.S4 \
+    FMOVS 12(R9), F19 ; VDUP V19.S[0], V19.S4 \
+    FMOVS 16(R9), F20 ; VDUP V20.S[0], V20.S4 \
+    FMOVS 20(R9), F21 ; VDUP V21.S[0], V21.S4 \
+    FMOVS 24(R9), F22 ; VDUP V22.S[0], V22.S4 \
+    FMOVS 28(R9), F23 ; VDUP V23.S[0], V23.S4 \
+    FMOVS 32(R9), F24 ; VDUP V24.S[0], V24.S4 \
+    FMOVS 36(R9), F25 ; VDUP V25.S[0], V25.S4 \
+    VEOR V28.B16, V28.B16, V28.B16
+
+#define FAST_EXP32_BODY(in, out) \
+    VFMUL_S4(16, in, 1)              \
+    VFCVTZS_S4(1, 5)                 \
+    VFCMLTZ_S4(1, 6)                 \
+    VADD_S4(6, 5, 5)                 \
+    VSCVTF_S4(5, 2)                  \
+    VFSUB_S4(2, 1, 2)                \
+    VMOV_B16(17, out)                \
+    VFMUL_S4(2, out, 3)              \
+    VFADD_S4(18, 3, out)             \
+    VFMUL_S4(2, out, 3)              \
+    VFADD_S4(19, 3, out)             \
+    VFMUL_S4(2, out, 3)              \
+    VFADD_S4(20, 3, out)             \
+    VFMUL_S4(2, out, 3)              \
+    VFADD_S4(21, 3, out)             \
+    VFMUL_S4(2, out, 3)              \
+    VFADD_S4(22, 3, out)             \
+    VSHL_S4_BY23(5, 5)               \
+    VADD_S4(5, out, out)             \
+    VFCMGT_S4(in, 23, 6)             \
+    VBSL_B16(out, 28, 6)             \
+    VFCMGT_S4(24, in, 9)             \
+    VBSL_B16(6, 25, 9)               \
+    VMOV_B16(9, out)
+
 DATA  actSigmoidC<>+0(SB)/4, $1.4426950408889634
 DATA  actSigmoidC<>+4(SB)/4, $0.6931471805599453
 DATA  actSigmoidC<>+8(SB)/4, $127.0
@@ -315,18 +368,18 @@ DATA  actSigmoidC<>+44(SB)/4, $2.0
 GLOBL actSigmoidC<>(SB), 8, $48
 
 #define LOAD_SIGMOID_CONSTS \
-    MOVD $actSigmoidC<>(SB), R3      \
-    FMOVS  0(R3), F16                \
-    FMOVS  4(R3), F17                \
-    FMOVS  8(R3), F18                \
-    FMOVS 12(R3), F19                \
-    FMOVS 16(R3), F20                \
-    FMOVS 20(R3), F21                \
-    FMOVS 24(R3), F22                \
-    FMOVS 28(R3), F23                \
-    FMOVS 32(R3), F24                \
-    FMOVS 36(R3), F25                \
-    FMOVS 40(R3), F26                \
+    MOVD $actSigmoidC<>(SB), R9      \
+    FMOVS  0(R9), F16 ; VDUP V16.S[0], V16.S4 \
+    FMOVS  4(R9), F17 ; VDUP V17.S[0], V17.S4 \
+    FMOVS  8(R9), F18 ; VDUP V18.S[0], V18.S4 \
+    FMOVS 12(R9), F19 ; VDUP V19.S[0], V19.S4 \
+    FMOVS 16(R9), F20 ; VDUP V20.S[0], V20.S4 \
+    FMOVS 20(R9), F21 ; VDUP V21.S[0], V21.S4 \
+    FMOVS 24(R9), F22 ; VDUP V22.S[0], V22.S4 \
+    FMOVS 28(R9), F23 ; VDUP V23.S[0], V23.S4 \
+    FMOVS 32(R9), F24 ; VDUP V24.S[0], V24.S4 \
+    FMOVS 36(R9), F25 ; VDUP V25.S[0], V25.S4 \
+    FMOVS 40(R9), F26 ; VDUP V26.S[0], V26.S4 \
     VFCVTZS_S4(18, 27)
 
 #define EXP_BODY_SIG(in, out) \
@@ -431,7 +484,7 @@ TEXT ·TanhF32NEON(SB), NOSPLIT, $0-24
     MOVD src+8(FP), R1
     MOVD n+16(FP), R2
     LOAD_SIGMOID_CONSTS
-    FMOVS 44(R3), F28
+    FMOVS 44(R9), F28 ; VDUP V28.S[0], V28.S4
 
 tanh_loop4:
     CMP  $4, R2
@@ -587,19 +640,19 @@ TEXT ·SwiGLUTensorsF32NEON(SB), NOSPLIT, $0-32
     MOVD gate+8(FP), R1
     MOVD up+16(FP), R2
     MOVD count+24(FP), R3
-    LOAD_SIGMOID_CONSTS
+    LOAD_FAST_EXP_CONSTS
 
 swiglu_tensors_w4:
     CMP  $4, R3
     BLT  swiglu_tensors_scalar
     VLD1.P 16(R1), [V0.S4]
-    VMOV V0.B16, V1.B16
+    VMOV_B16(0, 10)
     VLD1.P 16(R2), [V8.S4]
     VFNEG_S4(0, 0)
-    EXP_BODY_SIG(0, 6)
-    VFADD_S4(26, 6, 6)
-    VFDIV_S4(6, 26, 7)
-    VFMUL_S4(1, 7, 7)
+    FAST_EXP32_BODY(0, 7)
+    VFADD_S4(22, 7, 6)
+    VFDIV_S4(6, 22, 7)
+    VFMUL_S4(10, 7, 7)
     VFMUL_S4(8, 7, 7)
     VST1.P [V7.S4], 16(R0)
     SUB  $4, R3
@@ -612,13 +665,13 @@ swiglu_tensors_sloop:
     FMOVS (R1), F0
     FMOVS (R2), F8
     VDUP V0.S[0], V0.S4
-    VMOV V0.B16, V1.B16
+    VMOV_B16(0, 10)
     VDUP V8.S[0], V8.S4
     VFNEG_S4(0, 0)
-    EXP_BODY_SIG(0, 6)
-    VFADD_S4(26, 6, 6)
-    VFDIV_S4(6, 26, 7)
-    VFMUL_S4(1, 7, 7)
+    FAST_EXP32_BODY(0, 7)
+    VFADD_S4(22, 7, 6)
+    VFDIV_S4(6, 22, 7)
+    VFMUL_S4(10, 7, 7)
     VFMUL_S4(8, 7, 7)
     FMOVS F7, (R0)
     ADD  $4, R1

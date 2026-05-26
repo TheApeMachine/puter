@@ -151,6 +151,48 @@ func TestRunBoundNodeUsesOperationYAML(t *testing.T) {
 	})
 }
 
+func TestRunBoundNodeUsesLiveViewOfWorkspaceOutput(t *testing.T) {
+	convey.Convey("Given a planner workspace output larger than the live bind shape", t, func() {
+		memory := tensor.NewHostBackend()
+		defer memory.Close()
+
+		leftTensor := uploadFloatSlice(t, memory, []float32{1, 2, 3})
+		rightTensor := uploadFloatSlice(t, memory, []float32{10, 20, 30})
+		workspaceOutput := uploadFloatSlice(t, memory, []float32{0, 0, 0, 0, 0, 0, 0, 0})
+
+		recorder := &recordingDevice{}
+		dispatcher := newTestDispatcher(recorder, memory)
+		dispatcher.workspaces = &WorkspaceMap{
+			outputs: map[string]map[string]tensor.Tensor{
+				"test": {"added": workspaceOutput},
+			},
+		}
+		dispatcher.values.set("x", leftTensor)
+		dispatcher.values.set("y", rightTensor)
+
+		node := &ast.GraphNode{
+			ID:     "added",
+			Op:     "math.add",
+			Inputs: []string{"x", "y"},
+		}
+
+		err := dispatcher.runNode(node)
+		convey.So(err, convey.ShouldBeNil)
+
+		convey.Convey("The device call uses the live element count", func() {
+			convey.So(len(recorder.addCalls), convey.ShouldEqual, 1)
+			convey.So(recorder.addCalls[0].count, convey.ShouldEqual, 3)
+		})
+
+		convey.Convey("The value table stores a live-shape view", func() {
+			stored, err := dispatcher.values.tensor("added")
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(stored.Shape().Dims(), convey.ShouldResemble, []int{3})
+			convey.So(stored.DType(), convey.ShouldEqual, dtype.Float32)
+		})
+	})
+}
+
 func TestOperationRegistrySelectsVariant(t *testing.T) {
 	convey.Convey("Given activation.swiglu has packed and two-input variants", t, func() {
 		registry, err := defaultOperationRegistry()

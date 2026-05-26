@@ -2,6 +2,7 @@ package execution
 
 import (
 	"fmt"
+	"math"
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/ast"
@@ -181,6 +182,38 @@ func (dispatcher *dispatcher) run() error {
 			if err := dispatcher.runNode(node); err != nil {
 				return fmt.Errorf("execution: node %q (%s): %w", node.ID, node.Op, err)
 			}
+
+			if err := dispatcher.checkFinite(node); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (dispatcher *dispatcher) checkFinite(node *ast.GraphNode) error {
+	value, ok := dispatcher.values.get(node.ID)
+
+	if !ok {
+		return nil
+	}
+
+	tensorValue, ok := value.(tensor.Tensor)
+
+	if !ok || tensorValue.DType() != dtype.Float32 {
+		return nil
+	}
+
+	values, err := tensorValue.Float32Native()
+
+	if err != nil {
+		return err
+	}
+
+	for index, element := range values {
+		if math.IsNaN(float64(element)) {
+			return fmt.Errorf("execution: node %q (%s) produced NaN at lane %d", node.ID, node.Op, index)
 		}
 	}
 

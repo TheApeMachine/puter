@@ -40,13 +40,7 @@ func ComputeHeadScoresNative(
 }
 
 func StableSoftmaxRowNative(scores []float32) {
-	if len(scores) == 0 {
-		return
-	}
-
-	maximum := ReduceMaxFloat32Native(scores)
-	sum := SoftmaxRowFillExpsNative(scores, scores, maximum)
-	normalizeRow(scores, sum)
+	stableSoftmaxRow(scores)
 }
 
 func WriteHeadOutputNative(
@@ -70,18 +64,6 @@ func WriteHeadOutputNative(
 func ApplyAttentionSoftmaxNative(scores []float32, seqQ, seqK int) {
 	for rowIndex := 0; rowIndex < seqQ; rowIndex++ {
 		row := scores[rowIndex*seqK : (rowIndex+1)*seqK]
-		maximum := ReduceMaxFloat32Native(row)
-		sum := SoftmaxRowFillExpsNative(row, row, maximum)
-		normalizeRow(row, sum)
-	}
-}
-
-func normalizeRow(row []float32, sum float32) {
-	if sum == 0 {
-		return
-	}
-
-	for index := range row {
-		row[index] /= sum
+		stableSoftmaxRow(row)
 	}
 }
