@@ -23,18 +23,22 @@ func SparseCSRMatMulFloat32Native(
 }
 
 func matmulFloat32Scalar(out, left, right []float32, rows, inner, cols int) {
-	for row := 0; row < rows; row++ {
-		for innerIndex := 0; innerIndex < inner; innerIndex++ {
-			leftValue := left[row*inner+innerIndex]
+	clearFloat32Matrix(out, rows, cols)
 
-			for col := 0; col < cols; col++ {
-				out[row*cols+col] += leftValue * right[innerIndex*cols+col]
+	for rowIndex := 0; rowIndex < rows; rowIndex++ {
+		for innerIndex := 0; innerIndex < inner; innerIndex++ {
+			leftValue := left[rowIndex*inner+innerIndex]
+
+			for colIndex := 0; colIndex < cols; colIndex++ {
+				out[rowIndex*cols+colIndex] += leftValue * right[innerIndex*cols+colIndex]
 			}
 		}
 	}
 }
 
 func matmulFloat64Scalar(out, left, right []float64, rows, inner, cols int) {
+	clearFloat64Matrix(out, rows, cols)
+
 	for rowIndex := 0; rowIndex < rows; rowIndex++ {
 		for innerIndex := 0; innerIndex < inner; innerIndex++ {
 			leftValue := left[rowIndex*inner+innerIndex]

@@ -408,10 +408,24 @@ func TestRunBoundNodeShapeIntrinsic(t *testing.T) {
 		err := dispatcher.runNode(node)
 		convey.So(err, convey.ShouldBeNil)
 
-		convey.Convey("The result is a view of the final row", func() {
+		convey.Convey("The result contains the final row", func() {
 			stored, err := dispatcher.values.tensor("last")
 			convey.So(err, convey.ShouldBeNil)
 			convey.So(stored.Shape().Dims(), convey.ShouldResemble, []int{1, 2})
+
+			values, err := stored.Float32Native()
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(values, convey.ShouldResemble, []float32{5, 6})
+		})
+
+		convey.Convey("The result does not alias the consumed input row", func() {
+			inputValues, err := input.Float32Native()
+			convey.So(err, convey.ShouldBeNil)
+			inputValues[4] = 0
+			inputValues[5] = 0
+
+			stored, err := dispatcher.values.tensor("last")
+			convey.So(err, convey.ShouldBeNil)
 
 			values, err := stored.Float32Native()
 			convey.So(err, convey.ShouldBeNil)

@@ -31,6 +31,18 @@ type reducedLoadFunc func(pointer unsafe.Pointer, index int) float32
 
 type reducedStoreFunc func(pointer unsafe.Pointer, index int, value float32)
 
+func clearFloat32Matrix(out []float32, rows, cols int) {
+	for index := range out[:rows*cols] {
+		out[index] = 0
+	}
+}
+
+func clearFloat64Matrix(out []float64, rows, cols int) {
+	for index := range out[:rows*cols] {
+		out[index] = 0
+	}
+}
+
 func dispatchMatmul(
 	out, left, right unsafe.Pointer,
 	rows, inner, cols int,

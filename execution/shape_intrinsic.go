@@ -2,6 +2,9 @@ package execution
 
 import (
 	"fmt"
+	"unsafe"
+
+	"github.com/theapemachine/manifesto/tensor"
 )
 
 func isIntrinsicMethod(method string) bool {
@@ -73,5 +76,51 @@ func runLastTokenIntrinsic(resolver *bindResolver) (any, error) {
 		return nil, err
 	}
 
-	return slice.Reshape(resolver.outputShape.Dims())
+	output, err := resolver.allocateOutput()
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := copyTensorStorage(output, slice, rowElements); err != nil {
+		return nil, err
+	}
+
+	return output, nil
+}
+
+func copyTensorStorage(destination tensor.Tensor, source tensor.Tensor, elements int) error {
+	if destination.DType() != source.DType() {
+		return fmt.Errorf(
+			"copy tensor storage dtype mismatch: destination %s, source %s",
+			destination.DType(),
+			source.DType(),
+		)
+	}
+
+	elementSize, err := source.DType().Size()
+
+	if err != nil {
+		return err
+	}
+
+	byteCount := elements * elementSize
+	destinationPointer, _, err := pointerOf(destination)
+
+	if err != nil {
+		return err
+	}
+
+	sourcePointer, _, err := pointerOf(source)
+
+	if err != nil {
+		return err
+	}
+
+	copy(
+		unsafe.Slice((*byte)(destinationPointer), byteCount),
+		unsafe.Slice((*byte)(sourcePointer), byteCount),
+	)
+
+	return nil
 }

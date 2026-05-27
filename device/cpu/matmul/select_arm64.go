@@ -3,14 +3,20 @@
 package matmul
 
 func MatmulFloat32Native(out, left, right []float32, rows, inner, cols int) {
+	clearFloat32Matrix(out, rows, cols)
+
+	if rows == 0 || inner == 0 || cols == 0 {
+		return
+	}
+
 	colsBlock := cols & ^3
 	tailStart := colsBlock
 
 	if colsBlock > 0 {
-		for row := 0; row < rows; row++ {
+		for rowIndex := 0; rowIndex < rows; rowIndex++ {
 			MatmulRowFloat32NEONAsm(
-				&out[row*cols],
-				&left[row*inner],
+				&out[rowIndex*cols],
+				&left[rowIndex*inner],
 				&right[0],
 				inner,
 				colsBlock,
@@ -22,26 +28,32 @@ func MatmulFloat32Native(out, left, right []float32, rows, inner, cols int) {
 		return
 	}
 
-	for row := 0; row < rows; row++ {
+	for rowIndex := 0; rowIndex < rows; rowIndex++ {
 		for innerIndex := 0; innerIndex < inner; innerIndex++ {
-			leftValue := left[row*inner+innerIndex]
+			leftValue := left[rowIndex*inner+innerIndex]
 
-			for col := tailStart; col < cols; col++ {
-				out[row*cols+col] += leftValue * right[innerIndex*cols+col]
+			for colIndex := tailStart; colIndex < cols; colIndex++ {
+				out[rowIndex*cols+colIndex] += leftValue * right[innerIndex*cols+colIndex]
 			}
 		}
 	}
 }
 
 func MatmulFloat64Native(out, left, right []float64, rows, inner, cols int) {
+	clearFloat64Matrix(out, rows, cols)
+
+	if rows == 0 || inner == 0 || cols == 0 {
+		return
+	}
+
 	colsBlock := cols & ^1
 	tailStart := colsBlock
 
 	if colsBlock > 0 {
-		for row := 0; row < rows; row++ {
+		for rowIndex := 0; rowIndex < rows; rowIndex++ {
 			MatmulRowFloat64NEONAsm(
-				&out[row*cols],
-				&left[row*inner],
+				&out[rowIndex*cols],
+				&left[rowIndex*inner],
 				&right[0],
 				inner,
 				colsBlock,
@@ -53,12 +65,12 @@ func MatmulFloat64Native(out, left, right []float64, rows, inner, cols int) {
 		return
 	}
 
-	for row := 0; row < rows; row++ {
+	for rowIndex := 0; rowIndex < rows; rowIndex++ {
 		for innerIndex := 0; innerIndex < inner; innerIndex++ {
-			leftValue := left[row*inner+innerIndex]
+			leftValue := left[rowIndex*inner+innerIndex]
 
-			for col := tailStart; col < cols; col++ {
-				out[row*cols+col] += leftValue * right[innerIndex*cols+col]
+			for colIndex := tailStart; colIndex < cols; colIndex++ {
+				out[rowIndex*cols+colIndex] += leftValue * right[innerIndex*cols+colIndex]
 			}
 		}
 	}
