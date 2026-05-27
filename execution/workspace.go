@@ -388,6 +388,25 @@ func (workspaceMap *WorkspaceMap) Attach(
 }
 
 /*
+MaxBindings returns the planner SymbolMap used to size one graph's
+workspace. Launch-time substitution compares live bindings against
+these upper-bound values.
+*/
+func (workspaceMap *WorkspaceMap) MaxBindings(graphName string) ir.SymbolMap {
+	if workspaceMap == nil {
+		return nil
+	}
+
+	workspace, ok := workspaceMap.workspaces[graphName]
+
+	if !ok || workspace == nil {
+		return nil
+	}
+
+	return workspace.Layout().Bindings
+}
+
+/*
 OutputFor returns the pre-resolved output tensor for one ast.GraphNode
 in a compiled graph. The dispatcher calls this in place of
 dispatcher.memory.Upload(...) for output allocation: the tensor is

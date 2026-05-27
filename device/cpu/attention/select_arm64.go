@@ -10,7 +10,7 @@ import (
 
 func ComputeHeadScoresNative(
 	queryView, keyView []float32,
-	qIndex, seqK, headDim int,
+	qIndex, seqQ, seqK, headDim int,
 	queryHeadOffset, kvHeadOffset int,
 	queryStride, kvStride int,
 	scale float32,
@@ -23,7 +23,7 @@ func ComputeHeadScoresNative(
 		keyHead := keyView[kIndex*kvStride+kvHeadOffset : kIndex*kvStride+kvHeadOffset+headDim]
 		score := DotFloat32Native(queryHead, keyHead) * scale
 
-		if config.Causal && kIndex > qIndex {
+		if config.Causal && kIndex > qIndex+seqK-seqQ {
 			score = float32(math.Inf(-1))
 		}
 

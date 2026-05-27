@@ -53,3 +53,13 @@ func RunPageWrite(args ...tensor.Tensor) error {
 func RunPageGather(args ...tensor.Tensor) error {
 	return runPageGather(args...)
 }
+
+func RunPageGatherWithLiveRows(
+	storage tensor.Tensor,
+	pageTable tensor.Tensor,
+	pageSize tensor.Tensor,
+	output tensor.Tensor,
+	liveRows int,
+) error {
+	return runPageGatherWithLiveRows(storage, pageTable, pageSize, output, liveRows)
+}

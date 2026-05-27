@@ -53,6 +53,14 @@ func runBoundNode(dispatcher *dispatcher, node *ast.GraphNode, bind OperationBin
 		return nil
 	}
 
+	if isPageIntrinsicMethod(bind.Method) {
+		if err := runPageIntrinsic(resolver); err != nil {
+			return fmt.Errorf("bind op %q: %w", node.Op, err)
+		}
+
+		return nil
+	}
+
 	output, err := resolver.allocateOutput()
 
 	if err != nil {
@@ -65,6 +73,18 @@ func runBoundNode(dispatcher *dispatcher, node *ast.GraphNode, bind OperationBin
 
 	if err != nil {
 		return err
+	}
+
+	if bind.Method == "RoPE" && len(node.Inputs) >= 2 {
+		positionValue, positionErr := resolver.resolveInputTensor(node.Inputs[1])
+
+		if positionErr == nil {
+			positionNative, nativeErr := positionValue.Int32Native()
+
+			if nativeErr == nil && len(positionNative) > 0 {
+				configFields["StartPosition"] = int(positionNative[0])
+			}
+		}
 	}
 
 	args, err := resolver.resolveArgs()
@@ -240,6 +260,8 @@ func (resolver *bindResolver) resolveRaw(spec asset.BindArg) (any, error) {
 	switch parts[0] {
 	case "nil":
 		return unsafeNilPointer, nil
+	case "launch":
+		return resolver.resolveLaunchRef(parts[1:])
 	case "input":
 		return resolver.resolveInputRef(parts)
 	case "output":
@@ -251,6 +273,24 @@ func (resolver *bindResolver) resolveRaw(spec asset.BindArg) (any, error) {
 	default:
 		return nil, fmt.Errorf("unknown bind ref %q", spec.Ref)
 	}
+}
+
+func (resolver *bindResolver) resolveLaunchRef(parts []string) (any, error) {
+	if len(parts) != 2 || parts[1] != "int" {
+		return nil, fmt.Errorf("launch ref must be launch.<symbol>.int, got %q", strings.Join(parts, "."))
+	}
+
+	if resolver.dispatcher.launchBindings == nil {
+		return nil, fmt.Errorf("launch binding %q is not set for this graph.call", parts[0])
+	}
+
+	value, ok := resolver.dispatcher.launchBindings[parts[0]]
+
+	if !ok {
+		return nil, fmt.Errorf("launch binding %q is not set for this graph.call", parts[0])
+	}
+
+	return int(value), nil
 }
 
 func (resolver *bindResolver) resolveInputRef(parts []string) (any, error) {
@@ -268,7 +308,7 @@ func (resolver *bindResolver) resolveInputRef(parts []string) (any, error) {
 		return inputTensor, nil
 	}
 
-	return tensorProperty(inputTensor, strings.Join(parts[2:], "."))
+	return tensorProperty(resolver, inputTensor, strings.Join(parts[2:], "."))
 }
 
 func (resolver *bindResolver) resolveOutputRef(parts []string) (any, error) {
@@ -312,7 +352,7 @@ func (resolver *bindResolver) resolveWeightRef(parts []string) (any, error) {
 		return nil, err
 	}
 
-	return tensorProperty(weightTensor, strings.Join(parts[propertyIndex:], "."))
+	return tensorProperty(resolver, weightTensor, strings.Join(parts[propertyIndex:], "."))
 }
 
 func (resolver *bindResolver) resolveConfigRef(parts []string) (any, error) {
@@ -381,16 +421,26 @@ func (resolver *bindResolver) defaultConfigBool(key string) bool {
 	return ok && asBool
 }
 
-func tensorProperty(input tensor.Tensor, property string) (any, error) {
+func tensorProperty(resolver *bindResolver, input tensor.Tensor, property string) (any, error) {
 	switch property {
 	case "pointer":
 		pointer, _, err := pointerOf(input)
 
 		return pointer, err
 	case "shape":
-		return input.Shape().Dims(), nil
+		return substituteLaunchDimensions(
+			input.Shape().Dims(),
+			resolver.dispatcher.maxBindings,
+			resolver.dispatcher.launchBindings,
+		), nil
 	case "len":
-		return input.Len(), nil
+		dims := substituteLaunchDimensions(
+			input.Shape().Dims(),
+			resolver.dispatcher.maxBindings,
+			resolver.dispatcher.launchBindings,
+		)
+
+		return productInts(dims), nil
 	case "dtype":
 		return input.DType(), nil
 	default:

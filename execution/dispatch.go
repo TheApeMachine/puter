@@ -2,12 +2,12 @@ package execution
 
 import (
 	"fmt"
-	"math"
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/ast"
 	"github.com/theapemachine/manifesto/codegen"
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/manifesto/ir"
 	"github.com/theapemachine/manifesto/optimizer"
 	"github.com/theapemachine/manifesto/runtime"
 	"github.com/theapemachine/manifesto/tensor"
@@ -66,15 +66,17 @@ the host memory backend, device backend, and weight store with the
 parent execution.Backend.
 */
 type dispatcher struct {
-	values        *valueTable
-	graph         *ast.Graph
-	graphName     string
-	plan          *runtime.ExecutionPlan
-	nodeByID      map[string]*ast.GraphNode
-	deviceBackend executionDevice
-	memory        tensor.Backend
-	weights       WeightStore
-	workspaces    *WorkspaceMap
+	values         *valueTable
+	graph          *ast.Graph
+	graphName      string
+	plan           *runtime.ExecutionPlan
+	nodeByID       map[string]*ast.GraphNode
+	deviceBackend  executionDevice
+	memory         tensor.Backend
+	weights        WeightStore
+	workspaces     *WorkspaceMap
+	maxBindings    ir.SymbolMap
+	launchBindings ir.SymbolMap
 }
 
 func newDispatcher(
@@ -85,6 +87,7 @@ func newDispatcher(
 	memory tensor.Backend,
 	weights WeightStore,
 	workspaces *WorkspaceMap,
+	launchBindings ir.SymbolMap,
 ) *dispatcher {
 	nodeByID := make(map[string]*ast.GraphNode, len(graph.Nodes))
 
@@ -96,17 +99,24 @@ func newDispatcher(
 		nodeByID[node.ID] = node
 	}
 
-	return &dispatcher{
-		values:        newValueTable(),
-		graph:         graph,
-		graphName:     graphName,
-		plan:          plan,
-		nodeByID:      nodeByID,
-		deviceBackend: deviceBackend,
-		memory:        memory,
-		weights:       weights,
-		workspaces:    workspaces,
+	dispatcher := &dispatcher{
+		values:         newValueTable(),
+		graph:          graph,
+		graphName:      graphName,
+		plan:           plan,
+		nodeByID:       nodeByID,
+		deviceBackend:  deviceBackend,
+		memory:         memory,
+		weights:        weights,
+		workspaces:     workspaces,
+		launchBindings: launchBindings,
 	}
+
+	if workspaces != nil {
+		dispatcher.maxBindings = workspaces.MaxBindings(graphName)
+	}
+
+	return dispatcher
 }
 
 /*
@@ -182,38 +192,6 @@ func (dispatcher *dispatcher) run() error {
 			if err := dispatcher.runNode(node); err != nil {
 				return fmt.Errorf("execution: node %q (%s): %w", node.ID, node.Op, err)
 			}
-
-			if err := dispatcher.checkFinite(node); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-func (dispatcher *dispatcher) checkFinite(node *ast.GraphNode) error {
-	value, ok := dispatcher.values.get(node.ID)
-
-	if !ok {
-		return nil
-	}
-
-	tensorValue, ok := value.(tensor.Tensor)
-
-	if !ok || tensorValue.DType() != dtype.Float32 {
-		return nil
-	}
-
-	values, err := tensorValue.Float32Native()
-
-	if err != nil {
-		return err
-	}
-
-	for index, element := range values {
-		if math.IsNaN(float64(element)) {
-			return fmt.Errorf("execution: node %q (%s) produced NaN at lane %d", node.ID, node.Op, index)
 		}
 	}
 

@@ -6,7 +6,7 @@ import "math"
 
 func ComputeHeadScoresNative(
 	queryView, keyView []float32,
-	qIndex, seqK, headDim int,
+	qIndex, seqQ, seqK, headDim int,
 	queryHeadOffset, kvHeadOffset int,
 	queryStride, kvStride int,
 	scale float32,
@@ -23,7 +23,7 @@ func ComputeHeadScoresNative(
 
 		score := dot * scale
 
-		if config.Causal && kIndex > qIndex {
+		if config.Causal && kIndex > qIndex+seqK-seqQ {
 			score = float32(math.Inf(-1))
 		}
 
@@ -40,29 +40,7 @@ func ComputeHeadScoresNative(
 }
 
 func StableSoftmaxRowNative(scores []float32) {
-	maximum := scores[0]
-
-	for _, value := range scores[1:] {
-		if value > maximum {
-			maximum = value
-		}
-	}
-
-	var sum float32
-
-	for index, value := range scores {
-		shifted := float32(math.Exp(float64(value - maximum)))
-		scores[index] = shifted
-		sum += shifted
-	}
-
-	if sum == 0 {
-		return
-	}
-
-	for index := range scores {
-		scores[index] /= sum
-	}
+	stableSoftmaxRow(scores)
 }
 
 func WriteHeadOutputNative(
@@ -84,5 +62,8 @@ func WriteHeadOutputNative(
 }
 
 func ApplyAttentionSoftmaxNative(scores []float32, seqQ, seqK int) {
-	applySoftmax(scores, seqQ, seqK)
+	for rowIndex := 0; rowIndex < seqQ; rowIndex++ {
+		row := scores[rowIndex*seqK : (rowIndex+1)*seqK]
+		stableSoftmaxRow(row)
+	}
 }

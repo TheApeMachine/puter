@@ -142,6 +142,12 @@ func (resolver *bindResolver) inputIndex(source string) (int, error) {
 		return resolver.checkInputIndex(inputIndex)
 	}
 
+	for inputIndex, name := range resolver.node.Inputs {
+		if name == source {
+			return resolver.checkInputIndex(inputIndex)
+		}
+	}
+
 	return 0, fmt.Errorf("bind: input source %q is not declared for op %q", source, resolver.node.Op)
 }
 
@@ -178,6 +184,16 @@ func (resolver *bindResolver) tensorFromValue(value any) (tensor.Tensor, error) 
 		return resolver.uploadInt32Slice(converted)
 	case []float32:
 		return resolver.uploadFloat32Slice(typed)
+	case int:
+		return resolver.uploadIntSlice([]int{typed})
+	case int32:
+		return resolver.uploadInt32Slice([]int32{typed})
+	case int64:
+		if typed < minInt32 || typed > maxInt32 {
+			return nil, fmt.Errorf("int64 token value %d overflows int32", typed)
+		}
+
+		return resolver.uploadInt32Slice([]int32{int32(typed)})
 	default:
 		return nil, fmt.Errorf("has type %T, expected tensor.Tensor or host slice", value)
 	}

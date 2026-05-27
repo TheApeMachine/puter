@@ -48,7 +48,11 @@ func runLastTokenIntrinsic(resolver *bindResolver) (any, error) {
 		return nil, err
 	}
 
-	dimensions := input.Shape().Dims()
+	dimensions := substituteLaunchDimensions(
+		input.Shape().Dims(),
+		resolver.dispatcher.maxBindings,
+		resolver.dispatcher.launchBindings,
+	)
 
 	if len(dimensions) < 2 {
 		return nil, fmt.Errorf("shape.last_token input must have rank >= 2, got %d", len(dimensions))

@@ -52,25 +52,39 @@ func runPageGather(args ...tensor.Tensor) error {
 		return tensor.ErrShapeMismatch
 	}
 
-	pageTable, err := args[1].Int32Native()
+	return runPageGatherWithLiveRows(args[0], args[1], args[2], args[3], 0)
+}
+
+func runPageGatherWithLiveRows(
+	storage tensor.Tensor,
+	pageTable tensor.Tensor,
+	pageSize tensor.Tensor,
+	output tensor.Tensor,
+	liveRows int,
+) error {
+	if storage == nil || pageTable == nil || pageSize == nil || output == nil {
+		return tensor.ErrShapeMismatch
+	}
+
+	pageTableNative, err := pageTable.Int32Native()
 
 	if err != nil {
 		return err
 	}
 
-	pageSize, err := int32ScalarTensor(args[2])
+	pageSizeValue, err := int32ScalarTensor(pageSize)
 
 	if err != nil {
 		return err
 	}
 
-	config, err := pageGatherConfig(args[0], args[3], pageTable, int(pageSize))
+	config, err := pageGatherConfig(storage, output, pageTableNative, int(pageSizeValue), liveRows)
 
 	if err != nil {
 		return err
 	}
 
-	return runTypedPageGather(args[0], args[3], pageTable, config)
+	return runTypedPageGather(storage, output, pageTableNative, config)
 }
 
 type pageWriteKernelConfig struct {
@@ -106,9 +120,13 @@ func pageWriteConfig(
 		return pageWriteKernelConfig{}, tensor.ErrShapeMismatch
 	}
 
-	rowCount := valueDims[0]
+	rowCount := len(pageIDs)
 
-	if rowCount != len(pageIDs) || rowCount != len(offsets) || storageDims[1] != pageSize {
+	if rowCount != len(offsets) || storageDims[1] != pageSize {
+		return pageWriteKernelConfig{}, tensor.ErrShapeMismatch
+	}
+
+	if len(valueDims) < 1 || valueDims[0] < rowCount {
 		return pageWriteKernelConfig{}, tensor.ErrShapeMismatch
 	}
 
@@ -140,6 +158,7 @@ func pageGatherConfig(
 	output tensor.Tensor,
 	pageTable []int32,
 	pageSize int,
+	liveRows int,
 ) (pageGatherKernelConfig, error) {
 	storageDims := storage.Shape().Dims()
 	outDims := output.Shape().Dims()
@@ -158,6 +177,16 @@ func pageGatherConfig(
 	}
 
 	outRows := outDims[0]
+
+	if liveRows > 0 && liveRows < outRows {
+		outRows = liveRows
+	}
+
+	maxVisible := len(pageTable) * pageSize
+
+	if maxVisible < outRows {
+		outRows = maxVisible
+	}
 
 	for rowIndex := range outRows {
 		tableIndex := rowIndex / pageSize

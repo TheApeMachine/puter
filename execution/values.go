@@ -84,6 +84,12 @@ func (table *valueTable) tokenIDs(name string) ([]int, error) {
 		}
 
 		return out, nil
+	case int:
+		return []int{typed}, nil
+	case int32:
+		return []int{int(typed)}, nil
+	case int64:
+		return []int{int(typed)}, nil
 	default:
 		return nil, fmt.Errorf("execution: value %q has type %T, expected []int", name, raw)
 	}

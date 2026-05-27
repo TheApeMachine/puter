@@ -174,6 +174,7 @@ func (backend *Backend) CallGraph(
 		memory,
 		weights,
 		backend.workspaces,
+		request.LaunchBindings,
 	)
 
 	for name, value := range request.Inputs {

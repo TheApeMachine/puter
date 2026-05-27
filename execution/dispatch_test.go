@@ -92,6 +92,7 @@ func TestDispatcherRunsFusedNode(t *testing.T) {
 			memory,
 			nilWeightStore{},
 			nil,
+			nil,
 		)
 
 		dispatcher.values.set("x", xTensor)
@@ -135,6 +136,7 @@ func TestDispatcherFailsOnUnknownOp(t *testing.T) {
 			tensor.NewHostBackend(),
 			nilWeightStore{},
 			nil,
+			nil,
 		)
 
 		err := dispatcher.run()
@@ -171,6 +173,7 @@ func TestDispatcherFailsOnMissingWeight(t *testing.T) {
 			noopDeviceBackend{},
 			tensor.NewHostBackend(),
 			nilWeightStore{},
+			nil,
 			nil,
 		)
 

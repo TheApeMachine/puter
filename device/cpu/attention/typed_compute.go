@@ -141,7 +141,7 @@ func computeWeightedOutputTyped(
 
 func computeHeadScoresTyped(
 	query, key unsafe.Pointer,
-	qIndex, seqK, headDim int,
+	qIndex, seqQ, seqK, headDim int,
 	queryHeadOffset, kvHeadOffset int,
 	queryStride, kvStride int,
 	scale float32,
@@ -163,7 +163,9 @@ func computeHeadScoresTyped(
 		)
 		score := typedRowDot(queryHead, keyHead, headDim, format) * scale
 
-		if config.Causal && keyIndex > qIndex {
+		absoluteQueryIndex := qIndex + seqK - seqQ
+
+		if config.Causal && keyIndex > absoluteQueryIndex {
 			score = float32(math.Inf(-1))
 		}
 
@@ -217,7 +219,7 @@ func runSingleHeadTyped(
 	for qIndex := 0; qIndex < seqQ; qIndex++ {
 		computeHeadScoresTyped(
 			query, key,
-			qIndex, seqK, headDim,
+			qIndex, seqQ, seqK, headDim,
 			queryHeadOffset, kvHeadOffset,
 			queryStride, kvStride,
 			scale, scores,

@@ -8,6 +8,7 @@ import (
 	"github.com/theapemachine/manifesto/asset"
 	"github.com/theapemachine/manifesto/ast"
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/manifesto/ir"
 	"github.com/theapemachine/manifesto/runtime"
 	"github.com/theapemachine/manifesto/tensor"
 	"github.com/theapemachine/puter/device"
@@ -218,6 +219,45 @@ func TestOperationRegistrySelectsVariant(t *testing.T) {
 
 			convey.So(err, convey.ShouldBeNil)
 			convey.So(bind.Method, convey.ShouldEqual, "SwiGLUTensors")
+		})
+	})
+}
+
+func TestRunBoundNodeShapeIntrinsicWithLaunchBindings(t *testing.T) {
+	convey.Convey("Given shape.last_token over a max-sized workspace view", t, func() {
+		memory := tensor.NewHostBackend()
+		defer memory.Close()
+
+		input := uploadFloatSliceWithShape(t, memory, []float32{
+			1, 2, 3, 4,
+			9, 9, 9, 9,
+			5, 6, 7, 8,
+			0, 0, 0, 0,
+			0, 0, 0, 0,
+			0, 0, 0, 0,
+		}, []int{6, 4})
+		dispatcher := newTestDispatcher(noopDeviceBackend{}, memory)
+		dispatcher.maxBindings = ir.SymbolMap{"N": 6}
+		dispatcher.launchBindings = ir.SymbolMap{"N": 3}
+		dispatcher.values.set("x", input)
+
+		node := &ast.GraphNode{
+			ID:     "last",
+			Op:     "shape.last_token",
+			Inputs: []string{"x"},
+		}
+
+		err := dispatcher.runNode(node)
+		convey.So(err, convey.ShouldBeNil)
+
+		convey.Convey("The result selects the live final row", func() {
+			stored, err := dispatcher.values.tensor("last")
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(stored.Shape().Dims(), convey.ShouldResemble, []int{1, 4})
+
+			values, err := stored.Float32Native()
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(values, convey.ShouldResemble, []float32{5, 6, 7, 8})
 		})
 	})
 }
