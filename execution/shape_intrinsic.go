@@ -4,8 +4,17 @@ import (
 	"fmt"
 	"unsafe"
 
+	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
 )
+
+type lastTokenDevice interface {
+	LastToken(
+		input, output unsafe.Pointer,
+		seq, hiddenBytes, outBytes int,
+		format dtype.DType,
+	)
+}
 
 func isIntrinsicMethod(method string) bool {
 	switch method {
@@ -68,6 +77,11 @@ func runLastTokenIntrinsic(resolver *bindResolver) (any, error) {
 	}
 
 	rowElements := productInts(dimensions[1:])
+
+	if input.Location() != tensor.Host {
+		return runLastTokenDeviceIntrinsic(resolver, input, rows, rowElements)
+	}
+
 	start := (rows - 1) * rowElements
 
 	slice, err := input.Slice(start, rowElements)
@@ -85,6 +99,60 @@ func runLastTokenIntrinsic(resolver *bindResolver) (any, error) {
 	if err := copyTensorStorage(output, slice, rowElements); err != nil {
 		return nil, err
 	}
+
+	return output, nil
+}
+
+func runLastTokenDeviceIntrinsic(
+	resolver *bindResolver,
+	input tensor.Tensor,
+	rows int,
+	rowElements int,
+) (tensor.Tensor, error) {
+	deviceBackend, ok := resolver.dispatcher.deviceBackend.(lastTokenDevice)
+
+	if !ok {
+		return nil, fmt.Errorf(
+			"shape.last_token: backend %T cannot run %s tensor",
+			resolver.dispatcher.deviceBackend,
+			input.Location(),
+		)
+	}
+
+	output, err := resolver.allocateOutput()
+
+	if err != nil {
+		return nil, err
+	}
+
+	inputPointer, _, err := pointerOf(input)
+
+	if err != nil {
+		return nil, err
+	}
+
+	outputPointer, _, err := pointerOf(output)
+
+	if err != nil {
+		return nil, err
+	}
+
+	elementSize, err := input.DType().Size()
+
+	if err != nil {
+		return nil, err
+	}
+
+	rowBytes := rowElements * elementSize
+
+	deviceBackend.LastToken(
+		inputPointer,
+		outputPointer,
+		rows,
+		rowBytes,
+		rowBytes,
+		input.DType(),
+	)
 
 	return output, nil
 }

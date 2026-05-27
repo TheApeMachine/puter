@@ -8,6 +8,7 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/puter/device"
 	"github.com/theapemachine/puter/device/metal/activation"
+	"github.com/theapemachine/puter/device/metal/attention"
 	"github.com/theapemachine/puter/device/metal/dropout"
 	"github.com/theapemachine/puter/device/metal/elementwise"
 	"github.com/theapemachine/puter/device/metal/embedding"
@@ -344,7 +345,23 @@ func (host *ComputeHost) DispatchMaxPool2D(config device.PoolConfig, input, outp
 }
 
 func (host *ComputeHost) DispatchMultiHeadAttention(config device.MultiHeadAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
-	host.unavailable()
+	if seqQ == 0 || seqK == 0 || config.NumHeads == 0 || config.HeadDim == 0 {
+		return
+	}
+
+	if err := attention.DispatchMultiHeadAttentionRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(query))),
+		uintptr(unsafe.Pointer(resolveBufferRef(key))),
+		uintptr(unsafe.Pointer(resolveBufferRef(value))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		config,
+		uint32(seqQ),
+		uint32(seqK),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchPermute(config device.VSAConfig, input, output unsafe.Pointer, count int, format dtype.DType) {

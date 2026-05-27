@@ -285,6 +285,49 @@ func TestRunBoundNodeResolvesRoPEConfig(t *testing.T) {
 	})
 }
 
+func TestRunBoundNodeResolvesRoPEPositionFromDeviceTensor(t *testing.T) {
+	convey.Convey("Given positional.rope carries a device-resident position tensor", t, func() {
+		memory := tensor.NewHostBackend()
+		defer memory.Close()
+
+		input := uploadFloatSliceWithShape(t, memory, make([]float32, 2*2*4), []int{2, 2, 4})
+		position := newDispatchTestTensorWithRaw(
+			t,
+			[]int{1},
+			dtype.Int32,
+			unsafe.Pointer(uintptr(0x8000)),
+			[]byte{9, 0, 0, 0},
+		)
+		recorder := &recordingDevice{}
+		dispatcher := newTestDispatcher(recorder, memory)
+		dispatcher.values.set("x", input)
+		dispatcher.values.set("position", position)
+
+		node := &ast.GraphNode{
+			ID:     "rope",
+			Op:     "positional.rope",
+			Inputs: []string{"x", "position"},
+			Attributes: map[string]any{
+				"base":                  500000.0,
+				"mode":                  "half",
+				"rope_type":             "llama3",
+				"rope_factor":           32.0,
+				"rope_low_freq_factor":  1.0,
+				"rope_high_freq_factor": 4.0,
+				"rope_original_context": 8192,
+			},
+		}
+
+		err := dispatcher.runNode(node)
+		convey.So(err, convey.ShouldBeNil)
+
+		convey.Convey("The router should pass the decoded start position", func() {
+			convey.So(len(recorder.ropeCalls), convey.ShouldEqual, 1)
+			convey.So(recorder.ropeCalls[0].config.StartPosition, convey.ShouldEqual, 9)
+		})
+	})
+}
+
 func TestRunBoundNodeResolvesRMSNormConfig(t *testing.T) {
 	convey.Convey("Given math.rmsnorm carries a manifest epsilon", t, func() {
 		memory := tensor.NewHostBackend()

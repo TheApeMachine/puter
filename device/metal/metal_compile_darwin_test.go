@@ -28,9 +28,12 @@ func TestMetallibgenCompile(t *testing.T) {
 		metallibgen := filepath.Join(packageDir, "internal", "metallibgen")
 		command := exec.Command("go", "run", metallibgen)
 		command.Dir = packageDir
-		output, err := command.CombinedOutput()
+		_, err = command.CombinedOutput()
 
 		convey.So(err, convey.ShouldBeNil)
-		convey.So(string(output), convey.ShouldContainSubstring, "kernels.metallib")
+
+		info, err := os.Stat(filepath.Join(packageDir, "kernels.metallib"))
+		convey.So(err, convey.ShouldBeNil)
+		convey.So(info.Size(), convey.ShouldBeGreaterThan, 0)
 	})
 }

@@ -328,10 +328,14 @@ __attribute__((unused))
 static inline bool attention_variant_keeps_key(
     uint row,
     uint keyIndex,
+    uint seqQ,
+    uint seqK,
     uint causal,
     uint windowSize
 ) {
-    if (causal != 0 && keyIndex > row) {
+    uint absoluteRow = row + seqK - seqQ;
+
+    if (causal != 0 && keyIndex > absoluteRow) {
         return false;
     }
 
@@ -380,7 +384,7 @@ static inline void multi_head_attention_online(
     float scale = rsqrt(float(headDim));
 
     for (uint keyIndex = 0; keyIndex < seqK; keyIndex++) {
-        bool keepKey = attention_variant_keeps_key(row, keyIndex, causal, windowSize);
+        bool keepKey = attention_variant_keeps_key(row, keyIndex, seqQ, seqK, causal, windowSize);
 
         if (threadIndex == 0) {
             float dot = 0.0f;

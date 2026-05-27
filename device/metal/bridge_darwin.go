@@ -147,6 +147,8 @@ func (bridge *metalBridge) download(input tensor.Tensor) (dtype.DType, []byte, e
 		return deviceTensor.elementFormat, []byte{}, nil
 	}
 
+	bridge.waitIdle()
+
 	contents := C.metal_buffer_contents(deviceTensor.buffer)
 
 	if contents == nil {
@@ -176,6 +178,7 @@ type DeviceTensor struct {
 	elementFormat dtype.DType
 	buffer        C.MetalBufferRef
 	byteCount     int
+	ownsBuffer    bool
 	state         atomic.Uint32
 	closed        atomic.Bool
 	gradFlag      atomic.Bool
@@ -194,6 +197,7 @@ func newDeviceTensor(
 		elementFormat: elementFormat,
 		buffer:        buffer,
 		byteCount:     byteCount,
+		ownsBuffer:    true,
 	}
 
 	deviceTensor.state.Store(uint32(tensor.StateReady))
@@ -288,6 +292,10 @@ func (deviceTensor *DeviceTensor) Sync(ctx context.Context) error {
 		return err
 	}
 
+	if deviceTensor.backend != nil {
+		deviceTensor.backend.SyncDevice()
+	}
+
 	return ctx.Err()
 }
 
@@ -296,11 +304,11 @@ func (deviceTensor *DeviceTensor) Close() error {
 		return nil
 	}
 
-	if deviceTensor.buffer != nil {
+	if deviceTensor.ownsBuffer && deviceTensor.buffer != nil {
 		C.metal_buffer_release(deviceTensor.buffer)
-		deviceTensor.buffer = nil
 	}
 
+	deviceTensor.buffer = nil
 	deviceTensor.state.Store(uint32(tensor.StateClosed))
 	return nil
 }
@@ -340,7 +348,34 @@ func (deviceTensor *DeviceTensor) Slice(start, length int) (tensor.Tensor, error
 }
 
 func (deviceTensor *DeviceTensor) Reshape(dims []int) (tensor.Tensor, error) {
-	return nil, tensor.ErrLayoutUnsupported
+	shape, err := tensor.NewShape(dims)
+
+	if err != nil {
+		return nil, err
+	}
+
+	byteCount, err := shape.Bytes(deviceTensor.elementFormat)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if byteCount != deviceTensor.byteCount {
+		return nil, tensor.ErrShapeMismatch
+	}
+
+	view := &DeviceTensor{
+		backend:       deviceTensor.backend,
+		shape:         shape,
+		elementFormat: deviceTensor.elementFormat,
+		buffer:        deviceTensor.buffer,
+		byteCount:     deviceTensor.byteCount,
+		ownsBuffer:    false,
+	}
+
+	view.state.Store(uint32(tensor.StateReady))
+
+	return view, nil
 }
 
 func (deviceTensor *DeviceTensor) Float64Native() ([]float64, error) {

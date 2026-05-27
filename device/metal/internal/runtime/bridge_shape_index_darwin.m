@@ -127,6 +127,8 @@ int metal_dispatch_page_write(
     uint32_t pageSize,
     uint32_t inner,
     uint32_t valueRows,
+    uint32_t storageOffset,
+    uint32_t outOffset,
     uint64_t completionToken,
     MetalStatus* status
 ) {
@@ -149,6 +151,8 @@ int metal_dispatch_page_write(
             [encoder setBytes:&pageSize length:sizeof(pageSize) atIndex:7];
             [encoder setBytes:&inner length:sizeof(inner) atIndex:8];
             [encoder setBytes:&valueRows length:sizeof(valueRows) atIndex:9];
+            [encoder setBytes:&storageOffset length:sizeof(storageOffset) atIndex:10];
+            [encoder setBytes:&outOffset length:sizeof(outOffset) atIndex:11];
         }
     );
 }
@@ -163,6 +167,8 @@ int metal_dispatch_page_gather(
     uint32_t pageSize,
     uint32_t inner,
     uint32_t outRows,
+    uint32_t storageOffset,
+    uint32_t outOffset,
     uint64_t completionToken,
     MetalStatus* status
 ) {
@@ -183,6 +189,8 @@ int metal_dispatch_page_gather(
             [encoder setBytes:&pageSize length:sizeof(pageSize) atIndex:5];
             [encoder setBytes:&inner length:sizeof(inner) atIndex:6];
             [encoder setBytes:&outRows length:sizeof(outRows) atIndex:7];
+            [encoder setBytes:&storageOffset length:sizeof(storageOffset) atIndex:8];
+            [encoder setBytes:&outOffset length:sizeof(outOffset) atIndex:9];
         }
     );
 }

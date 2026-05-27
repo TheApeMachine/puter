@@ -105,6 +105,8 @@ static inline void page_write_kernel(
     constant uint& pageSize,
     constant uint& inner,
     constant uint& valueRows,
+    constant uint& storageOffset,
+    constant uint& outOffset,
     uint index
 ) {
     uint count = pageCount * pageSize * inner;
@@ -115,7 +117,7 @@ static inline void page_write_kernel(
 
     uint storageRow = index / inner;
     uint col = index - storageRow * inner;
-    Storage value = storage[index];
+    Storage value = storage[storageOffset + index];
 
     for (int row = int(valueRows) - 1; row >= 0; row--) {
         int pageID = pageIDs[uint(row)];
@@ -134,7 +136,7 @@ static inline void page_write_kernel(
         }
     }
 
-    out[index] = value;
+    out[outOffset + index] = value;
 }
 
 template <typename Storage>
@@ -147,6 +149,8 @@ static inline void page_gather_kernel(
     constant uint& pageSize,
     constant uint& inner,
     constant uint& outRows,
+    constant uint& storageOffset,
+    constant uint& outOffset,
     uint index
 ) {
     uint count = outRows * inner;
@@ -167,7 +171,7 @@ static inline void page_gather_kernel(
     }
 
     uint storageRow = uint(pageID) * pageSize + pageOffset;
-    out[index] = storage[storageRow * inner + col];
+    out[outOffset + index] = storage[storageOffset + storageRow * inner + col];
 }
 
 template <typename Scalar, typename Vec>
@@ -687,10 +691,13 @@ kernel void name( \
     constant uint& pageSize [[buffer(7)]], \
     constant uint& inner [[buffer(8)]], \
     constant uint& valueRows [[buffer(9)]], \
+    constant uint& storageOffset [[buffer(10)]], \
+    constant uint& outOffset [[buffer(11)]], \
     uint index [[thread_position_in_grid]] \
 ) { \
     page_write_kernel<storage>( \
-        storageRef, values, pageIDs, offsets, out, errorFlag, pageCount, pageSize, inner, valueRows, index \
+        storageRef, values, pageIDs, offsets, out, errorFlag, \
+        pageCount, pageSize, inner, valueRows, storageOffset, outOffset, index \
     ); \
 }
 
@@ -704,10 +711,13 @@ kernel void name( \
     constant uint& pageSize [[buffer(5)]], \
     constant uint& inner [[buffer(6)]], \
     constant uint& outRows [[buffer(7)]], \
+    constant uint& storageOffset [[buffer(8)]], \
+    constant uint& outOffset [[buffer(9)]], \
     uint index [[thread_position_in_grid]] \
 ) { \
     page_gather_kernel<storage>( \
-        storageRef, pageTable, out, errorFlag, pageCount, pageSize, inner, outRows, index \
+        storageRef, pageTable, out, errorFlag, \
+        pageCount, pageSize, inner, outRows, storageOffset, outOffset, index \
     ); \
 }
 

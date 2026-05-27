@@ -1,6 +1,7 @@
 package execution
 
 import (
+	"encoding/binary"
 	"fmt"
 	"strings"
 
@@ -76,15 +77,19 @@ func runBoundNode(dispatcher *dispatcher, node *ast.GraphNode, bind OperationBin
 	}
 
 	if bind.Method == "RoPE" && len(node.Inputs) >= 2 {
-		positionValue, positionErr := resolver.resolveInputTensor(node.Inputs[1])
+		positionValue, err := resolver.resolveInputTensor(node.Inputs[1])
 
-		if positionErr == nil {
-			positionNative, nativeErr := positionValue.Int32Native()
-
-			if nativeErr == nil && len(positionNative) > 0 {
-				configFields["StartPosition"] = int(positionNative[0])
-			}
+		if err != nil {
+			return fmt.Errorf("bind op %q: rope position: %w", node.Op, err)
 		}
+
+		startPosition, err := scalarInt32Tensor(positionValue)
+
+		if err != nil {
+			return fmt.Errorf("bind op %q: rope position: %w", node.Op, err)
+		}
+
+		configFields["StartPosition"] = int(startPosition)
 	}
 
 	args, err := resolver.resolveArgs()
@@ -100,6 +105,42 @@ func runBoundNode(dispatcher *dispatcher, node *ast.GraphNode, bind OperationBin
 	dispatcher.values.set(node.ID, output)
 
 	return nil
+}
+
+func scalarInt32Tensor(value tensor.Tensor) (int32, error) {
+	if value.DType() != dtype.Int32 {
+		return 0, fmt.Errorf("expected int32 tensor, got %s", value.DType())
+	}
+
+	if value.Location() != tensor.Host {
+		dataType, rawBytes, err := value.RawBytes()
+
+		if err != nil {
+			return 0, err
+		}
+
+		if dataType != dtype.Int32 {
+			return 0, fmt.Errorf("expected int32 tensor bytes, got %s", dataType)
+		}
+
+		if len(rawBytes) != 4 {
+			return 0, fmt.Errorf("expected scalar int32 tensor bytes, got %d bytes", len(rawBytes))
+		}
+
+		return int32(binary.LittleEndian.Uint32(rawBytes)), nil
+	}
+
+	values, err := value.Int32Native()
+
+	if err != nil {
+		return 0, err
+	}
+
+	if len(values) != 1 {
+		return 0, fmt.Errorf("expected scalar int32 tensor, got len %d", len(values))
+	}
+
+	return values[0], nil
 }
 
 func (resolver *bindResolver) resolveOutputShape() (tensor.Shape, error) {

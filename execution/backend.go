@@ -7,6 +7,7 @@ import (
 	"github.com/theapemachine/manifesto/ast"
 	"github.com/theapemachine/manifesto/ir"
 	"github.com/theapemachine/manifesto/runtime"
+	"github.com/theapemachine/manifesto/tensor"
 	"github.com/theapemachine/puter/pool"
 )
 
@@ -85,6 +86,18 @@ func (backend *Backend) AttachWorkspace(
 
 	if backend.workspaces == nil {
 		backend.workspaces = NewWorkspaceMap()
+	}
+
+	_, deviceID, err := backend.devicePool.MemoryBackend()
+
+	if err != nil {
+		return err
+	}
+
+	if deviceID.Location != tensor.Host {
+		backend.workspaces = nil
+
+		return nil
 	}
 
 	return backend.workspaces.Attach(graphName, graph, topology)
