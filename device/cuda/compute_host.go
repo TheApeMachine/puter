@@ -1116,6 +1116,15 @@ func (host *ComputeHost) DispatchRoPE(config device.RoPEConfig, input, output un
 	}
 }
 
+func (host *ComputeHost) DispatchMultiAxisRoPE(
+	config device.MultiAxisRoPEConfig,
+	input, output unsafe.Pointer,
+	batch, seqLen, numHeads, headDim int,
+	format dtype.DType,
+) {
+	host.unavailable()
+}
+
 func (host *ComputeHost) DispatchRoPEPairs(output, input, cosBuffer, sinBuffer unsafe.Pointer, halfDim int, format dtype.DType) {
 	if halfDim == 0 {
 		return

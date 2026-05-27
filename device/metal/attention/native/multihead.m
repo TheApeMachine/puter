@@ -75,11 +75,14 @@ int metal_dispatch_multi_head_attention(
         [encoder setBytes:&causal length:sizeof(causal) atIndex:10];
         NSUInteger maxThreads = [pipeline maxTotalThreadsPerThreadgroup];
         NSUInteger threads = 256;
-        if (threads > maxThreads) {
-            threads = maxThreads;
+
+        if (maxThreads < threads) {
+            metal_transformer_status_set(status, -4, "multi_head_attention requires 256 threads");
+            return -4;
         }
+
         [encoder
-            dispatchThreadgroups:MTLSizeMake(seqQ, numHeads, (headDim + 63) / 64)
+            dispatchThreadgroups:MTLSizeMake(seqQ, numHeads, (headDim + 255) / 256)
             threadsPerThreadgroup:MTLSizeMake(threads, 1, 1)
         ];
         metal_track_command_completion((MetalContext*)contextRef, commandBuffer, completionToken, NULL);

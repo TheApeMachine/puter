@@ -24,6 +24,20 @@ func (norm Norm) RMSNorm(
 	dispatchRMSNorm(config, input, scale, output, rows, lastDim, format)
 }
 
+func (norm Norm) AdaptiveRMSNorm(
+	config device.RMSNormConfig,
+	input, modulation, output unsafe.Pointer,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+	format dtype.DType,
+) {
+	dispatchAdaptiveRMSNorm(
+		config,
+		input, modulation, output,
+		rows, lastDim, rowsPerBatch, modulationCols,
+		format,
+	)
+}
+
 func (norm Norm) ModulatedLayerNorm(
 	config device.ModulatedLayerNormConfig,
 	input, modulation, output unsafe.Pointer,

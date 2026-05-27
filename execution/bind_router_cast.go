@@ -168,6 +168,20 @@ func castRMSNormConfig(fields map[string]any) (device.RMSNormConfig, error) {
 	return config, nil
 }
 
+func castGroupNormConfig(fields map[string]any) (device.GroupNormConfig, error) {
+	groups, err := castIntField(fields, "Groups")
+
+	if err != nil {
+		return device.GroupNormConfig{}, err
+	}
+
+	if groups <= 0 {
+		return device.GroupNormConfig{}, fmt.Errorf("router: GroupNorm groups must be positive")
+	}
+
+	return device.GroupNormConfig{Groups: groups}, nil
+}
+
 func castTimestepEmbeddingConfig(fields map[string]any) (device.TimestepEmbeddingConfig, error) {
 	maxPeriod, err := castFloat64Field(fields, "MaxPeriod")
 

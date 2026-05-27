@@ -27,8 +27,26 @@ func (noopDeviceBackend) RMSNorm(config device.RMSNormConfig, input, scale, outp
 	panic("noopDeviceBackend.RMSNorm invoked")
 }
 
+func (noopDeviceBackend) AdaptiveRMSNorm(
+	config device.RMSNormConfig,
+	input, modulation, output unsafe.Pointer,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+	format dtype.DType,
+) {
+	panic("noopDeviceBackend.AdaptiveRMSNorm invoked")
+}
+
 func (noopDeviceBackend) LayerNorm(input, scale, bias, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {
 	panic("noopDeviceBackend.LayerNorm invoked")
+}
+
+func (noopDeviceBackend) GroupNorm(
+	config device.GroupNormConfig,
+	input, scale, bias, output unsafe.Pointer,
+	batch, channels, spatial int,
+	format dtype.DType,
+) {
+	panic("noopDeviceBackend.GroupNorm invoked")
 }
 
 func (noopDeviceBackend) ModulatedLayerNorm(
@@ -103,8 +121,37 @@ func (noopDeviceBackend) RoPE(config device.RoPEConfig, input, output unsafe.Poi
 	panic("noopDeviceBackend.RoPE invoked")
 }
 
+func (noopDeviceBackend) MultiAxisRoPE(
+	config device.MultiAxisRoPEConfig,
+	input, output unsafe.Pointer,
+	batch, seqLen, numHeads, headDim int,
+	format dtype.DType,
+) {
+	panic("noopDeviceBackend.MultiAxisRoPE invoked")
+}
+
 func (noopDeviceBackend) MultiHeadAttention(config device.MultiHeadAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
 	panic("noopDeviceBackend.MultiHeadAttention invoked")
 }
 
 var _ executionDevice = noopDeviceBackend{}
+
+type batchRecordingDevice struct {
+	noopDeviceBackend
+	events   []string
+	beginErr error
+	endErr   error
+}
+
+func (deviceBackend *batchRecordingDevice) BeginBatch() error {
+	deviceBackend.events = append(deviceBackend.events, "begin")
+	return deviceBackend.beginErr
+}
+
+func (deviceBackend *batchRecordingDevice) EndBatch() error {
+	deviceBackend.events = append(deviceBackend.events, "end")
+	return deviceBackend.endErr
+}
+
+var _ executionDevice = (*batchRecordingDevice)(nil)
+var _ batchExecutionDevice = (*batchRecordingDevice)(nil)

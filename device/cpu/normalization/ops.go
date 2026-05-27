@@ -30,3 +30,11 @@ func (normalization Normalization) BatchNormEval(
 ) {
 	dispatchBatchNormEval(input, scale, bias, mean, variance, output, batch, channels, spatial, format)
 }
+
+func (normalization Normalization) BatchNormDenorm(
+	input, mean, variance, output unsafe.Pointer,
+	batch, channels, spatial int,
+	format dtype.DType,
+) {
+	dispatchBatchNormDenorm(input, mean, variance, output, batch, channels, spatial, format)
+}

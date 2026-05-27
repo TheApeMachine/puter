@@ -25,3 +25,17 @@ func (rotaryEmbedding *RotaryEmbedding) RoPEPairs(
 ) {
 	rotaryEmbedding.host.DispatchRoPEPairs(output, input, cosBuffer, sinBuffer, halfDim, format)
 }
+
+func (rotaryEmbedding *RotaryEmbedding) MultiAxisRoPE(
+	config device.MultiAxisRoPEConfig,
+	input, output unsafe.Pointer,
+	batch, seqLen, numHeads, headDim int,
+	format dtype.DType,
+) {
+	rotaryEmbedding.host.DispatchMultiAxisRoPE(
+		config,
+		input, output,
+		batch, seqLen, numHeads, headDim,
+		format,
+	)
+}

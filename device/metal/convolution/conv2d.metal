@@ -37,11 +37,18 @@ kernel void name( \
     constant uint& kernelWidth [[buffer(10)]], \
     constant uint& outHeight [[buffer(11)]], \
     constant uint& outWidth [[buffer(12)]], \
+    constant uint& strideHeight [[buffer(13)]], \
+    constant uint& strideWidth [[buffer(14)]], \
+    constant uint& paddingHeight [[buffer(15)]], \
+    constant uint& paddingWidth [[buffer(16)]], \
+    constant uint& dilationHeight [[buffer(17)]], \
+    constant uint& dilationWidth [[buffer(18)]], \
     uint index [[thread_position_in_grid]] \
 ) { \
     conv2d_kernel<storage, scalar>( \
         input, weight, bias, out, batch, inChannels, inHeight, inWidth, \
-        outChannels, kernelHeight, kernelWidth, outHeight, outWidth, index \
+        outChannels, kernelHeight, kernelWidth, outHeight, outWidth, \
+        strideHeight, strideWidth, paddingHeight, paddingWidth, dilationHeight, dilationWidth, index \
     ); \
 }
 

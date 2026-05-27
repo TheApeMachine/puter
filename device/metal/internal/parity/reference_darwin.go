@@ -136,6 +136,50 @@ func GroupNormReference(
 	return decoded
 }
 
+func BatchNormDenormReference(
+	input, mean, variance []float32,
+	batch, channels, spatial int,
+	storageDType dtype.DType,
+) []float32 {
+	inputBytes, err := encodeVector(input, storageDType)
+
+	if err != nil {
+		panic(err)
+	}
+
+	meanBytes, err := encodeVector(mean, storageDType)
+
+	if err != nil {
+		panic(err)
+	}
+
+	varianceBytes, err := encodeVector(variance, storageDType)
+
+	if err != nil {
+		panic(err)
+	}
+
+	outputBytes := make([]byte, len(inputBytes))
+	referenceNormalization.BatchNormDenorm(
+		unsafe.Pointer(&inputBytes[0]),
+		unsafe.Pointer(&meanBytes[0]),
+		unsafe.Pointer(&varianceBytes[0]),
+		unsafe.Pointer(&outputBytes[0]),
+		batch,
+		channels,
+		spatial,
+		storageDType,
+	)
+
+	decoded, err := decodeVector(outputBytes, storageDType)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return decoded
+}
+
 /*
 LayerNormReference computes LayerNorm using the CPU production dispatcher.
 */
@@ -235,6 +279,73 @@ func ModulatedLayerNormReferenceBytes(
 
 	outputBytes := make([]byte, len(inputBytes))
 	referenceLayerNorm.ModulatedLayerNorm(
+		config,
+		unsafe.Pointer(&inputBytes[0]),
+		unsafe.Pointer(&modulationBytes[0]),
+		unsafe.Pointer(&outputBytes[0]),
+		rows,
+		cols,
+		rowsPerBatch,
+		modulationCols,
+		storageDType,
+	)
+
+	return outputBytes
+}
+
+/*
+AdaptiveRMSNormReference computes AdaptiveRMSNorm using the CPU
+production dispatcher.
+*/
+func AdaptiveRMSNormReference(
+	config device.RMSNormConfig,
+	input, modulation []float32,
+	rows, cols, rowsPerBatch, modulationCols int,
+	storageDType dtype.DType,
+) []float32 {
+	outputBytes := AdaptiveRMSNormReferenceBytes(
+		config,
+		input,
+		modulation,
+		rows,
+		cols,
+		rowsPerBatch,
+		modulationCols,
+		storageDType,
+	)
+
+	decoded, err := decodeVector(outputBytes, storageDType)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return decoded
+}
+
+/*
+AdaptiveRMSNormReferenceBytes returns the encoded CPU output.
+*/
+func AdaptiveRMSNormReferenceBytes(
+	config device.RMSNormConfig,
+	input, modulation []float32,
+	rows, cols, rowsPerBatch, modulationCols int,
+	storageDType dtype.DType,
+) []byte {
+	inputBytes, err := encodeVector(input, storageDType)
+
+	if err != nil {
+		panic(err)
+	}
+
+	modulationBytes, err := encodeVector(modulation, storageDType)
+
+	if err != nil {
+		panic(err)
+	}
+
+	outputBytes := make([]byte, len(inputBytes))
+	referenceLayerNorm.AdaptiveRMSNorm(
 		config,
 		unsafe.Pointer(&inputBytes[0]),
 		unsafe.Pointer(&modulationBytes[0]),

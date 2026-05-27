@@ -98,6 +98,69 @@ func DispatchGroupNormRefs(
 	)
 }
 
+func DispatchBatchNormDenorm(
+	contextRef C.MetalDeviceRef,
+	inputBuffer C.MetalBufferRef,
+	meanBuffer C.MetalBufferRef,
+	varianceBuffer C.MetalBufferRef,
+	outputBuffer C.MetalBufferRef,
+	format dtype.DType,
+	rows uint32,
+	channels uint32,
+	spatial uint32,
+) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
+	var status C.MetalStatus
+	code := C.metal_dispatch_batchnorm_denorm(
+		contextRef,
+		elementFormat,
+		inputBuffer,
+		meanBuffer,
+		varianceBuffer,
+		outputBuffer,
+		C.uint32_t(rows),
+		C.uint32_t(channels),
+		C.uint32_t(spatial),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		return metalStatusError(status)
+	}
+
+	return nil
+}
+
+func DispatchBatchNormDenormRefs(
+	contextRef uintptr,
+	inputBuffer uintptr,
+	meanBuffer uintptr,
+	varianceBuffer uintptr,
+	outputBuffer uintptr,
+	format dtype.DType,
+	rows uint32,
+	channels uint32,
+	spatial uint32,
+) error {
+	return DispatchBatchNormDenorm(
+		C.MetalDeviceRef(unsafe.Pointer(contextRef)),
+		C.MetalBufferRef(unsafe.Pointer(inputBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(meanBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(varianceBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(outputBuffer)),
+		format,
+		rows,
+		channels,
+		spatial,
+	)
+}
+
 func DispatchModulatedLayerNorm(
 	contextRef C.MetalDeviceRef,
 	inputBuffer C.MetalBufferRef,
@@ -166,6 +229,77 @@ func DispatchModulatedLayerNormRefs(
 		modulationCols,
 		modulationSet,
 		epsilon,
+	)
+}
+
+func DispatchGatedResidual(
+	contextRef C.MetalDeviceRef,
+	residualBuffer C.MetalBufferRef,
+	branchBuffer C.MetalBufferRef,
+	modulationBuffer C.MetalBufferRef,
+	outputBuffer C.MetalBufferRef,
+	format dtype.DType,
+	total uint32,
+	cols uint32,
+	rowsPerBatch uint32,
+	modulationCols uint32,
+	modulationSet uint32,
+) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
+	var status C.MetalStatus
+	code := C.metal_dispatch_gated_residual(
+		contextRef,
+		elementFormat,
+		residualBuffer,
+		branchBuffer,
+		modulationBuffer,
+		outputBuffer,
+		C.uint32_t(total),
+		C.uint32_t(cols),
+		C.uint32_t(rowsPerBatch),
+		C.uint32_t(modulationCols),
+		C.uint32_t(modulationSet),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		return metalStatusError(status)
+	}
+
+	return nil
+}
+
+func DispatchGatedResidualRefs(
+	contextRef uintptr,
+	residualBuffer uintptr,
+	branchBuffer uintptr,
+	modulationBuffer uintptr,
+	outputBuffer uintptr,
+	format dtype.DType,
+	total uint32,
+	cols uint32,
+	rowsPerBatch uint32,
+	modulationCols uint32,
+	modulationSet uint32,
+) error {
+	return DispatchGatedResidual(
+		C.MetalDeviceRef(unsafe.Pointer(contextRef)),
+		C.MetalBufferRef(unsafe.Pointer(residualBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(branchBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(modulationBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(outputBuffer)),
+		format,
+		total,
+		cols,
+		rowsPerBatch,
+		modulationCols,
+		modulationSet,
 	)
 }
 

@@ -17,6 +17,15 @@ func (norm *Norm) RMSNorm(config device.RMSNormConfig, input, scale, output unsa
 	norm.stubHost()
 }
 
+func (norm *Norm) AdaptiveRMSNorm(
+	config device.RMSNormConfig,
+	input, modulation, output unsafe.Pointer,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+	format dtype.DType,
+) {
+	norm.stubHost()
+}
+
 func (norm *Norm) ModulatedLayerNorm(
 	config device.ModulatedLayerNormConfig,
 	input, modulation, output unsafe.Pointer,

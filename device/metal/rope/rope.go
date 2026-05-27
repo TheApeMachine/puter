@@ -31,4 +31,10 @@ type Host interface {
 		halfDim int,
 		format dtype.DType,
 	)
+	DispatchMultiAxisRoPE(
+		config device.MultiAxisRoPEConfig,
+		input, output unsafe.Pointer,
+		batch, seqLen, numHeads, headDim int,
+		format dtype.DType,
+	)
 }

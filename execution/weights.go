@@ -50,6 +50,24 @@ type TransposedLookup interface {
 }
 
 /*
+SliceLookup is implemented by weight stores that can materialize a range
+from a packed checkpoint tensor.
+*/
+type SliceLookup interface {
+	Lookup(name string) (tensor.Tensor, error)
+	LookupSlice(name, axis string, start, end int64) (tensor.Tensor, error)
+}
+
+/*
+TransposedSliceLookup is implemented by stores that can slice a packed
+checkpoint tensor and return the resident row-major transpose.
+*/
+type TransposedSliceLookup interface {
+	Lookup(name string) (tensor.Tensor, error)
+	LookupTransposedSlice(name, axis string, start, end int64) (tensor.Tensor, error)
+}
+
+/*
 nilWeightStore is the default fallback when no weight store is injected.
 It returns ErrWeightNotFound for every lookup so graphs with weighted
 nodes fail loudly with a clear message rather than silently producing

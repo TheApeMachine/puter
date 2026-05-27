@@ -22,6 +22,20 @@ int metal_dispatch_groupnorm(
     MetalStatus* status
 );
 
+int metal_dispatch_batchnorm_denorm(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef inputRef,
+    MetalBufferRef meanRef,
+    MetalBufferRef varianceRef,
+    MetalBufferRef outRef,
+    uint32_t rows,
+    uint32_t channels,
+    uint32_t spatial,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+
 int metal_dispatch_modulated_layernorm(
     MetalDeviceRef contextRef,
     int elementDType,
@@ -34,6 +48,22 @@ int metal_dispatch_modulated_layernorm(
     uint32_t modulationCols,
     uint32_t modulationSet,
     float epsilon,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+
+int metal_dispatch_gated_residual(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef residualRef,
+    MetalBufferRef branchRef,
+    MetalBufferRef modulationRef,
+    MetalBufferRef outRef,
+    uint32_t total,
+    uint32_t cols,
+    uint32_t rowsPerBatch,
+    uint32_t modulationCols,
+    uint32_t modulationSet,
     uint64_t completionToken,
     MetalStatus* status
 );

@@ -394,3 +394,58 @@ int metal_dispatch_layernorm_rmsnorm(
 		}
 	);
 }
+
+int metal_dispatch_layernorm_adaptive_rmsnorm(
+	MetalDeviceRef contextRef,
+	int elementDType,
+	MetalBufferRef inputRef,
+	MetalBufferRef modulationRef,
+	MetalBufferRef outRef,
+	uint32_t rows,
+	uint32_t cols,
+	uint32_t rowsPerBatch,
+	uint32_t modulationCols,
+	float epsilon,
+	uint64_t completionToken,
+	MetalStatus* status
+) {
+	if (inputRef == NULL || modulationRef == NULL || outRef == NULL) {
+		metal_layernorm_status_set(status, -2, "nil Metal buffer");
+		return -2;
+	}
+
+	if (rowsPerBatch == 0 || rows % rowsPerBatch != 0 || modulationCols < cols * 2) {
+		metal_layernorm_status_set(status, -3, "invalid adaptive_rmsnorm shape");
+		return -3;
+	}
+
+	char kernelName[128];
+	int nameCode = metal_layernorm_kernel_name(
+		kernelName,
+		sizeof(kernelName),
+		"adaptive_rmsnorm",
+		elementDType,
+		status
+	);
+
+	if (nameCode != 0) {
+		return nameCode;
+	}
+
+	return metal_layernorm_dispatch(
+		contextRef,
+		kernelName,
+		rows,
+		completionToken,
+		status,
+		^(id<MTLComputeCommandEncoder> encoder) {
+			[encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
+			[encoder setBuffer:(__bridge id<MTLBuffer>)modulationRef offset:0 atIndex:1];
+			[encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:2];
+			[encoder setBytes:&cols length:sizeof(cols) atIndex:3];
+			[encoder setBytes:&rowsPerBatch length:sizeof(rowsPerBatch) atIndex:4];
+			[encoder setBytes:&modulationCols length:sizeof(modulationCols) atIndex:5];
+			[encoder setBytes:&epsilon length:sizeof(epsilon) atIndex:6];
+		}
+	);
+}

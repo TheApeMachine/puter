@@ -94,6 +94,72 @@ func TestGroupNormMetalParity(t *testing.T) {
 	})
 }
 
+func TestBatchNormDenormMetalParity(testingObject *testing.T) {
+	harness := parity.NewHarness(testingObject)
+	defer harness.Close()
+
+	convey.Convey("Given Metal BatchNormDenorm kernels", testingObject, func() {
+		batch := 2
+		channels := 3
+
+		for _, storageDType := range []dtype.DType{
+			dtype.Float32,
+			dtype.Float16,
+			dtype.BFloat16,
+		} {
+			storageDType := storageDType
+
+			convey.Convey(storageDType.Name(), func() {
+				for _, spatial := range parity.Lengths {
+					convey.Convey(fmt.Sprintf("spatial=%d", spatial), func() {
+						elementCount := batch * channels * spatial
+						seedBase := int64(0x7E00 + spatial)
+						input := randomGroupNormVector(elementCount, seedBase)
+						mean := randomGroupNormVector(channels, seedBase+1)
+						variance := positiveGroupNormVector(channels, seedBase+2)
+						want := parity.BatchNormDenormReference(
+							input,
+							mean,
+							variance,
+							batch,
+							channels,
+							spatial,
+							storageDType,
+						)
+
+						inputTensor := harness.UploadVector(input, storageDType)
+						meanTensor := harness.UploadVector(mean, storageDType)
+						varianceTensor := harness.UploadVector(variance, storageDType)
+						outputTensor := harness.UploadVector(make([]float32, elementCount), storageDType)
+						defer inputTensor.Close()
+						defer meanTensor.Close()
+						defer varianceTensor.Close()
+						defer outputTensor.Close()
+
+						if err := DispatchBatchNormDenormRefs(
+							harness.ContextRef(),
+							inputTensor.Ref(),
+							meanTensor.Ref(),
+							varianceTensor.Ref(),
+							outputTensor.Ref(),
+							storageDType,
+							uint32(batch*channels),
+							uint32(channels),
+							uint32(spatial),
+						); err != nil {
+							testingObject.Fatalf("dispatch BatchNormDenorm: %v", err)
+						}
+
+						got := harness.DownloadFloat32(outputTensor, storageDType)
+						maxULP := batchNormDenormMaxULP(storageDType)
+						parity.AssertFloat32SlicesWithinULP(testingObject, got, want, maxULP)
+					})
+				}
+			})
+		}
+	})
+}
+
 func BenchmarkGroupNormMetalFloat32(b *testing.B) {
 	harness := parity.NewHarness(b)
 	defer harness.Close()
@@ -137,6 +203,47 @@ func BenchmarkGroupNormMetalFloat32(b *testing.B) {
 	}
 }
 
+func BenchmarkBatchNormDenormMetalFloat32(benchmark *testing.B) {
+	harness := parity.NewHarness(benchmark)
+	defer harness.Close()
+
+	batch := 2
+	channels := 128
+	spatial := 8192
+	elementCount := batch * channels * spatial
+	input := randomGroupNormVector(elementCount, 0x7E10)
+	mean := randomGroupNormVector(channels, 0x7E11)
+	variance := positiveGroupNormVector(channels, 0x7E12)
+
+	inputTensor := harness.UploadVector(input, dtype.Float32)
+	meanTensor := harness.UploadVector(mean, dtype.Float32)
+	varianceTensor := harness.UploadVector(variance, dtype.Float32)
+	outputTensor := harness.UploadVector(make([]float32, elementCount), dtype.Float32)
+	defer inputTensor.Close()
+	defer meanTensor.Close()
+	defer varianceTensor.Close()
+	defer outputTensor.Close()
+
+	benchmark.SetBytes(int64(elementCount * 8))
+	benchmark.ResetTimer()
+
+	for benchmark.Loop() {
+		if err := DispatchBatchNormDenormRefs(
+			harness.ContextRef(),
+			inputTensor.Ref(),
+			meanTensor.Ref(),
+			varianceTensor.Ref(),
+			outputTensor.Ref(),
+			dtype.Float32,
+			uint32(batch*channels),
+			uint32(channels),
+			uint32(spatial),
+		); err != nil {
+			benchmark.Fatal(err)
+		}
+	}
+}
+
 func randomGroupNormVector(length int, seed int64) []float32 {
 	rng := rand.New(rand.NewSource(seed))
 	values := make([]float32, length)
@@ -148,7 +255,29 @@ func randomGroupNormVector(length int, seed int64) []float32 {
 	return values
 }
 
+func positiveGroupNormVector(length int, seed int64) []float32 {
+	values := randomGroupNormVector(length, seed)
+
+	for index := range values {
+		if values[index] < 0 {
+			values[index] = -values[index]
+		}
+
+		values[index] += 0.01
+	}
+
+	return values
+}
+
 func groupNormMaxULP(format dtype.DType) int {
+	if format == dtype.Float32 {
+		return 3
+	}
+
+	return 8
+}
+
+func batchNormDenormMaxULP(format dtype.DType) int {
 	if format == dtype.Float32 {
 		return 3
 	}

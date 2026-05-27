@@ -18,10 +18,16 @@ type recordingDevice struct {
 	addCalls           []recordedAddCall
 	timestepCalls      []recordedTimestepCall
 	conv2DCalls        []recordedConv2DCall
+	matmulCalls        []recordedMatmulCall
 	rmsNormCalls       []recordedRMSNormCall
+	adaptiveNormCalls  []recordedAdaptiveRMSNormCall
 	modulatedNormCalls []recordedModulatedLayerNormCall
+	groupNormCalls     []recordedGroupNormCall
+	batchDenormCalls   []recordedBatchNormDenormCall
 	swiGLUTensorCalls  []recordedSwiGLUTensorCall
 	ropeCalls          []recordedRoPECall
+	multiAxisRoPECalls []recordedMultiAxisRoPECall
+	multiHeadCalls     []recordedMultiHeadAttentionCall
 }
 
 type recordedAddCall struct {
@@ -67,6 +73,16 @@ type recordedConv2DCall struct {
 	format      dtype.DType
 }
 
+type recordedMatmulCall struct {
+	output unsafe.Pointer
+	left   unsafe.Pointer
+	right  unsafe.Pointer
+	rows   int
+	inner  int
+	cols   int
+	format dtype.DType
+}
+
 type recordedRMSNormCall struct {
 	config  device.RMSNormConfig
 	input   unsafe.Pointer
@@ -75,6 +91,18 @@ type recordedRMSNormCall struct {
 	rows    int
 	lastDim int
 	format  dtype.DType
+}
+
+type recordedAdaptiveRMSNormCall struct {
+	config         device.RMSNormConfig
+	input          unsafe.Pointer
+	modulation     unsafe.Pointer
+	output         unsafe.Pointer
+	rows           int
+	lastDim        int
+	rowsPerBatch   int
+	modulationCols int
+	format         dtype.DType
 }
 
 type recordedModulatedLayerNormCall struct {
@@ -89,6 +117,29 @@ type recordedModulatedLayerNormCall struct {
 	format         dtype.DType
 }
 
+type recordedGroupNormCall struct {
+	config   device.GroupNormConfig
+	input    unsafe.Pointer
+	scale    unsafe.Pointer
+	bias     unsafe.Pointer
+	output   unsafe.Pointer
+	batch    int
+	channels int
+	spatial  int
+	format   dtype.DType
+}
+
+type recordedBatchNormDenormCall struct {
+	input    unsafe.Pointer
+	mean     unsafe.Pointer
+	variance unsafe.Pointer
+	output   unsafe.Pointer
+	batch    int
+	channels int
+	spatial  int
+	format   dtype.DType
+}
+
 type recordedRoPECall struct {
 	config   device.RoPEConfig
 	input    unsafe.Pointer
@@ -97,6 +148,28 @@ type recordedRoPECall struct {
 	numHeads int
 	headDim  int
 	format   dtype.DType
+}
+
+type recordedMultiAxisRoPECall struct {
+	config   device.MultiAxisRoPEConfig
+	input    unsafe.Pointer
+	output   unsafe.Pointer
+	batch    int
+	seqLen   int
+	numHeads int
+	headDim  int
+	format   dtype.DType
+}
+
+type recordedMultiHeadAttentionCall struct {
+	config device.MultiHeadAttentionConfig
+	query  unsafe.Pointer
+	key    unsafe.Pointer
+	value  unsafe.Pointer
+	output unsafe.Pointer
+	seqQ   int
+	seqK   int
+	format dtype.DType
 }
 
 func (recorder *recordingDevice) Add(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
@@ -156,6 +229,25 @@ func (recorder *recordingDevice) RMSNorm(
 	})
 }
 
+func (recorder *recordingDevice) AdaptiveRMSNorm(
+	config device.RMSNormConfig,
+	input, modulation, output unsafe.Pointer,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+	format dtype.DType,
+) {
+	recorder.adaptiveNormCalls = append(recorder.adaptiveNormCalls, recordedAdaptiveRMSNormCall{
+		config:         config,
+		input:          input,
+		modulation:     modulation,
+		output:         output,
+		rows:           rows,
+		lastDim:        lastDim,
+		rowsPerBatch:   rowsPerBatch,
+		modulationCols: modulationCols,
+		format:         format,
+	})
+}
+
 func (recordingDevice) LayerNorm(input, scale, bias, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {
 	panic("recordingDevice.LayerNorm invoked")
 }
@@ -179,8 +271,52 @@ func (recorder *recordingDevice) ModulatedLayerNorm(
 	})
 }
 
-func (recordingDevice) Matmul(out, left, right unsafe.Pointer, rows, inner, cols int, format dtype.DType) {
-	panic("recordingDevice.Matmul invoked")
+func (recorder *recordingDevice) BatchNormDenorm(
+	input, mean, variance, output unsafe.Pointer,
+	batch, channels, spatial int,
+	format dtype.DType,
+) {
+	recorder.batchDenormCalls = append(recorder.batchDenormCalls, recordedBatchNormDenormCall{
+		input:    input,
+		mean:     mean,
+		variance: variance,
+		output:   output,
+		batch:    batch,
+		channels: channels,
+		spatial:  spatial,
+		format:   format,
+	})
+}
+
+func (recorder *recordingDevice) GroupNorm(
+	config device.GroupNormConfig,
+	input, scale, bias, output unsafe.Pointer,
+	batch, channels, spatial int,
+	format dtype.DType,
+) {
+	recorder.groupNormCalls = append(recorder.groupNormCalls, recordedGroupNormCall{
+		config:   config,
+		input:    input,
+		scale:    scale,
+		bias:     bias,
+		output:   output,
+		batch:    batch,
+		channels: channels,
+		spatial:  spatial,
+		format:   format,
+	})
+}
+
+func (recorder *recordingDevice) Matmul(out, left, right unsafe.Pointer, rows, inner, cols int, format dtype.DType) {
+	recorder.matmulCalls = append(recorder.matmulCalls, recordedMatmulCall{
+		output: out,
+		left:   left,
+		right:  right,
+		rows:   rows,
+		inner:  inner,
+		cols:   cols,
+		format: format,
+	})
 }
 
 func (recorder *recordingDevice) Conv2D(
@@ -258,8 +394,40 @@ func (recorder *recordingDevice) RoPE(config device.RoPEConfig, input, output un
 	})
 }
 
-func (recordingDevice) MultiHeadAttention(config device.MultiHeadAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
-	panic("recordingDevice.MultiHeadAttention invoked")
+func (recorder *recordingDevice) MultiAxisRoPE(
+	config device.MultiAxisRoPEConfig,
+	input, output unsafe.Pointer,
+	batch, seqLen, numHeads, headDim int,
+	format dtype.DType,
+) {
+	recorder.multiAxisRoPECalls = append(recorder.multiAxisRoPECalls, recordedMultiAxisRoPECall{
+		config:   config,
+		input:    input,
+		output:   output,
+		batch:    batch,
+		seqLen:   seqLen,
+		numHeads: numHeads,
+		headDim:  headDim,
+		format:   format,
+	})
+}
+
+func (recorder *recordingDevice) MultiHeadAttention(
+	config device.MultiHeadAttentionConfig,
+	query, key, value, output unsafe.Pointer,
+	seqQ, seqK int,
+	format dtype.DType,
+) {
+	recorder.multiHeadCalls = append(recorder.multiHeadCalls, recordedMultiHeadAttentionCall{
+		config: config,
+		query:  query,
+		key:    key,
+		value:  value,
+		output: output,
+		seqQ:   seqQ,
+		seqK:   seqK,
+		format: format,
+	})
 }
 
 func TestRunBoundNodeUsesOperationYAML(t *testing.T) {
@@ -393,6 +561,155 @@ func TestRunBoundNodeUsesModulatedLayerNormBind(t *testing.T) {
 	})
 }
 
+func TestRunBoundNodeUsesAdaptiveRMSNormBind(t *testing.T) {
+	convey.Convey("Given math.adaptive_rmsnorm is declared with a YAML bind", t, func() {
+		memory := tensor.NewHostBackend()
+		defer memory.Close()
+
+		inputTensor := uploadFloatSliceWithShape(t, memory, make([]float32, 2*3*4), []int{2, 3, 4})
+		modulationTensor := uploadFloatSliceWithShape(t, memory, make([]float32, 2*8), []int{2, 8})
+
+		recorder := &recordingDevice{}
+		dispatcher := newTestDispatcher(recorder, memory)
+		dispatcher.values.set("x", inputTensor)
+		dispatcher.values.set("modulation", modulationTensor)
+
+		node := &ast.GraphNode{
+			ID:     "adaptive",
+			Op:     "math.adaptive_rmsnorm",
+			Inputs: []string{"x", "modulation"},
+			Attributes: map[string]any{
+				"eps": 1e-6,
+			},
+		}
+
+		err := dispatcher.runNode(node)
+		convey.So(err, convey.ShouldBeNil)
+
+		convey.Convey("The router issued one AdaptiveRMSNorm device call", func() {
+			convey.So(len(recorder.adaptiveNormCalls), convey.ShouldEqual, 1)
+
+			call := recorder.adaptiveNormCalls[0]
+			convey.So(call.config.Epsilon, convey.ShouldEqual, float64(float32(1e-6)))
+			convey.So(call.rows, convey.ShouldEqual, 6)
+			convey.So(call.lastDim, convey.ShouldEqual, 4)
+			convey.So(call.rowsPerBatch, convey.ShouldEqual, 3)
+			convey.So(call.modulationCols, convey.ShouldEqual, 8)
+			convey.So(call.format, convey.ShouldEqual, dtype.Float32)
+		})
+
+		convey.Convey("The output tensor shape follows the input", func() {
+			stored, err := dispatcher.values.tensor("adaptive")
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(stored.Shape().Dims(), convey.ShouldResemble, []int{2, 3, 4})
+			convey.So(stored.DType(), convey.ShouldEqual, dtype.Float32)
+		})
+	})
+}
+
+func TestRunBoundNodeUsesBatchNormDenormBind(t *testing.T) {
+	convey.Convey("Given math.batchnorm_denorm is declared with a YAML bind", t, func() {
+		memory := tensor.NewHostBackend()
+		defer memory.Close()
+
+		inputTensor := uploadFloatSliceWithShape(t, memory, make([]float32, 2*3*5*7), []int{2, 3, 5, 7})
+		meanTensor := uploadFloatSlice(t, memory, []float32{1, 2, 3})
+		varianceTensor := uploadFloatSlice(t, memory, []float32{0.25, 1, 4})
+
+		recorder := &recordingDevice{}
+		dispatcher := newTestDispatcher(recorder, memory)
+		dispatcher.weights = mapWeightStore{
+			"bn.running_mean": meanTensor,
+			"bn.running_var":  varianceTensor,
+		}
+		dispatcher.values.set("x", inputTensor)
+
+		node := &ast.GraphNode{
+			ID:     "bn",
+			Op:     "math.batchnorm_denorm",
+			Inputs: []string{"x"},
+			Attributes: map[string]any{
+				"channels": 3,
+				"mean":     "bn.running_mean",
+				"variance": "bn.running_var",
+			},
+		}
+
+		err := dispatcher.runNode(node)
+		convey.So(err, convey.ShouldBeNil)
+
+		convey.Convey("The router issued one BatchNormDenorm device call", func() {
+			convey.So(len(recorder.batchDenormCalls), convey.ShouldEqual, 1)
+
+			call := recorder.batchDenormCalls[0]
+			convey.So(call.batch, convey.ShouldEqual, 2)
+			convey.So(call.channels, convey.ShouldEqual, 3)
+			convey.So(call.spatial, convey.ShouldEqual, 35)
+			convey.So(call.format, convey.ShouldEqual, dtype.Float32)
+		})
+
+		convey.Convey("The output tensor shape follows the input", func() {
+			stored, err := dispatcher.values.tensor("bn")
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(stored.Shape().Dims(), convey.ShouldResemble, []int{2, 3, 5, 7})
+			convey.So(stored.DType(), convey.ShouldEqual, dtype.Float32)
+		})
+	})
+}
+
+func TestRunBoundNodeUsesGroupNormBind(t *testing.T) {
+	convey.Convey("Given math.groupnorm is declared with a YAML bind", t, func() {
+		memory := tensor.NewHostBackend()
+		defer memory.Close()
+
+		inputTensor := uploadFloatSliceWithShape(t, memory, make([]float32, 2*4*5*7), []int{2, 4, 5, 7})
+		scaleTensor := uploadFloatSlice(t, memory, []float32{1, 2, 3, 4})
+		biasTensor := uploadFloatSlice(t, memory, []float32{5, 6, 7, 8})
+
+		recorder := &recordingDevice{}
+		dispatcher := newTestDispatcher(recorder, memory)
+		dispatcher.weights = mapWeightStore{
+			"decoder.norm.weight": scaleTensor,
+			"decoder.norm.bias":   biasTensor,
+		}
+		dispatcher.values.set("x", inputTensor)
+
+		node := &ast.GraphNode{
+			ID:     "norm",
+			Op:     "math.groupnorm",
+			Inputs: []string{"x"},
+			Attributes: map[string]any{
+				"groups": 2,
+			},
+			Weights: &ast.BoundWeight{
+				TensorName: "decoder.norm.weight",
+				BiasName:   "decoder.norm.bias",
+			},
+		}
+
+		err := dispatcher.runNode(node)
+		convey.So(err, convey.ShouldBeNil)
+
+		convey.Convey("The router issued one GroupNorm device call", func() {
+			convey.So(len(recorder.groupNormCalls), convey.ShouldEqual, 1)
+
+			call := recorder.groupNormCalls[0]
+			convey.So(call.config.Groups, convey.ShouldEqual, 2)
+			convey.So(call.batch, convey.ShouldEqual, 2)
+			convey.So(call.channels, convey.ShouldEqual, 4)
+			convey.So(call.spatial, convey.ShouldEqual, 35)
+			convey.So(call.format, convey.ShouldEqual, dtype.Float32)
+		})
+
+		convey.Convey("The output tensor shape follows the input", func() {
+			stored, err := dispatcher.values.tensor("norm")
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(stored.Shape().Dims(), convey.ShouldResemble, []int{2, 4, 5, 7})
+			convey.So(stored.DType(), convey.ShouldEqual, dtype.Float32)
+		})
+	})
+}
+
 func TestRunBoundNodeUsesConv2DBind(t *testing.T) {
 	convey.Convey("Given convolution.conv2d is declared with a YAML bind", t, func() {
 		memory := tensor.NewHostBackend()
@@ -458,6 +775,54 @@ func TestRunBoundNodeUsesConv2DBind(t *testing.T) {
 			stored, err := dispatcher.values.tensor("conv")
 			convey.So(err, convey.ShouldBeNil)
 			convey.So(stored.Shape().Dims(), convey.ShouldResemble, []int{1, 4, 5, 7})
+		})
+	})
+}
+
+func TestRunBoundNodeDerivesBiasFromWeightName(t *testing.T) {
+	convey.Convey("Given a weighted convolution node with the default weight name", t, func() {
+		memory := tensor.NewHostBackend()
+		defer memory.Close()
+
+		inputTensor := uploadFloatSliceWithShape(t, memory, make([]float32, 1*3*5*7), []int{1, 3, 5, 7})
+		weightTensor := uploadFloatSliceWithShape(t, memory, make([]float32, 4*3*3*3), []int{4, 3, 3, 3})
+		biasTensor := uploadFloatSlice(t, memory, []float32{1, 2, 3, 4})
+
+		recorder := &recordingDevice{}
+		dispatcher := newTestDispatcher(recorder, memory)
+		dispatcher.weights = mapWeightStore{
+			"decoder.conv.weight": weightTensor,
+			"decoder.conv.bias":   biasTensor,
+		}
+		dispatcher.values.set("x", inputTensor)
+
+		node := &ast.GraphNode{
+			ID:     "conv",
+			Op:     "convolution.conv2d",
+			Inputs: []string{"x"},
+			Attributes: map[string]any{
+				"in_channels":  3,
+				"out_channels": 4,
+				"kernel_h":     3,
+				"kernel_w":     3,
+				"stride_h":     1,
+				"stride_w":     1,
+				"pad_h":        1,
+				"pad_w":        1,
+				"dil_h":        1,
+				"dil_w":        1,
+			},
+			Weights: &ast.BoundWeight{
+				TensorName: "decoder.conv.weight",
+			},
+		}
+
+		err := dispatcher.runNode(node)
+		convey.So(err, convey.ShouldBeNil)
+
+		convey.Convey("The router resolved the sibling bias tensor", func() {
+			convey.So(len(recorder.conv2DCalls), convey.ShouldEqual, 1)
+			convey.So(recorder.conv2DCalls[0].bias, convey.ShouldNotBeNil)
 		})
 	})
 }
@@ -593,6 +958,103 @@ func TestRunBoundNodeResolvesRoPEConfig(t *testing.T) {
 			convey.So(recorder.ropeCalls[0].config.LowFreqFactor, convey.ShouldEqual, 1.0)
 			convey.So(recorder.ropeCalls[0].config.HighFreqFactor, convey.ShouldEqual, 4.0)
 			convey.So(recorder.ropeCalls[0].config.OriginalContext, convey.ShouldEqual, 8192)
+		})
+	})
+}
+
+func TestRunBoundNodeUsesMultiAxisRoPEBind(t *testing.T) {
+	convey.Convey("Given positional.multi_axis_rope is declared with a YAML bind", t, func() {
+		memory := tensor.NewHostBackend()
+		defer memory.Close()
+
+		input := uploadFloatSliceWithShape(t, memory, make([]float32, 1*8*2*8), []int{1, 8, 2, 8})
+		recorder := &recordingDevice{}
+		dispatcher := newTestDispatcher(recorder, memory)
+		dispatcher.values.set("x", input)
+
+		node := &ast.GraphNode{
+			ID:     "rope",
+			Op:     "positional.multi_axis_rope",
+			Inputs: []string{"x"},
+			Attributes: map[string]any{
+				"base":           2000.0,
+				"latent_seq_len": 4,
+				"latent_side":    2,
+			},
+		}
+
+		err := dispatcher.runNode(node)
+		convey.So(err, convey.ShouldBeNil)
+
+		convey.Convey("The router issued one MultiAxisRoPE device call", func() {
+			convey.So(len(recorder.multiAxisRoPECalls), convey.ShouldEqual, 1)
+
+			call := recorder.multiAxisRoPECalls[0]
+			convey.So(call.batch, convey.ShouldEqual, 1)
+			convey.So(call.seqLen, convey.ShouldEqual, 8)
+			convey.So(call.numHeads, convey.ShouldEqual, 2)
+			convey.So(call.headDim, convey.ShouldEqual, 8)
+			convey.So(call.format, convey.ShouldEqual, dtype.Float32)
+			convey.So(call.config.BaseFreq, convey.ShouldEqual, 2000.0)
+			convey.So(call.config.LatentSeqLen, convey.ShouldEqual, 4)
+			convey.So(call.config.LatentSide, convey.ShouldEqual, 2)
+		})
+
+		convey.Convey("The output tensor shape follows the input", func() {
+			stored, err := dispatcher.values.tensor("rope")
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(stored.Shape().Dims(), convey.ShouldResemble, []int{1, 8, 2, 8})
+			convey.So(stored.DType(), convey.ShouldEqual, dtype.Float32)
+		})
+	})
+}
+
+func TestRunBoundNodeUsesSDPABind(t *testing.T) {
+	convey.Convey("Given attention.sdpa is declared with a YAML bind", t, func() {
+		memory := tensor.NewHostBackend()
+		defer memory.Close()
+
+		query := uploadFloatSliceWithShape(t, memory, make([]float32, 1*8*2*4), []int{1, 8, 2, 4})
+		key := uploadFloatSliceWithShape(t, memory, make([]float32, 1*8*2*4), []int{1, 8, 2, 4})
+		value := uploadFloatSliceWithShape(t, memory, make([]float32, 1*8*2*4), []int{1, 8, 2, 4})
+		recorder := &recordingDevice{}
+		dispatcher := newTestDispatcher(recorder, memory)
+		dispatcher.values.set("q", query)
+		dispatcher.values.set("k", key)
+		dispatcher.values.set("v", value)
+
+		node := &ast.GraphNode{
+			ID:     "attention",
+			Op:     "attention.sdpa",
+			Inputs: []string{"q", "k", "v"},
+			Attributes: map[string]any{
+				"num_heads": 2,
+				"head_dim":  4,
+				"causal":    false,
+			},
+		}
+
+		err := dispatcher.runNode(node)
+		convey.So(err, convey.ShouldBeNil)
+
+		convey.Convey("The router issued one MultiHeadAttention device call", func() {
+			convey.So(len(recorder.multiHeadCalls), convey.ShouldEqual, 1)
+
+			call := recorder.multiHeadCalls[0]
+			convey.So(call.config.NumHeads, convey.ShouldEqual, 2)
+			convey.So(call.config.HeadDim, convey.ShouldEqual, 4)
+			convey.So(call.config.Causal, convey.ShouldBeFalse)
+			convey.So(call.config.KVHeadCount, convey.ShouldEqual, 2)
+			convey.So(call.seqQ, convey.ShouldEqual, 8)
+			convey.So(call.seqK, convey.ShouldEqual, 8)
+			convey.So(call.format, convey.ShouldEqual, dtype.Float32)
+		})
+
+		convey.Convey("The output tensor shape follows the query", func() {
+			stored, err := dispatcher.values.tensor("attention")
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(stored.Shape().Dims(), convey.ShouldResemble, []int{1, 8, 2, 4})
+			convey.So(stored.DType(), convey.ShouldEqual, dtype.Float32)
 		})
 	})
 }

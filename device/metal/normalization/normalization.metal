@@ -15,7 +15,14 @@ static inline float bf16_to_float_norm(ushort value) {
 }
 
 static inline ushort float_to_bf16_norm(float value) {
-    return ushort(as_type<uint>(value) >> 16);
+    uint bits = as_type<uint>(value);
+
+    if ((bits & 0x7fffffffu) > 0x7f800000u) {
+        return ushort((bits >> 16) | 0x0040u);
+    }
+
+    uint rounded = bits + 0x7fffu + ((bits >> 16) & 1u);
+    return ushort(rounded >> 16);
 }
 
 static inline float refined_inv_sqrt_norm(float value) {
@@ -158,7 +165,7 @@ static inline void batchnorm_denorm_values(
 ) {
     uint channel = row % channels;
     float channelMean = Storage::load(mean, channel);
-    float channelStdDev = sqrt(Storage::load(variance, channel) + layerNormEpsilonMetal);
+    float channelStdDev = precise::sqrt(Storage::load(variance, channel) + layerNormEpsilonMetal);
     uint offset = row * spatial;
 
     for (uint index = threadIndex; index < spatial; index += normalizationThreadCount) {
@@ -218,9 +225,8 @@ static inline void groupnorm_rows(
         float delta = inputValue - mean;
         float normalized = delta * invStdDev;
         float scaleValue = Storage::load(scale, channel);
-        float scaled = normalized * scaleValue;
         float biasValue = Storage::load(bias, channel);
-        Storage::store(out, groupOffset + offset, scaled + biasValue);
+        Storage::store(out, groupOffset + offset, fma(normalized, scaleValue, biasValue));
     }
 }
 
@@ -359,4 +365,3 @@ kernel void name( \
         input, scale, bias, mean, variance, out, channels, spatial, row, threadIndex \
     ); \
 }
-

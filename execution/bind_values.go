@@ -298,39 +298,6 @@ func (resolver *bindResolver) uploadFloat32Slice(values []float32) (tensor.Tenso
 	return resolver.dispatcher.memory.Upload(shape, dtype.Float32, buffer)
 }
 
-func (resolver *bindResolver) resolveWeightTensor(transposed bool, bias bool) (tensor.Tensor, error) {
-	if resolver.node.Weights == nil || resolver.node.Weights.TensorName == "" {
-		return nil, fmt.Errorf("bind: node %q requires a weight binding", resolver.node.ID)
-	}
-
-	if bias {
-		return resolver.resolveBiasTensor()
-	}
-
-	if !transposed {
-		return resolver.dispatcher.weights.Lookup(resolver.node.Weights.TensorName)
-	}
-
-	transposedStore, ok := resolver.dispatcher.weights.(TransposedLookup)
-
-	if !ok {
-		return nil, fmt.Errorf(
-			"weight store does not implement TransposedLookup for %q",
-			resolver.node.Weights.TensorName,
-		)
-	}
-
-	return transposedStore.LookupTransposed(resolver.node.Weights.TensorName)
-}
-
-func (resolver *bindResolver) resolveBiasTensor() (tensor.Tensor, error) {
-	if resolver.node.Weights.BiasName == "" {
-		return nil, fmt.Errorf("bind: node %q requires a bias binding", resolver.node.ID)
-	}
-
-	return resolver.dispatcher.weights.Lookup(resolver.node.Weights.BiasName)
-}
-
 func shapeDim(dimensions []int, dimensionIndex int) (int, error) {
 	if dimensionIndex < 0 {
 		dimensionIndex = len(dimensions) + dimensionIndex

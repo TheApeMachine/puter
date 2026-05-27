@@ -31,7 +31,6 @@ kernel void groupnorm_apply_float32(
         uint channel = channelStart + offset / spatial;
         float delta = input[groupOffset + offset] - mean;
         float normalized = delta * invStdDev;
-        float scaled = normalized * scale[channel];
-        out[groupOffset + offset] = scaled + bias[channel];
+        out[groupOffset + offset] = fma(normalized, scale[channel], bias[channel]);
     }
 }

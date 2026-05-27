@@ -33,4 +33,9 @@ type Host interface {
 		batch, channels, spatial int,
 		format dtype.DType,
 	)
+	DispatchBatchNormDenorm(
+		input, mean, variance, output unsafe.Pointer,
+		batch, channels, spatial int,
+		format dtype.DType,
+	)
 }

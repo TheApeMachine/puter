@@ -36,7 +36,19 @@ type executionDevice interface {
 
 	// LayerNorm family.
 	RMSNorm(config device.RMSNormConfig, input, scale, output unsafe.Pointer, rows, lastDim int, format dtype.DType)
+	AdaptiveRMSNorm(
+		config device.RMSNormConfig,
+		input, modulation, output unsafe.Pointer,
+		rows, lastDim, rowsPerBatch, modulationCols int,
+		format dtype.DType,
+	)
 	LayerNorm(input, scale, bias, output unsafe.Pointer, rows, lastDim int, format dtype.DType)
+	GroupNorm(
+		config device.GroupNormConfig,
+		input, scale, bias, output unsafe.Pointer,
+		batch, channels, spatial int,
+		format dtype.DType,
+	)
 	ModulatedLayerNorm(
 		config device.ModulatedLayerNormConfig,
 		input, modulation, output unsafe.Pointer,
@@ -85,6 +97,11 @@ type executionDevice interface {
 
 	// Attention family.
 	MultiHeadAttention(config device.MultiHeadAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK int, format dtype.DType)
+}
+
+type batchExecutionDevice interface {
+	BeginBatch() error
+	EndBatch() error
 }
 
 /*
@@ -205,7 +222,63 @@ is sequential today; layer parallelism lands once the async DAG executor
 is in place (ARCHITECTURE.md §5.2). The contract is preserved: nodes
 within one layer are independent and could run concurrently.
 */
-func (dispatcher *dispatcher) run() error {
+func (dispatcher *dispatcher) run() (err error) {
+	batcher, batching, err := dispatcher.beginBatch()
+
+	if err != nil {
+		return err
+	}
+
+	if batching {
+		defer func() {
+			endErr := batcher.EndBatch()
+
+			if err == nil && endErr != nil {
+				err = endErr
+			}
+		}()
+	}
+
+	return dispatcher.runLayers()
+}
+
+func (dispatcher *dispatcher) beginBatch() (batchExecutionDevice, bool, error) {
+	if !dispatcher.canBatchDevice() {
+		return nil, false, nil
+	}
+
+	batcher := dispatcher.deviceBackend.(batchExecutionDevice)
+
+	if err := batcher.BeginBatch(); err != nil {
+		return nil, false, err
+	}
+
+	return batcher, true, nil
+}
+
+func (dispatcher *dispatcher) canBatchDevice() bool {
+	if _, ok := dispatcher.deviceBackend.(batchExecutionDevice); !ok {
+		return false
+	}
+
+	for _, node := range dispatcher.graph.Nodes {
+		if node == nil {
+			continue
+		}
+
+		if dispatcher.nodeReadsDeviceScalar(node) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (dispatcher *dispatcher) nodeReadsDeviceScalar(node *ast.GraphNode) bool {
+	return node.Op == "positional.rope" && len(node.Inputs) >= 2
+}
+
+func (dispatcher *dispatcher) runLayers() error {
 	for layerIndex, layer := range dispatcher.plan.Layers {
 		for _, nodeID := range layer {
 			node, ok := dispatcher.nodeByID[nodeID]

@@ -86,6 +86,28 @@ func runBatchNormEvalF16(
 	)
 }
 
+func runBatchNormDenormBF16(
+	input, mean, variance, output unsafe.Pointer,
+	batch, channels, spatial int,
+) {
+	inputView := unsafe.Slice((*dtype.BF16)(input), batch*channels*spatial)
+	meanView := unsafe.Slice((*dtype.BF16)(mean), channels)
+	varianceView := unsafe.Slice((*dtype.BF16)(variance), channels)
+	outputView := unsafe.Slice((*dtype.BF16)(output), batch*channels*spatial)
+	batchNormDenormSlicesBF16(inputView, meanView, varianceView, outputView, batch, channels, spatial)
+}
+
+func runBatchNormDenormF16(
+	input, mean, variance, output unsafe.Pointer,
+	batch, channels, spatial int,
+) {
+	inputView := unsafe.Slice((*dtype.F16)(input), batch*channels*spatial)
+	meanView := unsafe.Slice((*dtype.F16)(mean), channels)
+	varianceView := unsafe.Slice((*dtype.F16)(variance), channels)
+	outputView := unsafe.Slice((*dtype.F16)(output), batch*channels*spatial)
+	batchNormDenormSlicesF16(inputView, meanView, varianceView, outputView, batch, channels, spatial)
+}
+
 func groupNormSlicesBF16(
 	config GroupNormConfig,
 	input, scale, bias, output []dtype.BF16,
@@ -206,6 +228,44 @@ func instanceNormSlicesF16(input, scale, bias, output []dtype.F16, batch, channe
 				scale[channelIndex].Float32(),
 				bias[channelIndex].Float32(),
 			)
+		}
+	}
+}
+
+func batchNormDenormSlicesBF16(
+	input, mean, variance, output []dtype.BF16,
+	batch, channels, spatial int,
+) {
+	for channelIndex := 0; channelIndex < channels; channelIndex++ {
+		channelMean := (&mean[channelIndex]).Float32()
+		channelStdDev := float32(math.Sqrt(float64((&variance[channelIndex]).Float32() + normEpsilon)))
+
+		for batchIndex := 0; batchIndex < batch; batchIndex++ {
+			start := (batchIndex*channels + channelIndex) * spatial
+
+			for spatialIndex := 0; spatialIndex < spatial; spatialIndex++ {
+				source := (&input[start+spatialIndex]).Float32()
+				output[start+spatialIndex] = dtype.NewBfloat16FromFloat32(source*channelStdDev + channelMean)
+			}
+		}
+	}
+}
+
+func batchNormDenormSlicesF16(
+	input, mean, variance, output []dtype.F16,
+	batch, channels, spatial int,
+) {
+	for channelIndex := 0; channelIndex < channels; channelIndex++ {
+		channelMean := mean[channelIndex].Float32()
+		channelStdDev := float32(math.Sqrt(float64(variance[channelIndex].Float32() + normEpsilon)))
+
+		for batchIndex := 0; batchIndex < batch; batchIndex++ {
+			start := (batchIndex*channels + channelIndex) * spatial
+
+			for spatialIndex := 0; spatialIndex < spatial; spatialIndex++ {
+				source := input[start+spatialIndex].Float32()
+				output[start+spatialIndex] = dtype.Fromfloat32(source*channelStdDev + channelMean)
+			}
 		}
 	}
 }

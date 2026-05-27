@@ -87,6 +87,89 @@ func BenchmarkRoPEMetalLlama3HalfMode(benchmark *testing.B) {
 	backend.SyncDevice()
 }
 
+func TestMultiAxisRoPEMetalParity(testingObject *testing.T) {
+	backend, err := NewBackend(context.Background(), nil)
+	if err != nil {
+		testingObject.Skipf("Metal backend unavailable: %v", err)
+	}
+	defer backend.Close()
+
+	convey.Convey("Given multi-axis RoPE inputs", testingObject, func() {
+		config := device.MultiAxisRoPEConfig{
+			BaseFreq:     2000,
+			LatentSeqLen: 4,
+			LatentSide:   2,
+		}
+		batch := 2
+		seqLen := 8
+		numHeads := 2
+		headDim := 16
+		input := randomRoPEInput(batch*seqLen*numHeads*headDim, 0x9130)
+		want := make([]float32, len(input))
+
+		cpurope.Default.MultiAxisRoPE(
+			config,
+			unsafe.Pointer(&input[0]),
+			unsafe.Pointer(&want[0]),
+			batch,
+			seqLen,
+			numHeads,
+			headDim,
+			dtype.Float32,
+		)
+
+		got := runMetalMultiAxisRoPE(testingObject, backend, config, input, batch, seqLen, numHeads, headDim)
+
+		convey.Convey("It should match the CPU reference", func() {
+			cpuparity.AssertFloat32SlicesWithinULP(testingObject, got, want, 16)
+		})
+	})
+}
+
+func BenchmarkMultiAxisRoPEMetalFloat32(benchmark *testing.B) {
+	backend, err := NewBackend(context.Background(), nil)
+	if err != nil {
+		benchmark.Skipf("Metal backend unavailable: %v", err)
+	}
+	defer backend.Close()
+
+	config := device.MultiAxisRoPEConfig{
+		BaseFreq:     10000,
+		LatentSeqLen: 4096,
+		LatentSide:   64,
+	}
+	batch := 1
+	seqLen := 5120
+	numHeads := 24
+	headDim := 128
+	input := make([]float32, batch*seqLen*numHeads*headDim)
+	output := make([]float32, len(input))
+	inputTensor := uploadRoPETensor(benchmark, backend, input)
+	defer inputTensor.Close()
+	outputTensor := uploadRoPETensor(benchmark, backend, output)
+	defer outputTensor.Close()
+	inputPointer := inputTensor.DispatchPointer()
+	outputPointer := outputTensor.DispatchPointer()
+
+	benchmark.SetBytes(int64(len(input) * 4 * 2))
+	benchmark.ResetTimer()
+
+	for benchmark.Loop() {
+		backend.MultiAxisRoPE(
+			config,
+			inputPointer,
+			outputPointer,
+			batch,
+			seqLen,
+			numHeads,
+			headDim,
+			dtype.Float32,
+		)
+	}
+
+	backend.SyncDevice()
+}
+
 func runMetalRoPE(
 	testingObject *testing.T,
 	backend *Backend,
@@ -107,6 +190,44 @@ func runMetalRoPE(
 		config,
 		inputTensor.DispatchPointer(),
 		outputTensor.DispatchPointer(),
+		seqLen,
+		numHeads,
+		headDim,
+		dtype.Float32,
+	)
+	backend.SyncDevice()
+
+	dataType, rawBytes, err := outputTensor.RawBytes()
+	convey.So(err, convey.ShouldBeNil)
+
+	got, err := convert.BytesToFloat32(dataType, rawBytes)
+	convey.So(err, convey.ShouldBeNil)
+
+	return got
+}
+
+func runMetalMultiAxisRoPE(
+	testingObject *testing.T,
+	backend *Backend,
+	config device.MultiAxisRoPEConfig,
+	input []float32,
+	batch int,
+	seqLen int,
+	numHeads int,
+	headDim int,
+) []float32 {
+	testingObject.Helper()
+
+	inputTensor := uploadRoPETensor(testingObject, backend, input)
+	defer inputTensor.Close()
+	outputTensor := uploadRoPETensor(testingObject, backend, make([]float32, len(input)))
+	defer outputTensor.Close()
+
+	backend.MultiAxisRoPE(
+		config,
+		inputTensor.DispatchPointer(),
+		outputTensor.DispatchPointer(),
+		batch,
 		seqLen,
 		numHeads,
 		headDim,

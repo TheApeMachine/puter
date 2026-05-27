@@ -10,6 +10,14 @@ import (
 type binaryDeviceCall func(unsafe.Pointer, unsafe.Pointer, unsafe.Pointer, int, dtype.DType)
 type unaryDeviceCall func(unsafe.Pointer, unsafe.Pointer, int, dtype.DType)
 
+type batchNormDenormDevice interface {
+	BatchNormDenorm(
+		input, mean, variance, output unsafe.Pointer,
+		batch, channels, spatial int,
+		format dtype.DType,
+	)
+}
+
 func callRouter(
 	deviceBackend executionDevice,
 	bind OperationBind,
@@ -27,10 +35,16 @@ func callRouter(
 		return callConv2D(deviceBackend, configFields, args)
 	case "RMSNorm":
 		return callRMSNorm(deviceBackend, configFields, args)
+	case "AdaptiveRMSNorm":
+		return callAdaptiveRMSNorm(deviceBackend, configFields, args)
 	case "LayerNorm":
 		return callLayerNorm(deviceBackend, args)
+	case "GroupNorm":
+		return callGroupNorm(deviceBackend, configFields, args)
 	case "ModulatedLayerNorm":
 		return callModulatedLayerNorm(deviceBackend, configFields, args)
+	case "BatchNormDenorm":
+		return callBatchNormDenorm(deviceBackend, args)
 	case "Add":
 		return callBinary("Add", args, deviceBackend.Add)
 	case "Sub":
@@ -62,6 +76,40 @@ func callRouter(
 	default:
 		return fmt.Errorf("router: unknown method %q", bind.Method)
 	}
+}
+
+func callBatchNormDenorm(deviceBackend executionDevice, args []any) error {
+	if len(args) != 8 {
+		return fmt.Errorf("router: BatchNormDenorm expects 8 args, got %d", len(args))
+	}
+
+	normalizationDevice, ok := deviceBackend.(batchNormDenormDevice)
+
+	if !ok {
+		return fmt.Errorf("router: backend %T does not implement BatchNormDenorm", deviceBackend)
+	}
+
+	input, mean, variance, output, err := castFourPointers(args[:4], "BatchNormDenorm")
+
+	if err != nil {
+		return err
+	}
+
+	batch, channels, spatial, err := castThreeInts(args[4:7], "BatchNormDenorm")
+
+	if err != nil {
+		return err
+	}
+
+	format, err := castDType(args[7], "BatchNormDenorm", "format")
+
+	if err != nil {
+		return err
+	}
+
+	normalizationDevice.BatchNormDenorm(input, mean, variance, output, batch, channels, spatial, format)
+
+	return nil
 }
 
 func callLookup(deviceBackend executionDevice, args []any) error {
@@ -259,6 +307,49 @@ func callRMSNorm(
 	return nil
 }
 
+func callAdaptiveRMSNorm(
+	deviceBackend executionDevice,
+	configFields map[string]any,
+	args []any,
+) error {
+	if len(args) != 8 {
+		return fmt.Errorf("router: AdaptiveRMSNorm expects 8 args, got %d", len(args))
+	}
+
+	config, err := castRMSNormConfig(configFields)
+
+	if err != nil {
+		return err
+	}
+
+	input, modulation, output, err := castThreePointers(args[:3], "AdaptiveRMSNorm")
+
+	if err != nil {
+		return err
+	}
+
+	rows, lastDim, rowsPerBatch, modulationCols, err := castFourInts(args[3:7], "AdaptiveRMSNorm")
+
+	if err != nil {
+		return err
+	}
+
+	format, err := castDType(args[7], "AdaptiveRMSNorm", "format")
+
+	if err != nil {
+		return err
+	}
+
+	deviceBackend.AdaptiveRMSNorm(
+		config,
+		input, modulation, output,
+		rows, lastDim, rowsPerBatch, modulationCols,
+		format,
+	)
+
+	return nil
+}
+
 func callLayerNorm(deviceBackend executionDevice, args []any) error {
 	if len(args) != 7 {
 		return fmt.Errorf("router: LayerNorm expects 7 args, got %d", len(args))
@@ -295,6 +386,44 @@ func callLayerNorm(deviceBackend executionDevice, args []any) error {
 	}
 
 	deviceBackend.LayerNorm(input, scale, bias, output, rows, lastDim, format)
+
+	return nil
+}
+
+func callGroupNorm(
+	deviceBackend executionDevice,
+	configFields map[string]any,
+	args []any,
+) error {
+	if len(args) != 8 {
+		return fmt.Errorf("router: GroupNorm expects 8 args, got %d", len(args))
+	}
+
+	config, err := castGroupNormConfig(configFields)
+
+	if err != nil {
+		return err
+	}
+
+	input, scale, bias, output, err := castFourPointers(args[:4], "GroupNorm")
+
+	if err != nil {
+		return err
+	}
+
+	batch, channels, spatial, err := castThreeInts(args[4:7], "GroupNorm")
+
+	if err != nil {
+		return err
+	}
+
+	format, err := castDType(args[7], "GroupNorm", "format")
+
+	if err != nil {
+		return err
+	}
+
+	deviceBackend.GroupNorm(config, input, scale, bias, output, batch, channels, spatial, format)
 
 	return nil
 }

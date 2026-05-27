@@ -253,6 +253,73 @@ func DispatchRMSNormRefs(
 	)
 }
 
+func DispatchAdaptiveRMSNorm(
+	contextRef C.MetalDeviceRef,
+	inputBuffer C.MetalBufferRef,
+	modulationBuffer C.MetalBufferRef,
+	outputBuffer C.MetalBufferRef,
+	format dtype.DType,
+	rows uint32,
+	cols uint32,
+	rowsPerBatch uint32,
+	modulationCols uint32,
+	epsilon float32,
+) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
+	var status C.MetalStatus
+	code := C.metal_dispatch_layernorm_adaptive_rmsnorm(
+		contextRef,
+		elementFormat,
+		inputBuffer,
+		modulationBuffer,
+		outputBuffer,
+		C.uint32_t(rows),
+		C.uint32_t(cols),
+		C.uint32_t(rowsPerBatch),
+		C.uint32_t(modulationCols),
+		C.float(epsilon),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		return metalStatusError(status)
+	}
+
+	return nil
+}
+
+func DispatchAdaptiveRMSNormRefs(
+	contextRef uintptr,
+	inputBuffer uintptr,
+	modulationBuffer uintptr,
+	outputBuffer uintptr,
+	format dtype.DType,
+	rows uint32,
+	cols uint32,
+	rowsPerBatch uint32,
+	modulationCols uint32,
+	epsilon float32,
+) error {
+	return DispatchAdaptiveRMSNorm(
+		C.MetalDeviceRef(unsafe.Pointer(contextRef)),
+		C.MetalBufferRef(unsafe.Pointer(inputBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(modulationBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(outputBuffer)),
+		format,
+		rows,
+		cols,
+		rowsPerBatch,
+		modulationCols,
+		epsilon,
+	)
+}
+
 var errUnsupportedDType = errors.New("metal layernorm: unsupported dtype")
 
 func metalStatusError(status C.MetalStatus) error {

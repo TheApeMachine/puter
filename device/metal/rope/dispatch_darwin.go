@@ -123,6 +123,85 @@ func DispatchRoPERefs(
 	)
 }
 
+func DispatchMultiAxisRoPE(
+	contextRef C.MetalDeviceRef,
+	inputBuffer C.MetalBufferRef,
+	outputBuffer C.MetalBufferRef,
+	config device.MultiAxisRoPEConfig,
+	batch uint32,
+	seqLen uint32,
+	numHeads uint32,
+	headDim uint32,
+	format dtype.DType,
+) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
+	if err := config.Validate(); err != nil {
+		return err
+	}
+
+	halfDim := headDim / 2
+
+	if batch == 0 || seqLen == 0 || numHeads == 0 || halfDim == 0 {
+		return nil
+	}
+
+	pairCount := batch * seqLen * numHeads * halfDim
+	theta := C.float(config.BaseFreq)
+
+	var status C.MetalStatus
+	code := C.metal_dispatch_multi_axis_rope(
+		contextRef,
+		elementFormat,
+		inputBuffer,
+		outputBuffer,
+		C.uint32_t(batch),
+		C.uint32_t(seqLen),
+		C.uint32_t(numHeads),
+		C.uint32_t(headDim),
+		C.uint32_t(pairCount),
+		C.uint32_t(config.LatentSeqLen),
+		C.uint32_t(config.LatentSide),
+		theta,
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		return metalStatusError(status)
+	}
+
+	return nil
+}
+
+func DispatchMultiAxisRoPERefs(
+	contextRef uintptr,
+	inputBuffer uintptr,
+	outputBuffer uintptr,
+	config device.MultiAxisRoPEConfig,
+	batch uint32,
+	seqLen uint32,
+	numHeads uint32,
+	headDim uint32,
+	format dtype.DType,
+) error {
+	return DispatchMultiAxisRoPE(
+		C.MetalDeviceRef(unsafe.Pointer(contextRef)),
+		C.MetalBufferRef(unsafe.Pointer(inputBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(outputBuffer)),
+		config,
+		batch,
+		seqLen,
+		numHeads,
+		headDim,
+		format,
+	)
+}
+
 func ropeHalfMode(config device.RoPEConfig) (uint32, error) {
 	switch config.Mode {
 	case device.RoPEModeInterleaved:

@@ -2,6 +2,7 @@ package execution
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"unsafe"
 
@@ -182,6 +183,160 @@ func TestDispatcherFailsOnMissingWeight(t *testing.T) {
 		err := dispatcher.run()
 		convey.So(err, convey.ShouldNotBeNil)
 		convey.So(err.Error(), convey.ShouldContainSubstring, "weight not found")
+	})
+}
+
+/*
+TestDispatcherRunBatchesDeviceOnGraphSuccess verifies a batch-capable
+device is opened before the layer walk and closed after graph completion.
+*/
+func TestDispatcherRunBatchesDeviceOnGraphSuccess(t *testing.T) {
+	convey.Convey("Given a batch-capable device and a graph that can batch", t, func() {
+		graph := &ast.Graph{
+			Inputs:  []string{"input"},
+			Outputs: map[string]string{"out": "output"},
+			Nodes: []*ast.GraphNode{
+				{
+					ID:     "output",
+					Op:     "value.assign",
+					Inputs: []string{"input"},
+				},
+			},
+		}
+
+		plan := &runtime.ExecutionPlan{
+			GraphName: "test",
+			Layers:    [][]string{{"output"}},
+		}
+
+		deviceBackend := &batchRecordingDevice{}
+		dispatcher := newDispatcher(
+			"test",
+			graph, plan,
+			deviceBackend,
+			tensor.NewHostBackend(),
+			nilWeightStore{},
+			nil,
+			nil,
+		)
+
+		dispatcher.values.set("input", "value")
+
+		err := dispatcher.run()
+		convey.So(err, convey.ShouldBeNil)
+		convey.So(deviceBackend.events, convey.ShouldResemble, []string{"begin", "end"})
+
+		output, ok := dispatcher.values.get("output")
+		convey.So(ok, convey.ShouldBeTrue)
+		convey.So(output, convey.ShouldEqual, "value")
+	})
+}
+
+/*
+TestDispatcherRunEndsBatchOnGraphError verifies EndBatch runs even when
+node dispatch returns an error.
+*/
+func TestDispatcherRunEndsBatchOnGraphError(t *testing.T) {
+	convey.Convey("Given a batch-capable device and a graph error", t, func() {
+		graph := &ast.Graph{
+			Nodes: []*ast.GraphNode{
+				{ID: "node", Op: "definitely.not.a.real.op"},
+			},
+		}
+
+		plan := &runtime.ExecutionPlan{
+			GraphName: "test",
+			Layers:    [][]string{{"node"}},
+		}
+
+		deviceBackend := &batchRecordingDevice{}
+		dispatcher := newDispatcher(
+			"test",
+			graph, plan,
+			deviceBackend,
+			tensor.NewHostBackend(),
+			nilWeightStore{},
+			nil,
+			nil,
+		)
+
+		err := dispatcher.run()
+		convey.So(err, convey.ShouldNotBeNil)
+		convey.So(err.Error(), convey.ShouldContainSubstring, "unsupported op")
+		convey.So(deviceBackend.events, convey.ShouldResemble, []string{"begin", "end"})
+	})
+}
+
+/*
+TestDispatcherRunPreservesGraphErrorOverBatchCloseError keeps the node
+diagnostic primary when both node execution and batch close report errors.
+*/
+func TestDispatcherRunPreservesGraphErrorOverBatchCloseError(t *testing.T) {
+	convey.Convey("Given graph execution and batch close both fail", t, func() {
+		graph := &ast.Graph{
+			Nodes: []*ast.GraphNode{
+				{ID: "node", Op: "definitely.not.a.real.op"},
+			},
+		}
+
+		plan := &runtime.ExecutionPlan{
+			GraphName: "test",
+			Layers:    [][]string{{"node"}},
+		}
+
+		deviceBackend := &batchRecordingDevice{
+			endErr: errors.New("batch close failed"),
+		}
+		dispatcher := newDispatcher(
+			"test",
+			graph, plan,
+			deviceBackend,
+			tensor.NewHostBackend(),
+			nilWeightStore{},
+			nil,
+			nil,
+		)
+
+		err := dispatcher.run()
+		convey.So(err, convey.ShouldNotBeNil)
+		convey.So(err.Error(), convey.ShouldContainSubstring, "unsupported op")
+		convey.So(err.Error(), convey.ShouldNotContainSubstring, "batch close failed")
+		convey.So(deviceBackend.events, convey.ShouldResemble, []string{"begin", "end"})
+	})
+}
+
+/*
+TestDispatcherCanBatchDeviceRejectsScalarReads verifies graphs with an
+in-stream device scalar read are not wrapped in one command batch.
+*/
+func TestDispatcherCanBatchDeviceRejectsScalarReads(t *testing.T) {
+	convey.Convey("Given a graph with two-input positional RoPE", t, func() {
+		graph := &ast.Graph{
+			Nodes: []*ast.GraphNode{
+				{
+					ID:     "rope",
+					Op:     "positional.rope",
+					Inputs: []string{"input", "position"},
+				},
+			},
+		}
+
+		plan := &runtime.ExecutionPlan{
+			GraphName: "test",
+			Layers:    [][]string{{"rope"}},
+		}
+
+		dispatcher := newDispatcher(
+			"test",
+			graph, plan,
+			&batchRecordingDevice{},
+			tensor.NewHostBackend(),
+			nilWeightStore{},
+			nil,
+			nil,
+		)
+
+		convey.So(dispatcher.canBatchDevice(), convey.ShouldBeFalse)
 	})
 }
 

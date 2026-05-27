@@ -65,6 +65,23 @@ func dispatchBatchNormEval(
 	}
 }
 
+func dispatchBatchNormDenorm(
+	input, mean, variance, output unsafe.Pointer,
+	batch, channels, spatial int,
+	format dtype.DType,
+) {
+	switch format {
+	case dtype.Float32:
+		runBatchNormDenormF32(input, mean, variance, output, batch, channels, spatial)
+	case dtype.BFloat16:
+		runBatchNormDenormBF16(input, mean, variance, output, batch, channels, spatial)
+	case dtype.Float16:
+		runBatchNormDenormF16(input, mean, variance, output, batch, channels, spatial)
+	default:
+		panic("normalization: unsupported dtype")
+	}
+}
+
 func runGroupNormF32(
 	config GroupNormConfig,
 	input, scale, bias, output unsafe.Pointer,
@@ -105,6 +122,18 @@ func runBatchNormEvalF32(
 		inputView, scaleView, biasView, meanView, varianceView, outputView,
 		batch, channels, spatial,
 	)
+}
+
+func runBatchNormDenormF32(
+	input, mean, variance, output unsafe.Pointer,
+	batch, channels, spatial int,
+) {
+	inputView := unsafe.Slice((*float32)(input), batch*channels*spatial)
+	meanView := unsafe.Slice((*float32)(mean), channels)
+	varianceView := unsafe.Slice((*float32)(variance), channels)
+	outputView := unsafe.Slice((*float32)(output), batch*channels*spatial)
+
+	batchNormDenormSlices(inputView, meanView, varianceView, outputView, batch, channels, spatial)
 }
 
 func groupNormSlices(
@@ -172,6 +201,26 @@ func instanceNormSlices(input, scale, bias, output []float32, batch, channels, s
 				float32(mean), float32(invStdDev),
 				scale[channelIndex], bias[channelIndex],
 			)
+		}
+	}
+}
+
+func batchNormDenormSlices(
+	input, mean, variance, output []float32,
+	batch, channels, spatial int,
+) {
+	for channelIndex := 0; channelIndex < channels; channelIndex++ {
+		channelMean := mean[channelIndex]
+		channelStdDev := float32(math.Sqrt(float64(variance[channelIndex] + normEpsilon)))
+
+		for batchIndex := 0; batchIndex < batch; batchIndex++ {
+			start := (batchIndex*channels + channelIndex) * spatial
+			row := input[start : start+spatial]
+			outRow := output[start : start+spatial]
+
+			for spatialIndex := range row {
+				outRow[spatialIndex] = row[spatialIndex]*channelStdDev + channelMean
+			}
 		}
 	}
 }

@@ -40,7 +40,7 @@ static inline void rmsnorm_rows(
         threadgroup_barrier(mem_flags::mem_threadgroup);
     }
 
-    float invRMS = rsqrt(reduction[0] / float(cols) + epsilon);
+    float invRMS = 1.0f / sqrt(reduction[0] / float(cols) + epsilon);
 
     for (uint col = threadIndex; col < cols; col += normalizationThreadCount) {
         float value = Storage::load(input, rowOffset + col) * invRMS * Storage::load(scale, col);
@@ -55,10 +55,15 @@ static inline void adaptive_rmsnorm_rows(
     device Scalar* out,
     threadgroup float* reduction,
     constant uint& cols,
+    constant uint& rowsPerBatch,
+    constant uint& modulationCols,
+    constant float& epsilon,
     uint row,
     uint threadIndex
 ) {
     uint rowOffset = row * cols;
+    uint batch = row / rowsPerBatch;
+    uint modulationOffset = batch * modulationCols;
     float localSquareSum = 0.0f;
     float localSquareCompensation = 0.0f;
 
@@ -82,12 +87,12 @@ static inline void adaptive_rmsnorm_rows(
         threadgroup_barrier(mem_flags::mem_threadgroup);
     }
 
-    float invRMS = rsqrt(reduction[0] / float(cols) + rmsNormEpsilonMetalDefault);
+    float invRMS = rsqrt(reduction[0] / float(cols) + epsilon);
 
     for (uint col = threadIndex; col < cols; col += normalizationThreadCount) {
         float normalized = Storage::load(input, rowOffset + col) * invRMS;
-        float scale = Storage::load(modulation, col);
-        float shift = Storage::load(modulation, cols + col);
+        float scale = Storage::load(modulation, modulationOffset + col);
+        float shift = Storage::load(modulation, modulationOffset + cols + col);
         Storage::store(out, rowOffset + col, normalized * (1.0f + scale) + shift);
     }
 }

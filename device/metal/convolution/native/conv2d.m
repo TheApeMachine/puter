@@ -1,7 +1,5 @@
 #include "conv2d.h"
 #include "convolution.h"
-#include "../pool/pool.h"
-#include "../pool/bridge_private.h"
 #include "../internal/bridge/core_private.h"
 
 #include <Foundation/Foundation.h>
@@ -23,16 +21,22 @@ int metal_dispatch_conv2d(
     uint32_t kernelWidth,
     uint32_t outHeight,
     uint32_t outWidth,
+    uint32_t strideHeight,
+    uint32_t strideWidth,
+    uint32_t paddingHeight,
+    uint32_t paddingWidth,
+    uint32_t dilationHeight,
+    uint32_t dilationWidth,
     uint64_t completionToken,
     MetalStatus* status
 ) {
     if (inputRef == NULL || weightRef == NULL || biasRef == NULL || outRef == NULL) {
-        metal_vision_status_set(status, -2, "nil Metal buffer");
+        metal_convolution_status_set(status, -2, "nil Metal buffer");
         return -2;
     }
 
     char kernelName[128];
-    int nameCode = metal_vision_kernel_name(
+    int nameCode = metal_convolution_kernel_name(
         kernelName, sizeof(kernelName), "conv2d", elementDType, status
     );
 
@@ -41,7 +45,7 @@ int metal_dispatch_conv2d(
     }
 
     NSUInteger threadCount = (NSUInteger)batch * outChannels * outHeight * outWidth;
-    return metal_vision_dispatch(
+    return metal_convolution_dispatch(
         contextRef, kernelName, threadCount, completionToken, status,
         ^(id<MTLComputeCommandEncoder> encoder) {
             [encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
@@ -57,6 +61,12 @@ int metal_dispatch_conv2d(
             [encoder setBytes:&kernelWidth length:sizeof(kernelWidth) atIndex:10];
             [encoder setBytes:&outHeight length:sizeof(outHeight) atIndex:11];
             [encoder setBytes:&outWidth length:sizeof(outWidth) atIndex:12];
+            [encoder setBytes:&strideHeight length:sizeof(strideHeight) atIndex:13];
+            [encoder setBytes:&strideWidth length:sizeof(strideWidth) atIndex:14];
+            [encoder setBytes:&paddingHeight length:sizeof(paddingHeight) atIndex:15];
+            [encoder setBytes:&paddingWidth length:sizeof(paddingWidth) atIndex:16];
+            [encoder setBytes:&dilationHeight length:sizeof(dilationHeight) atIndex:17];
+            [encoder setBytes:&dilationWidth length:sizeof(dilationWidth) atIndex:18];
         }
     );
 }

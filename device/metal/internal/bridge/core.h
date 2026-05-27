@@ -81,6 +81,10 @@ void* metal_buffer_contents(MetalBufferRef bufferRef);
 
 void metal_device_wait_idle(MetalDeviceRef contextRef);
 
+void metal_layer_begin(MetalDeviceRef contextRef);
+
+int metal_layer_end(MetalDeviceRef contextRef, MetalStatus* status);
+
 #ifdef __cplusplus
 }
 #endif

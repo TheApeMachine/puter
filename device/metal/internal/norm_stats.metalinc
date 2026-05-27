@@ -68,7 +68,7 @@ static inline float metal_norm_inv_std_dev_f32(float varianceSum, uint count) {
     ulong varianceWithEpsilon = metal_sf64_add(variance64, SF64_NORM_EPSILON);
     float varianceMean = as_type<float>(metal_sf64_to32(varianceWithEpsilon));
 
-    return rsqrt(varianceMean);
+    return 1.0f / precise::sqrt(varianceMean);
 }
 
 #endif

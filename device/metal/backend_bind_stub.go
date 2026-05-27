@@ -67,6 +67,14 @@ func openMetalBridge(backend *Backend) (*metalBridge, error) {
 	return &metalBridge{backend: backend}, nil
 }
 
+func (backend *Backend) BeginBatch() error {
+	return nil
+}
+
+func (backend *Backend) EndBatch() error {
+	return nil
+}
+
 func (bridge *metalBridge) recommendedMaxWorkingSet() int64 {
 	return 0
 }

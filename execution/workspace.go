@@ -3,8 +3,6 @@ package execution
 import (
 	"fmt"
 
-	"github.com/theapemachine/manifesto/ast"
-	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/ir"
 	"github.com/theapemachine/manifesto/tensor"
 )
@@ -30,6 +28,7 @@ type Workspace struct {
 	storage []byte
 	layout  ir.WorkspaceLayout
 	tensors map[int32]tensor.Tensor
+	slots   map[int64]tensor.Tensor
 }
 
 /*
@@ -197,309 +196,24 @@ tensors are still in use is undefined — the dispatcher must finish
 its session before the workspace is closed.
 */
 func (workspace *Workspace) Close() error {
-	if workspace == nil || workspace.storage == nil {
+	if workspace == nil {
 		return nil
 	}
 
-	tensor.Release(workspace.storage)
-	workspace.storage = nil
+	if workspace.storage != nil {
+		tensor.Release(workspace.storage)
+		workspace.storage = nil
+	}
+
+	closeWorkspaceSlots(workspace.slots)
+	workspace.slots = nil
 	workspace.tensors = nil
 
 	return nil
 }
 
-/*
-resolveShape converts an ir.ShapeSchema into a tensor.Shape. Symbolic
-dimensions that were not resolved by the typer surface as errors here
-rather than as silent zero-sized allocations — the planner should have
-already bound them during AnalyzeLiveness (PortByteSize would have
-errored on them), but defence in depth keeps the dispatcher honest.
-
-Scalar (rank-0) shapes return an empty Shape, which downstream kernels
-treat as a one-element tensor (matching the convention in
-ir.PortByteSize).
-*/
-func resolveShape(schema ir.ShapeSchema, dataType dtype.DType, bindings ir.SymbolMap) (tensor.Shape, error) {
-	dims := make([]int, 0, len(schema.Dimensions))
-
-	for index, dimension := range schema.Dimensions {
-		if dimension.IsSymbolic() {
-			value, ok := bindings[dimension.Symbol]
-
-			if !ok {
-				return tensor.Shape{}, fmt.Errorf(
-					"dim[%d] symbol %q unresolved at workspace materialization",
-					index, dimension.Symbol,
-				)
-			}
-
-			dims = append(dims, int(value))
-
-			continue
-		}
-
-		dims = append(dims, int(dimension.Static))
+func closeWorkspaceSlots(slots map[int64]tensor.Tensor) {
+	for _, slot := range slots {
+		_ = slot.Close()
 	}
-
-	_ = dataType
-
-	return tensor.NewShape(dims)
-}
-
-/*
-WorkspaceMap indexes per-graph workspaces by name. Backend stores one
-per CallGraph entrypoint so a multi-graph program (e.g. text-encoder +
-denoiser + VAE-decoder for diffusion) gets one workspace per
-compute graph without cross-graph aliasing.
-*/
-type WorkspaceMap struct {
-	// portsByGraphNode resolves dispatch-time queries — given a graph
-	// name and the dispatching ast.GraphNode, return the planner-
-	// allocated tensor for its single output.
-	outputs map[string]map[string]tensor.Tensor
-	// inputs[graphName][nodeID] is the slice of input tensors in the
-	// node's declared order. The dispatcher reads these to hydrate per-
-	// node operand pointers.
-	inputs map[string]map[string][]tensor.Tensor
-	// boundaryInputs[graphName][inputName] resolves graph-level inputs
-	// (declared in ast.Graph.Inputs) to their workspace tensor so the
-	// host can write into the right slot before each forward pass.
-	boundaryInputs map[string]map[string]tensor.Tensor
-
-	workspaces map[string]*Workspace
-}
-
-/*
-NewWorkspaceMap constructs an empty map. Callers populate it via
-Attach once per (graph, planner topology) pair.
-*/
-func NewWorkspaceMap() *WorkspaceMap {
-	return &WorkspaceMap{
-		outputs:        make(map[string]map[string]tensor.Tensor),
-		inputs:         make(map[string]map[string][]tensor.Tensor),
-		boundaryInputs: make(map[string]map[string]tensor.Tensor),
-		workspaces:     make(map[string]*Workspace),
-	}
-}
-
-/*
-Attach takes one compiled graph and the *ir.Topology the planner
-produced for it, allocates a Workspace, and pre-resolves every
-ast.GraphNode's input / output tensors into the per-graph maps the
-dispatcher reads.
-
-The bridge between ast.GraphNode and ir.Node is positional: the planner
-topology was built by TopologyForPlanning, which walks ast.Graph.Nodes
-in order and emits one ir.Node per ast.GraphNode at the same index.
-This Attach honours that ordering when matching the two together.
-*/
-func (workspaceMap *WorkspaceMap) Attach(
-	graphName string,
-	graph *ast.Graph,
-	topology *ir.Topology,
-) error {
-	if workspaceMap == nil {
-		return fmt.Errorf("execution: nil workspace map")
-	}
-
-	if graph == nil || topology == nil {
-		return fmt.Errorf("execution: attach graph %q: graph and topology required", graphName)
-	}
-
-	if len(graph.Nodes) != len(topology.Nodes) {
-		return fmt.Errorf(
-			"execution: attach graph %q: ast.Graph has %d nodes but planner topology has %d",
-			graphName, len(graph.Nodes), len(topology.Nodes),
-		)
-	}
-
-	workspace, err := NewWorkspace(topology)
-
-	if err != nil {
-		return fmt.Errorf("execution: attach graph %q: %w", graphName, err)
-	}
-
-	outputs := make(map[string]tensor.Tensor, len(graph.Nodes))
-	inputs := make(map[string][]tensor.Tensor, len(graph.Nodes))
-	boundary := make(map[string]tensor.Tensor)
-
-	for nodeIndex, astNode := range graph.Nodes {
-		irNode := topology.Nodes[nodeIndex]
-
-		if len(irNode.Outputs) > 0 {
-			outputTensor, err := workspace.TensorByPortID(irNode.Outputs[0].ID)
-
-			if err != nil {
-				_ = workspace.Close()
-
-				return fmt.Errorf(
-					"execution: attach graph %q node %q output: %w",
-					graphName, astNode.ID, err,
-				)
-			}
-
-			outputs[astNode.ID] = outputTensor
-		}
-
-		inputTensors := make([]tensor.Tensor, len(astNode.Inputs))
-
-		for slotIndex, producerName := range astNode.Inputs {
-			irPort := irNode.Inputs[slotIndex]
-
-			if irPort == nil {
-				_ = workspace.Close()
-
-				return fmt.Errorf(
-					"execution: attach graph %q node %q input slot %d: nil port",
-					graphName, astNode.ID, slotIndex,
-				)
-			}
-
-			inputTensor, err := workspace.TensorByPortID(irPort.ID)
-
-			if err != nil {
-				_ = workspace.Close()
-
-				return fmt.Errorf(
-					"execution: attach graph %q node %q input %q: %w",
-					graphName, astNode.ID, producerName, err,
-				)
-			}
-
-			inputTensors[slotIndex] = inputTensor
-
-			// Boundary inputs (those whose name doesn't match any
-			// producer) get an entry in boundary so the host can write
-			// the per-call input before each forward pass.
-			if isBoundaryInput(graph, producerName) {
-				boundary[producerName] = inputTensor
-			}
-		}
-
-		inputs[astNode.ID] = inputTensors
-	}
-
-	workspaceMap.outputs[graphName] = outputs
-	workspaceMap.inputs[graphName] = inputs
-	workspaceMap.boundaryInputs[graphName] = boundary
-	workspaceMap.workspaces[graphName] = workspace
-
-	return nil
-}
-
-/*
-MaxBindings returns the planner SymbolMap used to size one graph's
-workspace. Launch-time substitution compares live bindings against
-these upper-bound values.
-*/
-func (workspaceMap *WorkspaceMap) MaxBindings(graphName string) ir.SymbolMap {
-	if workspaceMap == nil {
-		return nil
-	}
-
-	workspace, ok := workspaceMap.workspaces[graphName]
-
-	if !ok || workspace == nil {
-		return nil
-	}
-
-	return workspace.Layout().Bindings
-}
-
-/*
-OutputFor returns the pre-resolved output tensor for one ast.GraphNode
-in a compiled graph. The dispatcher calls this in place of
-dispatcher.memory.Upload(...) for output allocation: the tensor is
-already alive, sized, and aliased to its planned workspace slot.
-*/
-func (workspaceMap *WorkspaceMap) OutputFor(graphName, nodeID string) (tensor.Tensor, bool) {
-	if workspaceMap == nil {
-		return nil, false
-	}
-
-	graphOutputs, ok := workspaceMap.outputs[graphName]
-
-	if !ok {
-		return nil, false
-	}
-
-	t, ok := graphOutputs[nodeID]
-
-	return t, ok
-}
-
-/*
-InputsFor returns the input tensors for one ast.GraphNode in the order
-its Inputs slice declared. Used by handlers that need to know more
-than just the value-table-resolved tensor for a producer (e.g., for
-boundary-input nodes where there is no upstream producer in the
-dispatcher's value table).
-*/
-func (workspaceMap *WorkspaceMap) InputsFor(graphName, nodeID string) ([]tensor.Tensor, bool) {
-	if workspaceMap == nil {
-		return nil, false
-	}
-
-	graphInputs, ok := workspaceMap.inputs[graphName]
-
-	if !ok {
-		return nil, false
-	}
-
-	t, ok := graphInputs[nodeID]
-
-	return t, ok
-}
-
-/*
-BoundaryInput returns the workspace tensor for one graph-level input
-declaration. The host writes into this tensor before each dispatch;
-the dispatcher reads its value from the same storage.
-*/
-func (workspaceMap *WorkspaceMap) BoundaryInput(graphName, inputName string) (tensor.Tensor, bool) {
-	if workspaceMap == nil {
-		return nil, false
-	}
-
-	boundary, ok := workspaceMap.boundaryInputs[graphName]
-
-	if !ok {
-		return nil, false
-	}
-
-	t, ok := boundary[inputName]
-
-	return t, ok
-}
-
-/*
-Close releases every attached workspace's storage back to the tensor
-allocator. Idempotent; safe to call from defer chains during session
-teardown.
-*/
-func (workspaceMap *WorkspaceMap) Close() error {
-	if workspaceMap == nil {
-		return nil
-	}
-
-	for _, workspace := range workspaceMap.workspaces {
-		_ = workspace.Close()
-	}
-
-	workspaceMap.workspaces = nil
-	workspaceMap.outputs = nil
-	workspaceMap.inputs = nil
-	workspaceMap.boundaryInputs = nil
-
-	return nil
-}
-
-func isBoundaryInput(graph *ast.Graph, name string) bool {
-	for _, declared := range graph.Inputs {
-		if declared == name {
-			return true
-		}
-	}
-
-	return false
 }

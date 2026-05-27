@@ -140,6 +140,10 @@ int metal_dispatch_adaptive_rmsnorm(
         return nameCode;
     }
 
+    uint32_t rowsPerBatch = rows;
+    uint32_t modulationCols = cols * 2;
+    float epsilon = 1.0e-6f;
+
     return metal_norm_dispatch(
         contextRef,
         kernelName,
@@ -151,6 +155,9 @@ int metal_dispatch_adaptive_rmsnorm(
             [encoder setBuffer:(__bridge id<MTLBuffer>)modulationRef offset:0 atIndex:1];
             [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:2];
             [encoder setBytes:&cols length:sizeof(cols) atIndex:3];
+            [encoder setBytes:&rowsPerBatch length:sizeof(rowsPerBatch) atIndex:4];
+            [encoder setBytes:&modulationCols length:sizeof(modulationCols) atIndex:5];
+            [encoder setBytes:&epsilon length:sizeof(epsilon) atIndex:6];
         }
     );
 }
@@ -429,21 +436,18 @@ int metal_dispatch_groupnorm(
     }
 
     if (elementDType == MetalElementDTypeFloat32) {
-        return metal_norm_dispatch(
+        return metal_groupnorm_dispatch_f32(
             contextRef,
-            "groupnorm_float32",
-            batch * groups,
+            inputRef,
+            scaleRef,
+            biasRef,
+            outRef,
+            batch,
+            channels,
+            spatial,
+            groups,
             completionToken,
-            status,
-            ^(id<MTLComputeCommandEncoder> encoder) {
-                [encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
-                [encoder setBuffer:(__bridge id<MTLBuffer>)scaleRef offset:0 atIndex:1];
-                [encoder setBuffer:(__bridge id<MTLBuffer>)biasRef offset:0 atIndex:2];
-                [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:3];
-                [encoder setBytes:&channels length:sizeof(channels) atIndex:4];
-                [encoder setBytes:&spatial length:sizeof(spatial) atIndex:5];
-                [encoder setBytes:&groups length:sizeof(groups) atIndex:6];
-            }
+            status
         );
     }
 

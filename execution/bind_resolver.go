@@ -152,6 +152,18 @@ func (resolver *bindResolver) resolveOutputShape() (tensor.Shape, error) {
 		return resolver.resolveLastTokenOutputShape()
 	}
 
+	if resolver.bind.Method == "shape.slice" {
+		return resolver.resolveSliceOutputShape()
+	}
+
+	if resolver.bind.Method == "shape.transpose" {
+		return resolver.resolveTransposeOutputShape()
+	}
+
+	if resolver.bind.Method == "shape.upsample_nearest2d" {
+		return resolver.resolveUpsampleNearest2DOutputShape()
+	}
+
 	dimensions := make([]int, 0, len(resolver.bind.Output.Shape))
 
 	for index, spec := range resolver.bind.Output.Shape {
@@ -357,7 +369,69 @@ func (resolver *bindResolver) resolveInputRef(parts []string) (any, error) {
 		return inputTensor, nil
 	}
 
-	return tensorProperty(resolver, inputTensor, strings.Join(parts[2:], "."))
+	property := strings.Join(parts[2:], ".")
+
+	switch property {
+	case "shape":
+		return resolver.resolveInputDimensions(parts[1], inputTensor)
+	case "len":
+		dimensions, err := resolver.resolveInputDimensions(parts[1], inputTensor)
+
+		if err != nil {
+			return nil, err
+		}
+
+		return productInts(dimensions), nil
+	default:
+		return tensorProperty(inputTensor, property)
+	}
+}
+
+func (resolver *bindResolver) resolveInputDimensions(
+	source string,
+	inputTensor tensor.Tensor,
+) ([]int, error) {
+	inputIndex, err := resolver.inputIndex(source)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if resolver.dispatcher.workspaces != nil {
+		inputName := resolver.node.Inputs[inputIndex]
+
+		if !isBoundaryInput(resolver.dispatcher.graph, inputName) {
+			if _, ok := resolver.dispatcher.values.get(inputName); ok {
+				return inputTensor.Shape().Dims(), nil
+			}
+		}
+
+		inputTypes, ok := resolver.dispatcher.workspaces.InputTypesFor(
+			resolver.dispatcher.graphName,
+			resolver.node.ID,
+		)
+
+		if ok && inputIndex < len(inputTypes) && len(inputTypes[inputIndex].ShapeSchema.Dimensions) > 0 {
+			shape, err := resolveLiveShape(
+				inputTypes[inputIndex].ShapeSchema,
+				inputTypes[inputIndex].DType,
+				resolver.dispatcher.maxBindings,
+				resolver.dispatcher.launchBindings,
+			)
+
+			if err != nil {
+				return nil, err
+			}
+
+			return shape.Dims(), nil
+		}
+	}
+
+	return substituteLaunchDimensions(
+		inputTensor.Shape().Dims(),
+		resolver.dispatcher.maxBindings,
+		resolver.dispatcher.launchBindings,
+	), nil
 }
 
 func (resolver *bindResolver) resolveOutputRef(parts []string) (any, error) {
@@ -406,10 +480,26 @@ func (resolver *bindResolver) resolveWeightRef(parts []string) (any, error) {
 		return nil, err
 	}
 
-	return tensorProperty(resolver, weightTensor, strings.Join(parts[propertyIndex:], "."))
+	return tensorProperty(weightTensor, strings.Join(parts[propertyIndex:], "."))
 }
 
 func (resolver *bindResolver) resolveConfigRef(parts []string) (any, error) {
+	if len(parts) == 4 && parts[2] == "tensor" {
+		tensorName := configString(resolver.node, parts[1], resolver.defaultConfigString(parts[1]))
+
+		if tensorName == "" {
+			return nil, fmt.Errorf("config tensor %q is not set", parts[1])
+		}
+
+		resident, err := resolver.dispatcher.weights.Lookup(tensorName)
+
+		if err != nil {
+			return nil, fmt.Errorf("config tensor %q: %w", tensorName, err)
+		}
+
+		return tensorProperty(resident, parts[3])
+	}
+
 	if len(parts) != 3 {
 		return nil, fmt.Errorf("config ref must be config.<name>.<type>, got %q", strings.Join(parts, "."))
 	}
@@ -417,6 +507,8 @@ func (resolver *bindResolver) resolveConfigRef(parts []string) (any, error) {
 	switch parts[2] {
 	case "int":
 		return configInt(resolver.node, parts[1], resolver.defaultConfigInt(parts[1])), nil
+	case "ints":
+		return configInts(resolver.node, parts[1], resolver.defaultConfigInts(parts[1]))
 	case "float":
 		return float32(configFloat(resolver.node, parts[1], resolver.defaultConfigFloat(parts[1]))), nil
 	case "bool":
@@ -425,6 +517,33 @@ func (resolver *bindResolver) resolveConfigRef(parts []string) (any, error) {
 		return configString(resolver.node, parts[1], resolver.defaultConfigString(parts[1])), nil
 	default:
 		return nil, fmt.Errorf("unknown config type %q", parts[2])
+	}
+}
+
+func (resolver *bindResolver) defaultConfigInts(key string) []int {
+	value, ok := resolver.bind.ConfigDefaults[key]
+
+	if !ok {
+		return nil
+	}
+
+	values, err := intSliceDefault(value)
+
+	if err != nil {
+		return nil
+	}
+
+	return values
+}
+
+func intSliceDefault(value any) ([]int, error) {
+	switch typed := value.(type) {
+	case []int:
+		return append([]int(nil), typed...), nil
+	case []any:
+		return intSliceValues(typed)
+	default:
+		return nil, fmt.Errorf("default config is %T, expected int[]", value)
 	}
 }
 
@@ -493,26 +612,16 @@ func (resolver *bindResolver) defaultConfigString(key string) string {
 	return asString
 }
 
-func tensorProperty(resolver *bindResolver, input tensor.Tensor, property string) (any, error) {
+func tensorProperty(input tensor.Tensor, property string) (any, error) {
 	switch property {
 	case "pointer":
 		pointer, _, err := pointerOf(input)
 
 		return pointer, err
 	case "shape":
-		return substituteLaunchDimensions(
-			input.Shape().Dims(),
-			resolver.dispatcher.maxBindings,
-			resolver.dispatcher.launchBindings,
-		), nil
+		return input.Shape().Dims(), nil
 	case "len":
-		dims := substituteLaunchDimensions(
-			input.Shape().Dims(),
-			resolver.dispatcher.maxBindings,
-			resolver.dispatcher.launchBindings,
-		)
-
-		return productInts(dims), nil
+		return input.Len(), nil
 	case "dtype":
 		return input.DType(), nil
 	default:

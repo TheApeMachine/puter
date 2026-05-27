@@ -29,9 +29,18 @@ type concatDevice interface {
 	)
 }
 
+type upsampleNearest2DDevice interface {
+	UpsampleNearest2D(
+		input, output unsafe.Pointer,
+		channels, inHeight, inWidth, outHeight, outWidth, outElements int,
+		format dtype.DType,
+	)
+}
+
 func isIntrinsicMethod(method string) bool {
 	switch method {
-	case "shape.view_as_heads", "shape.merge_heads", "shape.last_token", "shape.concat":
+	case "shape.reshape", "shape.transpose", "shape.view_as_heads", "shape.merge_heads", "shape.last_token", "shape.concat", "shape.slice",
+		"shape.upsample_nearest2d", "math.gated_residual":
 		return true
 	default:
 		return false
@@ -40,32 +49,23 @@ func isIntrinsicMethod(method string) bool {
 
 func runIntrinsic(resolver *bindResolver) (any, error) {
 	switch resolver.bind.Method {
-	case "shape.view_as_heads", "shape.merge_heads":
+	case "shape.reshape", "shape.view_as_heads", "shape.merge_heads":
 		return runReshapeIntrinsic(resolver)
+	case "shape.transpose":
+		return runTransposeIntrinsic(resolver)
 	case "shape.last_token":
 		return runLastTokenIntrinsic(resolver)
 	case "shape.concat":
 		return runConcatIntrinsic(resolver)
+	case "shape.slice":
+		return runSliceIntrinsic(resolver)
+	case "shape.upsample_nearest2d":
+		return runUpsampleNearest2DIntrinsic(resolver)
+	case "math.gated_residual":
+		return runGatedResidualIntrinsic(resolver)
 	default:
 		return nil, fmt.Errorf("unknown intrinsic %q", resolver.bind.Method)
 	}
-}
-
-func runReshapeIntrinsic(resolver *bindResolver) (any, error) {
-	input, err := resolver.resolveInputTensor("0")
-
-	if err != nil {
-		return nil, err
-	}
-
-	if input.Len() != resolver.outputShape.Len() {
-		return nil, fmt.Errorf(
-			"reshape element count mismatch: input %d, output %d",
-			input.Len(), resolver.outputShape.Len(),
-		)
-	}
-
-	return input.Reshape(resolver.outputShape.Dims())
 }
 
 func runLastTokenIntrinsic(resolver *bindResolver) (any, error) {
@@ -75,11 +75,11 @@ func runLastTokenIntrinsic(resolver *bindResolver) (any, error) {
 		return nil, err
 	}
 
-	dimensions := substituteLaunchDimensions(
-		input.Shape().Dims(),
-		resolver.dispatcher.maxBindings,
-		resolver.dispatcher.launchBindings,
-	)
+	dimensions, err := resolver.resolveInputDimensions("0", input)
+
+	if err != nil {
+		return nil, err
+	}
 
 	if len(dimensions) < 2 {
 		return nil, fmt.Errorf("shape.last_token input must have rank >= 2, got %d", len(dimensions))
@@ -115,11 +115,11 @@ func (resolver *bindResolver) resolveLastTokenOutputShape() (tensor.Shape, error
 		return tensor.Shape{}, err
 	}
 
-	dimensions := substituteLaunchDimensions(
-		input.Shape().Dims(),
-		resolver.dispatcher.maxBindings,
-		resolver.dispatcher.launchBindings,
-	)
+	dimensions, err := resolver.resolveInputDimensions("0", input)
+
+	if err != nil {
+		return tensor.Shape{}, err
+	}
 
 	if len(dimensions) < 2 {
 		return tensor.Shape{}, fmt.Errorf("shape.last_token input must have rank >= 2, got %d", len(dimensions))
@@ -219,13 +219,25 @@ func (resolver *bindResolver) resolveConcatOutputShape() (tensor.Shape, error) {
 }
 
 func (resolver *bindResolver) resolveConcatInputs() (tensor.Tensor, tensor.Tensor, int, error) {
-	left, err := resolver.resolveInputTensor("0")
+	leftRaw, err := resolver.resolveInputTensor("0")
 
 	if err != nil {
 		return nil, nil, 0, err
 	}
 
-	right, err := resolver.resolveInputTensor("1")
+	left, err := resolver.liveInputTensor("0", leftRaw)
+
+	if err != nil {
+		return nil, nil, 0, err
+	}
+
+	rightRaw, err := resolver.resolveInputTensor("1")
+
+	if err != nil {
+		return nil, nil, 0, err
+	}
+
+	right, err := resolver.liveInputTensor("1", rightRaw)
 
 	if err != nil {
 		return nil, nil, 0, err

@@ -42,23 +42,23 @@ static inline void groupnorm_stats_rows_f32(
     }
 
     float mean = metal_norm_mean_f32(sf64Reduction[0], groupSize);
-    float localVariance = 0.0f;
-    float localCompensation = 0.0f;
+    ulong variance64 = SF64_NORM_ZERO;
 
     for (uint offset = threadIndex; offset < groupSize; offset += normalizationThreadCount) {
         float delta = input[groupOffset + offset] - mean;
-        float value = delta * delta - localCompensation;
-        float nextVariance = localVariance + value;
-        localCompensation = (nextVariance - localVariance) - value;
-        localVariance = nextVariance;
+        ulong delta64 = metal_sf32_to64(as_type<uint>(delta));
+        variance64 = metal_sf64_add(variance64, metal_sf64_mul(delta64, delta64));
     }
 
-    reduction[threadIndex] = localVariance;
+    sf64Reduction[threadIndex] = variance64;
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
     for (uint stride = normalizationThreadCount / 2; stride > 0; stride >>= 1) {
         if (threadIndex < stride) {
-            reduction[threadIndex] += reduction[threadIndex + stride];
+            sf64Reduction[threadIndex] = metal_sf64_add(
+                sf64Reduction[threadIndex],
+                sf64Reduction[threadIndex + stride]
+            );
         }
 
         threadgroup_barrier(mem_flags::mem_threadgroup);
@@ -66,7 +66,8 @@ static inline void groupnorm_stats_rows_f32(
 
     if (threadIndex == 0) {
         rowStats[row * 2] = mean;
-        rowStats[row * 2 + 1] = metal_norm_inv_std_dev_f32(reduction[0], groupSize);
+        float varianceSum = as_type<float>(metal_sf64_to32(sf64Reduction[0]));
+        rowStats[row * 2 + 1] = metal_norm_inv_std_dev_f32(varianceSum, groupSize);
     }
 }
 

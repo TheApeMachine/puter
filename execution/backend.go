@@ -7,7 +7,6 @@ import (
 	"github.com/theapemachine/manifesto/ast"
 	"github.com/theapemachine/manifesto/ir"
 	"github.com/theapemachine/manifesto/runtime"
-	"github.com/theapemachine/manifesto/tensor"
 	"github.com/theapemachine/puter/pool"
 )
 
@@ -69,11 +68,10 @@ func (backend *Backend) Workspaces() *WorkspaceMap {
 /*
 AttachWorkspace satisfies manifesto/runtime.WorkspaceAttacher. The
 orchestrator calls this once per compiled graph after the planner
-populates the topology's WorkspaceLayout. The backend allocates the
-off-heap region via manifesto/tensor.Allocate, pre-builds tensor
-handles for every planned port, and indexes those tensors by
-ast.GraphNode ID so the dispatcher can look up node outputs without
-per-call allocation.
+populates the topology's WorkspaceLayout. The backend allocates resident
+workspace storage on the pinned memory backend, pre-builds tensor handles
+for every planned port, and indexes those tensors by ast.GraphNode ID so
+the dispatcher can look up node outputs without per-call allocation.
 */
 func (backend *Backend) AttachWorkspace(
 	graphName string,
@@ -88,19 +86,13 @@ func (backend *Backend) AttachWorkspace(
 		backend.workspaces = NewWorkspaceMap()
 	}
 
-	_, deviceID, err := backend.devicePool.MemoryBackend()
+	memory, _, err := backend.devicePool.MemoryBackend()
 
 	if err != nil {
 		return err
 	}
 
-	if deviceID.Location != tensor.Host {
-		backend.workspaces = nil
-
-		return nil
-	}
-
-	return backend.workspaces.Attach(graphName, graph, topology)
+	return backend.workspaces.AttachResident(graphName, graph, topology, memory)
 }
 
 /*
@@ -218,7 +210,13 @@ func (backend *Backend) pickDevice() (executionDevice, error) {
 			continue
 		}
 
-		return deviceBackend, nil
+		executionBackend, ok := deviceBackend.(executionDevice)
+
+		if !ok {
+			continue
+		}
+
+		return executionBackend, nil
 	}
 
 	return nil, fmt.Errorf("execution: no device backends registered")

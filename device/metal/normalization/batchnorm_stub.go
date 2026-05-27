@@ -8,6 +8,10 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 )
 
-func (normalization *Normalization) BatchNormEval(input, scale, bias, mean, variance, output unsafe.Pointer, batch, channels, spatial int, format dtype.DType,) {
+func (normalization *Normalization) BatchNormEval(input, scale, bias, mean, variance, output unsafe.Pointer, batch, channels, spatial int, format dtype.DType) {
+	normalization.stubHost()
+}
+
+func (normalization *Normalization) BatchNormDenorm(input, mean, variance, output unsafe.Pointer, batch, channels, spatial int, format dtype.DType) {
 	normalization.stubHost()
 }

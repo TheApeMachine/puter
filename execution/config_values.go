@@ -1,6 +1,7 @@
 package execution
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/theapemachine/manifesto/ast"
@@ -43,6 +44,74 @@ func configInt(node *ast.GraphNode, key string, defaultValue int) int {
 	}
 
 	return defaultValue
+}
+
+func configInts(node *ast.GraphNode, key string, defaultValue []int) ([]int, error) {
+	if node == nil || node.Attributes == nil {
+		return defaultValue, nil
+	}
+
+	raw, ok := node.Attributes[key]
+
+	if !ok {
+		return defaultValue, nil
+	}
+
+	switch typed := raw.(type) {
+	case []int:
+		return append([]int(nil), typed...), nil
+	case []any:
+		return intSliceValues(typed)
+	default:
+		return nil, fmt.Errorf("config %q is %T, expected int[]", key, raw)
+	}
+}
+
+func intSliceValues(raw []any) ([]int, error) {
+	values := make([]int, len(raw))
+
+	for index, value := range raw {
+		converted, err := configScalarInt(value)
+
+		if err != nil {
+			return nil, fmt.Errorf("config int[%d]: %w", index, err)
+		}
+
+		values[index] = converted
+	}
+
+	return values, nil
+}
+
+func configScalarInt(value any) (int, error) {
+	switch typed := value.(type) {
+	case int:
+		return typed, nil
+	case int32:
+		return int(typed), nil
+	case int64:
+		return int(typed), nil
+	case uint:
+		return int(typed), nil
+	case uint32:
+		return int(typed), nil
+	case uint64:
+		return int(typed), nil
+	case float32:
+		return int(typed), nil
+	case float64:
+		return int(typed), nil
+	case string:
+		value, err := strconv.Atoi(typed)
+
+		if err != nil {
+			return 0, err
+		}
+
+		return value, nil
+	default:
+		return 0, fmt.Errorf("%T is not supported", value)
+	}
 }
 
 func configFloat(node *ast.GraphNode, key string, defaultValue float64) float64 {

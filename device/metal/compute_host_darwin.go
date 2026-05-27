@@ -4,12 +4,15 @@ package metal
 
 import (
 	"errors"
+	"fmt"
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/manifesto/tensor"
 	"github.com/theapemachine/puter/device"
 	"github.com/theapemachine/puter/device/metal/activation"
 	"github.com/theapemachine/puter/device/metal/attention"
+	"github.com/theapemachine/puter/device/metal/convolution"
 	"github.com/theapemachine/puter/device/metal/dropout"
 	"github.com/theapemachine/puter/device/metal/elementwise"
 	"github.com/theapemachine/puter/device/metal/embedding"
@@ -157,6 +160,26 @@ func (host *ComputeHost) DispatchBatchNormEval(input, scale, bias, mean, varianc
 	host.unavailable()
 }
 
+func (host *ComputeHost) DispatchBatchNormDenorm(input, mean, variance, output unsafe.Pointer, batch, channels, spatial int, format dtype.DType) {
+	if batch == 0 || channels == 0 || spatial == 0 {
+		return
+	}
+
+	if err := normalization.DispatchBatchNormDenormRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(mean))),
+		uintptr(unsafe.Pointer(resolveBufferRef(variance))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(batch*channels),
+		uint32(channels),
+		uint32(spatial),
+	); err != nil {
+		host.dispatchError(err)
+	}
+}
+
 func (host *ComputeHost) DispatchBeliefUpdate(likelihood, prior, output unsafe.Pointer, count int, format dtype.DType) {
 	host.unavailable()
 }
@@ -190,7 +213,42 @@ func (host *ComputeHost) DispatchConv1D(config device.Conv1DConfig, input, weigh
 }
 
 func (host *ComputeHost) DispatchConv2D(config device.Conv2DConfig, input, weight, bias, output unsafe.Pointer, batch, inChannels, inHeight, inWidth, outChannels, kernelHeight, kernelWidth, outHeight, outWidth int, format dtype.DType) {
-	host.unavailable()
+	if batch == 0 || inChannels == 0 || inHeight == 0 || inWidth == 0 ||
+		outChannels == 0 || kernelHeight == 0 || kernelWidth == 0 ||
+		outHeight == 0 || outWidth == 0 {
+		return
+	}
+
+	if config.StrideH <= 0 || config.StrideW <= 0 ||
+		config.DilationH <= 0 || config.DilationW <= 0 {
+		host.dispatchError(tensor.ErrShapeMismatch)
+	}
+
+	if err := convolution.DispatchConv2DRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(weight))),
+		uintptr(unsafe.Pointer(resolveBufferRef(bias))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(batch),
+		uint32(inChannels),
+		uint32(inHeight),
+		uint32(inWidth),
+		uint32(outChannels),
+		uint32(kernelHeight),
+		uint32(kernelWidth),
+		uint32(outHeight),
+		uint32(outWidth),
+		uint32(config.StrideH),
+		uint32(config.StrideW),
+		uint32(config.PaddingH),
+		uint32(config.PaddingW),
+		uint32(config.DilationH),
+		uint32(config.DilationW),
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchConv3D(config device.Conv3DConfig, input, weight, bias, output unsafe.Pointer, batch, inChannels, inD, inH, inW, outChannels, kD, kH, kW, outD, outH, outW int, format dtype.DType) {
@@ -410,6 +468,31 @@ func (host *ComputeHost) DispatchRoPE(config device.RoPEConfig, input, output un
 	}
 }
 
+func (host *ComputeHost) DispatchMultiAxisRoPE(
+	config device.MultiAxisRoPEConfig,
+	input, output unsafe.Pointer,
+	batch, seqLen, numHeads, headDim int,
+	format dtype.DType,
+) {
+	if batch == 0 || seqLen == 0 || numHeads == 0 || headDim == 0 || headDim%2 != 0 {
+		return
+	}
+
+	if err := metalrope.DispatchMultiAxisRoPERefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		config,
+		uint32(batch),
+		uint32(seqLen),
+		uint32(numHeads),
+		uint32(headDim),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
+}
+
 func (host *ComputeHost) DispatchRoPEPairs(output, input, cosBuffer, sinBuffer unsafe.Pointer, halfDim int, format dtype.DType) {
 	host.unavailable()
 }
@@ -581,6 +664,42 @@ func (host *ComputeHost) LaunchRMSNorm(
 	}
 }
 
+func (host *ComputeHost) LaunchAdaptiveRMSNorm(
+	config device.RMSNormConfig,
+	input, modulation, output unsafe.Pointer,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+	format dtype.DType,
+) {
+	if rows == 0 || lastDim == 0 {
+		return
+	}
+
+	host.dispatchError(config.Validate())
+
+	if rowsPerBatch <= 0 || rows%rowsPerBatch != 0 {
+		host.dispatchError(errInvalidModulatedLayerNormShape)
+	}
+
+	if modulationCols < 2*lastDim {
+		host.dispatchError(errInvalidModulatedLayerNormShape)
+	}
+
+	if err := layernorm.DispatchAdaptiveRMSNormRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(modulation))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(rows),
+		uint32(lastDim),
+		uint32(rowsPerBatch),
+		uint32(modulationCols),
+		float32(config.Epsilon),
+	); err != nil {
+		host.dispatchError(err)
+	}
+}
+
 func (host *ComputeHost) LaunchModulatedLayerNorm(
 	config device.ModulatedLayerNormConfig,
 	input, modulation, output unsafe.Pointer,
@@ -623,6 +742,10 @@ func (host *ComputeHost) MatmulLaunch(out, left, right unsafe.Pointer, rows, inn
 		return
 	}
 
+	if err := host.validateMatmulLaunch(out, left, right, rows, inner, cols, format); err != nil {
+		host.dispatchError(err)
+	}
+
 	if err := matmul.DispatchMatmulRefs(
 		host.contextRef(),
 		uintptr(unsafe.Pointer(resolveBufferRef(left))),
@@ -635,6 +758,61 @@ func (host *ComputeHost) MatmulLaunch(out, left, right unsafe.Pointer, rows, inn
 	); err != nil {
 		host.dispatchError(err)
 	}
+}
+
+func (host *ComputeHost) validateMatmulLaunch(
+	out, left, right unsafe.Pointer,
+	rows, inner, cols int,
+	format dtype.DType,
+) error {
+	if rows < 0 || inner < 0 || cols < 0 {
+		return fmt.Errorf("metal matmul: negative dimensions rows=%d inner=%d cols=%d", rows, inner, cols)
+	}
+
+	if err := validateMetalTensorBytes(left, "left", rows, inner, format); err != nil {
+		return err
+	}
+
+	if err := validateMetalTensorBytes(right, "right", inner, cols, format); err != nil {
+		return err
+	}
+
+	return validateMetalTensorBytes(out, "output", rows, cols, format)
+}
+
+func validateMetalTensorBytes(
+	pointer unsafe.Pointer,
+	name string,
+	rows, cols int,
+	format dtype.DType,
+) error {
+	deviceTensor := resolveDeviceTensor(pointer)
+
+	if deviceTensor == nil {
+		return fmt.Errorf("metal matmul: %s is not a resident Metal tensor", name)
+	}
+
+	if deviceTensor.DType() != format {
+		return fmt.Errorf(
+			"metal matmul: %s dtype %s does not match launch dtype %s",
+			name, deviceTensor.DType(), format,
+		)
+	}
+
+	requiredBytes, err := format.BytesFor(rows * cols)
+
+	if err != nil {
+		return fmt.Errorf("metal matmul: %s byte count: %w", name, err)
+	}
+
+	if deviceTensor.Bytes() < requiredBytes {
+		return fmt.Errorf(
+			"metal matmul: %s buffer has %d bytes, need %d bytes for %dx%d %s",
+			name, deviceTensor.Bytes(), requiredBytes, rows, cols, format,
+		)
+	}
+
+	return nil
 }
 
 func (host *ComputeHost) PReLUV(dst, src, slopes unsafe.Pointer, format dtype.DType) {

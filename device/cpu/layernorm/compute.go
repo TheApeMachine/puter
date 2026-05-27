@@ -9,6 +9,7 @@ import (
 )
 
 const layerNormEpsilon = 1e-5
+const adaptiveRMSNormReductionLanes = 256
 
 func dispatchLayerNorm(
 	input, scale, bias, output unsafe.Pointer,
@@ -54,6 +55,30 @@ func dispatchRMSNorm(
 		runRMSNormF16(config, input, scale, output, rows, lastDim)
 	default:
 		panic("layernorm: unsupported dtype")
+	}
+}
+
+func dispatchAdaptiveRMSNorm(
+	config device.RMSNormConfig,
+	input, modulation, output unsafe.Pointer,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+	format dtype.DType,
+) {
+	if rows == 0 || lastDim == 0 {
+		return
+	}
+
+	validateAdaptiveRMSNorm(config, rows, lastDim, rowsPerBatch, modulationCols)
+
+	switch format {
+	case dtype.Float32:
+		runAdaptiveRMSNormF32(config, input, modulation, output, rows, lastDim, rowsPerBatch, modulationCols)
+	case dtype.BFloat16:
+		runAdaptiveRMSNormBF16(config, input, modulation, output, rows, lastDim, rowsPerBatch, modulationCols)
+	case dtype.Float16:
+		runAdaptiveRMSNormF16(config, input, modulation, output, rows, lastDim, rowsPerBatch, modulationCols)
+	default:
+		panic("adaptive rmsnorm: unsupported dtype")
 	}
 }
 
@@ -181,6 +206,63 @@ func runRMSNormF16(
 	}
 }
 
+func runAdaptiveRMSNormF32(
+	config device.RMSNormConfig,
+	input, modulation, output unsafe.Pointer,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+) {
+	inputView := unsafe.Slice((*float32)(input), rows*lastDim)
+	modulationView := unsafe.Slice((*float32)(modulation), batchCount(rows, rowsPerBatch)*modulationCols)
+	outputView := unsafe.Slice((*float32)(output), rows*lastDim)
+
+	for rowIndex := range rows {
+		rowOffset := rowIndex * lastDim
+		modulationOffset := adaptiveRMSNormOffset(rowIndex, rowsPerBatch, modulationCols)
+		row := inputView[rowOffset : rowOffset+lastDim]
+		outRow := outputView[rowOffset : rowOffset+lastDim]
+
+		applyAdaptiveRMSNormRowF32(config, row, modulationView[modulationOffset:], outRow)
+	}
+}
+
+func runAdaptiveRMSNormBF16(
+	config device.RMSNormConfig,
+	input, modulation, output unsafe.Pointer,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+) {
+	inputView := unsafe.Slice((*dtype.BF16)(input), rows*lastDim)
+	modulationView := unsafe.Slice((*dtype.BF16)(modulation), batchCount(rows, rowsPerBatch)*modulationCols)
+	outputView := unsafe.Slice((*dtype.BF16)(output), rows*lastDim)
+
+	for rowIndex := range rows {
+		rowOffset := rowIndex * lastDim
+		modulationOffset := adaptiveRMSNormOffset(rowIndex, rowsPerBatch, modulationCols)
+		row := inputView[rowOffset : rowOffset+lastDim]
+		outRow := outputView[rowOffset : rowOffset+lastDim]
+
+		applyAdaptiveRMSNormRowBF16(config, row, modulationView[modulationOffset:], outRow)
+	}
+}
+
+func runAdaptiveRMSNormF16(
+	config device.RMSNormConfig,
+	input, modulation, output unsafe.Pointer,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+) {
+	inputView := unsafe.Slice((*dtype.F16)(input), rows*lastDim)
+	modulationView := unsafe.Slice((*dtype.F16)(modulation), batchCount(rows, rowsPerBatch)*modulationCols)
+	outputView := unsafe.Slice((*dtype.F16)(output), rows*lastDim)
+
+	for rowIndex := range rows {
+		rowOffset := rowIndex * lastDim
+		modulationOffset := adaptiveRMSNormOffset(rowIndex, rowsPerBatch, modulationCols)
+		row := inputView[rowOffset : rowOffset+lastDim]
+		outRow := outputView[rowOffset : rowOffset+lastDim]
+
+		applyAdaptiveRMSNormRowF16(config, row, modulationView[modulationOffset:], outRow)
+	}
+}
+
 func runModulatedLayerNormF32(
 	config device.ModulatedLayerNormConfig,
 	input, modulation, output unsafe.Pointer,
@@ -304,6 +386,103 @@ func applyRMSRowF16(config device.RMSNormConfig, row, outRow, scale []dtype.F16)
 	}
 
 	MulFloat16Native(outRow, row, combined)
+}
+
+func applyAdaptiveRMSNormRowF32(
+	config device.RMSNormConfig,
+	row, modulation, outRow []float32,
+) {
+	meanSquare := float64(adaptiveRMSNormMeanSquareF32(row))
+	invRMS := float32(1.0 / math.Sqrt(meanSquare+config.Epsilon))
+	cols := len(row)
+
+	for columnIndex := range row {
+		normalized := row[columnIndex] * invRMS
+		scale := modulation[columnIndex]
+		shift := modulation[cols+columnIndex]
+		outRow[columnIndex] = normalized*(1+scale) + shift
+	}
+}
+
+func applyAdaptiveRMSNormRowBF16(
+	config device.RMSNormConfig,
+	row, modulation, outRow []dtype.BF16,
+) {
+	meanSquare := adaptiveRMSNormMeanSquareBF16(row)
+	invRMS := float32(1.0 / math.Sqrt(float64(meanSquare)+config.Epsilon))
+	cols := len(row)
+
+	for columnIndex := range row {
+		normalized := (&row[columnIndex]).Float32() * invRMS
+		scale := (&modulation[columnIndex]).Float32()
+		shift := (&modulation[cols+columnIndex]).Float32()
+		outRow[columnIndex] = dtype.NewBfloat16FromFloat32(normalized*(1+scale) + shift)
+	}
+}
+
+func applyAdaptiveRMSNormRowF16(
+	config device.RMSNormConfig,
+	row, modulation, outRow []dtype.F16,
+) {
+	meanSquare := adaptiveRMSNormMeanSquareF16(row)
+	invRMS := float32(1.0 / math.Sqrt(float64(meanSquare)+config.Epsilon))
+	cols := len(row)
+
+	for columnIndex := range row {
+		normalized := row[columnIndex].Float32() * invRMS
+		scale := modulation[columnIndex].Float32()
+		shift := modulation[cols+columnIndex].Float32()
+		outRow[columnIndex] = dtype.Fromfloat32(normalized*(1+scale) + shift)
+	}
+}
+
+func adaptiveRMSNormMeanSquareF32(row []float32) float32 {
+	var partial [adaptiveRMSNormReductionLanes]float32
+
+	for laneIndex := range adaptiveRMSNormReductionLanes {
+		for columnIndex := laneIndex; columnIndex < len(row); columnIndex += adaptiveRMSNormReductionLanes {
+			value := row[columnIndex]
+			partial[laneIndex] += value * value
+		}
+	}
+
+	return adaptiveRMSNormReduce(partial) / float32(len(row))
+}
+
+func adaptiveRMSNormMeanSquareBF16(row []dtype.BF16) float32 {
+	var partial [adaptiveRMSNormReductionLanes]float32
+
+	for laneIndex := range adaptiveRMSNormReductionLanes {
+		for columnIndex := laneIndex; columnIndex < len(row); columnIndex += adaptiveRMSNormReductionLanes {
+			value := (&row[columnIndex]).Float32()
+			partial[laneIndex] += value * value
+		}
+	}
+
+	return adaptiveRMSNormReduce(partial) / float32(len(row))
+}
+
+func adaptiveRMSNormMeanSquareF16(row []dtype.F16) float32 {
+	var partial [adaptiveRMSNormReductionLanes]float32
+
+	for laneIndex := range adaptiveRMSNormReductionLanes {
+		for columnIndex := laneIndex; columnIndex < len(row); columnIndex += adaptiveRMSNormReductionLanes {
+			value := row[columnIndex].Float32()
+			partial[laneIndex] += value * value
+		}
+	}
+
+	return adaptiveRMSNormReduce(partial) / float32(len(row))
+}
+
+func adaptiveRMSNormReduce(partial [adaptiveRMSNormReductionLanes]float32) float32 {
+	for stride := adaptiveRMSNormReductionLanes / 2; stride > 0; stride >>= 1 {
+		for laneIndex := range stride {
+			partial[laneIndex] += partial[laneIndex+stride]
+		}
+	}
+
+	return partial[0]
 }
 
 func applyLayerNormRowBF16(
@@ -439,6 +618,27 @@ func validateModulatedLayerNorm(
 	}
 }
 
+func validateAdaptiveRMSNorm(
+	config device.RMSNormConfig,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+) {
+	if err := config.Validate(); err != nil {
+		panic(err)
+	}
+
+	if rowsPerBatch <= 0 {
+		panic("adaptive rmsnorm: rowsPerBatch must be positive")
+	}
+
+	if rows%rowsPerBatch != 0 {
+		panic("adaptive rmsnorm: rows must be divisible by rowsPerBatch")
+	}
+
+	if modulationCols < 2*lastDim {
+		panic("adaptive rmsnorm: modulation width too small")
+	}
+}
+
 func requiredModulationCols(config device.ModulatedLayerNormConfig, lastDim int) int {
 	return (config.Set*3 + 2) * lastDim
 }
@@ -453,4 +653,9 @@ func modulatedLayerNormOffset(
 ) int {
 	batchIndex := rowIndex / rowsPerBatch
 	return batchIndex*modulationCols + config.Set*lastDim*3
+}
+
+func adaptiveRMSNormOffset(rowIndex, rowsPerBatch, modulationCols int) int {
+	batchIndex := rowIndex / rowsPerBatch
+	return batchIndex * modulationCols
 }

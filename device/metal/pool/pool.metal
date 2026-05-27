@@ -7,7 +7,14 @@ static inline float vision_bf16_to_float(ushort value) {
 }
 
 static inline ushort vision_float_to_bf16(float value) {
-    return ushort(as_type<uint>(value) >> 16);
+    uint bits = as_type<uint>(value);
+
+    if ((bits & 0x7fffffffu) > 0x7f800000u) {
+        return ushort((bits >> 16) | 0x0040u);
+    }
+
+    uint rounded = bits + 0x7fffu + ((bits >> 16) & 1u);
+    return ushort(rounded >> 16);
 }
 
 struct Float32VisionStorage {
@@ -98,6 +105,12 @@ static inline void conv2d_kernel(
     constant uint& kernelWidth,
     constant uint& outHeight,
     constant uint& outWidth,
+    constant uint& strideHeight,
+    constant uint& strideWidth,
+    constant uint& paddingHeight,
+    constant uint& paddingWidth,
+    constant uint& dilationHeight,
+    constant uint& dilationWidth,
     uint index
 ) {
     uint count = batch * outChannels * outHeight * outWidth;
@@ -111,42 +124,26 @@ static inline void conv2d_kernel(
     uint outChannel = (index / (outWidth * outHeight)) % outChannels;
     uint batchIndex = index / (outWidth * outHeight * outChannels);
     float accumulator = Storage::load(bias, outChannel);
-    uint totalPadHeight = outHeight + kernelHeight > inHeight + 1 ?
-        outHeight + kernelHeight - inHeight - 1 : 0;
-    uint totalPadWidth = outWidth + kernelWidth > inWidth + 1 ?
-        outWidth + kernelWidth - inWidth - 1 : 0;
-    uint padTop = totalPadHeight / 2;
-    uint padLeft = totalPadWidth / 2;
+    int baseRow = int(outRow * strideHeight) - int(paddingHeight);
+    int baseCol = int(outCol * strideWidth) - int(paddingWidth);
 
     for (uint inChannel = 0; inChannel < inChannels; inChannel++) {
         for (uint kernelRow = 0; kernelRow < kernelHeight; kernelRow++) {
-            uint paddedRow = outRow + kernelRow;
+            int inRow = baseRow + int(kernelRow * dilationHeight);
 
-            if (paddedRow < padTop) {
-                continue;
-            }
-
-            uint inRow = paddedRow - padTop;
-
-            if (inRow >= inHeight) {
+            if (inRow < 0 || inRow >= int(inHeight)) {
                 continue;
             }
 
             for (uint kernelCol = 0; kernelCol < kernelWidth; kernelCol++) {
-                uint paddedCol = outCol + kernelCol;
+                int inCol = baseCol + int(kernelCol * dilationWidth);
 
-                if (paddedCol < padLeft) {
+                if (inCol < 0 || inCol >= int(inWidth)) {
                     continue;
                 }
 
-                uint inCol = paddedCol - padLeft;
-
-                if (inCol >= inWidth) {
-                    continue;
-                }
-
-                uint inputIndex = ((batchIndex * inChannels + inChannel) * inHeight + inRow) *
-                    inWidth + inCol;
+                uint inputIndex = ((batchIndex * inChannels + inChannel) * inHeight + uint(inRow)) *
+                    inWidth + uint(inCol);
                 uint weightIndex = ((outChannel * inChannels + inChannel) * kernelHeight +
                     kernelRow) * kernelWidth + kernelCol;
                 accumulator += Storage::load(input, inputIndex) * Storage::load(weight, weightIndex);
@@ -441,4 +438,3 @@ kernel void name( \
         input, out, batch, channels, inHeight, inWidth, outHeight, outWidth, useMax, index \
     ); \
 }
-

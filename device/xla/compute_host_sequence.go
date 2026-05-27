@@ -49,6 +49,15 @@ func (host *ComputeHost) DispatchRoPE(
 	))
 }
 
+func (host *ComputeHost) DispatchMultiAxisRoPE(
+	config device.MultiAxisRoPEConfig,
+	input, output unsafe.Pointer,
+	batch, seqLen, numHeads, headDim int,
+	format dtype.DType,
+) {
+	host.NotImplemented("MultiAxisRoPE")
+}
+
 func (host *ComputeHost) DispatchRoPEPairs(
 	output, input, cosBuffer, sinBuffer unsafe.Pointer,
 	halfDim int,

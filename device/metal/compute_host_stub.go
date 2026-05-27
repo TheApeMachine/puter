@@ -50,6 +50,10 @@ func (host *ComputeHost) DispatchBatchNormEval(input, scale, bias, mean, varianc
 	host.unavailable()
 }
 
+func (host *ComputeHost) DispatchBatchNormDenorm(input, mean, variance, output unsafe.Pointer, batch, channels, spatial int, format dtype.DType) {
+	host.unavailable()
+}
+
 func (host *ComputeHost) DispatchBeliefUpdate(likelihood, prior, output unsafe.Pointer, count int, format dtype.DType) {
 	host.unavailable()
 }
@@ -242,6 +246,15 @@ func (host *ComputeHost) DispatchRoPE(config device.RoPEConfig, input, output un
 	host.unavailable()
 }
 
+func (host *ComputeHost) DispatchMultiAxisRoPE(
+	config device.MultiAxisRoPEConfig,
+	input, output unsafe.Pointer,
+	batch, seqLen, numHeads, headDim int,
+	format dtype.DType,
+) {
+	host.unavailable()
+}
+
 func (host *ComputeHost) DispatchRoPEPairs(output, input, cosBuffer, sinBuffer unsafe.Pointer, halfDim int, format dtype.DType) {
 	host.unavailable()
 }
@@ -283,6 +296,15 @@ func (host *ComputeHost) LaunchTimestepEmbedding(config device.TimestepEmbedding
 }
 
 func (host *ComputeHost) LaunchRMSNorm(config device.RMSNormConfig, input, scale, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) LaunchAdaptiveRMSNorm(
+	config device.RMSNormConfig,
+	input, modulation, output unsafe.Pointer,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+	format dtype.DType,
+) {
 	host.unavailable()
 }
 

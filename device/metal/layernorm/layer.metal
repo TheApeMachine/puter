@@ -39,11 +39,16 @@ kernel void name( \
     device const scalar* modulation [[buffer(1)]], \
     device scalar* out [[buffer(2)]], \
     constant uint& cols [[buffer(3)]], \
+    constant uint& rowsPerBatch [[buffer(4)]], \
+    constant uint& modulationCols [[buffer(5)]], \
+    constant float& epsilon [[buffer(6)]], \
     uint row [[threadgroup_position_in_grid]], \
     uint threadIndex [[thread_position_in_threadgroup]] \
 ) { \
     threadgroup float reduction[256]; \
-    adaptive_rmsnorm_rows<storage, scalar>(input, modulation, out, reduction, cols, row, threadIndex); \
+    adaptive_rmsnorm_rows<storage, scalar>( \
+        input, modulation, out, reduction, cols, rowsPerBatch, modulationCols, epsilon, row, threadIndex \
+    ); \
 }
 
 #define MODULATED_LAYERNORM_KERNEL(name, storage, scalar) \

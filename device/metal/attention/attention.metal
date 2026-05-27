@@ -368,7 +368,7 @@ static inline void multi_head_attention_online(
     }
 
     uint threadIndex = localPosition.x;
-    uint dimIndex = groupPosition.z * 64 + threadIndex;
+    uint dimIndex = groupPosition.z * 256 + threadIndex;
 
     uint row = groupPosition.x;
     uint headIndex = groupPosition.y;
@@ -385,34 +385,41 @@ static inline void multi_head_attention_online(
 
     for (uint keyIndex = 0; keyIndex < seqK; keyIndex++) {
         bool keepKey = attention_variant_keeps_key(row, keyIndex, seqQ, seqK, causal, windowSize);
+        float partialDot = 0.0f;
 
-        if (threadIndex == 0) {
-            float dot = 0.0f;
-
-            if (keepKey) {
-                for (uint depthIndex = 0; depthIndex < headDim; depthIndex++) {
-                    dot += Storage::load(
+        if (keepKey) {
+            for (uint depthIndex = threadIndex; depthIndex < headDim; depthIndex += 256) {
+                partialDot += Storage::load(
                     query, row * queryStride + queryHeadOffset + depthIndex
-                    ) * Storage::load(
+                ) * Storage::load(
                     key, keyIndex * kvStride + kvHeadOffset + depthIndex
-                    );
-                }
+                );
             }
-
-            reduction[0] = dot;
         }
+
+        reduction[threadIndex] = partialDot;
 
         threadgroup_barrier(mem_flags::mem_threadgroup);
 
+        for (uint stride = 128; stride > 0; stride >>= 1) {
+            if (threadIndex < stride) {
+                reduction[threadIndex] += reduction[threadIndex + stride];
+            }
+
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+        }
+
+        float dot = reduction[0];
+
         if (keepKey) {
-            float score = reduction[0] * scale;
+            float score = dot * scale;
             float oldMax = maxScore;
             maxScore = max(maxScore, score);
             float alpha = exp(oldMax - maxScore);
             float shifted = exp(score - maxScore);
             normalizer = normalizer * alpha + shifted;
 
-            if (threadIndex < 64 && dimIndex < headDim) {
+            if (dimIndex < headDim) {
                 accumulator = accumulator * alpha + shifted * Storage::load(
                     value, keyIndex * kvStride + kvHeadOffset + dimIndex
                 );
@@ -422,7 +429,7 @@ static inline void multi_head_attention_online(
         threadgroup_barrier(mem_flags::mem_threadgroup);
     }
 
-    if (threadIndex < 64 && dimIndex < headDim) {
+    if (dimIndex < headDim) {
         float outputValue = normalizer == 0.0f ? 0.0f : accumulator / normalizer;
         Storage::store(out, row * queryStride + queryHeadOffset + dimIndex, outputValue);
     }
@@ -505,6 +512,7 @@ template <typename Storage, typename Scalar>
 static inline void multi_axis_rope_kernel(
     device const Scalar* input,
     device Scalar* out,
+    constant uint& batch,
     constant uint& seqLen,
     constant uint& numHeads,
     constant uint& headDim,
@@ -514,15 +522,16 @@ static inline void multi_axis_rope_kernel(
     constant float& theta,
     uint index
 ) {
-    if (index >= pairCount) {
+    if (index >= pairCount || batch == 0) {
         return;
     }
 
     uint halfDim = headDim / 2;
     uint pairIndex = index % halfDim;
     uint headIndex = (index / halfDim) % numHeads;
-    uint seqIndex = index / (halfDim * numHeads);
-    uint inputIndex = (seqIndex * numHeads + headIndex) * headDim + pairIndex * 2;
+    uint seqIndex = (index / (halfDim * numHeads)) % seqLen;
+    uint batchIndex = index / (halfDim * numHeads * seqLen);
+    uint inputIndex = ((batchIndex * seqLen + seqIndex) * numHeads + headIndex) * headDim + pairIndex * 2;
     uint textLen = seqLen > latentSeqLen ? seqLen - latentSeqLen : 0;
     uint axisPairCount = halfDim / 4;
     uint axisIndex = axisPairCount == 0 ? 0 : pairIndex / axisPairCount;
@@ -740,17 +749,18 @@ kernel void name( \
 kernel void name( \
     device const scalar* input [[buffer(0)]], \
     device scalar* out [[buffer(1)]], \
-    constant uint& seqLen [[buffer(2)]], \
-    constant uint& numHeads [[buffer(3)]], \
-    constant uint& headDim [[buffer(4)]], \
-    constant uint& pairCount [[buffer(5)]], \
-    constant uint& latentSeqLen [[buffer(6)]], \
-    constant uint& latentSide [[buffer(7)]], \
-    constant float& theta [[buffer(8)]], \
+    constant uint& batch [[buffer(2)]], \
+    constant uint& seqLen [[buffer(3)]], \
+    constant uint& numHeads [[buffer(4)]], \
+    constant uint& headDim [[buffer(5)]], \
+    constant uint& pairCount [[buffer(6)]], \
+    constant uint& latentSeqLen [[buffer(7)]], \
+    constant uint& latentSide [[buffer(8)]], \
+    constant float& theta [[buffer(9)]], \
     uint index [[thread_position_in_grid]] \
 ) { \
     multi_axis_rope_kernel<storage, scalar>( \
-        input, out, seqLen, numHeads, headDim, pairCount, latentSeqLen, latentSide, theta, index \
+        input, out, batch, seqLen, numHeads, headDim, pairCount, latentSeqLen, latentSide, theta, index \
     ); \
 }
 

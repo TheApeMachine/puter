@@ -15,3 +15,11 @@ func (normalization *Normalization) BatchNormEval(
 ) {
 	normalization.host.DispatchBatchNormEval(input, scale, bias, mean, variance, output, batch, channels, spatial, format)
 }
+
+func (normalization *Normalization) BatchNormDenorm(
+	input, mean, variance, output unsafe.Pointer,
+	batch, channels, spatial int,
+	format dtype.DType,
+) {
+	normalization.host.DispatchBatchNormDenorm(input, mean, variance, output, batch, channels, spatial, format)
+}

@@ -65,6 +65,7 @@ int metal_dispatch_multi_axis_rope(
     int elementDType,
     MetalBufferRef inputRef,
     MetalBufferRef outRef,
+    uint32_t batch,
     uint32_t seqLen,
     uint32_t numHeads,
     uint32_t headDim,
@@ -95,13 +96,14 @@ int metal_dispatch_multi_axis_rope(
             (void)validationBuffer;
             [encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
             [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:1];
-            [encoder setBytes:&seqLen length:sizeof(seqLen) atIndex:2];
-            [encoder setBytes:&numHeads length:sizeof(numHeads) atIndex:3];
-            [encoder setBytes:&headDim length:sizeof(headDim) atIndex:4];
-            [encoder setBytes:&pairCount length:sizeof(pairCount) atIndex:5];
-            [encoder setBytes:&latentSeqLen length:sizeof(latentSeqLen) atIndex:6];
-            [encoder setBytes:&latentSide length:sizeof(latentSide) atIndex:7];
-            [encoder setBytes:&theta length:sizeof(theta) atIndex:8];
+            [encoder setBytes:&batch length:sizeof(batch) atIndex:2];
+            [encoder setBytes:&seqLen length:sizeof(seqLen) atIndex:3];
+            [encoder setBytes:&numHeads length:sizeof(numHeads) atIndex:4];
+            [encoder setBytes:&headDim length:sizeof(headDim) atIndex:5];
+            [encoder setBytes:&pairCount length:sizeof(pairCount) atIndex:6];
+            [encoder setBytes:&latentSeqLen length:sizeof(latentSeqLen) atIndex:7];
+            [encoder setBytes:&latentSide length:sizeof(latentSide) atIndex:8];
+            [encoder setBytes:&theta length:sizeof(theta) atIndex:9];
         }
     );
 }

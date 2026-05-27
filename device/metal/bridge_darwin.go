@@ -70,6 +70,30 @@ func (bridge *metalBridge) waitIdle() {
 	C.metal_device_wait_idle(bridge.device)
 }
 
+func (bridge *metalBridge) beginBatch() error {
+	if bridge == nil || bridge.device == nil {
+		return tensor.ErrNeedsPlatformSetup
+	}
+
+	C.metal_layer_begin(bridge.device)
+	return nil
+}
+
+func (bridge *metalBridge) endBatch() error {
+	if bridge == nil || bridge.device == nil {
+		return tensor.ErrNeedsPlatformSetup
+	}
+
+	status := C.MetalStatus{}
+	code := C.metal_layer_end(bridge.device, &status)
+
+	if code != 0 {
+		return fmt.Errorf("metal batch: %s", bridgeStatusMessage(status))
+	}
+
+	return nil
+}
+
 /*
 SyncDevice waits for in-flight Metal command buffers to finish.
 */
@@ -79,6 +103,22 @@ func (backend *Backend) SyncDevice() {
 	}
 
 	backend.bridge.waitIdle()
+}
+
+func (backend *Backend) BeginBatch() error {
+	if backend == nil || backend.bridge == nil {
+		return tensor.ErrNeedsPlatformSetup
+	}
+
+	return backend.bridge.beginBatch()
+}
+
+func (backend *Backend) EndBatch() error {
+	if backend == nil || backend.bridge == nil {
+		return tensor.ErrNeedsPlatformSetup
+	}
+
+	return backend.bridge.endBatch()
 }
 
 func (bridge *metalBridge) recommendedMaxWorkingSet() int64 {
@@ -179,6 +219,7 @@ type DeviceTensor struct {
 	buffer        C.MetalBufferRef
 	byteCount     int
 	ownsBuffer    bool
+	workspaceView bool
 	state         atomic.Uint32
 	closed        atomic.Bool
 	gradFlag      atomic.Bool
@@ -300,6 +341,10 @@ func (deviceTensor *DeviceTensor) Sync(ctx context.Context) error {
 }
 
 func (deviceTensor *DeviceTensor) Close() error {
+	if deviceTensor.workspaceView {
+		return nil
+	}
+
 	if !deviceTensor.closed.CompareAndSwap(false, true) {
 		return nil
 	}
@@ -344,7 +389,39 @@ func (deviceTensor *DeviceTensor) DispatchPointer() unsafe.Pointer {
 }
 
 func (deviceTensor *DeviceTensor) Slice(start, length int) (tensor.Tensor, error) {
-	return nil, tensor.ErrLayoutUnsupported
+	if start != 0 || length < 0 || length > deviceTensor.Len() {
+		return nil, tensor.ErrShapeMismatch
+	}
+
+	shape, err := tensor.NewShape([]int{length})
+
+	if err != nil {
+		return nil, err
+	}
+
+	byteCount, err := shape.Bytes(deviceTensor.elementFormat)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if byteCount > deviceTensor.byteCount {
+		return nil, tensor.ErrShapeMismatch
+	}
+
+	view := &DeviceTensor{
+		backend:       deviceTensor.backend,
+		shape:         shape,
+		elementFormat: deviceTensor.elementFormat,
+		buffer:        deviceTensor.buffer,
+		byteCount:     byteCount,
+		ownsBuffer:    false,
+		workspaceView: deviceTensor.workspaceView,
+	}
+
+	view.state.Store(uint32(tensor.StateReady))
+
+	return view, nil
 }
 
 func (deviceTensor *DeviceTensor) Reshape(dims []int) (tensor.Tensor, error) {
@@ -371,6 +448,7 @@ func (deviceTensor *DeviceTensor) Reshape(dims []int) (tensor.Tensor, error) {
 		buffer:        deviceTensor.buffer,
 		byteCount:     deviceTensor.byteCount,
 		ownsBuffer:    false,
+		workspaceView: deviceTensor.workspaceView,
 	}
 
 	view.state.Store(uint32(tensor.StateReady))

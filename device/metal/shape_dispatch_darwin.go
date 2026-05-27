@@ -75,6 +75,34 @@ int metal_dispatch_concat_last_dim_bytes(
     MetalStatus* status
 );
 
+int metal_dispatch_slice_bytes(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef inputRef,
+    MetalBufferRef outRef,
+    uint32_t sliceLen,
+    uint32_t inputDimSize,
+    uint32_t innerBytes,
+    uint32_t start,
+    uint32_t outBytes,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+
+int metal_dispatch_transpose(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef inputRef,
+    MetalBufferRef outRef,
+    uint32_t rank,
+    uint32_t count,
+    const uint32_t* permutation,
+    const uint32_t* inputStrides,
+    const uint32_t* outStrides,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+
 int metal_dispatch_last_token_bytes(
     MetalDeviceRef contextRef,
     int elementDType,
@@ -83,6 +111,21 @@ int metal_dispatch_last_token_bytes(
     uint32_t seq,
     uint32_t hiddenBytes,
     uint32_t outBytes,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+
+int metal_dispatch_upsample_nearest2d_bytes(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef inputRef,
+    MetalBufferRef outRef,
+    uint32_t channels,
+    uint32_t inHeight,
+    uint32_t inWidth,
+    uint32_t outHeight,
+    uint32_t outWidth,
+    uint32_t outElements,
     uint64_t completionToken,
     MetalStatus* status
 );
@@ -233,6 +276,81 @@ func (backend *Backend) ConcatLastDim(
 	}
 }
 
+func (backend *Backend) Slice(
+	input, output unsafe.Pointer,
+	sliceLen, inputDimSize, innerBytes, start, outBytes int,
+	format dtype.DType,
+) {
+	if sliceLen == 0 || inputDimSize == 0 || innerBytes == 0 || outBytes == 0 {
+		return
+	}
+
+	elementFormat := metalElementDType(format)
+
+	if elementFormat < 0 || backend == nil || backend.bridge == nil {
+		panic(tensor.ErrNeedsPlatformSetup)
+	}
+
+	var status C.MetalStatus
+	code := C.metal_dispatch_slice_bytes(
+		C.MetalDeviceRef(unsafe.Pointer(backend.bridge.device)),
+		elementFormat,
+		resolveBufferRef(input),
+		resolveBufferRef(output),
+		C.uint32_t(sliceLen),
+		C.uint32_t(inputDimSize),
+		C.uint32_t(innerBytes),
+		C.uint32_t(start),
+		C.uint32_t(outBytes),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		panic(tensor.ErrNeedsPlatformSetup)
+	}
+}
+
+func (backend *Backend) Transpose(
+	input, output unsafe.Pointer,
+	rank, count int,
+	permutation, inputStrides, outputStrides []uint32,
+	format dtype.DType,
+) {
+	if rank == 0 || count == 0 {
+		return
+	}
+
+	if len(permutation) != rank || len(inputStrides) != rank || len(outputStrides) != rank {
+		panic(tensor.ErrShapeMismatch)
+	}
+
+	elementFormat := metalElementDType(format)
+
+	if elementFormat < 0 || backend == nil || backend.bridge == nil {
+		panic(tensor.ErrNeedsPlatformSetup)
+	}
+
+	var status C.MetalStatus
+	code := C.metal_dispatch_transpose(
+		C.MetalDeviceRef(unsafe.Pointer(backend.bridge.device)),
+		elementFormat,
+		resolveBufferRef(input),
+		resolveBufferRef(output),
+		C.uint32_t(rank),
+		C.uint32_t(count),
+		(*C.uint32_t)(unsafe.Pointer(&permutation[0])),
+		(*C.uint32_t)(unsafe.Pointer(&inputStrides[0])),
+		(*C.uint32_t)(unsafe.Pointer(&outputStrides[0])),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		panic(tensor.ErrNeedsPlatformSetup)
+	}
+}
+
 func (backend *Backend) LastToken(
 	input, output unsafe.Pointer,
 	seq, hiddenBytes, outBytes int,
@@ -257,6 +375,42 @@ func (backend *Backend) LastToken(
 		C.uint32_t(seq),
 		C.uint32_t(hiddenBytes),
 		C.uint32_t(outBytes),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		panic(tensor.ErrNeedsPlatformSetup)
+	}
+}
+
+func (backend *Backend) UpsampleNearest2D(
+	input, output unsafe.Pointer,
+	channels, inHeight, inWidth, outHeight, outWidth, outElements int,
+	format dtype.DType,
+) {
+	if channels == 0 || inHeight == 0 || inWidth == 0 || outHeight == 0 || outWidth == 0 || outElements == 0 {
+		return
+	}
+
+	elementFormat := metalElementDType(format)
+
+	if elementFormat < 0 || backend == nil || backend.bridge == nil {
+		panic(tensor.ErrNeedsPlatformSetup)
+	}
+
+	var status C.MetalStatus
+	code := C.metal_dispatch_upsample_nearest2d_bytes(
+		C.MetalDeviceRef(unsafe.Pointer(backend.bridge.device)),
+		elementFormat,
+		resolveBufferRef(input),
+		resolveBufferRef(output),
+		C.uint32_t(channels),
+		C.uint32_t(inHeight),
+		C.uint32_t(inWidth),
+		C.uint32_t(outHeight),
+		C.uint32_t(outWidth),
+		C.uint32_t(outElements),
 		0,
 		&status,
 	)

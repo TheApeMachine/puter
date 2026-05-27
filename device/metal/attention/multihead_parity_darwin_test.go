@@ -120,6 +120,55 @@ func BenchmarkMultiHeadAttentionMetalDecode(benchmark *testing.B) {
 	harness.Sync()
 }
 
+func BenchmarkMultiHeadAttentionMetalPrefill(benchmark *testing.B) {
+	harness := parity.NewHarness(benchmark)
+	defer harness.Close()
+
+	config := device.MultiHeadAttentionConfig{
+		NumHeads:    32,
+		KVHeadCount: 32,
+		HeadDim:     128,
+		Causal:      true,
+	}
+	seq := 128
+	query := make([]float32, seq*config.NumHeads*config.HeadDim)
+	key := make([]float32, len(query))
+	value := make([]float32, len(query))
+	output := make([]float32, len(query))
+
+	queryBuffer := harness.UploadVector(query, dtype.Float32)
+	defer queryBuffer.Close()
+
+	keyBuffer := harness.UploadVector(key, dtype.Float32)
+	defer keyBuffer.Close()
+
+	valueBuffer := harness.UploadVector(value, dtype.Float32)
+	defer valueBuffer.Close()
+
+	outputBuffer := harness.UploadVector(output, dtype.Float32)
+	defer outputBuffer.Close()
+
+	benchmark.ResetTimer()
+
+	for benchmark.Loop() {
+		if err := DispatchMultiHeadAttentionRefs(
+			harness.ContextRef(),
+			queryBuffer.Ref(),
+			keyBuffer.Ref(),
+			valueBuffer.Ref(),
+			outputBuffer.Ref(),
+			config,
+			uint32(seq),
+			uint32(seq),
+			dtype.Float32,
+		); err != nil {
+			benchmark.Fatal(err)
+		}
+	}
+
+	harness.Sync()
+}
+
 func runMetalAttention(
 	testingObject *testing.T,
 	harness *parity.Harness,
