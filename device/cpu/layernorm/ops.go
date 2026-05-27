@@ -4,6 +4,7 @@ import (
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/puter/device"
 )
 
 func (norm Norm) LayerNorm(
@@ -15,9 +16,10 @@ func (norm Norm) LayerNorm(
 }
 
 func (norm Norm) RMSNorm(
+	config device.RMSNormConfig,
 	input, scale, output unsafe.Pointer,
 	rows, lastDim int,
 	format dtype.DType,
 ) {
-	dispatchRMSNorm(input, scale, output, rows, lastDim, format)
+	dispatchRMSNorm(config, input, scale, output, rows, lastDim, format)
 }

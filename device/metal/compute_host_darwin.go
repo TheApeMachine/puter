@@ -14,6 +14,7 @@ import (
 	"github.com/theapemachine/puter/device/metal/layernorm"
 	"github.com/theapemachine/puter/device/metal/matmul"
 	"github.com/theapemachine/puter/device/metal/normalization"
+	metalrope "github.com/theapemachine/puter/device/metal/rope"
 )
 
 type ComputeHost struct {
@@ -371,7 +372,22 @@ func (host *ComputeHost) DispatchQuantumPotential(density, output unsafe.Pointer
 }
 
 func (host *ComputeHost) DispatchRoPE(config device.RoPEConfig, input, output unsafe.Pointer, seqLen, numHeads, headDim int, format dtype.DType) {
-	host.unavailable()
+	if seqLen == 0 || numHeads == 0 || headDim == 0 {
+		return
+	}
+
+	if err := metalrope.DispatchRoPERefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		config,
+		uint32(seqLen),
+		uint32(numHeads),
+		uint32(headDim),
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchRoPEPairs(output, input, cosBuffer, sinBuffer unsafe.Pointer, halfDim int, format dtype.DType) {
@@ -491,10 +507,17 @@ The CPU contract is "rows × lastDim" — Metal's RMSNorm kernel agrees
 (one threadgroup per row, threads sum across cols), so the two ints map
 directly to the Metal call.
 */
-func (host *ComputeHost) LaunchRMSNorm(input, scale, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {
+func (host *ComputeHost) LaunchRMSNorm(
+	config device.RMSNormConfig,
+	input, scale, output unsafe.Pointer,
+	rows, lastDim int,
+	format dtype.DType,
+) {
 	if rows == 0 || lastDim == 0 {
 		return
 	}
+
+	host.dispatchError(config.Validate())
 
 	if err := layernorm.DispatchRMSNormRefs(
 		host.contextRef(),
@@ -504,6 +527,7 @@ func (host *ComputeHost) LaunchRMSNorm(input, scale, output unsafe.Pointer, rows
 		format,
 		uint32(rows),
 		uint32(lastDim),
+		float32(config.Epsilon),
 	); err != nil {
 		host.dispatchError(err)
 	}

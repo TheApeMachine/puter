@@ -100,3 +100,23 @@ func configBool(node *ast.GraphNode, key string, defaultValue bool) bool {
 
 	return defaultValue
 }
+
+func configString(node *ast.GraphNode, key string, defaultValue string) string {
+	if node == nil || node.Attributes == nil {
+		return defaultValue
+	}
+
+	raw, ok := node.Attributes[key]
+
+	if !ok {
+		return defaultValue
+	}
+
+	asString, ok := raw.(string)
+
+	if !ok {
+		return defaultValue
+	}
+
+	return asString
+}

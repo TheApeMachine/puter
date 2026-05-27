@@ -5,10 +5,10 @@ import (
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/puter/device"
 )
 
 const layerNormEpsilon = 1e-5
-const rmsNormEpsilon = 1e-6
 
 func dispatchLayerNorm(
 	input, scale, bias, output unsafe.Pointer,
@@ -32,6 +32,7 @@ func dispatchLayerNorm(
 }
 
 func dispatchRMSNorm(
+	config device.RMSNormConfig,
 	input, scale, output unsafe.Pointer,
 	rows, lastDim int,
 	format dtype.DType,
@@ -40,13 +41,17 @@ func dispatchRMSNorm(
 		return
 	}
 
+	if err := config.Validate(); err != nil {
+		panic(err)
+	}
+
 	switch format {
 	case dtype.Float32:
-		runRMSNormF32(input, scale, output, rows, lastDim)
+		runRMSNormF32(config, input, scale, output, rows, lastDim)
 	case dtype.BFloat16:
-		runRMSNormBF16(input, scale, output, rows, lastDim)
+		runRMSNormBF16(config, input, scale, output, rows, lastDim)
 	case dtype.Float16:
-		runRMSNormF16(input, scale, output, rows, lastDim)
+		runRMSNormF16(config, input, scale, output, rows, lastDim)
 	default:
 		panic("layernorm: unsupported dtype")
 	}
@@ -73,6 +78,7 @@ func runLayerNormF32(
 }
 
 func runRMSNormF32(
+	config device.RMSNormConfig,
 	input, scale, output unsafe.Pointer,
 	rows, lastDim int,
 ) {
@@ -83,7 +89,7 @@ func runRMSNormF32(
 	for rowIndex := 0; rowIndex < rows; rowIndex++ {
 		row := inputView[rowIndex*lastDim : (rowIndex+1)*lastDim]
 		outRow := outputView[rowIndex*lastDim : (rowIndex+1)*lastDim]
-		applyRMSRowF32(row, outRow, scaleView)
+		applyRMSRowF32(config, row, outRow, scaleView)
 	}
 }
 
@@ -120,6 +126,7 @@ func runLayerNormF16(
 }
 
 func runRMSNormBF16(
+	config device.RMSNormConfig,
 	input, scale, output unsafe.Pointer,
 	rows, lastDim int,
 ) {
@@ -130,11 +137,12 @@ func runRMSNormBF16(
 	for rowIndex := 0; rowIndex < rows; rowIndex++ {
 		row := inputView[rowIndex*lastDim : (rowIndex+1)*lastDim]
 		outRow := outputView[rowIndex*lastDim : (rowIndex+1)*lastDim]
-		applyRMSRowBF16(row, outRow, scaleView)
+		applyRMSRowBF16(config, row, outRow, scaleView)
 	}
 }
 
 func runRMSNormF16(
+	config device.RMSNormConfig,
 	input, scale, output unsafe.Pointer,
 	rows, lastDim int,
 ) {
@@ -145,7 +153,7 @@ func runRMSNormF16(
 	for rowIndex := 0; rowIndex < rows; rowIndex++ {
 		row := inputView[rowIndex*lastDim : (rowIndex+1)*lastDim]
 		outRow := outputView[rowIndex*lastDim : (rowIndex+1)*lastDim]
-		applyRMSRowF16(row, outRow, scaleView)
+		applyRMSRowF16(config, row, outRow, scaleView)
 	}
 }
 
@@ -164,10 +172,10 @@ func applyRowNormalization(
 	LayerNormApplyRowNative(outRow, row, scale, bias, float32(mean), float32(invStdDev))
 }
 
-func applyRMSRowF32(row, outRow, scale []float32) {
+func applyRMSRowF32(config device.RMSNormConfig, row, outRow, scale []float32) {
 	sumOfSquares := DotFloat32Native(row, row)
 	meanSquare := float64(sumOfSquares) / float64(len(row))
-	invRMS := 1.0 / math.Sqrt(meanSquare+rmsNormEpsilon)
+	invRMS := 1.0 / math.Sqrt(meanSquare+config.Epsilon)
 	invRMSf32 := float32(invRMS)
 
 	combined := make([]float32, len(row))
@@ -179,10 +187,10 @@ func applyRMSRowF32(row, outRow, scale []float32) {
 	MulFloat32Native(outRow, row, combined)
 }
 
-func applyRMSRowBF16(row, outRow, scale []dtype.BF16) {
+func applyRMSRowBF16(config device.RMSNormConfig, row, outRow, scale []dtype.BF16) {
 	sumOfSquares := DotBFloat16Native(row, row)
 	meanSquare := (&sumOfSquares).Float32() / float32(len(row))
-	invRMS := float32(1.0 / math.Sqrt(float64(meanSquare+rmsNormEpsilon)))
+	invRMS := float32(1.0 / math.Sqrt(float64(meanSquare)+config.Epsilon))
 	combined := make([]dtype.BF16, len(row))
 
 	for index := range scale {
@@ -192,10 +200,10 @@ func applyRMSRowBF16(row, outRow, scale []dtype.BF16) {
 	MulBFloat16Native(outRow, row, combined)
 }
 
-func applyRMSRowF16(row, outRow, scale []dtype.F16) {
+func applyRMSRowF16(config device.RMSNormConfig, row, outRow, scale []dtype.F16) {
 	sumOfSquares := DotFloat16Native(row, row)
 	meanSquare := sumOfSquares.Float32() / float32(len(row))
-	invRMS := float32(1.0 / math.Sqrt(float64(meanSquare+rmsNormEpsilon)))
+	invRMS := float32(1.0 / math.Sqrt(float64(meanSquare)+config.Epsilon))
 	combined := make([]dtype.F16, len(row))
 
 	for index := range scale {

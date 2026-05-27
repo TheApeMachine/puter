@@ -20,6 +20,7 @@ int cuda_dispatch_layernorm(
     CUDABufferRef outputRef,
     uint32_t rows,
     uint32_t cols,
+    float epsilon,
     uint64_t completionToken,
     CUDAStatus* status
 );

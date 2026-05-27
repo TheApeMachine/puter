@@ -4,6 +4,7 @@ import (
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/puter/device"
 )
 
 /*
@@ -31,6 +32,7 @@ type Host interface {
 		format dtype.DType,
 	)
 	LaunchRMSNorm(
+		config device.RMSNormConfig,
 		input, scale, output unsafe.Pointer,
 		rows, lastDim int,
 		format dtype.DType,

@@ -341,7 +341,7 @@ int metal_dispatch_layernorm(
 metal_dispatch_rmsnorm runs one of the RMSNORM_KERNEL specializations
 declared in device/metal/layernorm/layer.metal (rmsnorm_float32 /
 rmsnorm_float16 / rmsnorm_bfloat16). The kernel takes input, scale, out
-and cols; we bind them in the same order at buffer indices 0..3 and
+cols, and epsilon; we bind them in the same order at buffer indices 0..4 and
 launch one threadgroup per row with LAYERNORM_THREAD_COUNT threads each,
 matching the dispatch shape used by metal_dispatch_layernorm above.
 
@@ -357,6 +357,7 @@ int metal_dispatch_layernorm_rmsnorm(
 	MetalBufferRef outRef,
 	uint32_t rows,
 	uint32_t cols,
+	float epsilon,
 	uint64_t completionToken,
 	MetalStatus* status
 ) {
@@ -389,6 +390,7 @@ int metal_dispatch_layernorm_rmsnorm(
 			[encoder setBuffer:(__bridge id<MTLBuffer>)scaleRef offset:0 atIndex:1];
 			[encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:2];
 			[encoder setBytes:&cols length:sizeof(cols) atIndex:3];
+			[encoder setBytes:&epsilon length:sizeof(epsilon) atIndex:4];
 		}
 	);
 }

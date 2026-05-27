@@ -245,6 +245,7 @@ type LayerNorm interface {
 		format dtype.DType,
 	)
 	RMSNorm(
+		config RMSNormConfig,
 		input, scale, output unsafe.Pointer,
 		rows, lastDim int,
 		format dtype.DType,

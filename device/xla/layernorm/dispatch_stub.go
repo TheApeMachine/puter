@@ -4,14 +4,15 @@ package layernorm
 
 import (
 	"unsafe"
+
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/puter/device"
 )
 
-func (norm *Norm) LayerNorm(input, scale, bias, output unsafe.Pointer, rows, lastDim int, format dtype.DType,) {
+func (norm *Norm) LayerNorm(input, scale, bias, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {
 	norm.stubHost()
 }
 
-func (norm *Norm) RMSNorm(input, scale, output unsafe.Pointer, rows, lastDim int, format dtype.DType,) {
+func (norm *Norm) RMSNorm(config device.RMSNormConfig, input, scale, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {
 	norm.stubHost()
 }
-

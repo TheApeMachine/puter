@@ -20,6 +20,8 @@ func (host *ComputeHost) DispatchRoPE(
 		return
 	}
 
+	host.dispatchError(config.Validate())
+
 	inputShape, err := tensor.NewShape([]int{seqLen, numHeads, headDim})
 	host.dispatchError(err)
 
@@ -30,8 +32,18 @@ func (host *ComputeHost) DispatchRoPE(
 	host.dispatchError(host.builder.ExecuteRoPE(
 		host.bridge,
 		context,
-		[]float64{config.BaseFreq},
-		[]int64{int64(config.StartPosition)},
+		[]float64{
+			config.BaseFreq,
+			config.ScalingFactor,
+			config.LowFreqFactor,
+			config.HighFreqFactor,
+		},
+		[]int64{
+			int64(config.StartPosition),
+			int64(config.Mode),
+			int64(config.Scaling),
+			int64(config.OriginalContext),
+		},
 		inputTensor,
 		outputTensor,
 	))

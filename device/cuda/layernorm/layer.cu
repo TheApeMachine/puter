@@ -181,7 +181,8 @@ extern "C" __global__ void rmsnorm_float32(
     const float* input,
     const float* scale,
     float* output,
-    unsigned int cols
+    unsigned int cols,
+    float epsilon
 ) {
     unsigned int rowOffset = blockIdx.x * cols;
 
@@ -201,7 +202,7 @@ extern "C" __global__ void rmsnorm_float32(
     __syncthreads();
 
     float varianceSum = tree_reduce256(reduction);
-    float invRMS = rsqrtf(varianceSum / static_cast<float>(cols) + rmsNormEpsilonCUDA);
+    float invRMS = rsqrtf(varianceSum / static_cast<float>(cols) + epsilon);
 
     for (unsigned int column = threadIdx.x; column < cols; column += normalizationThreadCount) {
         output[rowOffset + column] = input[rowOffset + column] * invRMS * scale[column];
@@ -212,7 +213,8 @@ extern "C" __global__ void rmsnorm_float16(
     const __half* input,
     const __half* scale,
     __half* output,
-    unsigned int cols
+    unsigned int cols,
+    float epsilon
 ) {
     unsigned int rowOffset = blockIdx.x * cols;
 
@@ -232,7 +234,7 @@ extern "C" __global__ void rmsnorm_float16(
     __syncthreads();
 
     float varianceSum = tree_reduce256(reduction);
-    float invRMS = rsqrtf(varianceSum / static_cast<float>(cols) + rmsNormEpsilonCUDA);
+    float invRMS = rsqrtf(varianceSum / static_cast<float>(cols) + epsilon);
 
     for (unsigned int column = threadIdx.x; column < cols; column += normalizationThreadCount) {
         float loaded = load_half(input, rowOffset + column);
@@ -244,7 +246,8 @@ extern "C" __global__ void rmsnorm_bfloat16(
     const unsigned short* input,
     const unsigned short* scale,
     unsigned short* output,
-    unsigned int cols
+    unsigned int cols,
+    float epsilon
 ) {
     unsigned int rowOffset = blockIdx.x * cols;
 
@@ -264,7 +267,7 @@ extern "C" __global__ void rmsnorm_bfloat16(
     __syncthreads();
 
     float varianceSum = tree_reduce256(reduction);
-    float invRMS = rsqrtf(varianceSum / static_cast<float>(cols) + rmsNormEpsilonCUDA);
+    float invRMS = rsqrtf(varianceSum / static_cast<float>(cols) + epsilon);
 
     for (unsigned int column = threadIdx.x; column < cols; column += normalizationThreadCount) {
         float loaded = load_bf16(input, rowOffset + column);

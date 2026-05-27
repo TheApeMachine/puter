@@ -29,7 +29,7 @@ type executionDevice interface {
 	Lookup(table, indices, output unsafe.Pointer, vocab, hidden, indexCount int, format dtype.DType)
 
 	// LayerNorm family.
-	RMSNorm(input, scale, output unsafe.Pointer, rows, lastDim int, format dtype.DType)
+	RMSNorm(config device.RMSNormConfig, input, scale, output unsafe.Pointer, rows, lastDim int, format dtype.DType)
 	LayerNorm(input, scale, bias, output unsafe.Pointer, rows, lastDim int, format dtype.DType)
 
 	// Matmul family.

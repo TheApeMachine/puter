@@ -706,14 +706,44 @@ func (builder *Builder) loadRoPEExecutable(
 	}
 
 	baseFreq := 10000.0
+	scalingFactor := 1.0
+	lowFreqFactor := 0.0
+	highFreqFactor := 0.0
 	startPosition := 0
+	mode := 0
+	scaling := 0
+	originalContext := 0
 
 	if len(floatParams) > 0 {
 		baseFreq = floatParams[0]
 	}
 
+	if len(floatParams) > 1 {
+		scalingFactor = floatParams[1]
+	}
+
+	if len(floatParams) > 2 {
+		lowFreqFactor = floatParams[2]
+	}
+
+	if len(floatParams) > 3 {
+		highFreqFactor = floatParams[3]
+	}
+
 	if len(intParams) > 0 {
 		startPosition = int(intParams[0])
+	}
+
+	if len(intParams) > 1 {
+		mode = int(intParams[1])
+	}
+
+	if len(intParams) > 2 {
+		scaling = int(intParams[2])
+	}
+
+	if len(intParams) > 3 {
+		originalContext = int(intParams[3])
 	}
 
 	hloText, err := hlo.RenderRoPE(
@@ -724,6 +754,12 @@ func (builder *Builder) loadRoPEExecutable(
 		inputDimensions[2],
 		baseFreq,
 		startPosition,
+		mode,
+		scaling,
+		scalingFactor,
+		lowFreqFactor,
+		highFreqFactor,
+		originalContext,
 	)
 
 	if err != nil {
@@ -861,7 +897,16 @@ func (builder *Builder) loadVariadicExecutable(
 	case "layer_norm":
 		hloText, err = hlo.RenderLayerNorm(moduleName, context.OutputDType, inputShape)
 	case "rms_norm":
-		hloText, err = hlo.RenderRMSNorm(moduleName, context.OutputDType, inputShape)
+		if len(floatParams) != 1 {
+			return nil, &loweringError{message: "rms norm requires epsilon"}
+		}
+
+		hloText, err = hlo.RenderRMSNorm(
+			moduleName,
+			context.OutputDType,
+			inputShape,
+			floatParams[0],
+		)
 	case "batch_norm_eval":
 		hloText, err = hlo.RenderBatchNormEval(moduleName, context.OutputDType, inputShape)
 	case "instance_norm":

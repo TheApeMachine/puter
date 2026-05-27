@@ -367,6 +367,8 @@ func (resolver *bindResolver) resolveConfigRef(parts []string) (any, error) {
 		return float32(configFloat(resolver.node, parts[1], resolver.defaultConfigFloat(parts[1]))), nil
 	case "bool":
 		return configBool(resolver.node, parts[1], resolver.defaultConfigBool(parts[1])), nil
+	case "string":
+		return configString(resolver.node, parts[1], resolver.defaultConfigString(parts[1])), nil
 	default:
 		return nil, fmt.Errorf("unknown config type %q", parts[2])
 	}
@@ -419,6 +421,22 @@ func (resolver *bindResolver) defaultConfigBool(key string) bool {
 	asBool, ok := value.(bool)
 
 	return ok && asBool
+}
+
+func (resolver *bindResolver) defaultConfigString(key string) string {
+	value, ok := resolver.bind.ConfigDefaults[key]
+
+	if !ok {
+		return ""
+	}
+
+	asString, ok := value.(string)
+
+	if !ok {
+		return ""
+	}
+
+	return asString
 }
 
 func tensorProperty(resolver *bindResolver, input tensor.Tensor, property string) (any, error) {

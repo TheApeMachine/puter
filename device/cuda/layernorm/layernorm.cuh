@@ -7,7 +7,6 @@
 
 static constexpr unsigned int normalizationThreadCount = 256U;
 static constexpr float layerNormEpsilonCUDA = 1.0e-5f;
-static constexpr float rmsNormEpsilonCUDA = 1.0e-6f;
 
 __device__ __forceinline__ float bf16_to_float_norm(unsigned short value) {
     unsigned int bits = static_cast<unsigned int>(value) << 16U;

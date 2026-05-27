@@ -9,7 +9,10 @@ import (
 	"github.com/smartystreets/goconvey/convey"
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
+	"github.com/theapemachine/puter/device"
 )
+
+const testRMSNormEpsilon = 1e-6
 
 func TestLayerNormFloat16AndBFloat16(t *testing.T) {
 	for _, storageDType := range []dtype.DType{dtype.Float16, dtype.BFloat16} {
@@ -146,6 +149,7 @@ func runRMSNormDType(
 		outView, _ := out.Float32Native()
 
 		Default.RMSNorm(
+			device.RMSNormConfig{Epsilon: testRMSNormEpsilon},
 			unsafe.Pointer(&inputView[0]),
 			unsafe.Pointer(&scaleView[0]),
 			unsafe.Pointer(&outView[0]),
@@ -159,6 +163,7 @@ func runRMSNormDType(
 		outView, _ := out.Float16Native()
 
 		Default.RMSNorm(
+			device.RMSNormConfig{Epsilon: testRMSNormEpsilon},
 			unsafe.Pointer(&inputView[0]),
 			unsafe.Pointer(&scaleView[0]),
 			unsafe.Pointer(&outView[0]),
@@ -172,6 +177,7 @@ func runRMSNormDType(
 		outView, _ := out.BFloat16Native()
 
 		Default.RMSNorm(
+			device.RMSNormConfig{Epsilon: testRMSNormEpsilon},
 			unsafe.Pointer(&inputView[0]),
 			unsafe.Pointer(&scaleView[0]),
 			unsafe.Pointer(&outView[0]),
@@ -272,7 +278,7 @@ func expectedRMSNormDTypeBits(
 ) []uint16 {
 	inputValues := normDTypeStoredValues(input, storageDType)
 	scaleValues := normDTypeStoredValues(scale, storageDType)
-	expected := expectedRMSNormFloat32(inputValues, scaleValues)
+	expected := expectedRMSNormFloat32(inputValues, scaleValues, testRMSNormEpsilon)
 	return encodeNormExpectedBits(expected, storageDType)
 }
 
@@ -319,9 +325,9 @@ func expectedLayerNormFloat32(input []float32, scale []float32, bias []float32) 
 	return out
 }
 
-func expectedRMSNormFloat32(input []float32, scale []float32) []float32 {
+func expectedRMSNormFloat32(input []float32, scale []float32, epsilon float64) []float32 {
 	meanSquare := normMeanSquare(input)
-	invRMS := 1 / float32(math.Sqrt(float64(meanSquare+rmsNormEpsilon)))
+	invRMS := 1 / float32(math.Sqrt(float64(meanSquare)+epsilon))
 	out := make([]float32, len(input))
 
 	for index, value := range input {

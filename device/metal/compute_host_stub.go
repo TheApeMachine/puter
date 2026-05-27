@@ -13,6 +13,7 @@ import (
 	"github.com/theapemachine/puter/device/metal/reduction"
 	"github.com/theapemachine/puter/device/metal/sampling"
 )
+
 func (host *ComputeHost) BinaryElementwise(dst, left, right unsafe.Pointer, format dtype.DType, kernel elementwise.BinaryKernel) {
 	host.unavailable()
 }
@@ -277,7 +278,7 @@ func (host *ComputeHost) LaunchLookup(table, indices, output unsafe.Pointer, voc
 	host.unavailable()
 }
 
-func (host *ComputeHost) LaunchRMSNorm(input, scale, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {
+func (host *ComputeHost) LaunchRMSNorm(config device.RMSNormConfig, input, scale, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {
 	host.unavailable()
 }
 
@@ -305,33 +306,32 @@ func (host *ComputeHost) UnaryParam(dst, src unsafe.Pointer, format dtype.DType,
 	host.unavailable()
 }
 
-func (host *ComputeHost) ReductionScalar(values unsafe.Pointer, count int, format dtype.DType, kernel reduction.ReductionKernel,) float32 {
+func (host *ComputeHost) ReductionScalar(values unsafe.Pointer, count int, format dtype.DType, kernel reduction.ReductionKernel) float32 {
 	host.unavailable()
 	return 0
 }
 
-func (host *ComputeHost) PairLossScalar(predictions, targets unsafe.Pointer, format dtype.DType, kernel losses.LossKernel,) float32 {
+func (host *ComputeHost) PairLossScalar(predictions, targets unsafe.Pointer, format dtype.DType, kernel losses.LossKernel) float32 {
 	host.unavailable()
 	return 0
 }
 
-func (host *ComputeHost) CrossEntropyScalar(logits, targets unsafe.Pointer, batchSize, classes int, format dtype.DType,) float32 {
+func (host *ComputeHost) CrossEntropyScalar(logits, targets unsafe.Pointer, batchSize, classes int, format dtype.DType) float32 {
 	host.unavailable()
 	return 0
 }
 
-func (host *ComputeHost) SamplingIndex(kernel sampling.SamplingKernel, config device.SamplingConfig, logits unsafe.Pointer, vocabSize int, format dtype.DType,) int32 {
+func (host *ComputeHost) SamplingIndex(kernel sampling.SamplingKernel, config device.SamplingConfig, logits unsafe.Pointer, vocabSize int, format dtype.DType) int32 {
 	host.unavailable()
 	return 0
 }
 
-func (host *ComputeHost) DotProduct(left, right unsafe.Pointer, count int, format dtype.DType,) float32 {
+func (host *ComputeHost) DotProduct(left, right unsafe.Pointer, count int, format dtype.DType) float32 {
 	host.unavailable()
 	return 0
 }
 
-func (host *ComputeHost) DispatchSimilarity(left, right unsafe.Pointer, count int, format dtype.DType,) float32 {
+func (host *ComputeHost) DispatchSimilarity(left, right unsafe.Pointer, count int, format dtype.DType) float32 {
 	host.unavailable()
 	return 0
 }
-

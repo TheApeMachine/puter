@@ -25,11 +25,12 @@ kernel void name( \
     device const scalar* scale [[buffer(1)]], \
     device scalar* out [[buffer(2)]], \
     constant uint& cols [[buffer(3)]], \
+    constant float& epsilon [[buffer(4)]], \
     uint row [[threadgroup_position_in_grid]], \
     uint threadIndex [[thread_position_in_threadgroup]] \
 ) { \
     threadgroup float reduction[256]; \
-    rmsnorm_rows<storage, scalar>(input, scale, out, reduction, cols, row, threadIndex); \
+    rmsnorm_rows<storage, scalar>(input, scale, out, reduction, cols, epsilon, row, threadIndex); \
 }
 
 #define ADAPTIVE_RMSNORM_KERNEL(name, storage, scalar) \

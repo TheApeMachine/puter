@@ -16,7 +16,9 @@ import (
 
 type recordingDevice struct {
 	addCalls          []recordedAddCall
+	rmsNormCalls      []recordedRMSNormCall
 	swiGLUTensorCalls []recordedSwiGLUTensorCall
+	ropeCalls         []recordedRoPECall
 }
 
 type recordedAddCall struct {
@@ -33,6 +35,26 @@ type recordedSwiGLUTensorCall struct {
 	up     unsafe.Pointer
 	count  int
 	format dtype.DType
+}
+
+type recordedRMSNormCall struct {
+	config  device.RMSNormConfig
+	input   unsafe.Pointer
+	scale   unsafe.Pointer
+	output  unsafe.Pointer
+	rows    int
+	lastDim int
+	format  dtype.DType
+}
+
+type recordedRoPECall struct {
+	config   device.RoPEConfig
+	input    unsafe.Pointer
+	output   unsafe.Pointer
+	seqLen   int
+	numHeads int
+	headDim  int
+	format   dtype.DType
 }
 
 func (recorder *recordingDevice) Add(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
@@ -59,8 +81,21 @@ func (recordingDevice) Lookup(table, indices, output unsafe.Pointer, vocab, hidd
 	panic("recordingDevice.Lookup invoked")
 }
 
-func (recordingDevice) RMSNorm(input, scale, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {
-	panic("recordingDevice.RMSNorm invoked")
+func (recorder *recordingDevice) RMSNorm(
+	config device.RMSNormConfig,
+	input, scale, output unsafe.Pointer,
+	rows, lastDim int,
+	format dtype.DType,
+) {
+	recorder.rmsNormCalls = append(recorder.rmsNormCalls, recordedRMSNormCall{
+		config:  config,
+		input:   input,
+		scale:   scale,
+		output:  output,
+		rows:    rows,
+		lastDim: lastDim,
+		format:  format,
+	})
 }
 
 func (recordingDevice) LayerNorm(input, scale, bias, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {
@@ -107,8 +142,16 @@ func (recordingDevice) SwiGLU(dst, packed unsafe.Pointer, batch, halfCount int, 
 	panic("recordingDevice.SwiGLU invoked")
 }
 
-func (recordingDevice) RoPE(config device.RoPEConfig, input, output unsafe.Pointer, seqLen, numHeads, headDim int, format dtype.DType) {
-	panic("recordingDevice.RoPE invoked")
+func (recorder *recordingDevice) RoPE(config device.RoPEConfig, input, output unsafe.Pointer, seqLen, numHeads, headDim int, format dtype.DType) {
+	recorder.ropeCalls = append(recorder.ropeCalls, recordedRoPECall{
+		config:   config,
+		input:    input,
+		output:   output,
+		seqLen:   seqLen,
+		numHeads: numHeads,
+		headDim:  headDim,
+		format:   format,
+	})
 }
 
 func (recordingDevice) MultiHeadAttention(config device.MultiHeadAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
@@ -190,6 +233,91 @@ func TestRunBoundNodeUsesLiveViewOfWorkspaceOutput(t *testing.T) {
 			convey.So(err, convey.ShouldBeNil)
 			convey.So(stored.Shape().Dims(), convey.ShouldResemble, []int{3})
 			convey.So(stored.DType(), convey.ShouldEqual, dtype.Float32)
+		})
+	})
+}
+
+func TestRunBoundNodeResolvesRoPEConfig(t *testing.T) {
+	convey.Convey("Given positional.rope carries Llama 3 half-mode config", t, func() {
+		memory := tensor.NewHostBackend()
+		defer memory.Close()
+
+		input := uploadFloatSliceWithShape(t, memory, make([]float32, 2*2*4), []int{2, 2, 4})
+		position := uploadInt32Slice(t, memory, []int32{7})
+		recorder := &recordingDevice{}
+		dispatcher := newTestDispatcher(recorder, memory)
+		dispatcher.values.set("x", input)
+		dispatcher.values.set("position", position)
+
+		node := &ast.GraphNode{
+			ID:     "rope",
+			Op:     "positional.rope",
+			Inputs: []string{"x", "position"},
+			Attributes: map[string]any{
+				"base":                  500000.0,
+				"mode":                  "half",
+				"rope_type":             "llama3",
+				"rope_factor":           32.0,
+				"rope_low_freq_factor":  1.0,
+				"rope_high_freq_factor": 4.0,
+				"rope_original_context": 8192,
+			},
+		}
+
+		err := dispatcher.runNode(node)
+		convey.So(err, convey.ShouldBeNil)
+
+		convey.Convey("The router passes the full RoPEConfig to the device", func() {
+			convey.So(len(recorder.ropeCalls), convey.ShouldEqual, 1)
+			convey.So(recorder.ropeCalls[0].seqLen, convey.ShouldEqual, 2)
+			convey.So(recorder.ropeCalls[0].numHeads, convey.ShouldEqual, 2)
+			convey.So(recorder.ropeCalls[0].headDim, convey.ShouldEqual, 4)
+			convey.So(recorder.ropeCalls[0].format, convey.ShouldEqual, dtype.Float32)
+			convey.So(recorder.ropeCalls[0].config.BaseFreq, convey.ShouldEqual, 500000.0)
+			convey.So(recorder.ropeCalls[0].config.StartPosition, convey.ShouldEqual, 7)
+			convey.So(recorder.ropeCalls[0].config.Mode, convey.ShouldEqual, device.RoPEModeHalf)
+			convey.So(recorder.ropeCalls[0].config.Scaling, convey.ShouldEqual, device.RoPEScalingLlama3)
+			convey.So(recorder.ropeCalls[0].config.ScalingFactor, convey.ShouldEqual, 32.0)
+			convey.So(recorder.ropeCalls[0].config.LowFreqFactor, convey.ShouldEqual, 1.0)
+			convey.So(recorder.ropeCalls[0].config.HighFreqFactor, convey.ShouldEqual, 4.0)
+			convey.So(recorder.ropeCalls[0].config.OriginalContext, convey.ShouldEqual, 8192)
+		})
+	})
+}
+
+func TestRunBoundNodeResolvesRMSNormConfig(t *testing.T) {
+	convey.Convey("Given math.rmsnorm carries a manifest epsilon", t, func() {
+		memory := tensor.NewHostBackend()
+		defer memory.Close()
+
+		input := uploadFloatSliceWithShape(t, memory, make([]float32, 2*4), []int{2, 4})
+		scale := uploadFloatSlice(t, memory, []float32{1, 1, 1, 1})
+		recorder := &recordingDevice{}
+		dispatcher := newTestDispatcher(recorder, memory)
+		dispatcher.weights = mapWeightStore{"norm.weight": scale}
+		dispatcher.values.set("x", input)
+
+		node := &ast.GraphNode{
+			ID:     "norm",
+			Op:     "math.rmsnorm",
+			Inputs: []string{"x"},
+			Weights: &ast.BoundWeight{
+				TensorName: "norm.weight",
+			},
+			Attributes: map[string]any{
+				"eps": 1e-5,
+			},
+		}
+
+		err := dispatcher.runNode(node)
+		convey.So(err, convey.ShouldBeNil)
+
+		convey.Convey("The router passes the RMSNormConfig to the device", func() {
+			convey.So(len(recorder.rmsNormCalls), convey.ShouldEqual, 1)
+			convey.So(recorder.rmsNormCalls[0].config.Epsilon, convey.ShouldAlmostEqual, 1e-5)
+			convey.So(recorder.rmsNormCalls[0].rows, convey.ShouldEqual, 2)
+			convey.So(recorder.rmsNormCalls[0].lastDim, convey.ShouldEqual, 4)
+			convey.So(recorder.rmsNormCalls[0].format, convey.ShouldEqual, dtype.Float32)
 		})
 	})
 }
@@ -383,6 +511,18 @@ func newTestDispatcher(deviceBackend executionDevice, memory tensor.Backend) *di
 	}
 }
 
+type mapWeightStore map[string]tensor.Tensor
+
+func (store mapWeightStore) Lookup(name string) (tensor.Tensor, error) {
+	resident, ok := store[name]
+
+	if !ok {
+		return nil, ErrWeightNotFound
+	}
+
+	return resident, nil
+}
+
 func uploadFloatSlice(t *testing.T, memory tensor.Backend, values []float32) tensor.Tensor {
 	t.Helper()
 
@@ -412,6 +552,34 @@ func uploadFloatSliceWithShape(t *testing.T, memory tensor.Backend, values []flo
 
 	if err != nil {
 		t.Fatalf("uploadFloatSliceWithShape: upload: %v", err)
+	}
+
+	return resident
+}
+
+func uploadInt32Slice(t *testing.T, memory tensor.Backend, values []int32) tensor.Tensor {
+	t.Helper()
+
+	shape, err := tensor.NewShape([]int{len(values)})
+
+	if err != nil {
+		t.Fatalf("uploadInt32Slice: shape: %v", err)
+	}
+
+	bytes := make([]byte, len(values)*4)
+
+	for index, value := range values {
+		raw := uint32(value)
+		bytes[index*4] = byte(raw)
+		bytes[index*4+1] = byte(raw >> 8)
+		bytes[index*4+2] = byte(raw >> 16)
+		bytes[index*4+3] = byte(raw >> 24)
+	}
+
+	resident, err := memory.Upload(shape, dtype.Int32, bytes)
+
+	if err != nil {
+		t.Fatalf("uploadInt32Slice: upload: %v", err)
 	}
 
 	return resident

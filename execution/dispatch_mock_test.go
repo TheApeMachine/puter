@@ -19,7 +19,7 @@ func (noopDeviceBackend) Lookup(table, indices, output unsafe.Pointer, vocab, hi
 	panic("noopDeviceBackend.Lookup invoked")
 }
 
-func (noopDeviceBackend) RMSNorm(input, scale, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {
+func (noopDeviceBackend) RMSNorm(config device.RMSNormConfig, input, scale, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {
 	panic("noopDeviceBackend.RMSNorm invoked")
 }
 

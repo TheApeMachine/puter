@@ -100,6 +100,7 @@ func (host *ComputeHost) LaunchLayerNorm(
 }
 
 func (host *ComputeHost) LaunchRMSNorm(
+	config device.RMSNormConfig,
 	input, scale, output unsafe.Pointer,
 	rows, lastDim int,
 	format dtype.DType,
@@ -107,6 +108,8 @@ func (host *ComputeHost) LaunchRMSNorm(
 	if rows == 0 || lastDim == 0 || host.bridge == nil {
 		return
 	}
+
+	host.dispatchError(config.Validate())
 
 	inputShape, err := ShapeFromRowsCols(rows, lastDim)
 	host.dispatchError(err)
@@ -130,7 +133,7 @@ func (host *ComputeHost) LaunchRMSNorm(
 		host.bridge,
 		"rms_norm",
 		context,
-		nil,
+		[]float64{config.Epsilon},
 		nil,
 		[]*DeviceTensor{inputTensor, scaleTensor},
 		outputTensor,

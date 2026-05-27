@@ -89,6 +89,10 @@ func DispatchRoPE(
 		return errUnsupportedDType
 	}
 
+	if err := config.Validate(); err != nil {
+		return err
+	}
+
 	halfDim := headDim / 2
 
 	if halfDim == 0 {
@@ -97,6 +101,17 @@ func DispatchRoPE(
 
 	pairCount := seqLen * numHeads * halfDim
 	theta := C.float(config.BaseFreq)
+	halfMode, err := ropeHalfMode(config)
+
+	if err != nil {
+		return err
+	}
+
+	ropeFactor, lowFreqFactor, highFreqFactor, originalContext, err := ropeScalingParams(config)
+
+	if err != nil {
+		return err
+	}
 
 	var status C.CUDAStatus
 	code := C.cuda_dispatch_rope(
@@ -109,11 +124,11 @@ func DispatchRoPE(
 		C.uint32_t(headDim),
 		C.uint32_t(pairCount),
 		theta,
-		1.0,
-		0.0,
-		0.0,
-		0,
-		0,
+		ropeFactor,
+		lowFreqFactor,
+		highFreqFactor,
+		originalContext,
+		C.uint32_t(halfMode),
 		C.uint32_t(config.StartPosition),
 		0,
 		&status,
@@ -124,6 +139,39 @@ func DispatchRoPE(
 	}
 
 	return nil
+}
+
+func ropeHalfMode(config device.RoPEConfig) (uint32, error) {
+	switch config.Mode {
+	case device.RoPEModeInterleaved:
+		return 0, nil
+	case device.RoPEModeHalf:
+		return 1, nil
+	default:
+		return 0, &dispatchError{code: -7, message: "unsupported CUDA rope mode"}
+	}
+}
+
+func ropeScalingParams(config device.RoPEConfig) (
+	C.float,
+	C.float,
+	C.float,
+	C.uint32_t,
+	error,
+) {
+	if config.Scaling == device.RoPEScalingNone {
+		return 1.0, 0.0, 0.0, 0, nil
+	}
+
+	if config.Scaling != device.RoPEScalingLlama3 {
+		return 0, 0, 0, 0, &dispatchError{code: -8, message: "unsupported CUDA rope scaling"}
+	}
+
+	return C.float(config.ScalingFactor),
+		C.float(config.LowFreqFactor),
+		C.float(config.HighFreqFactor),
+		C.uint32_t(config.OriginalContext),
+		nil
 }
 
 func DispatchRoPEPairs(

@@ -188,7 +188,7 @@ func DispatchLayerNormApply(
 DispatchRMSNorm launches the per-dtype RMSNorm kernel
 (rmsnorm_<dtype>) declared in layer.metal. RMSNorm has no bias, so the
 buffer binding is one short relative to LayerNorm: input, scale, out,
-cols. See native/layer.m::metal_dispatch_rmsnorm for the encoder shape.
+cols, epsilon. See native/layer.m::metal_dispatch_rmsnorm for the encoder shape.
 */
 func DispatchRMSNorm(
 	contextRef C.MetalDeviceRef,
@@ -198,6 +198,7 @@ func DispatchRMSNorm(
 	format dtype.DType,
 	rows uint32,
 	cols uint32,
+	epsilon float32,
 ) error {
 	elementFormat := elementDType(format)
 
@@ -214,6 +215,7 @@ func DispatchRMSNorm(
 		outputBuffer,
 		C.uint32_t(rows),
 		C.uint32_t(cols),
+		C.float(epsilon),
 		0,
 		&status,
 	)
@@ -237,6 +239,7 @@ func DispatchRMSNormRefs(
 	format dtype.DType,
 	rows uint32,
 	cols uint32,
+	epsilon float32,
 ) error {
 	return DispatchRMSNorm(
 		C.MetalDeviceRef(unsafe.Pointer(contextRef)),
@@ -246,6 +249,7 @@ func DispatchRMSNormRefs(
 		format,
 		rows,
 		cols,
+		epsilon,
 	)
 }
 

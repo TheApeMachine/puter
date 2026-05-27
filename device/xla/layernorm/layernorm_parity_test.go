@@ -9,12 +9,15 @@ import (
 
 	"github.com/smartystreets/goconvey/convey"
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/puter/device"
 	cpulayernorm "github.com/theapemachine/puter/device/cpu/layernorm"
 	"github.com/theapemachine/puter/device/xla"
 	xlaparity "github.com/theapemachine/puter/device/xla/internal/parity"
 )
 
 var referenceLayerNorm = cpulayernorm.New()
+
+const xlaRMSNormEpsilon = 1e-6
 
 func TestLayerNormXLAParity(t *testing.T) {
 	harness := xla.NewParityHarness(t)
@@ -76,6 +79,7 @@ func TestLayerNormXLAParity(t *testing.T) {
 				defer destinationTensor.Close()
 
 				harness.Backend().RMSNorm(
+					device.RMSNormConfig{Epsilon: xlaRMSNormEpsilon},
 					unsafe.Pointer(inputTensor),
 					unsafe.Pointer(scaleTensor),
 					unsafe.Pointer(destinationTensor),
@@ -144,6 +148,7 @@ func rmsNormReferenceBytes(
 
 	outputBytes := make([]byte, len(inputBytes))
 	referenceLayerNorm.RMSNorm(
+		device.RMSNormConfig{Epsilon: xlaRMSNormEpsilon},
 		unsafe.Pointer(&inputBytes[0]),
 		unsafe.Pointer(&scaleBytes[0]),
 		unsafe.Pointer(&outputBytes[0]),

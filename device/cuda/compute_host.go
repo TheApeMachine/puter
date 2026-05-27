@@ -1302,10 +1302,17 @@ func (host *ComputeHost) LaunchLookup(table, indices, output unsafe.Pointer, voc
 	}
 }
 
-func (host *ComputeHost) LaunchRMSNorm(input, scale, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {
+func (host *ComputeHost) LaunchRMSNorm(
+	config device.RMSNormConfig,
+	input, scale, output unsafe.Pointer,
+	rows, lastDim int,
+	format dtype.DType,
+) {
 	if rows == 0 || lastDim == 0 {
 		return
 	}
+
+	host.dispatchError(config.Validate())
 
 	if err := layernorm.DispatchRMSNorm(
 		host.contextRef(),
@@ -1315,6 +1322,7 @@ func (host *ComputeHost) LaunchRMSNorm(input, scale, output unsafe.Pointer, rows
 		format,
 		uint32(rows),
 		uint32(lastDim),
+		float32(config.Epsilon),
 		0,
 	); err != nil {
 		host.dispatchError(err)

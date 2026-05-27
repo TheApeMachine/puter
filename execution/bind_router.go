@@ -22,7 +22,7 @@ func callRouter(
 	case "Matmul":
 		return callMatmul(deviceBackend, args)
 	case "RMSNorm":
-		return callRMSNorm(deviceBackend, args)
+		return callRMSNorm(deviceBackend, configFields, args)
 	case "LayerNorm":
 		return callLayerNorm(deviceBackend, args)
 	case "Add":
@@ -112,9 +112,19 @@ func callMatmul(deviceBackend executionDevice, args []any) error {
 	return nil
 }
 
-func callRMSNorm(deviceBackend executionDevice, args []any) error {
+func callRMSNorm(
+	deviceBackend executionDevice,
+	configFields map[string]any,
+	args []any,
+) error {
 	if len(args) != 6 {
 		return fmt.Errorf("router: RMSNorm expects 6 args, got %d", len(args))
+	}
+
+	config, err := castRMSNormConfig(configFields)
+
+	if err != nil {
+		return err
 	}
 
 	input, scale, output, err := castThreePointers(args[:3], "RMSNorm")
@@ -141,7 +151,7 @@ func callRMSNorm(deviceBackend executionDevice, args []any) error {
 		return err
 	}
 
-	deviceBackend.RMSNorm(input, scale, output, rows, lastDim, format)
+	deviceBackend.RMSNorm(config, input, scale, output, rows, lastDim, format)
 
 	return nil
 }

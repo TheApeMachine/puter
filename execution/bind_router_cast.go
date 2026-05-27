@@ -2,6 +2,7 @@ package execution
 
 import (
 	"fmt"
+	"strings"
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
@@ -97,6 +98,22 @@ func castDType(value any, method, parameter string) (dtype.DType, error) {
 	return asDType, nil
 }
 
+func castRMSNormConfig(fields map[string]any) (device.RMSNormConfig, error) {
+	epsilon, err := castFloat64Field(fields, "Epsilon")
+
+	if err != nil {
+		return device.RMSNormConfig{}, err
+	}
+
+	config := device.RMSNormConfig{Epsilon: epsilon}
+
+	if err := config.Validate(); err != nil {
+		return device.RMSNormConfig{}, err
+	}
+
+	return config, nil
+}
+
 func castRoPEConfig(fields map[string]any) (device.RoPEConfig, error) {
 	baseFreq, err := castFloat64Field(fields, "BaseFreq")
 
@@ -110,9 +127,51 @@ func castRoPEConfig(fields map[string]any) (device.RoPEConfig, error) {
 		return device.RoPEConfig{}, err
 	}
 
+	mode, err := castRoPEModeField(fields, "Mode")
+
+	if err != nil {
+		return device.RoPEConfig{}, err
+	}
+
+	scaling, err := castRoPEScalingField(fields, "Scaling")
+
+	if err != nil {
+		return device.RoPEConfig{}, err
+	}
+
+	scalingFactor, err := castFloat64Field(fields, "ScalingFactor")
+
+	if err != nil {
+		return device.RoPEConfig{}, err
+	}
+
+	lowFreqFactor, err := castFloat64Field(fields, "LowFreqFactor")
+
+	if err != nil {
+		return device.RoPEConfig{}, err
+	}
+
+	highFreqFactor, err := castFloat64Field(fields, "HighFreqFactor")
+
+	if err != nil {
+		return device.RoPEConfig{}, err
+	}
+
+	originalContext, err := castIntField(fields, "OriginalContext")
+
+	if err != nil {
+		return device.RoPEConfig{}, err
+	}
+
 	return device.RoPEConfig{
-		BaseFreq:      baseFreq,
-		StartPosition: startPosition,
+		BaseFreq:        baseFreq,
+		StartPosition:   startPosition,
+		Mode:            mode,
+		Scaling:         scaling,
+		ScalingFactor:   scalingFactor,
+		LowFreqFactor:   lowFreqFactor,
+		HighFreqFactor:  highFreqFactor,
+		OriginalContext: originalContext,
 	}, nil
 }
 
@@ -190,4 +249,54 @@ func castBoolField(fields map[string]any, name string) (bool, error) {
 	}
 
 	return asBool, nil
+}
+
+func castStringField(fields map[string]any, name string) (string, error) {
+	value, ok := fields[name]
+
+	if !ok {
+		return "", fmt.Errorf("router config: missing %q", name)
+	}
+
+	asString, ok := value.(string)
+
+	if !ok {
+		return "", fmt.Errorf("router config %q is %T, expected string", name, value)
+	}
+
+	return asString, nil
+}
+
+func castRoPEModeField(fields map[string]any, name string) (device.RoPEMode, error) {
+	value, err := castStringField(fields, name)
+
+	if err != nil {
+		return device.RoPEModeInterleaved, err
+	}
+
+	switch strings.ToLower(value) {
+	case "interleaved":
+		return device.RoPEModeInterleaved, nil
+	case "half":
+		return device.RoPEModeHalf, nil
+	default:
+		return device.RoPEModeInterleaved, fmt.Errorf("router config %q has unsupported RoPE mode %q", name, value)
+	}
+}
+
+func castRoPEScalingField(fields map[string]any, name string) (device.RoPEScaling, error) {
+	value, err := castStringField(fields, name)
+
+	if err != nil {
+		return device.RoPEScalingNone, err
+	}
+
+	switch strings.ToLower(value) {
+	case "none":
+		return device.RoPEScalingNone, nil
+	case "llama3":
+		return device.RoPEScalingLlama3, nil
+	default:
+		return device.RoPEScalingNone, fmt.Errorf("router config %q has unsupported RoPE scaling %q", name, value)
+	}
 }

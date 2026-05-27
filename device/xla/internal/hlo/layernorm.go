@@ -9,7 +9,6 @@ import (
 )
 
 const layerNormEpsilon = 1e-5
-const rmsNormEpsilon = 1e-6
 const normEpsilon = 1e-5
 
 func RenderLayerNorm(
@@ -62,6 +61,7 @@ func RenderRMSNorm(
 	moduleName string,
 	elementFormat dtype.DType,
 	inputShape tensor.Shape,
+	epsilon float64,
 ) (string, error) {
 	elementType, err := elementToken(elementFormat)
 
@@ -71,6 +71,10 @@ func RenderRMSNorm(
 
 	if len(inputShape.Dims()) != 2 {
 		return "", fmt.Errorf("rms norm requires rank-2 input")
+	}
+
+	if !(epsilon > 0) {
+		return "", fmt.Errorf("rms norm epsilon must be positive")
 	}
 
 	rowCount := inputShape.Dims()[0]
@@ -84,7 +88,7 @@ func RenderRMSNorm(
 		fmt.Sprintf("  input = %s parameter(0)", inputLiteral),
 		fmt.Sprintf("  scale = %s parameter(1)", scaleLiteral),
 		fmt.Sprintf("  zero = %s[] constant(0)", elementType),
-		fmt.Sprintf("  eps = %s[] constant(%g)", elementType, rmsNormEpsilon),
+		fmt.Sprintf("  eps = %s[] constant(%g)", elementType, epsilon),
 		fmt.Sprintf("  denom = %s[] constant(%d)", elementType, lastDim),
 		fmt.Sprintf("  sq = %s multiply(input, input)", inputLiteral),
 		fmt.Sprintf("  row_var = %s reduce(sq, zero), dimensions={1}, to_apply=%%add", rowLiteral),

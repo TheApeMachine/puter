@@ -12,6 +12,7 @@ static inline void rmsnorm_rows(
     device Scalar* out,
     threadgroup float* reduction,
     constant uint& cols,
+    constant float& epsilon,
     uint row,
     uint threadIndex
 ) {
@@ -39,7 +40,7 @@ static inline void rmsnorm_rows(
         threadgroup_barrier(mem_flags::mem_threadgroup);
     }
 
-    float invRMS = rsqrt(reduction[0] / float(cols) + rmsNormEpsilonMetalDefault);
+    float invRMS = rsqrt(reduction[0] / float(cols) + epsilon);
 
     for (uint col = threadIndex; col < cols; col += normalizationThreadCount) {
         float value = Storage::load(input, rowOffset + col) * invRMS * Storage::load(scale, col);

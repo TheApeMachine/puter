@@ -67,6 +67,7 @@ static int cuda_layernorm_dispatch_grid(
     CUDABufferRef outputRef,
     uint32_t rows,
     uint32_t cols,
+    float epsilon,
     int hasBias,
     uint64_t completionToken,
     CUDAStatus* status
@@ -157,7 +158,7 @@ static int cuda_layernorm_dispatch_grid(
     }
 
     if (!hasBias) {
-        void* args[] = {&inputPtr, &scalePtr, &outputPtr, &cols};
+        void* args[] = {&inputPtr, &scalePtr, &outputPtr, &cols, &epsilon};
         int launchCode = cuda_launch_grid(
             context,
             kernel,
@@ -205,6 +206,7 @@ int cuda_dispatch_layernorm(
         outputRef,
         rows,
         cols,
+        0.0f,
         1,
         completionToken,
         status
@@ -219,6 +221,7 @@ int cuda_dispatch_rmsnorm(
     CUDABufferRef outputRef,
     uint32_t rows,
     uint32_t cols,
+    float epsilon,
     uint64_t completionToken,
     CUDAStatus* status
 ) {
@@ -232,6 +235,7 @@ int cuda_dispatch_rmsnorm(
         outputRef,
         rows,
         cols,
+        epsilon,
         0,
         completionToken,
         status

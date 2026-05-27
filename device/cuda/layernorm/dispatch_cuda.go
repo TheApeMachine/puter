@@ -87,6 +87,7 @@ func DispatchLayerNorm(
 	format dtype.DType,
 	rows uint32,
 	cols uint32,
+	epsilon float32,
 	completionToken uint64,
 ) error {
 	elementFormat := elementDType(format)
@@ -105,6 +106,7 @@ func DispatchLayerNorm(
 		outputRef,
 		C.uint32_t(rows),
 		C.uint32_t(cols),
+		C.float(epsilon),
 		C.ulonglong(completionToken),
 		&status,
 	)
