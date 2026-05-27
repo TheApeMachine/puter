@@ -1302,6 +1302,34 @@ func (host *ComputeHost) LaunchLookup(table, indices, output unsafe.Pointer, voc
 	}
 }
 
+func (host *ComputeHost) LaunchTimestepEmbedding(
+	config device.TimestepEmbeddingConfig,
+	timesteps, output unsafe.Pointer,
+	count, dim int,
+	format dtype.DType,
+) {
+	if count == 0 || dim == 0 {
+		return
+	}
+
+	host.dispatchError(config.Validate())
+
+	if err := embedding.DispatchTimestepEmbedding(
+		host.contextRef(),
+		resolveBufferRef(timesteps),
+		resolveBufferRef(output),
+		format,
+		config.MaxPeriod,
+		config.DownscaleFreqShift,
+		config.TimestepDivisor,
+		config.FlipSinToCos,
+		uint32(count),
+		uint32(dim),
+	); err != nil {
+		host.dispatchError(err)
+	}
+}
+
 func (host *ComputeHost) LaunchRMSNorm(
 	config device.RMSNormConfig,
 	input, scale, output unsafe.Pointer,
@@ -1327,6 +1355,15 @@ func (host *ComputeHost) LaunchRMSNorm(
 	); err != nil {
 		host.dispatchError(err)
 	}
+}
+
+func (host *ComputeHost) LaunchModulatedLayerNorm(
+	config device.ModulatedLayerNormConfig,
+	input, modulation, output unsafe.Pointer,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+	format dtype.DType,
+) {
+	host.unavailable()
 }
 
 func (host *ComputeHost) MatmulLaunch(out, left, right unsafe.Pointer, rows, inner, cols int, format dtype.DType) {

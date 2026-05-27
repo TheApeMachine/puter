@@ -166,6 +166,7 @@ int metal_dispatch_modulated_layernorm(
     uint32_t rowsPerBatch,
     uint32_t modulationCols,
     uint32_t modulationSet,
+    float epsilon,
     uint64_t completionToken,
     MetalStatus* status
 ) {
@@ -201,6 +202,7 @@ int metal_dispatch_modulated_layernorm(
             [encoder setBytes:&rowsPerBatch length:sizeof(rowsPerBatch) atIndex:4];
             [encoder setBytes:&modulationCols length:sizeof(modulationCols) atIndex:5];
             [encoder setBytes:&modulationSet length:sizeof(modulationSet) atIndex:6];
+            [encoder setBytes:&epsilon length:sizeof(epsilon) atIndex:7];
         }
     );
 }

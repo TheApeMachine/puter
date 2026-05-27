@@ -124,11 +124,12 @@ func DispatchLookup(
 func DispatchTimestepEmbedding(
 	contextRef C.CUDADeviceRef,
 	timestepsBuffer C.CUDABufferRef,
-	maxPeriodBuffer C.CUDABufferRef,
-	downscaleBuffer C.CUDABufferRef,
-	flipBuffer C.CUDABufferRef,
 	outputBuffer C.CUDABufferRef,
 	format dtype.DType,
+	maxPeriod float32,
+	downscaleFreqShift float32,
+	timestepDivisor float32,
+	flipSinToCos bool,
 	count uint32,
 	dim uint32,
 ) error {
@@ -143,10 +144,11 @@ func DispatchTimestepEmbedding(
 		contextRef,
 		elementFormat,
 		timestepsBuffer,
-		maxPeriodBuffer,
-		downscaleBuffer,
-		flipBuffer,
 		outputBuffer,
+		C.float(maxPeriod),
+		C.float(downscaleFreqShift),
+		C.float(timestepDivisor),
+		C.int(boolInt(flipSinToCos)),
 		C.uint32_t(count),
 		C.uint32_t(dim),
 		0,
@@ -158,6 +160,14 @@ func DispatchTimestepEmbedding(
 	}
 
 	return nil
+}
+
+func boolInt(value bool) int {
+	if value {
+		return 1
+	}
+
+	return 0
 }
 
 func DispatchBag(

@@ -55,12 +55,13 @@ kernel void name( \
     constant uint& rowsPerBatch [[buffer(4)]], \
     constant uint& modulationCols [[buffer(5)]], \
     constant uint& modulationSet [[buffer(6)]], \
+    constant float& epsilon [[buffer(7)]], \
     uint row [[threadgroup_position_in_grid]], \
     uint threadIndex [[thread_position_in_threadgroup]] \
 ) { \
     threadgroup float reduction[256]; \
     modulated_layernorm_rows<storage, scalar>( \
-        input, modulation, out, reduction, cols, rowsPerBatch, modulationCols, modulationSet, row, threadIndex \
+        input, modulation, out, reduction, cols, rowsPerBatch, modulationCols, modulationSet, epsilon, row, threadIndex \
     ); \
 }
 

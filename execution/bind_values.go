@@ -26,6 +26,14 @@ func (resolver *bindResolver) applyTransforms(value any, spec asset.BindArg) (an
 func (resolver *bindResolver) applyShapeTransforms(dimensions []int, spec asset.BindArg) (any, error) {
 	dims := append([]int(nil), dimensions...)
 
+	if spec.DropHead > 0 {
+		if spec.DropHead > len(dims) {
+			return nil, fmt.Errorf("drop_head %d exceeds shape %v", spec.DropHead, dimensions)
+		}
+
+		dims = dims[spec.DropHead:]
+	}
+
 	if spec.DropTail > 0 {
 		if spec.DropTail > len(dims) {
 			return nil, fmt.Errorf("drop_tail %d exceeds shape %v", spec.DropTail, dimensions)
@@ -79,14 +87,59 @@ func (resolver *bindResolver) applyIntTransforms(value int, spec asset.BindArg) 
 	}
 
 	if divisor == 0 {
-		return value, nil
+		return resolver.applyConv2DOutputTransform(value, spec)
 	}
 
 	if value%divisor != 0 {
 		return 0, fmt.Errorf("%d is not divisible by %d", value, divisor)
 	}
 
-	return value / divisor, nil
+	return resolver.applyConv2DOutputTransform(value/divisor, spec)
+}
+
+func (resolver *bindResolver) applyConv2DOutputTransform(value int, spec asset.BindArg) (int, error) {
+	if spec.Conv2DOutput == "" {
+		return value, nil
+	}
+
+	switch spec.Conv2DOutput {
+	case "height":
+		return resolver.conv2DOutputDimension(value, "kernel_h", "stride_h", "pad_h", "dil_h")
+	case "width":
+		return resolver.conv2DOutputDimension(value, "kernel_w", "stride_w", "pad_w", "dil_w")
+	default:
+		return 0, fmt.Errorf("unsupported conv2d_output %q", spec.Conv2DOutput)
+	}
+}
+
+func (resolver *bindResolver) conv2DOutputDimension(
+	inputSize int,
+	kernelKey, strideKey, paddingKey, dilationKey string,
+) (int, error) {
+	kernel := configInt(resolver.node, kernelKey, resolver.defaultConfigInt(kernelKey))
+	stride := configInt(resolver.node, strideKey, resolver.defaultConfigInt(strideKey))
+	padding := configInt(resolver.node, paddingKey, resolver.defaultConfigInt(paddingKey))
+	dilation := configInt(resolver.node, dilationKey, resolver.defaultConfigInt(dilationKey))
+
+	if kernel <= 0 {
+		return 0, fmt.Errorf("conv2d %s must be positive", kernelKey)
+	}
+
+	if stride <= 0 {
+		return 0, fmt.Errorf("conv2d %s must be positive", strideKey)
+	}
+
+	if dilation <= 0 {
+		return 0, fmt.Errorf("conv2d %s must be positive", dilationKey)
+	}
+
+	numerator := inputSize + 2*padding - dilation*(kernel-1) - 1
+
+	if numerator < 0 {
+		return 0, fmt.Errorf("conv2d output dimension is negative")
+	}
+
+	return numerator/stride + 1, nil
 }
 
 func (resolver *bindResolver) resolveInputTensor(source string) (tensor.Tensor, error) {
@@ -245,9 +298,13 @@ func (resolver *bindResolver) uploadFloat32Slice(values []float32) (tensor.Tenso
 	return resolver.dispatcher.memory.Upload(shape, dtype.Float32, buffer)
 }
 
-func (resolver *bindResolver) resolveWeightTensor(transposed bool) (tensor.Tensor, error) {
+func (resolver *bindResolver) resolveWeightTensor(transposed bool, bias bool) (tensor.Tensor, error) {
 	if resolver.node.Weights == nil || resolver.node.Weights.TensorName == "" {
 		return nil, fmt.Errorf("bind: node %q requires a weight binding", resolver.node.ID)
+	}
+
+	if bias {
+		return resolver.resolveBiasTensor()
 	}
 
 	if !transposed {
@@ -264,6 +321,14 @@ func (resolver *bindResolver) resolveWeightTensor(transposed bool) (tensor.Tenso
 	}
 
 	return transposedStore.LookupTransposed(resolver.node.Weights.TensorName)
+}
+
+func (resolver *bindResolver) resolveBiasTensor() (tensor.Tensor, error) {
+	if resolver.node.Weights.BiasName == "" {
+		return nil, fmt.Errorf("bind: node %q requires a bias binding", resolver.node.ID)
+	}
+
+	return resolver.dispatcher.weights.Lookup(resolver.node.Weights.BiasName)
 }
 
 func shapeDim(dimensions []int, dimensionIndex int) (int, error) {

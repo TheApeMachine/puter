@@ -10,9 +10,10 @@ static inline ushort timestep_float_to_bf16(float value) {
 
 static inline float timestep_embedding_value(
     device const float* timesteps,
-    device const float* maxPeriod,
-    device const float* downscaleFreqShift,
-    device const int* flipSinToCos,
+    float maxPeriod,
+    float downscaleFreqShift,
+    float timestepDivisor,
+    int flipSinToCos,
     uint dim,
     uint index
 ) {
@@ -24,14 +25,14 @@ static inline float timestep_embedding_value(
         return 0.0f;
     }
 
-    bool flipped = flipSinToCos[0] != 0;
+    bool flipped = flipSinToCos != 0;
     bool firstHalf = column < halfDim;
     uint frequencyIndex = firstHalf ? column : column - halfDim;
-    float denominator = float(halfDim) - downscaleFreqShift[0];
-    float exponent = -log(maxPeriod[0]) * float(frequencyIndex) / denominator;
-    float angle = timesteps[row] * exp(exponent);
-    float sinValue = sin(angle);
-    float cosValue = cos(angle);
+    float denominator = float(halfDim) - downscaleFreqShift;
+    float exponent = -precise::log(maxPeriod) * float(frequencyIndex) / denominator;
+    float angle = (timesteps[row] / timestepDivisor) * precise::exp(exponent);
+    float cosValue;
+    float sinValue = precise::sincos(angle, cosValue);
 
     if (flipped) {
         return firstHalf ? cosValue : sinValue;
@@ -42,12 +43,13 @@ static inline float timestep_embedding_value(
 
 kernel void timestep_embedding_float32(
     device const float* timesteps [[buffer(0)]],
-    device const float* maxPeriod [[buffer(1)]],
-    device const float* downscaleFreqShift [[buffer(2)]],
-    device const int* flipSinToCos [[buffer(3)]],
+    constant float& maxPeriod [[buffer(1)]],
+    constant float& downscaleFreqShift [[buffer(2)]],
+    constant int& flipSinToCos [[buffer(3)]],
     device float* out [[buffer(4)]],
     constant uint& count [[buffer(5)]],
     constant uint& dim [[buffer(6)]],
+    constant float& timestepDivisor [[buffer(7)]],
     uint index [[thread_position_in_grid]]
 ) {
     uint total = count * dim;
@@ -57,18 +59,19 @@ kernel void timestep_embedding_float32(
     }
 
     out[index] = timestep_embedding_value(
-        timesteps, maxPeriod, downscaleFreqShift, flipSinToCos, dim, index
+        timesteps, maxPeriod, downscaleFreqShift, timestepDivisor, flipSinToCos, dim, index
     );
 }
 
 kernel void timestep_embedding_float16(
     device const float* timesteps [[buffer(0)]],
-    device const float* maxPeriod [[buffer(1)]],
-    device const float* downscaleFreqShift [[buffer(2)]],
-    device const int* flipSinToCos [[buffer(3)]],
+    constant float& maxPeriod [[buffer(1)]],
+    constant float& downscaleFreqShift [[buffer(2)]],
+    constant int& flipSinToCos [[buffer(3)]],
     device half* out [[buffer(4)]],
     constant uint& count [[buffer(5)]],
     constant uint& dim [[buffer(6)]],
+    constant float& timestepDivisor [[buffer(7)]],
     uint index [[thread_position_in_grid]]
 ) {
     uint total = count * dim;
@@ -78,18 +81,19 @@ kernel void timestep_embedding_float16(
     }
 
     out[index] = half(timestep_embedding_value(
-        timesteps, maxPeriod, downscaleFreqShift, flipSinToCos, dim, index
+        timesteps, maxPeriod, downscaleFreqShift, timestepDivisor, flipSinToCos, dim, index
     ));
 }
 
 kernel void timestep_embedding_bfloat16(
     device const float* timesteps [[buffer(0)]],
-    device const float* maxPeriod [[buffer(1)]],
-    device const float* downscaleFreqShift [[buffer(2)]],
-    device const int* flipSinToCos [[buffer(3)]],
+    constant float& maxPeriod [[buffer(1)]],
+    constant float& downscaleFreqShift [[buffer(2)]],
+    constant int& flipSinToCos [[buffer(3)]],
     device ushort* out [[buffer(4)]],
     constant uint& count [[buffer(5)]],
     constant uint& dim [[buffer(6)]],
+    constant float& timestepDivisor [[buffer(7)]],
     uint index [[thread_position_in_grid]]
 ) {
     uint total = count * dim;
@@ -99,7 +103,7 @@ kernel void timestep_embedding_bfloat16(
     }
 
     float value = timestep_embedding_value(
-        timesteps, maxPeriod, downscaleFreqShift, flipSinToCos, dim, index
+        timesteps, maxPeriod, downscaleFreqShift, timestepDivisor, flipSinToCos, dim, index
     );
     out[index] = timestep_float_to_bf16(value);
 }

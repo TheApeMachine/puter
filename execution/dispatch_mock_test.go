@@ -19,6 +19,10 @@ func (noopDeviceBackend) Lookup(table, indices, output unsafe.Pointer, vocab, hi
 	panic("noopDeviceBackend.Lookup invoked")
 }
 
+func (noopDeviceBackend) TimestepEmbedding(config device.TimestepEmbeddingConfig, timesteps, output unsafe.Pointer, count, dim int, format dtype.DType) {
+	panic("noopDeviceBackend.TimestepEmbedding invoked")
+}
+
 func (noopDeviceBackend) RMSNorm(config device.RMSNormConfig, input, scale, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {
 	panic("noopDeviceBackend.RMSNorm invoked")
 }
@@ -27,8 +31,28 @@ func (noopDeviceBackend) LayerNorm(input, scale, bias, output unsafe.Pointer, ro
 	panic("noopDeviceBackend.LayerNorm invoked")
 }
 
+func (noopDeviceBackend) ModulatedLayerNorm(
+	config device.ModulatedLayerNormConfig,
+	input, modulation, output unsafe.Pointer,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+	format dtype.DType,
+) {
+	panic("noopDeviceBackend.ModulatedLayerNorm invoked")
+}
+
 func (noopDeviceBackend) Matmul(out, left, right unsafe.Pointer, rows, inner, cols int, format dtype.DType) {
 	panic("noopDeviceBackend.Matmul invoked")
+}
+
+func (noopDeviceBackend) Conv2D(
+	config device.Conv2DConfig,
+	input, weight, bias, output unsafe.Pointer,
+	batch, inChannels, inHeight, inWidth,
+	outChannels, kernelHeight, kernelWidth,
+	outHeight, outWidth int,
+	format dtype.DType,
+) {
+	panic("noopDeviceBackend.Conv2D invoked")
 }
 
 func (noopDeviceBackend) Add(dst, left, right unsafe.Pointer, count int, format dtype.DType) {

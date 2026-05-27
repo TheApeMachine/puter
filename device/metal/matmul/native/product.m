@@ -19,7 +19,10 @@ int metal_dispatch_matmul(
         return -2;
     }
 
-    int mpsCode = metal_matmul_dispatch_mps(
+    int mpsCode = -100;
+
+    if (elementDType != MetalElementDTypeBFloat16) {
+        mpsCode = metal_matmul_dispatch_mps(
             contextRef,
             elementDType,
             leftRef,
@@ -31,10 +34,11 @@ int metal_dispatch_matmul(
             completionToken,
             status
         );
+    }
 
-        if (mpsCode != -100) {
-            return mpsCode;
-        }
+    if (mpsCode != -100) {
+        return mpsCode;
+    }
 
     char kernelName[128];
     int nameCode = metal_matmul_kernel_name(

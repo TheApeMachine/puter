@@ -22,6 +22,22 @@ int metal_dispatch_groupnorm(
     MetalStatus* status
 );
 
+int metal_dispatch_modulated_layernorm(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef inputRef,
+    MetalBufferRef modulationRef,
+    MetalBufferRef outRef,
+    uint32_t rows,
+    uint32_t cols,
+    uint32_t rowsPerBatch,
+    uint32_t modulationCols,
+    uint32_t modulationSet,
+    float epsilon,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+
 #ifdef __cplusplus
 }
 #endif

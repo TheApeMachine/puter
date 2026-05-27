@@ -102,6 +102,7 @@ static inline void modulated_layernorm_rows(
     constant uint& rowsPerBatch,
     constant uint& modulationCols,
     constant uint& modulationSet,
+    constant float& epsilon,
     uint row,
     uint threadIndex
 ) {
@@ -132,7 +133,7 @@ static inline void modulated_layernorm_rows(
         threadgroup_barrier(mem_flags::mem_threadgroup);
     }
 
-    float invStdDev = rsqrt(reduction[0] / float(cols) + layerNormEpsilonMetal);
+    float invStdDev = rsqrt(reduction[0] / float(cols) + epsilon);
 
     for (uint col = threadIndex; col < cols; col += normalizationThreadCount) {
         float normalized = (Storage::load(input, rowOffset + col) - mean) * invStdDev;

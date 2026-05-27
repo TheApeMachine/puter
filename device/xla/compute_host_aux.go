@@ -203,6 +203,55 @@ func (host *ComputeHost) DispatchEmbeddingBag(
 	))
 }
 
+func (host *ComputeHost) DispatchTimestepEmbedding(
+	config device.TimestepEmbeddingConfig,
+	timesteps, output unsafe.Pointer,
+	count, dim int,
+	format dtype.DType,
+) {
+	if count == 0 || dim == 0 {
+		return
+	}
+
+	host.dispatchError(config.Validate())
+
+	inputShape, err := ShapeFromVector(count)
+	host.dispatchError(err)
+
+	outputShape, err := ShapeFromRowsCols(count, dim)
+	host.dispatchError(err)
+
+	context := LoweringContext{
+		Target:      DefaultBuilderTarget,
+		InputDTypes: []dtype.DType{dtype.Float32},
+		InputShapes: []tensor.Shape{inputShape},
+		OutputDType: format,
+		OutputShape: outputShape,
+	}
+
+	inputTensor := host.requireDeviceTensor(timesteps)
+	outputTensor := host.requireDeviceTensor(output)
+	flip := int64(0)
+
+	if config.FlipSinToCos {
+		flip = 1
+	}
+
+	host.dispatchError(host.builder.ExecuteVariadic(
+		host.bridge,
+		"timestep_embedding",
+		context,
+		[]float64{
+			float64(config.MaxPeriod),
+			float64(config.DownscaleFreqShift),
+			float64(config.TimestepDivisor),
+		},
+		[]int64{flip},
+		[]*DeviceTensor{inputTensor},
+		outputTensor,
+	))
+}
+
 func (host *ComputeHost) DispatchGreedySample(
 	logits unsafe.Pointer,
 	vocabSize int,

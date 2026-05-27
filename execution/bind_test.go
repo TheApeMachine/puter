@@ -15,10 +15,13 @@ import (
 )
 
 type recordingDevice struct {
-	addCalls          []recordedAddCall
-	rmsNormCalls      []recordedRMSNormCall
-	swiGLUTensorCalls []recordedSwiGLUTensorCall
-	ropeCalls         []recordedRoPECall
+	addCalls           []recordedAddCall
+	timestepCalls      []recordedTimestepCall
+	conv2DCalls        []recordedConv2DCall
+	rmsNormCalls       []recordedRMSNormCall
+	modulatedNormCalls []recordedModulatedLayerNormCall
+	swiGLUTensorCalls  []recordedSwiGLUTensorCall
+	ropeCalls          []recordedRoPECall
 }
 
 type recordedAddCall struct {
@@ -37,6 +40,33 @@ type recordedSwiGLUTensorCall struct {
 	format dtype.DType
 }
 
+type recordedTimestepCall struct {
+	config    device.TimestepEmbeddingConfig
+	timesteps unsafe.Pointer
+	output    unsafe.Pointer
+	count     int
+	dim       int
+	format    dtype.DType
+}
+
+type recordedConv2DCall struct {
+	config      device.Conv2DConfig
+	input       unsafe.Pointer
+	weight      unsafe.Pointer
+	bias        unsafe.Pointer
+	output      unsafe.Pointer
+	batch       int
+	inChannels  int
+	inHeight    int
+	inWidth     int
+	outChannels int
+	kernelH     int
+	kernelW     int
+	outHeight   int
+	outWidth    int
+	format      dtype.DType
+}
+
 type recordedRMSNormCall struct {
 	config  device.RMSNormConfig
 	input   unsafe.Pointer
@@ -45,6 +75,18 @@ type recordedRMSNormCall struct {
 	rows    int
 	lastDim int
 	format  dtype.DType
+}
+
+type recordedModulatedLayerNormCall struct {
+	config         device.ModulatedLayerNormConfig
+	input          unsafe.Pointer
+	modulation     unsafe.Pointer
+	output         unsafe.Pointer
+	rows           int
+	lastDim        int
+	rowsPerBatch   int
+	modulationCols int
+	format         dtype.DType
 }
 
 type recordedRoPECall struct {
@@ -81,6 +123,22 @@ func (recordingDevice) Lookup(table, indices, output unsafe.Pointer, vocab, hidd
 	panic("recordingDevice.Lookup invoked")
 }
 
+func (recorder *recordingDevice) TimestepEmbedding(
+	config device.TimestepEmbeddingConfig,
+	timesteps, output unsafe.Pointer,
+	count, dim int,
+	format dtype.DType,
+) {
+	recorder.timestepCalls = append(recorder.timestepCalls, recordedTimestepCall{
+		config:    config,
+		timesteps: timesteps,
+		output:    output,
+		count:     count,
+		dim:       dim,
+		format:    format,
+	})
+}
+
 func (recorder *recordingDevice) RMSNorm(
 	config device.RMSNormConfig,
 	input, scale, output unsafe.Pointer,
@@ -102,8 +160,54 @@ func (recordingDevice) LayerNorm(input, scale, bias, output unsafe.Pointer, rows
 	panic("recordingDevice.LayerNorm invoked")
 }
 
+func (recorder *recordingDevice) ModulatedLayerNorm(
+	config device.ModulatedLayerNormConfig,
+	input, modulation, output unsafe.Pointer,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+	format dtype.DType,
+) {
+	recorder.modulatedNormCalls = append(recorder.modulatedNormCalls, recordedModulatedLayerNormCall{
+		config:         config,
+		input:          input,
+		modulation:     modulation,
+		output:         output,
+		rows:           rows,
+		lastDim:        lastDim,
+		rowsPerBatch:   rowsPerBatch,
+		modulationCols: modulationCols,
+		format:         format,
+	})
+}
+
 func (recordingDevice) Matmul(out, left, right unsafe.Pointer, rows, inner, cols int, format dtype.DType) {
 	panic("recordingDevice.Matmul invoked")
+}
+
+func (recorder *recordingDevice) Conv2D(
+	config device.Conv2DConfig,
+	input, weight, bias, output unsafe.Pointer,
+	batch, inChannels, inHeight, inWidth,
+	outChannels, kernelHeight, kernelWidth,
+	outHeight, outWidth int,
+	format dtype.DType,
+) {
+	recorder.conv2DCalls = append(recorder.conv2DCalls, recordedConv2DCall{
+		config:      config,
+		input:       input,
+		weight:      weight,
+		bias:        bias,
+		output:      output,
+		batch:       batch,
+		inChannels:  inChannels,
+		inHeight:    inHeight,
+		inWidth:     inWidth,
+		outChannels: outChannels,
+		kernelH:     kernelHeight,
+		kernelW:     kernelWidth,
+		outHeight:   outHeight,
+		outWidth:    outWidth,
+		format:      format,
+	})
 }
 
 func (recordingDevice) Sub(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
@@ -193,6 +297,214 @@ func TestRunBoundNodeUsesOperationYAML(t *testing.T) {
 			convey.So(stored.DType(), convey.ShouldEqual, dtype.Float32)
 		})
 	})
+}
+
+func TestRunBoundNodeUsesTimestepEmbeddingBind(t *testing.T) {
+	convey.Convey("Given embedding.timestep is declared with a YAML bind", t, func() {
+		memory := tensor.NewHostBackend()
+		defer memory.Close()
+
+		timestepTensor := uploadFloatSlice(t, memory, []float32{250})
+
+		recorder := &recordingDevice{}
+		dispatcher := newTestDispatcher(recorder, memory)
+		dispatcher.values.set("timestep", timestepTensor)
+
+		node := &ast.GraphNode{
+			ID:     "time_guidance_embed.time_proj",
+			Op:     "embedding.timestep",
+			Inputs: []string{"timestep"},
+			Attributes: map[string]any{
+				"dim":                  256,
+				"flip_sin_to_cos":      true,
+				"downscale_freq_shift": 0,
+				"max_period":           10000,
+				"timestep_divisor":     1000,
+			},
+		}
+
+		err := dispatcher.runNode(node)
+		convey.So(err, convey.ShouldBeNil)
+
+		convey.Convey("The router issued one TimestepEmbedding device call", func() {
+			convey.So(len(recorder.timestepCalls), convey.ShouldEqual, 1)
+			convey.So(recorder.timestepCalls[0].config.MaxPeriod, convey.ShouldEqual, float32(10000))
+			convey.So(recorder.timestepCalls[0].config.TimestepDivisor, convey.ShouldEqual, float32(1000))
+			convey.So(recorder.timestepCalls[0].config.FlipSinToCos, convey.ShouldBeTrue)
+			convey.So(recorder.timestepCalls[0].count, convey.ShouldEqual, 1)
+			convey.So(recorder.timestepCalls[0].dim, convey.ShouldEqual, 256)
+			convey.So(recorder.timestepCalls[0].format, convey.ShouldEqual, dtype.Float32)
+		})
+
+		convey.Convey("The output tensor shape is [batch, dim]", func() {
+			stored, err := dispatcher.values.tensor("time_guidance_embed.time_proj")
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(stored.Shape().Dims(), convey.ShouldResemble, []int{1, 256})
+			convey.So(stored.DType(), convey.ShouldEqual, dtype.Float32)
+		})
+	})
+}
+
+func TestRunBoundNodeUsesModulatedLayerNormBind(t *testing.T) {
+	convey.Convey("Given math.modulated_layernorm is declared with a YAML bind", t, func() {
+		memory := tensor.NewHostBackend()
+		defer memory.Close()
+
+		inputTensor := uploadFloatSliceWithShape(t, memory, make([]float32, 2*3*4), []int{2, 3, 4})
+		modulationTensor := uploadFloatSliceWithShape(t, memory, make([]float32, 2*24), []int{2, 24})
+
+		recorder := &recordingDevice{}
+		dispatcher := newTestDispatcher(recorder, memory)
+		dispatcher.values.set("x", inputTensor)
+		dispatcher.values.set("modulation", modulationTensor)
+
+		node := &ast.GraphNode{
+			ID:     "modulated",
+			Op:     "math.modulated_layernorm",
+			Inputs: []string{"x", "modulation"},
+			Attributes: map[string]any{
+				"eps": 1e-6,
+				"set": 1,
+			},
+		}
+
+		err := dispatcher.runNode(node)
+		convey.So(err, convey.ShouldBeNil)
+
+		convey.Convey("The router issued one ModulatedLayerNorm device call", func() {
+			convey.So(len(recorder.modulatedNormCalls), convey.ShouldEqual, 1)
+
+			call := recorder.modulatedNormCalls[0]
+			convey.So(call.config.Epsilon, convey.ShouldEqual, float64(float32(1e-6)))
+			convey.So(call.config.Set, convey.ShouldEqual, 1)
+			convey.So(call.rows, convey.ShouldEqual, 6)
+			convey.So(call.lastDim, convey.ShouldEqual, 4)
+			convey.So(call.rowsPerBatch, convey.ShouldEqual, 3)
+			convey.So(call.modulationCols, convey.ShouldEqual, 24)
+			convey.So(call.format, convey.ShouldEqual, dtype.Float32)
+		})
+
+		convey.Convey("The output tensor shape follows the input", func() {
+			stored, err := dispatcher.values.tensor("modulated")
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(stored.Shape().Dims(), convey.ShouldResemble, []int{2, 3, 4})
+			convey.So(stored.DType(), convey.ShouldEqual, dtype.Float32)
+		})
+	})
+}
+
+func TestRunBoundNodeUsesConv2DBind(t *testing.T) {
+	convey.Convey("Given convolution.conv2d is declared with a YAML bind", t, func() {
+		memory := tensor.NewHostBackend()
+		defer memory.Close()
+
+		inputTensor := uploadFloatSliceWithShape(t, memory, make([]float32, 1*3*5*7), []int{1, 3, 5, 7})
+		weightTensor := uploadFloatSliceWithShape(t, memory, make([]float32, 4*3*3*3), []int{4, 3, 3, 3})
+		biasTensor := uploadFloatSlice(t, memory, []float32{1, 2, 3, 4})
+
+		recorder := &recordingDevice{}
+		dispatcher := newTestDispatcher(recorder, memory)
+		dispatcher.weights = mapWeightStore{
+			"decoder.conv.weight": weightTensor,
+			"decoder.conv.bias":   biasTensor,
+		}
+		dispatcher.values.set("x", inputTensor)
+
+		node := &ast.GraphNode{
+			ID:     "conv",
+			Op:     "convolution.conv2d",
+			Inputs: []string{"x"},
+			Attributes: map[string]any{
+				"in_channels":  3,
+				"out_channels": 4,
+				"kernel_h":     3,
+				"kernel_w":     3,
+				"stride_h":     1,
+				"stride_w":     1,
+				"pad_h":        1,
+				"pad_w":        1,
+				"dil_h":        1,
+				"dil_w":        1,
+			},
+			Weights: &ast.BoundWeight{
+				TensorName: "decoder.conv.weight",
+				BiasName:   "decoder.conv.bias",
+			},
+		}
+
+		err := dispatcher.runNode(node)
+		convey.So(err, convey.ShouldBeNil)
+
+		convey.Convey("The router issued one Conv2D device call", func() {
+			convey.So(len(recorder.conv2DCalls), convey.ShouldEqual, 1)
+
+			call := recorder.conv2DCalls[0]
+			convey.So(call.config.StrideH, convey.ShouldEqual, 1)
+			convey.So(call.config.PaddingH, convey.ShouldEqual, 1)
+			convey.So(call.config.DilationH, convey.ShouldEqual, 1)
+			convey.So(call.batch, convey.ShouldEqual, 1)
+			convey.So(call.inChannels, convey.ShouldEqual, 3)
+			convey.So(call.inHeight, convey.ShouldEqual, 5)
+			convey.So(call.inWidth, convey.ShouldEqual, 7)
+			convey.So(call.outChannels, convey.ShouldEqual, 4)
+			convey.So(call.kernelH, convey.ShouldEqual, 3)
+			convey.So(call.kernelW, convey.ShouldEqual, 3)
+			convey.So(call.outHeight, convey.ShouldEqual, 5)
+			convey.So(call.outWidth, convey.ShouldEqual, 7)
+			convey.So(call.format, convey.ShouldEqual, dtype.Float32)
+		})
+
+		convey.Convey("The output tensor shape follows the convolution formula", func() {
+			stored, err := dispatcher.values.tensor("conv")
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(stored.Shape().Dims(), convey.ShouldResemble, []int{1, 4, 5, 7})
+		})
+	})
+}
+
+func BenchmarkRunBoundNodeConv2DBind(benchmark *testing.B) {
+	memory := tensor.NewHostBackend()
+	defer memory.Close()
+
+	inputTensor := uploadFloatSliceWithShape(benchmark, memory, make([]float32, 1*3*8*8), []int{1, 3, 8, 8})
+	weightTensor := uploadFloatSliceWithShape(benchmark, memory, make([]float32, 4*3*3*3), []int{4, 3, 3, 3})
+	biasTensor := uploadFloatSlice(benchmark, memory, []float32{1, 2, 3, 4})
+
+	recorder := &recordingDevice{}
+	dispatcher := newTestDispatcher(recorder, memory)
+	dispatcher.weights = mapWeightStore{
+		"decoder.conv.weight": weightTensor,
+		"decoder.conv.bias":   biasTensor,
+	}
+	dispatcher.values.set("x", inputTensor)
+
+	node := &ast.GraphNode{
+		ID:     "conv",
+		Op:     "convolution.conv2d",
+		Inputs: []string{"x"},
+		Attributes: map[string]any{
+			"in_channels":  3,
+			"out_channels": 4,
+			"kernel_h":     3,
+			"kernel_w":     3,
+			"stride_h":     1,
+			"stride_w":     1,
+			"pad_h":        1,
+			"pad_w":        1,
+			"dil_h":        1,
+			"dil_w":        1,
+		},
+		Weights: &ast.BoundWeight{
+			TensorName: "decoder.conv.weight",
+			BiasName:   "decoder.conv.bias",
+		},
+	}
+
+	for benchmark.Loop() {
+		if err := dispatcher.runNode(node); err != nil {
+			benchmark.Fatal(err)
+		}
+	}
 }
 
 func TestRunBoundNodeUsesLiveViewOfWorkspaceOutput(t *testing.T) {
@@ -580,13 +892,13 @@ func (store mapWeightStore) Lookup(name string) (tensor.Tensor, error) {
 	return resident, nil
 }
 
-func uploadFloatSlice(t *testing.T, memory tensor.Backend, values []float32) tensor.Tensor {
+func uploadFloatSlice(t testing.TB, memory tensor.Backend, values []float32) tensor.Tensor {
 	t.Helper()
 
 	return uploadFloatSliceWithShape(t, memory, values, []int{len(values)})
 }
 
-func uploadFloatSliceWithShape(t *testing.T, memory tensor.Backend, values []float32, dims []int) tensor.Tensor {
+func uploadFloatSliceWithShape(t testing.TB, memory tensor.Backend, values []float32, dims []int) tensor.Tensor {
 	t.Helper()
 
 	shape, err := tensor.NewShape(dims)
@@ -614,7 +926,7 @@ func uploadFloatSliceWithShape(t *testing.T, memory tensor.Backend, values []flo
 	return resident
 }
 
-func uploadInt32Slice(t *testing.T, memory tensor.Backend, values []int32) tensor.Tensor {
+func uploadInt32Slice(t testing.TB, memory tensor.Backend, values []int32) tensor.Tensor {
 	t.Helper()
 
 	shape, err := tensor.NewShape([]int{len(values)})

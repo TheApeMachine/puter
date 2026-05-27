@@ -4,6 +4,7 @@ import (
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/puter/device"
 )
 
 func requireRoPEFloat32(format dtype.DType) {
@@ -34,4 +35,13 @@ func (rotaryEmbedding RotaryEmbedding) RoPEPairs(
 		unsafe.Slice((*float32)(cosBuffer), halfDim),
 		unsafe.Slice((*float32)(sinBuffer), halfDim),
 	)
+}
+
+func (rotaryEmbedding RotaryEmbedding) MultiAxisRoPE(
+	config device.MultiAxisRoPEConfig,
+	input, output unsafe.Pointer,
+	batch, seqLen, numHeads, headDim int,
+	format dtype.DType,
+) {
+	dispatchMultiAxisRoPE(config, input, output, batch, seqLen, numHeads, headDim, format)
 }

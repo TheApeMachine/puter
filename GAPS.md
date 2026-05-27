@@ -562,14 +562,14 @@ After the Go excision (§6.5), the platform has the closed-world atomic contract
 
 | Op                                             | Family       | Status                                                                                             | Used for                                                              |
 |------------------------------------------------|--------------|----------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------|
-| `random.normal`                                | random (new) | ✓ CPU scalar, ✓ NEON Philox, ⚠ Metal (functional, ULP envelope documented), ✗ AMD64, ✗ CUDA, ✗ XLA | Initial noise tensor                                                  |
+| `random.normal`                                | random (new) | Runtime setup step landed in `manifesto/runtime` as a seeded host-prepared tensor; puter has CPU scalar + NEON Philox + Metal random code, but no `device.Backend` contract wiring yet; ✗ AMD64, ✗ CUDA, ✗ XLA | Initial noise tensor                                                  |
 | `math.arange`                                  | math         | ✗ missing                                                                                          | Timestep array generation                                             |
-| `math.linspace`                                | math         | ✗ missing                                                                                          | Alternative scheduler base (sigma schedules from `linspace(1, 0, N)`) |
-| `math.scalar_broadcast`                        | elementwise  | ✗ missing (could compose from existing)                                                            | `sigma * x` style operations                                          |
+| `math.linspace`                                | math         | Runtime setup step landed in `manifesto/runtime`; graph/device op YAML still missing                | Alternative scheduler base (sigma schedules from `linspace(1, 0, N)`) |
+| `math.scalar_broadcast`                        | elementwise  | Runtime setup step landed in `manifesto/runtime` for schedule tensors; graph/device broadcast semantics still missing | `sigma * x` style operations                                          |
 | `shape.permute`                                | shape        | partial — `transpose`/`reshape` exist; need general N-d permute                                    | NCHW ↔ packed-latent grid                                             |
 | `math.add`, `math.mul`, `math.sub`, `math.div` | math         | ✓ exist                                                                                            | Sigma scaling, residual update                                        |
 | `control.loop_each`                            | control      | ✓ exists                                                                                           | The denoising loop body                                               |
-| `state.update`                                 | state        | ✓ exists                                                                                           | Tracking step_index across the loop                                   |
+| `state.update`                                 | state        | ✓ exists; scalar state init + bare state-name target support landed in `manifesto/runtime`          | Tracking step_index across the loop                                   |
 
 **Net new YAML to write under `manifesto/asset/template/operation/`:**
 - `random/normal.yml` — references the device.Backend RandomNormal method (step 6 of the RandomNormal sequence)
@@ -705,14 +705,14 @@ The `math.scheduler_delta` op above is the only piece that smells model-family. 
 ### 6.7.4 Sequencing
 
 1. **Land the missing atomics:**
-   - `random.normal` (already mostly done; needs YAML at `template/operation/random/normal.yml` + step 5 wiring to `device.Backend`)
+   - `random.normal`: runtime setup step landed for host-prepared initial latents; still needs YAML at `template/operation/random/normal.yml` and full `device.Backend` wiring when RNG becomes a graph op.
    - `math.arange`: device-side reference + YAML
-   - `math.linspace`: device-side reference + YAML
-   - `math.scalar_broadcast`: either as a new device op or composed from `math.mul` with broadcast semantics
+   - `math.linspace`: runtime setup step landed; still needs device-side reference + YAML
+   - `math.scalar_broadcast`: runtime setup step landed; still needs either a device op or composition from `math.mul` with broadcast semantics
 
 2. **Migrate `template/model/architecture/flux2.yml` to `kind:` format.** It's already structured as the desired data; just needs the `kind: Architecture` header + variables block.
 
-3. **Write the runtime program** `template/runtime/diffusion.yml` per §6.7.3 above. Reference the migrated `flux2.yml` via the existing include mechanism.
+3. **Write the runtime program** `template/runtime/diffusion.yml` per §6.7.3 above. Initial FLUX-2 Klein runtime YAML exists and is parser-covered for variable substitution; next work is correcting graph inputs/scheduler delta semantics and executing through Metal.
 
 4. **Add a VAE decoder architecture template** (the existing diffusion model YAMLs like `template/model/diffusion/flux-1-dev.yml` likely already reference a VAE component; just confirm it's expressed as a sub-manifest over atomics).
 
@@ -801,7 +801,7 @@ The §6.7 rewrite plan assumes the chain in §8 already works. Adding atomic ops
 1.  ~~**8.1 step 1** (compiler resolves Includes via HF loader)~~ — **DONE 2026-05-25**.
 2.  ~~**8.1 step 2** (topology → dag.Graph lowering)~~ — **DONE 2026-05-25**.
 3.  ~~**8.1 step 3** (execution.Backend.CallGraph dispatch)~~ — **DONE 2026-05-25**.
-4.  ~~Diffusion runtime YAML for FLUX Klein-2 4B~~ (`asset/template/runtime/diffusion.yml`) — **DONE 2026-05-25** (a `caramba diffusion` subcommand also landed in `caramba/cmd/diffusion.go`). The YAML compiles today; execution still depends on a few atomic ops (`random.normal`, `math.linspace`, `math.scalar_broadcast`) that don't exist yet — see §6.7.1 — plus a real `WeightStore` implementation backed by `hf/safetensors`.
+4.  ~~Diffusion runtime YAML for FLUX Klein-2 4B~~ (`asset/template/runtime/diffusion.yml`) — **DONE 2026-05-25** (a `caramba diffusion` subcommand also landed in `caramba/cmd/diffusion.go`). Runtime setup atoms for `random.normal`, `math.linspace`, and `math.scalar_broadcast` have now landed in `manifesto/runtime`; execution still depends on graph-side scheduler delta semantics and the remaining FLUX/VAE op binds. `convolution.conv2d` bind wiring for the VAE path has landed.
 5.  **WeightStore implementation** — concrete `puter/execution.WeightStore` backed by `hf/safetensors` parsing. The dispatcher's hook exists (`execution.Backend.WithWeights`) but caramba currently wires the nil fallback. End-to-end token emission needs real weight loading.
 6.  Once chat.yml emits a token on CPU, validate the same chain on Metal, then verify FLUX Klein-2 4B end-to-end.
 

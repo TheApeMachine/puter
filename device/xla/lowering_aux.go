@@ -11,6 +11,7 @@ func RegisterAuxLowerings(registry *LoweringRegistry) {
 	registry.Register(UnaryParamLowering{operationName: "dropout"})
 	registry.Register(NewVariadicLowering("embedding_lookup", 2))
 	registry.Register(NewVariadicLowering("embedding_bag", 3))
+	registry.Register(NewVariadicLowering("timestep_embedding", 1))
 	registry.Register(UnaryToScalarLowering{operationName: "greedy_sample"})
 	registry.Register(UnaryParamLowering{operationName: "softmax_sort"})
 }

@@ -101,6 +101,41 @@ func TestLastTokenMetalParity(testingObject *testing.T) {
 	})
 }
 
+func TestConcatMetalParity(testingObject *testing.T) {
+	backend, err := NewBackend(context.Background(), nil)
+	if err != nil {
+		testingObject.Skipf("Metal backend unavailable: %v", err)
+	}
+	defer backend.Close()
+
+	convey.Convey("Given row-wise tensors on Metal", testingObject, func() {
+		left := uploadRoPETensor(testingObject, backend, []float32{1, 2, 3, 4})
+		defer left.Close()
+		right := uploadRoPETensor(testingObject, backend, []float32{10, 20})
+		defer right.Close()
+		output := uploadRoPETensor(testingObject, backend, make([]float32, 6))
+		defer output.Close()
+
+		backend.ConcatLastDim(
+			left.DispatchPointer(),
+			right.DispatchPointer(),
+			output.DispatchPointer(),
+			8,
+			4,
+			12,
+			24,
+			dtype.Float32,
+		)
+		backend.SyncDevice()
+
+		convey.Convey("It should concatenate the tail of each row", func() {
+			got := downloadFloat32MetalTensor(testingObject, output)
+
+			convey.So(got, convey.ShouldResemble, []float32{1, 2, 10, 3, 4, 20})
+		})
+	})
+}
+
 func BenchmarkPageWriteGatherMetal(benchmark *testing.B) {
 	backend, err := NewBackend(context.Background(), nil)
 	if err != nil {
@@ -146,6 +181,38 @@ func BenchmarkPageWriteGatherMetal(benchmark *testing.B) {
 			8*64,
 			16,
 			0,
+			dtype.Float32,
+		)
+	}
+
+	backend.SyncDevice()
+}
+
+func BenchmarkConcatMetal(benchmark *testing.B) {
+	backend, err := NewBackend(context.Background(), nil)
+	if err != nil {
+		benchmark.Skipf("Metal backend unavailable: %v", err)
+	}
+	defer backend.Close()
+
+	left := uploadRoPETensor(benchmark, backend, make([]float32, 4096*128))
+	defer left.Close()
+	right := uploadRoPETensor(benchmark, backend, make([]float32, 4096*128))
+	defer right.Close()
+	output := uploadRoPETensor(benchmark, backend, make([]float32, 4096*256))
+	defer output.Close()
+
+	benchmark.ResetTimer()
+
+	for benchmark.Loop() {
+		backend.ConcatLastDim(
+			left.DispatchPointer(),
+			right.DispatchPointer(),
+			output.DispatchPointer(),
+			128*4,
+			128*4,
+			256*4,
+			4096*256*4,
 			dtype.Float32,
 		)
 	}

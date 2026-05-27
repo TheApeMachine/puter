@@ -19,12 +19,18 @@ func callRouter(
 	switch bind.Method {
 	case "Lookup":
 		return callLookup(deviceBackend, args)
+	case "TimestepEmbedding":
+		return callTimestepEmbedding(deviceBackend, configFields, args)
 	case "Matmul":
 		return callMatmul(deviceBackend, args)
+	case "Conv2D":
+		return callConv2D(deviceBackend, configFields, args)
 	case "RMSNorm":
 		return callRMSNorm(deviceBackend, configFields, args)
 	case "LayerNorm":
 		return callLayerNorm(deviceBackend, args)
+	case "ModulatedLayerNorm":
+		return callModulatedLayerNorm(deviceBackend, configFields, args)
 	case "Add":
 		return callBinary("Add", args, deviceBackend.Add)
 	case "Sub":
@@ -49,6 +55,8 @@ func callRouter(
 		return callSwiGLUTensors(deviceBackend, args)
 	case "RoPE":
 		return callRoPE(deviceBackend, configFields, args)
+	case "MultiAxisRoPE":
+		return callMultiAxisRoPE(deviceBackend, configFields, args)
 	case "MultiHeadAttention":
 		return callMultiHeadAttention(deviceBackend, configFields, args)
 	default:
@@ -84,6 +92,44 @@ func callLookup(deviceBackend executionDevice, args []any) error {
 	return nil
 }
 
+func callTimestepEmbedding(
+	deviceBackend executionDevice,
+	configFields map[string]any,
+	args []any,
+) error {
+	if len(args) != 5 {
+		return fmt.Errorf("router: TimestepEmbedding expects 5 args, got %d", len(args))
+	}
+
+	config, err := castTimestepEmbeddingConfig(configFields)
+
+	if err != nil {
+		return err
+	}
+
+	timesteps, output, err := castTwoPointers(args[:2], "TimestepEmbedding")
+
+	if err != nil {
+		return err
+	}
+
+	count, dim, err := castTwoInts(args[2:4], "TimestepEmbedding")
+
+	if err != nil {
+		return err
+	}
+
+	format, err := castDType(args[4], "TimestepEmbedding", "format")
+
+	if err != nil {
+		return err
+	}
+
+	deviceBackend.TimestepEmbedding(config, timesteps, output, count, dim, format)
+
+	return nil
+}
+
 func callMatmul(deviceBackend executionDevice, args []any) error {
 	if len(args) != 7 {
 		return fmt.Errorf("router: Matmul expects 7 args, got %d", len(args))
@@ -108,6 +154,63 @@ func callMatmul(deviceBackend executionDevice, args []any) error {
 	}
 
 	deviceBackend.Matmul(output, left, right, rows, inner, cols, format)
+
+	return nil
+}
+
+func callConv2D(
+	deviceBackend executionDevice,
+	configFields map[string]any,
+	args []any,
+) error {
+	if len(args) != 14 {
+		return fmt.Errorf("router: Conv2D expects 14 args, got %d", len(args))
+	}
+
+	config, err := castConv2DConfig(configFields)
+
+	if err != nil {
+		return err
+	}
+
+	input, weight, bias, output, err := castFourPointers(args[:4], "Conv2D")
+
+	if err != nil {
+		return err
+	}
+
+	batch, inChannels, inHeight, inWidth, err := castFourInts(args[4:8], "Conv2D")
+
+	if err != nil {
+		return err
+	}
+
+	outChannels, kernelHeight, kernelWidth, err := castThreeInts(args[8:11], "Conv2D")
+
+	if err != nil {
+		return err
+	}
+
+	outHeight, outWidth, err := castTwoInts(args[11:13], "Conv2D")
+
+	if err != nil {
+		return err
+	}
+
+	format, err := castDType(args[13], "Conv2D", "format")
+
+	if err != nil {
+		return err
+	}
+
+	deviceBackend.Conv2D(
+		config,
+		input, weight, bias, output,
+		batch, inChannels, inHeight, inWidth,
+		outChannels, kernelHeight, kernelWidth,
+		outHeight, outWidth,
+		format,
+	)
 
 	return nil
 }

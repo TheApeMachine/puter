@@ -932,6 +932,8 @@ func (builder *Builder) loadVariadicExecutable(
 		hloText, err = renderEmbeddingLookup(moduleName, context)
 	case "embedding_bag":
 		hloText, err = renderEmbeddingBag(moduleName, context)
+	case "timestep_embedding":
+		hloText, err = renderTimestepEmbedding(moduleName, context, floatParams, intParams)
 	case "matmul_bias_gelu":
 		hloText, err = hlo.RenderMatmulBiasGelu(
 			moduleName,
@@ -1338,6 +1340,47 @@ func renderEmbeddingBag(
 		tableDimensions[1],
 		bagCount,
 		indexCount,
+	)
+}
+
+func renderTimestepEmbedding(
+	moduleName string,
+	context LoweringContext,
+	floatParams []float64,
+	intParams []int64,
+) (string, error) {
+	if len(context.InputShapes) != 1 {
+		return "", &loweringError{message: "timestep embedding requires one input shape"}
+	}
+
+	if len(floatParams) != 3 {
+		return "", &loweringError{message: "timestep embedding requires three float params"}
+	}
+
+	if len(intParams) != 1 {
+		return "", &loweringError{message: "timestep embedding requires one int param"}
+	}
+
+	inputDimensions := context.InputShapes[0].Dims()
+	outputDimensions := context.OutputShape.Dims()
+
+	if len(inputDimensions) != 1 || len(outputDimensions) != 2 {
+		return "", &loweringError{message: "timestep embedding requires [count] -> [count, dim]"}
+	}
+
+	if inputDimensions[0] != outputDimensions[0] {
+		return "", &loweringError{message: "timestep embedding count mismatch"}
+	}
+
+	return hlo.RenderTimestepEmbedding(
+		moduleName,
+		context.OutputDType,
+		outputDimensions[0],
+		outputDimensions[1],
+		floatParams[0],
+		floatParams[1],
+		floatParams[2],
+		intParams[0] != 0,
 	)
 }
 

@@ -140,6 +140,15 @@ func (host *ComputeHost) LaunchRMSNorm(
 	))
 }
 
+func (host *ComputeHost) LaunchModulatedLayerNorm(
+	config device.ModulatedLayerNormConfig,
+	input, modulation, output unsafe.Pointer,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+	format dtype.DType,
+) {
+	host.NotImplemented("ModulatedLayerNorm")
+}
+
 func (host *ComputeHost) dispatchLayernorm(
 	operationName string,
 	input, scale, bias, output unsafe.Pointer,

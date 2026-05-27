@@ -30,6 +30,28 @@ func dispatchRoPE(
 	}
 }
 
+func dispatchMultiAxisRoPE(
+	config device.MultiAxisRoPEConfig,
+	input, output unsafe.Pointer,
+	batch, seqLen, numHeads, headDim int,
+	format dtype.DType,
+) {
+	if batch == 0 || seqLen == 0 || numHeads == 0 || headDim == 0 || headDim%2 != 0 {
+		return
+	}
+
+	if err := config.Validate(); err != nil {
+		panic(err)
+	}
+
+	switch format {
+	case dtype.Float32, dtype.Float16, dtype.BFloat16:
+		runMultiAxisRoPE(config, input, output, batch, seqLen, numHeads, headDim, format)
+	default:
+		panic("multi-axis rope: unsupported dtype")
+	}
+}
+
 func runRoPE(
 	config RoPEConfig,
 	input, output unsafe.Pointer,
@@ -168,4 +190,101 @@ func ropePairIndices(config RoPEConfig, rowOffset, halfDim, pairIndex int) (int,
 	evenIndex := rowOffset + 2*pairIndex
 
 	return evenIndex, evenIndex + 1
+}
+
+func runMultiAxisRoPE(
+	config device.MultiAxisRoPEConfig,
+	input, output unsafe.Pointer,
+	batch, seqLen, numHeads, headDim int,
+	format dtype.DType,
+) {
+	load, store := ropeLoadStore(format)
+	halfDim := headDim / 2
+	pairCount := batch * seqLen * numHeads * halfDim
+
+	for pairOffset := range pairCount {
+		indices := multiAxisRoPEIndices(pairOffset, seqLen, numHeads, headDim)
+		cosTheta, sinTheta := multiAxisRoPEAngle(config, indices.seqIndex, indices.pairIndex, seqLen, headDim)
+		even := load(input, indices.evenIndex)
+		odd := load(input, indices.oddIndex)
+
+		store(output, indices.evenIndex, even*cosTheta-odd*sinTheta)
+		store(output, indices.oddIndex, even*sinTheta+odd*cosTheta)
+	}
+}
+
+type multiAxisRoPEIndex struct {
+	seqIndex  int
+	pairIndex int
+	evenIndex int
+	oddIndex  int
+}
+
+func multiAxisRoPEIndices(pairOffset, seqLen, numHeads, headDim int) multiAxisRoPEIndex {
+	halfDim := headDim / 2
+	pairIndex := pairOffset % halfDim
+	headIndex := (pairOffset / halfDim) % numHeads
+	seqIndex := (pairOffset / (halfDim * numHeads)) % seqLen
+	batchIndex := pairOffset / (halfDim * numHeads * seqLen)
+	headOffset := ((batchIndex*seqLen+seqIndex)*numHeads + headIndex) * headDim
+	evenIndex := headOffset + pairIndex*2
+
+	return multiAxisRoPEIndex{
+		seqIndex:  seqIndex,
+		pairIndex: pairIndex,
+		evenIndex: evenIndex,
+		oddIndex:  evenIndex + 1,
+	}
+}
+
+func multiAxisRoPEAngle(
+	config device.MultiAxisRoPEConfig,
+	seqIndex, pairIndex, seqLen, headDim int,
+) (float32, float32) {
+	halfDim := headDim / 2
+	textLen := max(seqLen-config.LatentSeqLen, 0)
+	axisPairCount := halfDim / 4
+	axisIndex := 0
+	localPair := pairIndex
+
+	if axisPairCount > 0 {
+		axisIndex = pairIndex / axisPairCount
+		localPair = pairIndex - axisIndex*axisPairCount
+	}
+
+	position := multiAxisRoPEPosition(config, seqIndex, textLen, axisIndex)
+	axisDim := float64(axisPairCount * 2)
+
+	if axisDim == 0 {
+		return 1, 0
+	}
+
+	exponent := -2.0 * float64(localPair) / axisDim
+	angle := float64(position) * math.Pow(config.BaseFreq, exponent)
+
+	return float32(math.Cos(angle)), float32(math.Sin(angle))
+}
+
+func multiAxisRoPEPosition(
+	config device.MultiAxisRoPEConfig,
+	seqIndex, textLen, axisIndex int,
+) int {
+	if seqIndex < textLen {
+		if axisIndex == 3 {
+			return seqIndex
+		}
+
+		return 0
+	}
+
+	imageIndex := seqIndex - textLen
+
+	switch axisIndex {
+	case 1:
+		return imageIndex / config.LatentSide
+	case 2:
+		return imageIndex % config.LatentSide
+	default:
+		return 0
+	}
 }

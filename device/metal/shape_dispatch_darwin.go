@@ -49,6 +49,32 @@ int metal_dispatch_page_gather(
     MetalStatus* status
 );
 
+int metal_dispatch_concat_bytes(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef leftRef,
+    MetalBufferRef rightRef,
+    MetalBufferRef outRef,
+    uint32_t leftBytes,
+    uint32_t rightBytes,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+
+int metal_dispatch_concat_last_dim_bytes(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef leftRef,
+    MetalBufferRef rightRef,
+    MetalBufferRef outRef,
+    uint32_t leftRowBytes,
+    uint32_t rightRowBytes,
+    uint32_t rowBytes,
+    uint32_t totalBytes,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+
 int metal_dispatch_last_token_bytes(
     MetalDeviceRef contextRef,
     int elementDType,
@@ -130,6 +156,74 @@ func (backend *Backend) PageGather(
 		C.uint32_t(outRows),
 		C.uint32_t(storageOffset),
 		0,
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		panic(tensor.ErrNeedsPlatformSetup)
+	}
+}
+
+func (backend *Backend) Concat(
+	left, right, output unsafe.Pointer,
+	leftBytes, rightBytes int,
+	format dtype.DType,
+) {
+	if leftBytes == 0 && rightBytes == 0 {
+		return
+	}
+
+	elementFormat := metalElementDType(format)
+
+	if elementFormat < 0 || backend == nil || backend.bridge == nil {
+		panic(tensor.ErrNeedsPlatformSetup)
+	}
+
+	var status C.MetalStatus
+	code := C.metal_dispatch_concat_bytes(
+		C.MetalDeviceRef(unsafe.Pointer(backend.bridge.device)),
+		elementFormat,
+		resolveBufferRef(left),
+		resolveBufferRef(right),
+		resolveBufferRef(output),
+		C.uint32_t(leftBytes),
+		C.uint32_t(rightBytes),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		panic(tensor.ErrNeedsPlatformSetup)
+	}
+}
+
+func (backend *Backend) ConcatLastDim(
+	left, right, output unsafe.Pointer,
+	leftRowBytes, rightRowBytes, rowBytes, totalBytes int,
+	format dtype.DType,
+) {
+	if totalBytes == 0 {
+		return
+	}
+
+	elementFormat := metalElementDType(format)
+
+	if elementFormat < 0 || backend == nil || backend.bridge == nil {
+		panic(tensor.ErrNeedsPlatformSetup)
+	}
+
+	var status C.MetalStatus
+	code := C.metal_dispatch_concat_last_dim_bytes(
+		C.MetalDeviceRef(unsafe.Pointer(backend.bridge.device)),
+		elementFormat,
+		resolveBufferRef(left),
+		resolveBufferRef(right),
+		resolveBufferRef(output),
+		C.uint32_t(leftRowBytes),
+		C.uint32_t(rightRowBytes),
+		C.uint32_t(rowBytes),
+		C.uint32_t(totalBytes),
 		0,
 		&status,
 	)

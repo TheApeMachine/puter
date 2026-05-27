@@ -27,13 +27,35 @@ they all embed the same family sub-interfaces from device/interface.go.
 type executionDevice interface {
 	// Embedding family.
 	Lookup(table, indices, output unsafe.Pointer, vocab, hidden, indexCount int, format dtype.DType)
+	TimestepEmbedding(
+		config device.TimestepEmbeddingConfig,
+		timesteps, output unsafe.Pointer,
+		count, dim int,
+		format dtype.DType,
+	)
 
 	// LayerNorm family.
 	RMSNorm(config device.RMSNormConfig, input, scale, output unsafe.Pointer, rows, lastDim int, format dtype.DType)
 	LayerNorm(input, scale, bias, output unsafe.Pointer, rows, lastDim int, format dtype.DType)
+	ModulatedLayerNorm(
+		config device.ModulatedLayerNormConfig,
+		input, modulation, output unsafe.Pointer,
+		rows, lastDim, rowsPerBatch, modulationCols int,
+		format dtype.DType,
+	)
 
 	// Matmul family.
 	Matmul(out, left, right unsafe.Pointer, rows, inner, cols int, format dtype.DType)
+
+	// Convolution family.
+	Conv2D(
+		config device.Conv2DConfig,
+		input, weight, bias, output unsafe.Pointer,
+		batch, inChannels, inHeight, inWidth,
+		outChannels, kernelHeight, kernelWidth,
+		outHeight, outWidth int,
+		format dtype.DType,
+	)
 
 	// Elementwise family (subset).
 	Add(dst, left, right unsafe.Pointer, count int, format dtype.DType)
@@ -54,6 +76,12 @@ type executionDevice interface {
 	// per-head query/key tensors. Config carries the base frequency and
 	// the starting absolute position so KV-cache extends correctly.
 	RoPE(config device.RoPEConfig, input, output unsafe.Pointer, seqLen, numHeads, headDim int, format dtype.DType)
+	MultiAxisRoPE(
+		config device.MultiAxisRoPEConfig,
+		input, output unsafe.Pointer,
+		batch, seqLen, numHeads, headDim int,
+		format dtype.DType,
+	)
 
 	// Attention family.
 	MultiHeadAttention(config device.MultiHeadAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK int, format dtype.DType)

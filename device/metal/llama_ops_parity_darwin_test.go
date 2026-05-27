@@ -9,6 +9,8 @@ import (
 
 	"github.com/smartystreets/goconvey/convey"
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/manifesto/dtype/convert"
+	"github.com/theapemachine/manifesto/tensor"
 	"github.com/theapemachine/puter/device"
 	cpuparity "github.com/theapemachine/puter/device/cpu/parity"
 )
@@ -92,6 +94,24 @@ func TestLlamaCoreMetalMatmulParity(testingObject *testing.T) {
 
 			cpuparity.AssertFloat32SlicesWithinULP(testingObject, got, want, 1)
 		})
+	})
+}
+
+func TestLlamaCoreMetalMatmulBFloat16Parity(testingObject *testing.T) {
+	backend := newMetalTestBackend(testingObject)
+	defer backend.Close()
+
+	convey.Convey("Given BF16 matmul inputs", testingObject, func() {
+		testCases := []metalMatmulBFloat16Case{
+			newSmallBFloat16MatmulCase(),
+			newAlignedBFloat16MatmulCase(),
+		}
+
+		for _, testCase := range testCases {
+			convey.Convey(testCase.name, func() {
+				runMetalMatmulBFloat16Case(testingObject, backend, testCase)
+			})
+		}
 	})
 }
 
@@ -236,6 +256,186 @@ func referenceMatmul(left []float32, right []float32, rows int, inner int, cols 
 	}
 
 	return output
+}
+
+func referenceMatmulBFloat16(left []float32, right []float32, rows int, inner int, cols int) []float32 {
+	roundedLeft := roundFloat32ToBFloat16(left)
+	roundedRight := roundFloat32ToBFloat16(right)
+	output := referenceMatmul(roundedLeft, roundedRight, rows, inner, cols)
+
+	return roundFloat32ToBFloat16(output)
+}
+
+func roundFloat32ToBFloat16(values []float32) []float32 {
+	rounded := make([]float32, len(values))
+
+	for valueIndex, value := range values {
+		rounded[valueIndex] = dtype.NewBfloat16FromFloat32(value).Float32()
+	}
+
+	return rounded
+}
+
+type metalMatmulBFloat16Case struct {
+	name        string
+	rows        int
+	inner       int
+	cols        int
+	leftValues  []float32
+	rightValues []float32
+}
+
+func newSmallBFloat16MatmulCase() metalMatmulBFloat16Case {
+	return metalMatmulBFloat16Case{
+		name:  "It should match a small BF16 row-major CPU matmul",
+		rows:  3,
+		inner: 5,
+		cols:  4,
+		leftValues: []float32{
+			1, 2, 3, 4, 5,
+			-1, 0.5, 2, -0.5, 3,
+			0, -2, 1, 1.5, -1,
+		},
+		rightValues: []float32{
+			0.5, 1, -1, 2,
+			-2, 0.25, 0.5, -1,
+			1.5, -0.75, 2, 0,
+			0, 3, -0.5, 1,
+			2, -1, 1, 0.5,
+		},
+	}
+}
+
+func newAlignedBFloat16MatmulCase() metalMatmulBFloat16Case {
+	rows := 2
+	inner := 128
+	cols := 128
+
+	return metalMatmulBFloat16Case{
+		name:        "It should match an aligned BF16 row-major CPU matmul",
+		rows:        rows,
+		inner:       inner,
+		cols:        cols,
+		leftValues:  quantizedBFloat16Inputs(rows * inner),
+		rightValues: identityMatmulValues(inner, cols),
+	}
+}
+
+func runMetalMatmulBFloat16Case(
+	testingObject *testing.T,
+	backend *Backend,
+	testCase metalMatmulBFloat16Case,
+) {
+	testingObject.Helper()
+
+	want := referenceMatmulBFloat16(
+		testCase.leftValues,
+		testCase.rightValues,
+		testCase.rows,
+		testCase.inner,
+		testCase.cols,
+	)
+	left := uploadMetalFloatTensor(testingObject, backend, testCase.leftValues, dtype.BFloat16)
+	defer left.Close()
+	right := uploadMetalFloatTensor(testingObject, backend, testCase.rightValues, dtype.BFloat16)
+	defer right.Close()
+	output := uploadMetalFloatTensor(
+		testingObject,
+		backend,
+		make([]float32, testCase.rows*testCase.cols),
+		dtype.BFloat16,
+	)
+	defer output.Close()
+
+	backend.Matmul(
+		output.DispatchPointer(),
+		left.DispatchPointer(),
+		right.DispatchPointer(),
+		testCase.rows,
+		testCase.inner,
+		testCase.cols,
+		dtype.BFloat16,
+	)
+	backend.SyncDevice()
+
+	got := downloadFloat32MetalTensor(testingObject, output)
+
+	cpuparity.AssertFloat32SlicesWithinULP(testingObject, got, want, 0)
+}
+
+func quantizedBFloat16Inputs(count int) []float32 {
+	values := make([]float32, count)
+
+	for valueIndex := range values {
+		values[valueIndex] = float32(valueIndex%17-8) * 0.25
+	}
+
+	return values
+}
+
+func identityMatmulValues(rows int, cols int) []float32 {
+	values := make([]float32, rows*cols)
+
+	for rowIndex := range rows {
+		if rowIndex >= cols {
+			return values
+		}
+
+		values[rowIndex*cols+rowIndex] = 1
+	}
+
+	return values
+}
+
+func uploadMetalFloatTensor(
+	testingHandle interface {
+		Helper()
+		Fatalf(string, ...any)
+	},
+	backend *Backend,
+	values []float32,
+	format dtype.DType,
+) *DeviceTensor {
+	testingHandle.Helper()
+
+	shape, err := tensor.NewShape([]int{len(values)})
+	if err != nil {
+		testingHandle.Fatalf("uploadMetalFloatTensor: shape: %v", err)
+	}
+
+	rawBytes, err := encodeMetalFloatTensor(values, format)
+	if err != nil {
+		testingHandle.Fatalf("uploadMetalFloatTensor: encode: %v", err)
+	}
+
+	resident, err := backend.Upload(shape, format, rawBytes)
+	if err != nil {
+		testingHandle.Fatalf("uploadMetalFloatTensor: upload: %v", err)
+	}
+
+	deviceTensor, ok := resident.(*DeviceTensor)
+	if !ok {
+		testingHandle.Fatalf("uploadMetalFloatTensor: got %T", resident)
+	}
+
+	return deviceTensor
+}
+
+func encodeMetalFloatTensor(values []float32, format dtype.DType) ([]byte, error) {
+	switch format {
+	case dtype.Float32:
+		return convert.Float32ToBytes(values), nil
+	case dtype.BFloat16:
+		encoded := make([]dtype.BF16, len(values))
+
+		for valueIndex, value := range values {
+			encoded[valueIndex] = dtype.NewBfloat16FromFloat32(value)
+		}
+
+		return convert.BFloat16ToBytes(encoded), nil
+	default:
+		return nil, tensor.ErrDTypeMismatch
+	}
 }
 
 func referenceRMSNorm(

@@ -2,6 +2,7 @@ package hlo
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/theapemachine/manifesto/dtype"
 )
@@ -98,4 +99,101 @@ ENTRY main {
 		indexCount, indexCount, indexCount, indexCount, bagCount, bagCount, indexCount, bagCount,
 		indexCount, indexCount, indexCount,
 		elementType, outputLiteral, outputLiteral), nil
+}
+
+func RenderTimestepEmbedding(
+	moduleName string,
+	elementFormat dtype.DType,
+	count, dim int,
+	maxPeriod float64,
+	downscaleFreqShift float64,
+	timestepDivisor float64,
+	flipSinToCos bool,
+) (string, error) {
+	if elementFormat != dtype.Float32 {
+		return "", fmt.Errorf("xla timestep embedding supports float32 output, got %s", elementFormat)
+	}
+
+	halfDim := dim / 2
+
+	if halfDim <= 0 {
+		return "", fmt.Errorf("xla timestep embedding dim must be at least 2, got %d", dim)
+	}
+
+	inputLiteral := fmt.Sprintf("f32[%d]{0}", count)
+	halfLiteral := fmt.Sprintf("f32[%d,%d]{1,0}", count, halfDim)
+	outputLiteral := fmt.Sprintf("f32[%d,%d]{1,0}", count, dim)
+	entryLayout := fmt.Sprintf("%s->%s", inputLiteral, outputLiteral)
+	scale := -math.Log(maxPeriod) / (float64(halfDim) - downscaleFreqShift)
+	firstName := "sin_values"
+	secondName := "cos_values"
+
+	if flipSinToCos {
+		firstName = "cos_values"
+		secondName = "sin_values"
+	}
+
+	padding := ""
+	root := fmt.Sprintf(
+		"  ROOT result = %s concatenate(%s, %s), dimensions={1}",
+		outputLiteral,
+		firstName,
+		secondName,
+	)
+
+	if dim%2 != 0 {
+		padding = fmt.Sprintf(`
+  zero = f32[] constant(0)
+  zero_col = f32[%d,1]{1,0} broadcast(zero), dimensions={}
+`, count)
+		root = fmt.Sprintf(
+			"  ROOT result = %s concatenate(%s, %s, zero_col), dimensions={1}",
+			outputLiteral,
+			firstName,
+			secondName,
+		)
+	}
+
+	return fmt.Sprintf(`HloModule %s, entry_computation_layout={%s}
+
+ENTRY main {
+  timesteps = %s parameter(0)
+  timestep_matrix = f32[%d,1]{1,0} reshape(timesteps)
+  timestep_broadcast = %s broadcast(timestep_matrix), dimensions={0}
+  divisor = f32[] constant(%.9g)
+  divisor_broadcast = %s broadcast(divisor), dimensions={}
+  scaled_timesteps = %s divide(timestep_broadcast, divisor_broadcast)
+  freq_index = s32[%d]{0} iota(), iota_dimension=0
+  freq_index_f32 = f32[%d]{0} convert(freq_index)
+  scale = f32[] constant(%.9g)
+  scale_broadcast = f32[%d]{0} broadcast(scale), dimensions={}
+  exponent = f32[%d]{0} multiply(freq_index_f32, scale_broadcast)
+  frequencies = f32[%d]{0} exponential(exponent)
+  frequency_matrix = f32[1,%d]{1,0} reshape(frequencies)
+  frequency_broadcast = %s broadcast(frequency_matrix), dimensions={1}
+  angles = %s multiply(scaled_timesteps, frequency_broadcast)
+  sin_values = %s sine(angles)
+  cos_values = %s cosine(angles)%s
+%s
+}
+`, moduleName, entryLayout,
+		inputLiteral,
+		count,
+		halfLiteral,
+		timestepDivisor,
+		halfLiteral,
+		halfLiteral,
+		halfDim,
+		halfDim,
+		scale,
+		halfDim,
+		halfDim,
+		halfDim,
+		halfDim,
+		halfLiteral,
+		halfLiteral,
+		halfLiteral,
+		halfLiteral,
+		padding,
+		root), nil
 }

@@ -278,7 +278,20 @@ func (host *ComputeHost) LaunchLookup(table, indices, output unsafe.Pointer, voc
 	host.unavailable()
 }
 
+func (host *ComputeHost) LaunchTimestepEmbedding(config device.TimestepEmbeddingConfig, timesteps, output unsafe.Pointer, count, dim int, format dtype.DType) {
+	host.unavailable()
+}
+
 func (host *ComputeHost) LaunchRMSNorm(config device.RMSNormConfig, input, scale, output unsafe.Pointer, rows, lastDim int, format dtype.DType) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) LaunchModulatedLayerNorm(
+	config device.ModulatedLayerNormConfig,
+	input, modulation, output unsafe.Pointer,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+	format dtype.DType,
+) {
 	host.unavailable()
 }
 

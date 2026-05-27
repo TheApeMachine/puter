@@ -46,6 +46,44 @@ func castThreePointers(values []any, method string) (
 	return first, second, third, nil
 }
 
+func castFourPointers(values []any, method string) (
+	unsafe.Pointer,
+	unsafe.Pointer,
+	unsafe.Pointer,
+	unsafe.Pointer,
+	error,
+) {
+	first, second, third, err := castThreePointers(values[:3], method)
+
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	fourth, err := castPointer(values[3], method, "arg3")
+
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	return first, second, third, fourth, nil
+}
+
+func castTwoInts(values []any, method string) (int, int, error) {
+	first, err := castInt(values[0], method, "arg0")
+
+	if err != nil {
+		return 0, 0, err
+	}
+
+	second, err := castInt(values[1], method, "arg1")
+
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return first, second, nil
+}
+
 func castThreeInts(values []any, method string) (int, int, int, error) {
 	first, err := castInt(values[0], method, "arg0")
 
@@ -66,6 +104,22 @@ func castThreeInts(values []any, method string) (int, int, int, error) {
 	}
 
 	return first, second, third, nil
+}
+
+func castFourInts(values []any, method string) (int, int, int, int, error) {
+	first, second, third, err := castThreeInts(values[:3], method)
+
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+
+	fourth, err := castInt(values[3], method, "arg3")
+
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+
+	return first, second, third, fourth, nil
 }
 
 func castPointer(value any, method, parameter string) (unsafe.Pointer, error) {
@@ -112,6 +166,92 @@ func castRMSNormConfig(fields map[string]any) (device.RMSNormConfig, error) {
 	}
 
 	return config, nil
+}
+
+func castTimestepEmbeddingConfig(fields map[string]any) (device.TimestepEmbeddingConfig, error) {
+	maxPeriod, err := castFloat64Field(fields, "MaxPeriod")
+
+	if err != nil {
+		return device.TimestepEmbeddingConfig{}, err
+	}
+
+	downscaleFreqShift, err := castFloat64Field(fields, "DownscaleFreqShift")
+
+	if err != nil {
+		return device.TimestepEmbeddingConfig{}, err
+	}
+
+	timestepDivisor, err := castFloat64Field(fields, "TimestepDivisor")
+
+	if err != nil {
+		return device.TimestepEmbeddingConfig{}, err
+	}
+
+	flipSinToCos, err := castBoolField(fields, "FlipSinToCos")
+
+	if err != nil {
+		return device.TimestepEmbeddingConfig{}, err
+	}
+
+	config := device.TimestepEmbeddingConfig{
+		MaxPeriod:          float32(maxPeriod),
+		DownscaleFreqShift: float32(downscaleFreqShift),
+		TimestepDivisor:    float32(timestepDivisor),
+		FlipSinToCos:       flipSinToCos,
+	}
+
+	if err := config.Validate(); err != nil {
+		return device.TimestepEmbeddingConfig{}, err
+	}
+
+	return config, nil
+}
+
+func castConv2DConfig(fields map[string]any) (device.Conv2DConfig, error) {
+	strideH, err := castIntField(fields, "StrideH")
+
+	if err != nil {
+		return device.Conv2DConfig{}, err
+	}
+
+	strideW, err := castIntField(fields, "StrideW")
+
+	if err != nil {
+		return device.Conv2DConfig{}, err
+	}
+
+	paddingH, err := castIntField(fields, "PaddingH")
+
+	if err != nil {
+		return device.Conv2DConfig{}, err
+	}
+
+	paddingW, err := castIntField(fields, "PaddingW")
+
+	if err != nil {
+		return device.Conv2DConfig{}, err
+	}
+
+	dilationH, err := castIntField(fields, "DilationH")
+
+	if err != nil {
+		return device.Conv2DConfig{}, err
+	}
+
+	dilationW, err := castIntField(fields, "DilationW")
+
+	if err != nil {
+		return device.Conv2DConfig{}, err
+	}
+
+	return device.Conv2DConfig{
+		StrideH:   strideH,
+		StrideW:   strideW,
+		PaddingH:  paddingH,
+		PaddingW:  paddingW,
+		DilationH: dilationH,
+		DilationW: dilationW,
+	}, nil
 }
 
 func castRoPEConfig(fields map[string]any) (device.RoPEConfig, error) {

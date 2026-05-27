@@ -54,6 +54,25 @@ type GroupNormConfig struct {
 	Groups int
 }
 
+type TimestepEmbeddingConfig struct {
+	MaxPeriod          float32
+	DownscaleFreqShift float32
+	TimestepDivisor    float32
+	FlipSinToCos       bool
+}
+
+func (config TimestepEmbeddingConfig) Validate() error {
+	if config.MaxPeriod <= 0 {
+		return fmt.Errorf("timestep embedding: max period must be positive, got %g", config.MaxPeriod)
+	}
+
+	if config.TimestepDivisor <= 0 {
+		return fmt.Errorf("timestep embedding: divisor must be positive, got %g", config.TimestepDivisor)
+	}
+
+	return nil
+}
+
 type RMSNormConfig struct {
 	Epsilon float64
 }
@@ -61,6 +80,23 @@ type RMSNormConfig struct {
 func (config RMSNormConfig) Validate() error {
 	if !(config.Epsilon > 0) {
 		return fmt.Errorf("rmsnorm: epsilon must be positive, got %g", config.Epsilon)
+	}
+
+	return nil
+}
+
+type ModulatedLayerNormConfig struct {
+	Epsilon float64
+	Set     int
+}
+
+func (config ModulatedLayerNormConfig) Validate() error {
+	if !(config.Epsilon > 0) {
+		return fmt.Errorf("modulated layernorm: epsilon must be positive, got %g", config.Epsilon)
+	}
+
+	if config.Set < 0 {
+		return fmt.Errorf("modulated layernorm: set must be non-negative, got %d", config.Set)
 	}
 
 	return nil
@@ -89,6 +125,28 @@ type RoPEConfig struct {
 	LowFreqFactor   float64
 	HighFreqFactor  float64
 	OriginalContext int
+}
+
+type MultiAxisRoPEConfig struct {
+	BaseFreq     float64
+	LatentSeqLen int
+	LatentSide   int
+}
+
+func (config MultiAxisRoPEConfig) Validate() error {
+	if config.BaseFreq <= 0 {
+		return fmt.Errorf("multi-axis rope: base frequency must be positive, got %g", config.BaseFreq)
+	}
+
+	if config.LatentSeqLen <= 0 {
+		return fmt.Errorf("multi-axis rope: latent sequence length must be positive, got %d", config.LatentSeqLen)
+	}
+
+	if config.LatentSide <= 0 {
+		return fmt.Errorf("multi-axis rope: latent side must be positive, got %d", config.LatentSide)
+	}
+
+	return nil
 }
 
 func (config RoPEConfig) Validate() error {

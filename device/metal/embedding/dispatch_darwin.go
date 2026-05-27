@@ -15,6 +15,7 @@ import (
 #cgo LDFLAGS: -framework Metal -framework Foundation -framework CoreFoundation
 
 #include "lookup.h"
+#include "timestep.h"
 */
 import "C"
 
@@ -107,6 +108,79 @@ func DispatchLookupRefs(
 		vocab,
 		hidden,
 		indexCount,
+	)
+}
+
+func DispatchTimestepEmbedding(
+	contextRef C.MetalDeviceRef,
+	timestepsBuffer C.MetalBufferRef,
+	outputBuffer C.MetalBufferRef,
+	format dtype.DType,
+	maxPeriod float32,
+	downscaleFreqShift float32,
+	timestepDivisor float32,
+	flipSinToCos bool,
+	count uint32,
+	dim uint32,
+) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
+	flip := C.int(0)
+
+	if flipSinToCos {
+		flip = 1
+	}
+
+	var status C.MetalStatus
+	code := C.metal_dispatch_timestep_embedding(
+		contextRef,
+		elementFormat,
+		timestepsBuffer,
+		outputBuffer,
+		C.float(maxPeriod),
+		C.float(downscaleFreqShift),
+		C.float(timestepDivisor),
+		flip,
+		C.uint32_t(count),
+		C.uint32_t(dim),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		return metalStatusError(status)
+	}
+
+	return nil
+}
+
+func DispatchTimestepEmbeddingRefs(
+	contextRef uintptr,
+	timestepsBuffer uintptr,
+	outputBuffer uintptr,
+	format dtype.DType,
+	maxPeriod float32,
+	downscaleFreqShift float32,
+	timestepDivisor float32,
+	flipSinToCos bool,
+	count uint32,
+	dim uint32,
+) error {
+	return DispatchTimestepEmbedding(
+		C.MetalDeviceRef(unsafe.Pointer(contextRef)),
+		C.MetalBufferRef(unsafe.Pointer(timestepsBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(outputBuffer)),
+		format,
+		maxPeriod,
+		downscaleFreqShift,
+		timestepDivisor,
+		flipSinToCos,
+		count,
+		dim,
 	)
 }
 

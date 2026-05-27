@@ -217,6 +217,12 @@ type Embedding interface {
 		vocab, hidden, bagCount, indexCount int,
 		format dtype.DType,
 	)
+	TimestepEmbedding(
+		config TimestepEmbeddingConfig,
+		timesteps, output unsafe.Pointer,
+		count, dim int,
+		format dtype.DType,
+	)
 }
 
 type Normalization interface {
@@ -250,6 +256,12 @@ type LayerNorm interface {
 		rows, lastDim int,
 		format dtype.DType,
 	)
+	ModulatedLayerNorm(
+		config ModulatedLayerNormConfig,
+		input, modulation, output unsafe.Pointer,
+		rows, lastDim, rowsPerBatch, modulationCols int,
+		format dtype.DType,
+	)
 }
 
 type RoPE interface {
@@ -262,6 +274,12 @@ type RoPE interface {
 	RoPEPairs(
 		output, input, cosBuffer, sinBuffer unsafe.Pointer,
 		halfDim int,
+		format dtype.DType,
+	)
+	MultiAxisRoPE(
+		config MultiAxisRoPEConfig,
+		input, output unsafe.Pointer,
+		batch, seqLen, numHeads, headDim int,
 		format dtype.DType,
 	)
 }

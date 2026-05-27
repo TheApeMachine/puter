@@ -3,6 +3,7 @@
 package metal
 
 import (
+	"errors"
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
@@ -21,6 +22,8 @@ import (
 type ComputeHost struct {
 	bridge *metalBridge
 }
+
+var errInvalidModulatedLayerNormShape = errors.New("metal modulated layernorm: invalid shape")
 
 func (host *ComputeHost) NeedsPlatform() {
 	panic("metal: platform unavailable")
@@ -514,6 +517,34 @@ func (host *ComputeHost) LaunchLookup(table, indices, output unsafe.Pointer, voc
 	}
 }
 
+func (host *ComputeHost) LaunchTimestepEmbedding(
+	config device.TimestepEmbeddingConfig,
+	timesteps, output unsafe.Pointer,
+	count, dim int,
+	format dtype.DType,
+) {
+	if count == 0 || dim == 0 {
+		return
+	}
+
+	host.dispatchError(config.Validate())
+
+	if err := embedding.DispatchTimestepEmbeddingRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(timesteps))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		config.MaxPeriod,
+		config.DownscaleFreqShift,
+		config.TimestepDivisor,
+		config.FlipSinToCos,
+		uint32(count),
+		uint32(dim),
+	); err != nil {
+		host.dispatchError(err)
+	}
+}
+
 /*
 LaunchRMSNorm runs the per-dtype RMSNorm kernel from
 device/metal/layernorm/layer.metal. The dispatcher hands input/scale/out
@@ -544,6 +575,43 @@ func (host *ComputeHost) LaunchRMSNorm(
 		format,
 		uint32(rows),
 		uint32(lastDim),
+		float32(config.Epsilon),
+	); err != nil {
+		host.dispatchError(err)
+	}
+}
+
+func (host *ComputeHost) LaunchModulatedLayerNorm(
+	config device.ModulatedLayerNormConfig,
+	input, modulation, output unsafe.Pointer,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+	format dtype.DType,
+) {
+	if rows == 0 || lastDim == 0 {
+		return
+	}
+
+	host.dispatchError(config.Validate())
+
+	if rowsPerBatch <= 0 || rows%rowsPerBatch != 0 {
+		host.dispatchError(errInvalidModulatedLayerNormShape)
+	}
+
+	if modulationCols < (config.Set*3+2)*lastDim {
+		host.dispatchError(errInvalidModulatedLayerNormShape)
+	}
+
+	if err := normalization.DispatchModulatedLayerNormRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(modulation))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(rows),
+		uint32(lastDim),
+		uint32(rowsPerBatch),
+		uint32(modulationCols),
+		uint32(config.Set),
 		float32(config.Epsilon),
 	); err != nil {
 		host.dispatchError(err)

@@ -144,6 +144,14 @@ func scalarInt32Tensor(value tensor.Tensor) (int32, error) {
 }
 
 func (resolver *bindResolver) resolveOutputShape() (tensor.Shape, error) {
+	if resolver.bind.Method == "shape.concat" {
+		return resolver.resolveConcatOutputShape()
+	}
+
+	if resolver.bind.Method == "shape.last_token" {
+		return resolver.resolveLastTokenOutputShape()
+	}
+
 	dimensions := make([]int, 0, len(resolver.bind.Output.Shape))
 
 	for index, spec := range resolver.bind.Output.Shape {
@@ -376,8 +384,13 @@ func (resolver *bindResolver) resolveOutputRef(parts []string) (any, error) {
 }
 
 func (resolver *bindResolver) resolveWeightRef(parts []string) (any, error) {
+	bias := len(parts) >= 2 && parts[1] == "bias"
 	transposed := len(parts) >= 2 && parts[1] == "transposed"
 	propertyIndex := 1
+
+	if bias {
+		propertyIndex = 2
+	}
 
 	if transposed {
 		propertyIndex = 2
@@ -387,7 +400,7 @@ func (resolver *bindResolver) resolveWeightRef(parts []string) (any, error) {
 		return nil, fmt.Errorf("weight ref requires a property")
 	}
 
-	weightTensor, err := resolver.resolveWeightTensor(transposed)
+	weightTensor, err := resolver.resolveWeightTensor(transposed, bias)
 
 	if err != nil {
 		return nil, err

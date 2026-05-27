@@ -2,9 +2,10 @@
 
 static __device__ __forceinline__ float timestep_embedding_value(
     const float* timesteps,
-    const float* maxPeriod,
-    const float* downscaleFreqShift,
-    const int* flipSinToCos,
+    float maxPeriod,
+    float downscaleFreqShift,
+    float timestepDivisor,
+    int flipSinToCos,
     unsigned int dim,
     unsigned int index
 ) {
@@ -16,12 +17,12 @@ static __device__ __forceinline__ float timestep_embedding_value(
         return 0.0f;
     }
 
-    bool flipped = flipSinToCos[0] != 0;
+    bool flipped = flipSinToCos != 0;
     bool firstHalf = column < halfDim;
     unsigned int frequencyIndex = firstHalf ? column : column - halfDim;
-    float denominator = static_cast<float>(halfDim) - downscaleFreqShift[0];
-    float exponent = -logf(maxPeriod[0]) * static_cast<float>(frequencyIndex) / denominator;
-    float angle = timesteps[row] * expf(exponent);
+    float denominator = static_cast<float>(halfDim) - downscaleFreqShift;
+    float exponent = -logf(maxPeriod) * static_cast<float>(frequencyIndex) / denominator;
+    float angle = (timesteps[row] / timestepDivisor) * expf(exponent);
     float sinValue = sinf(angle);
     float cosValue = cosf(angle);
 
@@ -47,9 +48,10 @@ static __device__ __forceinline__ void timestep_store_bf16(__nv_bfloat16* out, u
 #define TIMESTEP_EMBEDDING_KERNEL(name, scalarType, storeFn) \
 extern "C" __global__ void name( \
     const float* timesteps, \
-    const float* maxPeriod, \
-    const float* downscaleFreqShift, \
-    const int* flipSinToCos, \
+    float maxPeriod, \
+    float downscaleFreqShift, \
+    float timestepDivisor, \
+    int flipSinToCos, \
     scalarType* out, \
     unsigned int count, \
     unsigned int dim \
@@ -62,7 +64,7 @@ extern "C" __global__ void name( \
     storeFn( \
         out, \
         index, \
-        timestep_embedding_value(timesteps, maxPeriod, downscaleFreqShift, flipSinToCos, dim, index) \
+        timestep_embedding_value(timesteps, maxPeriod, downscaleFreqShift, timestepDivisor, flipSinToCos, dim, index) \
     ); \
 }
 

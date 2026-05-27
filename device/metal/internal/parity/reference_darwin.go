@@ -183,6 +183,73 @@ func LayerNormReference(
 }
 
 /*
+ModulatedLayerNormReference computes ModulatedLayerNorm using the CPU
+production dispatcher.
+*/
+func ModulatedLayerNormReference(
+	config device.ModulatedLayerNormConfig,
+	input, modulation []float32,
+	rows, cols, rowsPerBatch, modulationCols int,
+	storageDType dtype.DType,
+) []float32 {
+	outputBytes := ModulatedLayerNormReferenceBytes(
+		config,
+		input,
+		modulation,
+		rows,
+		cols,
+		rowsPerBatch,
+		modulationCols,
+		storageDType,
+	)
+
+	decoded, err := decodeVector(outputBytes, storageDType)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return decoded
+}
+
+/*
+ModulatedLayerNormReferenceBytes returns the encoded CPU output.
+*/
+func ModulatedLayerNormReferenceBytes(
+	config device.ModulatedLayerNormConfig,
+	input, modulation []float32,
+	rows, cols, rowsPerBatch, modulationCols int,
+	storageDType dtype.DType,
+) []byte {
+	inputBytes, err := encodeVector(input, storageDType)
+
+	if err != nil {
+		panic(err)
+	}
+
+	modulationBytes, err := encodeVector(modulation, storageDType)
+
+	if err != nil {
+		panic(err)
+	}
+
+	outputBytes := make([]byte, len(inputBytes))
+	referenceLayerNorm.ModulatedLayerNorm(
+		config,
+		unsafe.Pointer(&inputBytes[0]),
+		unsafe.Pointer(&modulationBytes[0]),
+		unsafe.Pointer(&outputBytes[0]),
+		rows,
+		cols,
+		rowsPerBatch,
+		modulationCols,
+		storageDType,
+	)
+
+	return outputBytes
+}
+
+/*
 ComputeUnaryReferenceBytes runs the CPU reference and returns encoded storage bytes.
 */
 func ComputeUnaryReferenceBytes(

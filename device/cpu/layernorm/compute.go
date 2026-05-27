@@ -57,6 +57,30 @@ func dispatchRMSNorm(
 	}
 }
 
+func dispatchModulatedLayerNorm(
+	config device.ModulatedLayerNormConfig,
+	input, modulation, output unsafe.Pointer,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+	format dtype.DType,
+) {
+	if rows == 0 || lastDim == 0 {
+		return
+	}
+
+	validateModulatedLayerNorm(config, rows, lastDim, rowsPerBatch, modulationCols)
+
+	switch format {
+	case dtype.Float32:
+		runModulatedLayerNormF32(config, input, modulation, output, rows, lastDim, rowsPerBatch, modulationCols)
+	case dtype.BFloat16:
+		runModulatedLayerNormBF16(config, input, modulation, output, rows, lastDim, rowsPerBatch, modulationCols)
+	case dtype.Float16:
+		runModulatedLayerNormF16(config, input, modulation, output, rows, lastDim, rowsPerBatch, modulationCols)
+	default:
+		panic("modulated layernorm: unsupported dtype")
+	}
+}
+
 func runLayerNormF32(
 	input, scale, bias, output unsafe.Pointer,
 	rows, lastDim int,
@@ -157,6 +181,75 @@ func runRMSNormF16(
 	}
 }
 
+func runModulatedLayerNormF32(
+	config device.ModulatedLayerNormConfig,
+	input, modulation, output unsafe.Pointer,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+) {
+	inputView := unsafe.Slice((*float32)(input), rows*lastDim)
+	modulationView := unsafe.Slice((*float32)(modulation), batchCount(rows, rowsPerBatch)*modulationCols)
+	outputView := unsafe.Slice((*float32)(output), rows*lastDim)
+
+	for rowIndex := range rows {
+		rowOffset := rowIndex * lastDim
+		row := inputView[rowOffset : rowOffset+lastDim]
+		outRow := outputView[rowOffset : rowOffset+lastDim]
+		modulationOffset := modulatedLayerNormOffset(config, rowIndex, rowsPerBatch, modulationCols, lastDim)
+		applyModulatedLayerNormRowF32(
+			config,
+			row,
+			modulationView[modulationOffset:],
+			outRow,
+		)
+	}
+}
+
+func runModulatedLayerNormBF16(
+	config device.ModulatedLayerNormConfig,
+	input, modulation, output unsafe.Pointer,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+) {
+	inputView := unsafe.Slice((*dtype.BF16)(input), rows*lastDim)
+	modulationView := unsafe.Slice((*dtype.BF16)(modulation), batchCount(rows, rowsPerBatch)*modulationCols)
+	outputView := unsafe.Slice((*dtype.BF16)(output), rows*lastDim)
+
+	for rowIndex := range rows {
+		rowOffset := rowIndex * lastDim
+		row := inputView[rowOffset : rowOffset+lastDim]
+		outRow := outputView[rowOffset : rowOffset+lastDim]
+		modulationOffset := modulatedLayerNormOffset(config, rowIndex, rowsPerBatch, modulationCols, lastDim)
+		applyModulatedLayerNormRowBF16(
+			config,
+			row,
+			modulationView[modulationOffset:],
+			outRow,
+		)
+	}
+}
+
+func runModulatedLayerNormF16(
+	config device.ModulatedLayerNormConfig,
+	input, modulation, output unsafe.Pointer,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+) {
+	inputView := unsafe.Slice((*dtype.F16)(input), rows*lastDim)
+	modulationView := unsafe.Slice((*dtype.F16)(modulation), batchCount(rows, rowsPerBatch)*modulationCols)
+	outputView := unsafe.Slice((*dtype.F16)(output), rows*lastDim)
+
+	for rowIndex := range rows {
+		rowOffset := rowIndex * lastDim
+		row := inputView[rowOffset : rowOffset+lastDim]
+		outRow := outputView[rowOffset : rowOffset+lastDim]
+		modulationOffset := modulatedLayerNormOffset(config, rowIndex, rowsPerBatch, modulationCols, lastDim)
+		applyModulatedLayerNormRowF16(
+			config,
+			row,
+			modulationView[modulationOffset:],
+			outRow,
+		)
+	}
+}
+
 func computeRowMean(row []float32) float64 {
 	return float64(SumFloat32Native(row)) / float64(len(row))
 }
@@ -243,6 +336,66 @@ func applyLayerNormRowF16(
 	}
 }
 
+func applyModulatedLayerNormRowF32(
+	config device.ModulatedLayerNormConfig,
+	row, modulation, outRow []float32,
+) {
+	mean := computeRowMean(row)
+	variance := computeRowVariance(row, mean)
+	invStdDev := float32(1.0 / math.Sqrt(variance+config.Epsilon))
+	applyModulatedLayerNormValuesF32(row, modulation, outRow, float32(mean), invStdDev)
+}
+
+func applyModulatedLayerNormValuesF32(
+	row, modulation, outRow []float32,
+	mean, invStdDev float32,
+) {
+	cols := len(row)
+
+	for columnIndex := range row {
+		normalized := (row[columnIndex] - mean) * invStdDev
+		shift := modulation[columnIndex]
+		scale := modulation[cols+columnIndex]
+		outRow[columnIndex] = normalized*(1+scale) + shift
+	}
+}
+
+func applyModulatedLayerNormRowBF16(
+	config device.ModulatedLayerNormConfig,
+	row, modulation, outRow []dtype.BF16,
+) {
+	meanValue := SumBFloat16Native(row)
+	mean := (&meanValue).Float32() / float32(len(row))
+	variance := layerNormVarianceBF16(row, mean)
+	invStdDev := float32(1.0 / math.Sqrt(float64(variance)+config.Epsilon))
+	cols := len(row)
+
+	for columnIndex := range row {
+		normalized := ((&row[columnIndex]).Float32() - mean) * invStdDev
+		shift := (&modulation[columnIndex]).Float32()
+		scale := (&modulation[cols+columnIndex]).Float32()
+		outRow[columnIndex] = dtype.NewBfloat16FromFloat32(normalized*(1+scale) + shift)
+	}
+}
+
+func applyModulatedLayerNormRowF16(
+	config device.ModulatedLayerNormConfig,
+	row, modulation, outRow []dtype.F16,
+) {
+	meanValue := SumFloat16Native(row)
+	mean := meanValue.Float32() / float32(len(row))
+	variance := layerNormVarianceF16(row, mean)
+	invStdDev := float32(1.0 / math.Sqrt(float64(variance)+config.Epsilon))
+	cols := len(row)
+
+	for columnIndex := range row {
+		normalized := (row[columnIndex].Float32() - mean) * invStdDev
+		shift := modulation[columnIndex].Float32()
+		scale := modulation[cols+columnIndex].Float32()
+		outRow[columnIndex] = dtype.Fromfloat32(normalized*(1+scale) + shift)
+	}
+}
+
 func layerNormVarianceBF16(row []dtype.BF16, mean float32) float32 {
 	var variance float32
 
@@ -263,4 +416,41 @@ func layerNormVarianceF16(row []dtype.F16, mean float32) float32 {
 	}
 
 	return variance / float32(len(row))
+}
+
+func validateModulatedLayerNorm(
+	config device.ModulatedLayerNormConfig,
+	rows, lastDim, rowsPerBatch, modulationCols int,
+) {
+	if err := config.Validate(); err != nil {
+		panic(err)
+	}
+
+	if rowsPerBatch <= 0 {
+		panic("modulated layernorm: rowsPerBatch must be positive")
+	}
+
+	if rows%rowsPerBatch != 0 {
+		panic("modulated layernorm: rows must be divisible by rowsPerBatch")
+	}
+
+	if modulationCols < requiredModulationCols(config, lastDim) {
+		panic("modulated layernorm: modulation width too small")
+	}
+}
+
+func requiredModulationCols(config device.ModulatedLayerNormConfig, lastDim int) int {
+	return (config.Set*3 + 2) * lastDim
+}
+
+func batchCount(rows, rowsPerBatch int) int {
+	return rows / rowsPerBatch
+}
+
+func modulatedLayerNormOffset(
+	config device.ModulatedLayerNormConfig,
+	rowIndex, rowsPerBatch, modulationCols, lastDim int,
+) int {
+	batchIndex := rowIndex / rowsPerBatch
+	return batchIndex*modulationCols + config.Set*lastDim*3
 }

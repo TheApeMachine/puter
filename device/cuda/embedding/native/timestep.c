@@ -6,10 +6,11 @@ int cuda_dispatch_timestep_embedding(
     CUDADeviceRef contextRef,
     int elementDType,
     CUDABufferRef timestepsRef,
-    CUDABufferRef maxPeriodRef,
-    CUDABufferRef downscaleRef,
-    CUDABufferRef flipRef,
     CUDABufferRef outRef,
+    float maxPeriod,
+    float downscaleFreqShift,
+    float timestepDivisor,
+    int flipSinToCos,
     uint32_t count,
     uint32_t dim,
     uint64_t completionToken,
@@ -23,9 +24,6 @@ int cuda_dispatch_timestep_embedding(
 
     if (
         timestepsRef == NULL ||
-        maxPeriodRef == NULL ||
-        downscaleRef == NULL ||
-        flipRef == NULL ||
         outRef == NULL
     ) {
         cuda_transformer_status_set(status, -2, "nil CUDA timestep buffer");
@@ -69,11 +67,17 @@ int cuda_dispatch_timestep_embedding(
     }
 
     void* timestepsPtr = cuda_buffer_device_ptr(timestepsRef);
-    void* maxPeriodPtr = cuda_buffer_device_ptr(maxPeriodRef);
-    void* downscalePtr = cuda_buffer_device_ptr(downscaleRef);
-    void* flipPtr = cuda_buffer_device_ptr(flipRef);
     void* outPtr = cuda_buffer_device_ptr(outRef);
-    void* args[] = {&timestepsPtr, &maxPeriodPtr, &downscalePtr, &flipPtr, &outPtr, &count, &dim};
+    void* args[] = {
+        &timestepsPtr,
+        &maxPeriod,
+        &downscaleFreqShift,
+        &timestepDivisor,
+        &flipSinToCos,
+        &outPtr,
+        &count,
+        &dim,
+    };
     uint32_t launchCount = count * dim;
     int launchCode = cuda_launch_1d(context, kernel, stream, launchCount, args, sizeof(args), status);
 

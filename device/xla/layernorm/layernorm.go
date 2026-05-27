@@ -31,6 +31,12 @@ type Host interface {
 		rows, lastDim int,
 		format dtype.DType,
 	)
+	LaunchModulatedLayerNorm(
+		config device.ModulatedLayerNormConfig,
+		input, modulation, output unsafe.Pointer,
+		rows, lastDim, rowsPerBatch, modulationCols int,
+		format dtype.DType,
+	)
 }
 
 /*
