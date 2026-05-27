@@ -50,6 +50,8 @@ func runPageWriteIntrinsic(resolver *bindResolver) error {
 		return err
 	}
 
+	stateStorage := storage
+
 	values, err := resolver.resolveInputTensor("1")
 
 	if err != nil {
@@ -76,7 +78,7 @@ func runPageWriteIntrinsic(resolver *bindResolver) error {
 
 	layerIndex := configInt(resolver.node, "layer_index", -1)
 
-	storage, err = layerStorageView(storage, layerIndex)
+	layerStorage, err := layerStorageView(stateStorage, layerIndex)
 
 	if err != nil {
 		return err
@@ -88,11 +90,18 @@ func runPageWriteIntrinsic(resolver *bindResolver) error {
 		return err
 	}
 
-	if err := shape.RunPageWrite(storage, values, pageIDs, offsets, pageSizeTensor, storage); err != nil {
+	if err := shape.RunPageWrite(
+		layerStorage,
+		values,
+		pageIDs,
+		offsets,
+		pageSizeTensor,
+		layerStorage,
+	); err != nil {
 		return err
 	}
 
-	resolver.dispatcher.values.set(resolver.node.ID, storage)
+	resolver.dispatcher.values.set(resolver.node.ID, stateStorage)
 
 	return nil
 }
