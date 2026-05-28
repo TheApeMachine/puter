@@ -140,7 +140,7 @@ func DispatchMultiAxisRoPE(
 		return errUnsupportedDType
 	}
 
-	if err := config.Validate(); err != nil {
+	if err := config.ValidateHeadDim(int(headDim)); err != nil {
 		return err
 	}
 
@@ -167,6 +167,11 @@ func DispatchMultiAxisRoPE(
 		C.uint32_t(config.LatentSeqLen),
 		C.uint32_t(config.LatentSide),
 		theta,
+		C.uint32_t(config.AxisCount),
+		C.uint32_t(config.AxisDim0),
+		C.uint32_t(config.AxisDim1),
+		C.uint32_t(config.AxisDim2),
+		C.uint32_t(config.AxisDim3),
 		0,
 		&status,
 	)

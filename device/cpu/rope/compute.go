@@ -40,7 +40,7 @@ func dispatchMultiAxisRoPE(
 		return
 	}
 
-	if err := config.Validate(); err != nil {
+	if err := config.ValidateHeadDim(headDim); err != nil {
 		panic(err)
 	}
 
@@ -201,16 +201,50 @@ func runMultiAxisRoPE(
 	load, store := ropeLoadStore(format)
 	halfDim := headDim / 2
 	pairCount := batch * seqLen * numHeads * halfDim
+	axisPlan := newMultiAxisRoPEAxisPlan(config)
 
 	for pairOffset := range pairCount {
 		indices := multiAxisRoPEIndices(pairOffset, seqLen, numHeads, headDim)
-		cosTheta, sinTheta := multiAxisRoPEAngle(config, indices.seqIndex, indices.pairIndex, seqLen, headDim)
+		cosTheta, sinTheta := multiAxisRoPEAngle(config, axisPlan, indices.seqIndex, indices.pairIndex, seqLen)
 		even := load(input, indices.evenIndex)
 		odd := load(input, indices.oddIndex)
 
 		store(output, indices.evenIndex, even*cosTheta-odd*sinTheta)
 		store(output, indices.oddIndex, even*sinTheta+odd*cosTheta)
 	}
+}
+
+type multiAxisRoPEAxisPlan struct {
+	axisCount  int
+	axisDims   [4]int
+	pairStarts [5]int
+}
+
+func newMultiAxisRoPEAxisPlan(config device.MultiAxisRoPEConfig) multiAxisRoPEAxisPlan {
+	axisDims := [4]int{config.AxisDim0, config.AxisDim1, config.AxisDim2, config.AxisDim3}
+	axisPlan := multiAxisRoPEAxisPlan{
+		axisCount: config.AxisCount,
+		axisDims:  axisDims,
+	}
+
+	for axisIndex := range config.AxisCount {
+		axisPlan.pairStarts[axisIndex+1] = axisPlan.pairStarts[axisIndex] + axisDims[axisIndex]/2
+	}
+
+	return axisPlan
+}
+
+func (axisPlan multiAxisRoPEAxisPlan) locatePair(pairIndex int) (int, int, int) {
+	for axisIndex := range axisPlan.axisCount {
+		pairStart := axisPlan.pairStarts[axisIndex]
+		pairEnd := axisPlan.pairStarts[axisIndex+1]
+
+		if pairIndex < pairEnd {
+			return axisIndex, pairIndex - pairStart, pairEnd - pairStart
+		}
+	}
+
+	return 0, pairIndex, 0
 }
 
 type multiAxisRoPEIndex struct {
@@ -239,18 +273,11 @@ func multiAxisRoPEIndices(pairOffset, seqLen, numHeads, headDim int) multiAxisRo
 
 func multiAxisRoPEAngle(
 	config device.MultiAxisRoPEConfig,
-	seqIndex, pairIndex, seqLen, headDim int,
+	axisPlan multiAxisRoPEAxisPlan,
+	seqIndex, pairIndex, seqLen int,
 ) (float32, float32) {
-	halfDim := headDim / 2
 	textLen := max(seqLen-config.LatentSeqLen, 0)
-	axisPairCount := halfDim / 4
-	axisIndex := 0
-	localPair := pairIndex
-
-	if axisPairCount > 0 {
-		axisIndex = pairIndex / axisPairCount
-		localPair = pairIndex - axisIndex*axisPairCount
-	}
+	axisIndex, localPair, axisPairCount := axisPlan.locatePair(pairIndex)
 
 	position := multiAxisRoPEPosition(config, seqIndex, textLen, axisIndex)
 	axisDim := float64(axisPairCount * 2)
@@ -270,11 +297,7 @@ func multiAxisRoPEPosition(
 	seqIndex, textLen, axisIndex int,
 ) int {
 	if seqIndex < textLen {
-		if axisIndex == 3 {
-			return seqIndex
-		}
-
-		return 0
+		return multiAxisRoPETextPosition(config, seqIndex, axisIndex)
 	}
 
 	imageIndex := seqIndex - textLen
@@ -287,4 +310,19 @@ func multiAxisRoPEPosition(
 	default:
 		return 0
 	}
+}
+
+func multiAxisRoPETextPosition(
+	config device.MultiAxisRoPEConfig,
+	seqIndex, axisIndex int,
+) int {
+	if config.AxisCount == 4 && axisIndex == 3 {
+		return seqIndex
+	}
+
+	if config.AxisCount < 4 && axisIndex == 0 {
+		return seqIndex
+	}
+
+	return 0
 }

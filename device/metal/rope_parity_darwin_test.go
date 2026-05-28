@@ -99,12 +99,17 @@ func TestMultiAxisRoPEMetalParity(testingObject *testing.T) {
 			BaseFreq:     2000,
 			LatentSeqLen: 4,
 			LatentSide:   2,
+			AxisCount:    4,
+			AxisDim0:     10,
+			AxisDim1:     2,
+			AxisDim2:     2,
+			AxisDim3:     2,
 		}
 		batch := 2
 		seqLen := 8
 		numHeads := 2
 		headDim := 16
-		input := randomRoPEInput(batch*seqLen*numHeads*headDim, 0x9130)
+		input := stableMultiAxisRoPEInput(batch * seqLen * numHeads * headDim)
 		want := make([]float32, len(input))
 
 		cpurope.Default.MultiAxisRoPE(
@@ -137,6 +142,11 @@ func BenchmarkMultiAxisRoPEMetalFloat32(benchmark *testing.B) {
 		BaseFreq:     10000,
 		LatentSeqLen: 4096,
 		LatentSide:   64,
+		AxisCount:    4,
+		AxisDim0:     32,
+		AxisDim1:     32,
+		AxisDim2:     32,
+		AxisDim3:     32,
 	}
 	batch := 1
 	seqLen := 5120
@@ -291,6 +301,21 @@ func randomRoPEInput(count int, seed int64) []float32 {
 
 	for index := range values {
 		values[index] = generator.Float32()*4.0 - 2.0
+	}
+
+	return values
+}
+
+func stableMultiAxisRoPEInput(count int) []float32 {
+	values := make([]float32, count)
+
+	for index := range values {
+		if index%2 == 0 {
+			values[index] = 1.0 + float32(index%11)*0.0625
+			continue
+		}
+
+		values[index] = 0.125 + float32(index%7)*0.03125
 	}
 
 	return values

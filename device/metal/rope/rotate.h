@@ -40,6 +40,11 @@ int metal_dispatch_multi_axis_rope(
     uint32_t latentSeqLen,
     uint32_t latentSide,
     float theta,
+    uint32_t axisCount,
+    uint32_t axisDim0,
+    uint32_t axisDim1,
+    uint32_t axisDim2,
+    uint32_t axisDim3,
     uint64_t completionToken,
     MetalStatus* status
 );

@@ -980,6 +980,11 @@ func TestRunBoundNodeUsesMultiAxisRoPEBind(t *testing.T) {
 				"base":           2000.0,
 				"latent_seq_len": 4,
 				"latent_side":    2,
+				"axis_count":     4,
+				"axis_dim_0":     2,
+				"axis_dim_1":     2,
+				"axis_dim_2":     2,
+				"axis_dim_3":     2,
 			},
 		}
 
@@ -998,6 +1003,11 @@ func TestRunBoundNodeUsesMultiAxisRoPEBind(t *testing.T) {
 			convey.So(call.config.BaseFreq, convey.ShouldEqual, 2000.0)
 			convey.So(call.config.LatentSeqLen, convey.ShouldEqual, 4)
 			convey.So(call.config.LatentSide, convey.ShouldEqual, 2)
+			convey.So(call.config.AxisCount, convey.ShouldEqual, 4)
+			convey.So(call.config.AxisDim0, convey.ShouldEqual, 2)
+			convey.So(call.config.AxisDim1, convey.ShouldEqual, 2)
+			convey.So(call.config.AxisDim2, convey.ShouldEqual, 2)
+			convey.So(call.config.AxisDim3, convey.ShouldEqual, 2)
 		})
 
 		convey.Convey("The output tensor shape follows the input", func() {

@@ -39,6 +39,10 @@ func callMultiAxisRoPE(
 		return err
 	}
 
+	if err := config.ValidateHeadDim(headDim); err != nil {
+		return err
+	}
+
 	format, err := castDType(args[6], "MultiAxisRoPE", "format")
 
 	if err != nil {
@@ -74,10 +78,45 @@ func castMultiAxisRoPEConfig(fields map[string]any) (device.MultiAxisRoPEConfig,
 		return device.MultiAxisRoPEConfig{}, err
 	}
 
+	axisCount, err := castIntField(fields, "AxisCount")
+
+	if err != nil {
+		return device.MultiAxisRoPEConfig{}, err
+	}
+
+	axisDim0, err := castIntField(fields, "AxisDim0")
+
+	if err != nil {
+		return device.MultiAxisRoPEConfig{}, err
+	}
+
+	axisDim1, err := castIntField(fields, "AxisDim1")
+
+	if err != nil {
+		return device.MultiAxisRoPEConfig{}, err
+	}
+
+	axisDim2, err := castIntField(fields, "AxisDim2")
+
+	if err != nil {
+		return device.MultiAxisRoPEConfig{}, err
+	}
+
+	axisDim3, err := castIntField(fields, "AxisDim3")
+
+	if err != nil {
+		return device.MultiAxisRoPEConfig{}, err
+	}
+
 	config := device.MultiAxisRoPEConfig{
 		BaseFreq:     baseFreq,
 		LatentSeqLen: latentSeqLen,
 		LatentSide:   latentSide,
+		AxisCount:    axisCount,
+		AxisDim0:     axisDim0,
+		AxisDim1:     axisDim1,
+		AxisDim2:     axisDim2,
+		AxisDim3:     axisDim3,
 	}
 
 	if err := config.Validate(); err != nil {

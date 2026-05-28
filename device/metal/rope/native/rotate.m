@@ -73,6 +73,11 @@ int metal_dispatch_multi_axis_rope(
     uint32_t latentSeqLen,
     uint32_t latentSide,
     float theta,
+    uint32_t axisCount,
+    uint32_t axisDim0,
+    uint32_t axisDim1,
+    uint32_t axisDim2,
+    uint32_t axisDim3,
     uint64_t completionToken,
     MetalStatus* status
 ) {
@@ -104,6 +109,11 @@ int metal_dispatch_multi_axis_rope(
             [encoder setBytes:&latentSeqLen length:sizeof(latentSeqLen) atIndex:7];
             [encoder setBytes:&latentSide length:sizeof(latentSide) atIndex:8];
             [encoder setBytes:&theta length:sizeof(theta) atIndex:9];
+            [encoder setBytes:&axisCount length:sizeof(axisCount) atIndex:10];
+            [encoder setBytes:&axisDim0 length:sizeof(axisDim0) atIndex:11];
+            [encoder setBytes:&axisDim1 length:sizeof(axisDim1) atIndex:12];
+            [encoder setBytes:&axisDim2 length:sizeof(axisDim2) atIndex:13];
+            [encoder setBytes:&axisDim3 length:sizeof(axisDim3) atIndex:14];
         }
     );
 }

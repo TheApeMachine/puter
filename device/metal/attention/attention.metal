@@ -520,6 +520,11 @@ static inline void multi_axis_rope_kernel(
     constant uint& latentSeqLen,
     constant uint& latentSide,
     constant float& theta,
+    constant uint& axisCount,
+    constant uint& axisDim0,
+    constant uint& axisDim1,
+    constant uint& axisDim2,
+    constant uint& axisDim3,
     uint index
 ) {
     if (index >= pairCount || batch == 0) {
@@ -533,13 +538,33 @@ static inline void multi_axis_rope_kernel(
     uint batchIndex = index / (halfDim * numHeads * seqLen);
     uint inputIndex = ((batchIndex * seqLen + seqIndex) * numHeads + headIndex) * headDim + pairIndex * 2;
     uint textLen = seqLen > latentSeqLen ? seqLen - latentSeqLen : 0;
-    uint axisPairCount = halfDim / 4;
-    uint axisIndex = axisPairCount == 0 ? 0 : pairIndex / axisPairCount;
-    uint localPair = axisPairCount == 0 ? pairIndex : pairIndex - axisIndex * axisPairCount;
+    uint axisIndex = 0;
+    uint pairBase = 0;
+    uint axisPairCount = axisDim0 / 2;
+
+    if (pairIndex >= pairBase + axisPairCount && axisCount > 1) {
+        pairBase += axisPairCount;
+        axisIndex = 1;
+        axisPairCount = axisDim1 / 2;
+    }
+
+    if (pairIndex >= pairBase + axisPairCount && axisCount > 2) {
+        pairBase += axisPairCount;
+        axisIndex = 2;
+        axisPairCount = axisDim2 / 2;
+    }
+
+    if (pairIndex >= pairBase + axisPairCount && axisCount > 3) {
+        pairBase += axisPairCount;
+        axisIndex = 3;
+        axisPairCount = axisDim3 / 2;
+    }
+
+    uint localPair = pairIndex - pairBase;
     uint position = 0;
 
     if (seqIndex < textLen) {
-        if (axisIndex == 3) {
+        if ((axisCount == 4 && axisIndex == 3) || (axisCount < 4 && axisIndex == 0)) {
             position = seqIndex;
         }
     } else {
@@ -554,7 +579,7 @@ static inline void multi_axis_rope_kernel(
 
     float axisDim = float(axisPairCount * 2);
     float exponent = axisDim == 0.0f ? 0.0f : -2.0f * float(localPair) / axisDim;
-    float angle = float(position) * pow(theta, exponent);
+    float angle = float(position) * precise::pow(theta, exponent);
     float cosTheta = precise::cos(angle);
     float sinTheta = precise::sin(angle);
     float even = Storage::load(input, inputIndex);
@@ -757,10 +782,16 @@ kernel void name( \
     constant uint& latentSeqLen [[buffer(7)]], \
     constant uint& latentSide [[buffer(8)]], \
     constant float& theta [[buffer(9)]], \
+    constant uint& axisCount [[buffer(10)]], \
+    constant uint& axisDim0 [[buffer(11)]], \
+    constant uint& axisDim1 [[buffer(12)]], \
+    constant uint& axisDim2 [[buffer(13)]], \
+    constant uint& axisDim3 [[buffer(14)]], \
     uint index [[thread_position_in_grid]] \
 ) { \
     multi_axis_rope_kernel<storage, scalar>( \
-        input, out, batch, seqLen, numHeads, headDim, pairCount, latentSeqLen, latentSide, theta, index \
+        input, out, batch, seqLen, numHeads, headDim, pairCount, latentSeqLen, latentSide, theta, \
+        axisCount, axisDim0, axisDim1, axisDim2, axisDim3, index \
     ); \
 }
 

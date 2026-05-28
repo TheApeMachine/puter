@@ -131,6 +131,11 @@ type MultiAxisRoPEConfig struct {
 	BaseFreq     float64
 	LatentSeqLen int
 	LatentSide   int
+	AxisCount    int
+	AxisDim0     int
+	AxisDim1     int
+	AxisDim2     int
+	AxisDim3     int
 }
 
 func (config MultiAxisRoPEConfig) Validate() error {
@@ -144,6 +149,58 @@ func (config MultiAxisRoPEConfig) Validate() error {
 
 	if config.LatentSide <= 0 {
 		return fmt.Errorf("multi-axis rope: latent side must be positive, got %d", config.LatentSide)
+	}
+
+	if config.AxisCount <= 0 || config.AxisCount > 4 {
+		return fmt.Errorf("multi-axis rope: axis count must be in [1,4], got %d", config.AxisCount)
+	}
+
+	for axisIndex, axisDim := range config.AxisDims() {
+		if axisIndex >= config.AxisCount {
+			if axisDim != 0 {
+				return fmt.Errorf("multi-axis rope: inactive axis %d has dimension %d", axisIndex, axisDim)
+			}
+
+			continue
+		}
+
+		if axisDim <= 0 {
+			return fmt.Errorf("multi-axis rope: axis %d dimension must be positive, got %d", axisIndex, axisDim)
+		}
+
+		if axisDim%2 != 0 {
+			return fmt.Errorf("multi-axis rope: axis %d dimension must be even, got %d", axisIndex, axisDim)
+		}
+	}
+
+	return nil
+}
+
+func (config MultiAxisRoPEConfig) AxisDims() []int {
+	return []int{config.AxisDim0, config.AxisDim1, config.AxisDim2, config.AxisDim3}
+}
+
+func (config MultiAxisRoPEConfig) ValidateHeadDim(headDim int) error {
+	if err := config.Validate(); err != nil {
+		return err
+	}
+
+	axisDimTotal := 0
+
+	for axisIndex, axisDim := range config.AxisDims() {
+		if axisIndex >= config.AxisCount {
+			continue
+		}
+
+		axisDimTotal += axisDim
+	}
+
+	if axisDimTotal != headDim {
+		return fmt.Errorf(
+			"multi-axis rope: axis dimensions sum to %d, head dimension is %d",
+			axisDimTotal,
+			headDim,
+		)
 	}
 
 	return nil

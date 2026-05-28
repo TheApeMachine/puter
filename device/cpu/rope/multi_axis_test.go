@@ -52,6 +52,11 @@ func BenchmarkRunMultiAxisRoPEFloat32(benchmark *testing.B) {
 		BaseFreq:     10000,
 		LatentSeqLen: 4096,
 		LatentSide:   64,
+		AxisCount:    4,
+		AxisDim0:     32,
+		AxisDim1:     32,
+		AxisDim2:     32,
+		AxisDim3:     32,
 	}
 	input := randomRoPEInput(batch*seqLen*numHeads*headDim, 0x9501)
 	output := make([]float32, len(input))
@@ -81,6 +86,11 @@ func multiAxisRoPEConfig(seqLen int) device.MultiAxisRoPEConfig {
 		BaseFreq:     2000,
 		LatentSeqLen: latentSeqLen,
 		LatentSide:   latentSide,
+		AxisCount:    4,
+		AxisDim0:     2,
+		AxisDim1:     6,
+		AxisDim2:     4,
+		AxisDim3:     4,
 	}
 }
 
@@ -114,16 +124,8 @@ func referenceMultiAxisRoPEAngle(
 	config device.MultiAxisRoPEConfig,
 	seqIndex, pairIndex, seqLen, headDim int,
 ) (float32, float32) {
-	halfDim := headDim / 2
 	textLen := max(seqLen-config.LatentSeqLen, 0)
-	axisPairCount := halfDim / 4
-	axisIndex := 0
-	localPair := pairIndex
-
-	if axisPairCount > 0 {
-		axisIndex = pairIndex / axisPairCount
-		localPair = pairIndex - axisIndex*axisPairCount
-	}
+	axisIndex, localPair, axisPairCount := referenceMultiAxisRoPEAxis(config, pairIndex)
 
 	position := referenceMultiAxisRoPEPosition(config, seqIndex, textLen, axisIndex)
 	axisDim := float64(axisPairCount * 2)
@@ -138,12 +140,37 @@ func referenceMultiAxisRoPEAngle(
 	return float32(math.Cos(angle)), float32(math.Sin(angle))
 }
 
+func referenceMultiAxisRoPEAxis(
+	config device.MultiAxisRoPEConfig,
+	pairIndex int,
+) (int, int, int) {
+	axisDims := []int{config.AxisDim0, config.AxisDim1, config.AxisDim2, config.AxisDim3}
+	pairStart := 0
+
+	for axisIndex := range config.AxisCount {
+		axisPairCount := axisDims[axisIndex] / 2
+		pairEnd := pairStart + axisPairCount
+
+		if pairIndex < pairEnd {
+			return axisIndex, pairIndex - pairStart, axisPairCount
+		}
+
+		pairStart = pairEnd
+	}
+
+	return 0, pairIndex, 0
+}
+
 func referenceMultiAxisRoPEPosition(
 	config device.MultiAxisRoPEConfig,
 	seqIndex, textLen, axisIndex int,
 ) int {
 	if seqIndex < textLen {
-		if axisIndex == 3 {
+		if config.AxisCount == 4 && axisIndex == 3 {
+			return seqIndex
+		}
+
+		if config.AxisCount < 4 && axisIndex == 0 {
 			return seqIndex
 		}
 
