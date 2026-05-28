@@ -366,26 +366,22 @@ func applyRMSRowBF16(config device.RMSNormConfig, row, outRow, scale []dtype.BF1
 	sumOfSquares := DotBFloat16Native(row, row)
 	meanSquare := (&sumOfSquares).Float32() / float32(len(row))
 	invRMS := float32(1.0 / math.Sqrt(float64(meanSquare)+config.Epsilon))
-	combined := make([]dtype.BF16, len(row))
 
-	for index := range scale {
-		combined[index] = dtype.NewBfloat16FromFloat32(invRMS * (&scale[index]).Float32())
+	for index := range row {
+		value := (&row[index]).Float32() * invRMS * (&scale[index]).Float32()
+		outRow[index] = dtype.NewBfloat16FromFloat32(value)
 	}
-
-	MulBFloat16Native(outRow, row, combined)
 }
 
 func applyRMSRowF16(config device.RMSNormConfig, row, outRow, scale []dtype.F16) {
 	sumOfSquares := DotFloat16Native(row, row)
 	meanSquare := sumOfSquares.Float32() / float32(len(row))
 	invRMS := float32(1.0 / math.Sqrt(float64(meanSquare)+config.Epsilon))
-	combined := make([]dtype.F16, len(row))
 
-	for index := range scale {
-		combined[index] = dtype.Fromfloat32(invRMS * scale[index].Float32())
+	for index := range row {
+		value := row[index].Float32() * invRMS * scale[index].Float32()
+		outRow[index] = dtype.Fromfloat32(value)
 	}
-
-	MulFloat16Native(outRow, row, combined)
 }
 
 func applyAdaptiveRMSNormRowF32(

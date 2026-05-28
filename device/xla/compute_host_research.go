@@ -137,11 +137,12 @@ func (host *ComputeHost) DispatchBundle(
 }
 
 func (host *ComputeHost) DispatchSimilarity(
+	dst unsafe.Pointer,
 	left, right unsafe.Pointer,
 	count int,
 	format dtype.DType,
-) float32 {
-	return host.DotProduct(left, right, count, format)
+) {
+	host.DotProduct(dst, left, right, count, format)
 }
 
 func (host *ComputeHost) DispatchPermute(

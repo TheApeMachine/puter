@@ -40,13 +40,16 @@ Host is the CUDA dispatch surface loss operations call into.
 type Host interface {
 	NeedsPlatform()
 	PairLossScalar(
+		dst unsafe.Pointer,
 		predictions, targets unsafe.Pointer,
+		count int,
 		format dtype.DType,
 		kernel LossKernel,
-	) float32
+	)
 	CrossEntropyScalar(
+		dst unsafe.Pointer,
 		logits, targets unsafe.Pointer,
 		batchSize, classes int,
 		format dtype.DType,
-	) float32
+	)
 }

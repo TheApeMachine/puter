@@ -20,9 +20,7 @@ func (losses *Losses) MSE(
 	count int,
 	format dtype.DType,
 ) {
-	_ = count
-
-	*(*float32)(dst) = losses.host.PairLossScalar(predictions, targets, format, KernelMSE)
+	losses.host.PairLossScalar(dst, predictions, targets, count, format, KernelMSE)
 }
 
 func (losses *Losses) MAE(
@@ -30,9 +28,7 @@ func (losses *Losses) MAE(
 	count int,
 	format dtype.DType,
 ) {
-	_ = count
-
-	*(*float32)(dst) = losses.host.PairLossScalar(predictions, targets, format, KernelMAE)
+	losses.host.PairLossScalar(dst, predictions, targets, count, format, KernelMAE)
 }
 
 func (losses *Losses) Huber(
@@ -40,9 +36,7 @@ func (losses *Losses) Huber(
 	count int,
 	format dtype.DType,
 ) {
-	_ = count
-
-	*(*float32)(dst) = losses.host.PairLossScalar(predictions, targets, format, KernelHuber)
+	losses.host.PairLossScalar(dst, predictions, targets, count, format, KernelHuber)
 }
 
 func (losses *Losses) BinaryCrossEntropy(
@@ -50,9 +44,7 @@ func (losses *Losses) BinaryCrossEntropy(
 	count int,
 	format dtype.DType,
 ) {
-	_ = count
-
-	*(*float32)(dst) = losses.host.PairLossScalar(predictions, targets, format, KernelBinaryCrossEntropy)
+	losses.host.PairLossScalar(dst, predictions, targets, count, format, KernelBinaryCrossEntropy)
 }
 
 func (losses *Losses) KLDivergence(
@@ -60,9 +52,7 @@ func (losses *Losses) KLDivergence(
 	count int,
 	format dtype.DType,
 ) {
-	_ = count
-
-	*(*float32)(dst) = losses.host.PairLossScalar(predictions, targets, format, KernelKLDivergence)
+	losses.host.PairLossScalar(dst, predictions, targets, count, format, KernelKLDivergence)
 }
 
 func (losses *Losses) CrossEntropy(
@@ -72,5 +62,5 @@ func (losses *Losses) CrossEntropy(
 	batchSize, classes int,
 	format dtype.DType,
 ) {
-	*(*float32)(dst) = losses.host.CrossEntropyScalar(logits, targets, batchSize, classes, format)
+	losses.host.CrossEntropyScalar(dst, logits, targets, batchSize, classes, format)
 }

@@ -20,10 +20,11 @@ type Host interface {
 	NeedsPlatform()
 	NotImplemented(methodName string)
 	DotProduct(
+		dst unsafe.Pointer,
 		left, right unsafe.Pointer,
 		count int,
 		format dtype.DType,
-	) float32
+	)
 }
 
 /*

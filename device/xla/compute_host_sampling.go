@@ -3,61 +3,73 @@
 package xla
 
 import (
-	"math"
 	"math/rand/v2"
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
-	"github.com/theapemachine/manifesto/dtype/convert"
 	"github.com/theapemachine/manifesto/tensor"
 	"github.com/theapemachine/puter/device"
 )
 
 func (host *ComputeHost) DispatchTopKSample(
+	dst unsafe.Pointer,
 	config device.SamplingConfig,
 	logits unsafe.Pointer,
 	vocabSize int,
 	format dtype.DType,
-) int32 {
+) {
 	if vocabSize == 0 || host.bridge == nil {
-		return 0
+		return
 	}
 
-	sorted, indices := host.executeSoftmaxSort(logits, vocabSize, format, config.Temperature)
 	topK := config.TopK
 
 	if topK <= 0 || topK > vocabSize {
 		topK = vocabSize
 	}
 
-	return selectTopKIndex(sorted, indices, topK, config.Seed)
+	host.dispatchSample(dst, logits, vocabSize, format, "topk_sample", config.Temperature, topK, 0, config.Seed)
 }
 
 func (host *ComputeHost) DispatchTopPSample(
+	dst unsafe.Pointer,
 	config device.SamplingConfig,
 	logits unsafe.Pointer,
 	vocabSize int,
 	format dtype.DType,
-) int32 {
+) {
 	if vocabSize == 0 || host.bridge == nil {
-		return 0
+		return
 	}
 
-	sorted, indices := host.executeSoftmaxSort(logits, vocabSize, format, config.Temperature)
+	topP := config.TopP
 
-	return selectTopPIndex(sorted, indices, config.TopP, config.Seed)
+	if topP <= 0 {
+		topP = 1
+	}
+
+	if topP > 1 {
+		topP = 1
+	}
+
+	host.dispatchSample(dst, logits, vocabSize, format, "topp_sample", config.Temperature, 0, topP, config.Seed)
 }
 
-func (host *ComputeHost) executeSoftmaxSort(
+func (host *ComputeHost) dispatchSample(
+	dst unsafe.Pointer,
 	logits unsafe.Pointer,
 	vocabSize int,
 	format dtype.DType,
+	operationName string,
 	temperature float32,
-) ([]float32, []int32) {
+	topK int,
+	topP float32,
+	seed uint64,
+) {
 	inputShape, err := ShapeFromCount(vocabSize)
 	host.dispatchError(err)
 
-	stackShape, err := ShapeFromCount(vocabSize * 2)
+	scalarShape, err := tensor.NewShape([]int{})
 	host.dispatchError(err)
 
 	temperatureValue := temperature
@@ -70,122 +82,23 @@ func (host *ComputeHost) executeSoftmaxSort(
 		Target:      DefaultBuilderTarget,
 		InputDTypes: []dtype.DType{format},
 		InputShapes: []tensor.Shape{inputShape},
-		OutputDType: format,
-		OutputShape: stackShape,
+		OutputDType: dtype.Int32,
+		OutputShape: scalarShape,
 	}
-
-	stackTensor := host.borrowVectorBuffer(format, vocabSize*2)
-	defer stackTensor.Close()
 
 	inputTensor := host.requireDeviceTensor(logits)
+	outputTensor := host.requireDeviceTensor(dst)
+	randomTarget := newSamplingRNG(seed).Float32()
 
-	host.dispatchError(host.builder.ExecuteSoftmaxSort(
+	host.dispatchError(host.builder.ExecuteProbabilisticSample(
 		host.bridge,
+		operationName,
 		context,
-		[]float64{float64(temperatureValue)},
+		[]float64{float64(temperatureValue), float64(randomTarget), float64(topP)},
+		[]int64{int64(topK)},
 		inputTensor,
-		stackTensor,
+		outputTensor,
 	))
-
-	stacked := host.readVectorFloat32(stackTensor, vocabSize*2)
-	sorted := stacked[:vocabSize]
-	indices := make([]int32, vocabSize)
-
-	for index := range indices {
-		indices[index] = int32(math.Round(float64(stacked[vocabSize+index])))
-	}
-
-	return sorted, indices
-}
-
-func (host *ComputeHost) readVectorFloat32(deviceTensor *DeviceTensor, count int) []float32 {
-	_, bytesOut, err := host.bridge.download(deviceTensor)
-	host.dispatchError(err)
-
-	decoded, err := convert.BytesToFloat32(deviceTensor.format(), bytesOut)
-	host.dispatchError(err)
-
-	if len(decoded) < count {
-		host.dispatchError(&loweringError{message: "short XLA vector download"})
-	}
-
-	return decoded[:count]
-}
-
-func selectTopKIndex(sorted []float32, indices []int32, topK int, seed uint64) int32 {
-	var sum float32
-
-	for index := 0; index < topK; index++ {
-		sum += sorted[index]
-	}
-
-	if sum == 0 {
-		return indices[0]
-	}
-
-	rng := newSamplingRNG(seed)
-	target := rng.Float32() * sum
-	cumulative := float32(0)
-
-	for index := 0; index < topK; index++ {
-		cumulative += sorted[index]
-
-		if cumulative >= target {
-			return indices[index]
-		}
-	}
-
-	return indices[topK-1]
-}
-
-func selectTopPIndex(sorted []float32, indices []int32, topP float32, seed uint64) int32 {
-	if topP <= 0 {
-		topP = 1
-	}
-
-	if topP > 1 {
-		topP = 1
-	}
-
-	prefixLength := len(sorted)
-	cumulative := float32(0)
-
-	for index, probability := range sorted {
-		cumulative += probability
-
-		if cumulative >= topP {
-			prefixLength = index + 1
-			break
-		}
-	}
-
-	if prefixLength == 0 {
-		prefixLength = 1
-	}
-
-	var sum float32
-
-	for index := 0; index < prefixLength; index++ {
-		sum += sorted[index]
-	}
-
-	if sum == 0 {
-		return indices[0]
-	}
-
-	rng := newSamplingRNG(seed)
-	target := rng.Float32() * sum
-	cumulative = 0
-
-	for index := 0; index < prefixLength; index++ {
-		cumulative += sorted[index]
-
-		if cumulative >= target {
-			return indices[index]
-		}
-	}
-
-	return indices[prefixLength-1]
 }
 
 func newSamplingRNG(seed uint64) *rand.Rand {

@@ -21,7 +21,7 @@ type Host interface {
 	NeedsPlatform()
 	DispatchBind(left, right, output unsafe.Pointer, count int, format dtype.DType)
 	DispatchBundle(left, right, output unsafe.Pointer, count int, format dtype.DType)
-	DispatchSimilarity(left, right unsafe.Pointer, count int, format dtype.DType) float32
+	DispatchSimilarity(dst, left, right unsafe.Pointer, count int, format dtype.DType)
 	DispatchPermute(config device.VSAConfig, input, output unsafe.Pointer, count int, format dtype.DType)
 	DispatchInversePermute(config device.VSAConfig, input, output unsafe.Pointer, count int, format dtype.DType)
 	NotImplemented(string)

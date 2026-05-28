@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // NEON elementwise bf16 unary ops: abs, neg, sqrt. Each kernel loads
-// bf16, widens to f32, applies the unary op, narrows back to bf16.
-// Matches the scalar reference, which is also widen→op→narrow.
+// bf16, widens to f32, applies the unary op, rounds the f32 bit
+// pattern to nearest-even bf16, and narrows via VUZP2.
 
 #include "textflag.h"
 
@@ -22,12 +22,22 @@
 #define WIDEN_H8_TO_S4_HIGH(src_h8, dst_h8) VZIP2 src_h8, V31.H8, dst_h8
 #define NARROW_S4_TO_H8(s0_h8, s1_h8, dst_h8) VUZP2 s1_h8, s0_h8, dst_h8
 
+#define ROUND_BF16_S4(reg_s4)             \
+    VUSHR $16, reg_s4, V16.S4             \
+    VAND  V29.B16, V16.B16, V16.B16       \
+    VADD  V28.S4, V16.S4, V16.S4          \
+    VADD  V16.S4, reg_s4, reg_s4
+
 #define BF16_UNARY_TEMPLATE(op_4x4, op_2x2, op_scalar)              \
     MOVD dst+0(FP), R0                                              \
     MOVD src+8(FP), R1                                              \
     MOVD n+16(FP), R2                                               \
                                                                     \
     VEOR V31.B16, V31.B16, V31.B16                                  \
+    MOVD $0x7fff, R6                                                  \
+    VDUP R6, V28.S4                                                   \
+    MOVD $1, R6                                                       \
+    VDUP R6, V29.S4                                                   \
                                                                     \
 loop16:                                                             \
     CMP  $16, R2                                                    \
@@ -38,6 +48,10 @@ loop16:                                                             \
     WIDEN_H8_TO_S4_LOW(V1.H8, V6.H8)                                \
     WIDEN_H8_TO_S4_HIGH(V1.H8, V7.H8)                               \
     op_4x4                                                          \
+    ROUND_BF16_S4(V8.S4)                                             \
+    ROUND_BF16_S4(V9.S4)                                             \
+    ROUND_BF16_S4(V10.S4)                                            \
+    ROUND_BF16_S4(V11.S4)                                            \
     NARROW_S4_TO_H8(V8.H8, V9.H8, V12.H8)                           \
     NARROW_S4_TO_H8(V10.H8, V11.H8, V13.H8)                         \
     VST1.P [V12.H8, V13.H8], 32(R0)                                 \
@@ -51,6 +65,8 @@ loop8:                                                              \
     WIDEN_H8_TO_S4_LOW(V0.H8, V4.H8)                                \
     WIDEN_H8_TO_S4_HIGH(V0.H8, V5.H8)                               \
     op_2x2                                                          \
+    ROUND_BF16_S4(V8.S4)                                             \
+    ROUND_BF16_S4(V9.S4)                                             \
     NARROW_S4_TO_H8(V8.H8, V9.H8, V12.H8)                           \
     VST1.P [V12.H8], 16(R0)                                         \
     SUB  $8, R2                                                     \
@@ -65,6 +81,10 @@ scalar_loop:                                                        \
     FMOVS R4, F0                                                    \
     op_scalar                                                       \
     FMOVS F0, R4                                                    \
+    LSR  $16, R4, R5                                                 \
+    AND  $1, R5, R5                                                  \
+    ADD  $0x7fff, R4, R4                                             \
+    ADD  R5, R4, R4                                                  \
     LSR  $16, R4, R4                                                \
     MOVH R4, (R0)                                                   \
     ADD  $2, R1                                                     \

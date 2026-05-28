@@ -13,9 +13,7 @@ func (losses *Losses) BinaryCrossEntropy(
 	count int,
 	format dtype.DType,
 ) {
-	_ = count
-
-	*(*float32)(dst) = losses.host.PairLossScalar(predictions, targets, format, KernelBinaryCrossEntropy)
+	losses.host.PairLossScalar(dst, predictions, targets, count, format, KernelBinaryCrossEntropy)
 }
 
 func (losses *Losses) KLDivergence(
@@ -23,9 +21,7 @@ func (losses *Losses) KLDivergence(
 	count int,
 	format dtype.DType,
 ) {
-	_ = count
-
-	*(*float32)(dst) = losses.host.PairLossScalar(predictions, targets, format, KernelKLDivergence)
+	losses.host.PairLossScalar(dst, predictions, targets, count, format, KernelKLDivergence)
 }
 
 func (losses *Losses) CrossEntropy(
@@ -35,5 +31,5 @@ func (losses *Losses) CrossEntropy(
 	batchSize, classes int,
 	format dtype.DType,
 ) {
-	*(*float32)(dst) = losses.host.CrossEntropyScalar(logits, targets, batchSize, classes, format)
+	losses.host.CrossEntropyScalar(dst, logits, targets, batchSize, classes, format)
 }

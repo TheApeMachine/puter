@@ -127,7 +127,7 @@ func runPageWriteIntrinsic(resolver *bindResolver) error {
 		return err
 	}
 
-	resolver.dispatcher.values.set(resolver.node.ID, stateStorage)
+	resolver.storeOutput(stateStorage)
 
 	return nil
 }
@@ -199,7 +199,7 @@ func runPageWriteDeviceIntrinsic(
 		storage.DType(),
 	)
 
-	resolver.dispatcher.values.set(resolver.node.ID, storage)
+	resolver.storeOutput(storage)
 
 	return nil
 }
@@ -257,7 +257,7 @@ func runPageGatherIntrinsic(resolver *bindResolver) error {
 		return err
 	}
 
-	resolver.dispatcher.values.set(resolver.node.ID, output)
+	resolver.storeOutput(output)
 
 	return nil
 }
@@ -334,7 +334,7 @@ func runPageGatherDeviceIntrinsic(
 		storage.DType(),
 	)
 
-	resolver.dispatcher.values.set(resolver.node.ID, output)
+	resolver.storeOutput(output)
 
 	return nil
 }

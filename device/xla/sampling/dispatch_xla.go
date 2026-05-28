@@ -22,7 +22,7 @@ func (sampling *Sampling) TopKSample(
 	config device.SamplingConfig,
 	format dtype.DType,
 ) {
-	*(*int32)(dst) = sampling.host.DispatchTopKSample(config, logits, vocabSize, format)
+	sampling.host.DispatchTopKSample(dst, config, logits, vocabSize, format)
 }
 
 func (sampling *Sampling) TopPSample(
@@ -31,7 +31,7 @@ func (sampling *Sampling) TopPSample(
 	config device.SamplingConfig,
 	format dtype.DType,
 ) {
-	*(*int32)(dst) = sampling.host.DispatchTopPSample(config, logits, vocabSize, format)
+	sampling.host.DispatchTopPSample(dst, config, logits, vocabSize, format)
 }
 
 func (sampling *Sampling) GreedySample(
@@ -39,5 +39,5 @@ func (sampling *Sampling) GreedySample(
 	vocabSize int,
 	format dtype.DType,
 ) {
-	*(*int32)(dst) = sampling.host.DispatchGreedySample(logits, vocabSize, format)
+	sampling.host.DispatchGreedySample(dst, logits, vocabSize, format)
 }

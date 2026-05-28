@@ -40,9 +40,10 @@ Host is the Metal dispatch surface reduction operations call into.
 type Host interface {
 	NeedsPlatform()
 	ReductionScalar(
+		dst unsafe.Pointer,
 		values unsafe.Pointer,
 		count int,
 		format dtype.DType,
 		kernel ReductionKernel,
-	) float32
+	)
 }

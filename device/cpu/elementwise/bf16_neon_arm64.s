@@ -3,17 +3,8 @@
 //
 // NEON elementwise bf16 vector ops: add, sub, mul, div. Each kernel
 // loads bf16 inputs, widens to f32 via VZIP{1,2} with a zero
-// halfword vector, performs the operation in f32, and narrows the
-// f32 result back to bf16 via VUZP2 (picking the upper 16 bits of
-// each f32 lane = the bf16 representation under truncation rounding).
-//
-// This matches the scalar bf16 reference:
-//   sum := left[i].Float32() + right[i].Float32()
-//   out[i] = NewBfloat16FromFloat32(sum)
-// where Float32() = uint32(bf16) << 16 (bit shuffle) and
-// NewBfloat16FromFloat32 = uint16(bits >> 16) (bit shuffle). The
-// f32 arithmetic in between is identical, so the NEON path is
-// bit-exact against the scalar reference.
+// halfword vector, performs the operation in f32, rounds the f32 bit
+// pattern to nearest-even bf16, and narrows via VUZP2.
 
 #include "textflag.h"
 
@@ -45,6 +36,12 @@
 // s1's we write VUZP2 s1, s0, dst.
 #define NARROW_S4_TO_H8(s0_h8, s1_h8, dst_h8) VUZP2 s1_h8, s0_h8, dst_h8
 
+#define ROUND_BF16_S4(reg_s4)             \
+    VUSHR $16, reg_s4, V16.S4             \
+    VAND  V29.B16, V16.B16, V16.B16       \
+    VADD  V28.S4, V16.S4, V16.S4          \
+    VADD  V16.S4, reg_s4, reg_s4
+
 // ADD scalar tail: F0 = F0 + F1
 #define ADD_SCALAR_S FADDS F1, F0, F0
 // SUB scalar tail: F0 = F0 - F1
@@ -61,6 +58,10 @@
     MOVD n+24(FP), R3                                               \
                                                                     \
     VEOR V31.B16, V31.B16, V31.B16                                  \
+    MOVD $0x7fff, R6                                                  \
+    VDUP R6, V28.S4                                                   \
+    MOVD $1, R6                                                       \
+    VDUP R6, V29.S4                                                   \
                                                                     \
 loop16:                                                             \
     CMP  $16, R3                                                    \
@@ -76,6 +77,10 @@ loop16:                                                             \
     WIDEN_H8_TO_S4_LOW(V3.H8, V10.H8)                               \
     WIDEN_H8_TO_S4_HIGH(V3.H8, V11.H8)                              \
     op_4x4                                                          \
+    ROUND_BF16_S4(V4.S4)                                             \
+    ROUND_BF16_S4(V5.S4)                                             \
+    ROUND_BF16_S4(V6.S4)                                             \
+    ROUND_BF16_S4(V7.S4)                                             \
     NARROW_S4_TO_H8(V4.H8, V5.H8, V12.H8)                           \
     NARROW_S4_TO_H8(V6.H8, V7.H8, V13.H8)                           \
     VST1.P [V12.H8, V13.H8], 32(R0)                                 \
@@ -92,6 +97,8 @@ loop8:                                                              \
     WIDEN_H8_TO_S4_LOW(V2.H8, V8.H8)                                \
     WIDEN_H8_TO_S4_HIGH(V2.H8, V9.H8)                               \
     op_2x2                                                          \
+    ROUND_BF16_S4(V4.S4)                                             \
+    ROUND_BF16_S4(V5.S4)                                             \
     NARROW_S4_TO_H8(V4.H8, V5.H8, V12.H8)                           \
     VST1.P [V12.H8], 16(R0)                                         \
     SUB  $8, R3                                                     \
@@ -109,6 +116,10 @@ scalar_loop:                                                        \
     FMOVS R5, F1                                                    \
     op_scalar                                                       \
     FMOVS F0, R4                                                    \
+    LSR  $16, R4, R5                                                 \
+    AND  $1, R5, R5                                                  \
+    ADD  $0x7fff, R4, R4                                             \
+    ADD  R5, R4, R4                                                  \
     LSR  $16, R4, R4                                                \
     MOVH R4, (R0)                                                   \
     ADD  $2, R1                                                     \

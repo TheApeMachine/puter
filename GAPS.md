@@ -8,11 +8,11 @@ This document is a punch list, not a redesign. Section numbers refer to `ARCHITE
 
 ## 0. Executive summary
 
-The four repos together implement roughly half of the architecture by surface area, but the half that's missing is the half that turns kernels into a system: the manifesto compiler/optimizer/codegen/scheduler pipeline (Phases 2–4 of §8) is essentially absent. `puter`'s kernel surface is broad but its top-level interface contract still violates the zero-host-sync rule. `hf` is in the best shape relative to its scope. `caramba` is a thin orchestrator that depends on the missing pieces.
+The four repos together implement roughly half of the architecture by surface area, but the half that's missing is the half that turns kernels into a system: the manifesto compiler/optimizer/codegen/scheduler pipeline (Phases 2–4 of §8) is essentially absent. `puter`'s kernel surface is broad, and its scalar-output `device.Backend` methods now use device-resident `dst unsafe.Pointer` outputs. `hf` is in the best shape relative to its scope. `caramba` is a thin orchestrator that depends on the missing pieces.
 
 What works end-to-end today: load a HuggingFace checkpoint, resolve a recipe, build a minimal IR, and dispatch ops sequentially via the `tensor.Backend` interface that delegates to puter's CPU/Metal kernels. What doesn't exist: PortType unification, adaptor synthesis, fusion AST, JIT codegen for any target, liveness analysis, static interval-coloring allocator, symbolic stride solver, stream-partitioned DAG executor, parity verification harness.
 
-The single most damaging gap is **§2.2 zero-host-sync** — the `device.Backend` interface itself still returns Go scalars from 16 reduction/dot/loss/sampling methods. Until that's fixed, the rest of the architecture (async streams, non-blocking dispatch, XLA buffer aliasing) cannot land.
+The single most damaging remaining gap is the executor/compiler half of the architecture: stream-aware scheduling, static workspace planning, and full JIT/codegen integration. The old §2.2 scalar-return blocker in `device.Backend` has been migrated to `dst unsafe.Pointer` outputs.
 
 ---
 
@@ -82,19 +82,17 @@ The spec (§2.2) is unambiguous: "All operations that reduce tensors to single v
 
 **P0a contract migration status: all 16 methods migrated, `make check §1 = 0`.**
 
-| Family    | Methods                                                         | Contract migrated? | Kernel writes on device?                                             |
-|-----------|-----------------------------------------------------------------|--------------------|----------------------------------------------------------------------|
-| Reduction | Sum, Prod, ReduceMin, ReduceMax, L1Norm                         | ✓ done             | ✗ P0b — Metal/CUDA/XLA still do internal device→host scalar transfer |
-| Dot       | Dot                                                             | ✓ done             | ✗ P0b                                                                |
-| Losses    | MSE, MAE, Huber, BinaryCrossEntropy, KLDivergence, CrossEntropy | ✓ done             | ✗ P0b                                                                |
-| Sampling  | GreedySample, TopKSample, TopPSample                            | ✓ done             | ✗ P0b                                                                |
-| VSA       | Similarity                                                      | ✓ done             | ✗ P0b                                                                |
+| Family    | Methods                                                         | Contract migrated? | Kernel writes to caller `dst` slot? |
+|-----------|-----------------------------------------------------------------|--------------------|-------------------------------------|
+| Reduction | Sum, Prod, ReduceMin, ReduceMax, L1Norm                         | ✓ done             | ✓ done                              |
+| Dot       | Dot                                                             | ✓ done             | ✓ done                              |
+| Losses    | MSE, MAE, Huber, BinaryCrossEntropy, KLDivergence, CrossEntropy | ✓ done             | ✓ done                              |
+| Sampling  | GreedySample, TopKSample, TopPSample                            | ✓ done             | ✓ done                              |
+| VSA       | Similarity                                                      | ✓ done             | ✓ done                              |
 
-**P0a — Interface contract.** Public method signatures take `dst unsafe.Pointer` and return nothing. CPU implementation writes `*(*float32)(dst) = computedValue`. Metal/CUDA/XLA implementations temporarily store the host-returned scalar from `host.ReductionScalar(...)` into `*(*float32)(dst)` — same observable behavior as the old code, but the *interface* is now compatible with async dispatch.
+**P0a/P0b — Interface and backend write path.** Public method signatures take `dst unsafe.Pointer` and return nothing. CPU stores scalar results using dtype-aware storage. Metal/CUDA/XLA dispatch now resolves the caller's backend-resident `dst` buffer and passes it into the real device submission path rather than materializing the scalar on the host.
 
-**P0b — Kernel-side device writes.** The Metal/CUDA/XLA reduction kernels already compute their result on device into a temporary buffer, then `host.ReductionScalar` reads it back to host and returns a Go scalar. The end-state per §2.2 is: the kernel writes directly into the caller's `dst` workspace slot, no read-back. This requires the static memory planner (P1, §3.1) to resolve workspace pointers to backend-specific buffer handles (`MetalBufferRef`, `cuMem`, `PjRtBuffer`). Sequenced after the planner lands.
-
-`scripts/check_banned.sh §1` enforces P0a. P0b is enforced by code review against AGENTS.md §11.2 and by the absence of device→host scalar transfers in the async execution path once the executor is in place.
+`scripts/check_banned.sh §1` enforces the scalar-return side of this contract. Code review and scalar-output parity tests enforce the absence of inline device-to-host scalar materialization.
 
 **Caller updates needed:** the public `Reduction.Sum/Prod/...` callers are mostly the `*Native` host-side convenience helpers in `device/cpu/reduction/select_{amd64,arm64,generic}.go` plus a small number of parity tests (`reduction_reduced_prod_parity_test.go`, `xla/reduction/reduction_parity_test.go`, `xla/dot/dot_parity_test.go`). All have been migrated for the Reduction family. **No manifesto or caramba callers** — Reduction is well-isolated.
 
@@ -169,7 +167,7 @@ Liveness analysis + interval-coloring allocator implemented in `manifesto/ir/pla
 Tests cover: ID assignment uniqueness and idempotency, linear chain liveness, multi-consumer extension to last use, unbound symbol rejection, bound symbol resolution, disjoint-intervals-share-offset (coloring works), overlapping-intervals-distinct-offsets, alignment rounding, scalar port byte size, default alignment.
 
 **What this unblocks:**
-- P0b (kernel-side device writes) — Metal/CUDA/XLA backends now have a real workspace plan to write into; `host.ReductionScalar` etc. can be migrated to take `dst unsafe.Pointer` mapped to a planned workspace offset.
+- Scalar-output device writes — Metal/CUDA/XLA backends use backend-resident `dst` buffers for reduction/dot/loss/sampling/VSA scalar outputs.
 - The async DAG executor — needs `Topology.Workspace` populated before the dispatch loop can pre-materialize pointers.
 - Cross-stream sync (Phase 4.4) — the planner is the prerequisite for the stream-partitioner pass that emits SyncEvents.
 
@@ -324,7 +322,7 @@ This is the order I'd suggest. Each item is roughly self-contained.
 
 ### P0 — unblocks everything else
 1. **Fix `device/interface.go` zero-host-sync (§2.2). ✓ DONE.** All 16 methods across 5 families (Reduction, Dot, Losses, Sampling, VSA) migrated to take `dst unsafe.Pointer`. CPU/Metal/CUDA/XLA backends updated, *Native host-side helpers bridged, parity tests adapted. `scripts/check_banned.sh §1 = 0`. Total violations 395 → 379.
-   - **P0b — kernel-side device writes.** Metal/CUDA/XLA implementations now have the correct interface signature, but internally they still call `host.ReductionScalar(...)` / equivalent, which does a device→host scalar transfer. Once the static memory planner lands (P1), migrate these to write directly into the caller's workspace slot on device. Tracked as task #17.
+   - **P0b — kernel-side device writes. ✓ DONE.** Metal/CUDA/XLA scalar-output implementations resolve and pass the caller's backend-resident `dst` buffer into device dispatch. CPU stores through dtype-aware scalar helpers.
 2. **Define the spec's IR types in `manifesto/ir`.** `PortType`, `LayoutSchema`, `SemanticKind`, `Constraint`, `PortAllocation`, `StrideFormula`, `WorkspaceLayout`, plus the missing fields on `Topology` and `Node` (§6). Everything in Phases 2–5 reads or writes these.
 3. **Create `puter/XLA_GAPS.md`.** Even as a skeleton checklist. §2.1 says it exists; today it doesn't.
 

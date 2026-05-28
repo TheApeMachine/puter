@@ -4,6 +4,7 @@ import (
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/puter/device/cpu/internal/scalar"
 )
 
 func requireSamplingFloat32(format dtype.DType) {
@@ -18,14 +19,14 @@ Zero-host-sync per ARCHITECTURE.md §2.2.
 */
 func (sampling Sampling) GreedySample(dst, logits unsafe.Pointer, vocabSize int, format dtype.DType) {
 	if vocabSize == 0 {
-		*(*int32)(dst) = 0
+		scalar.StoreInt32(dst, 0)
 		return
 	}
 
 	requireSamplingFloat32(format)
 
 	logitView := unsafe.Slice((*float32)(logits), vocabSize)
-	*(*int32)(dst) = GreedySampleFloat32Native(logitView)
+	scalar.StoreInt32(dst, GreedySampleFloat32Native(logitView))
 }
 
 /*
@@ -33,7 +34,7 @@ TopKSample writes the sampled token index into `*dst` as int32.
 */
 func (sampling Sampling) TopKSample(dst, logits unsafe.Pointer, vocabSize int, config SamplingConfig, format dtype.DType) {
 	if vocabSize == 0 {
-		*(*int32)(dst) = 0
+		scalar.StoreInt32(dst, 0)
 		return
 	}
 
@@ -46,7 +47,7 @@ func (sampling Sampling) TopKSample(dst, logits unsafe.Pointer, vocabSize int, c
 		topK = vocabSize
 	}
 
-	*(*int32)(dst) = TopKSampleFloat32Native(logitView, config.Temperature, topK, config.Seed)
+	scalar.StoreInt32(dst, TopKSampleFloat32Native(logitView, config.Temperature, topK, config.Seed))
 }
 
 /*
@@ -54,12 +55,12 @@ TopPSample writes the sampled token index into `*dst` as int32.
 */
 func (sampling Sampling) TopPSample(dst, logits unsafe.Pointer, vocabSize int, config SamplingConfig, format dtype.DType) {
 	if vocabSize == 0 {
-		*(*int32)(dst) = 0
+		scalar.StoreInt32(dst, 0)
 		return
 	}
 
 	requireSamplingFloat32(format)
 
 	logitView := unsafe.Slice((*float32)(logits), vocabSize)
-	*(*int32)(dst) = TopPSampleFloat32Native(logitView, config.Temperature, config.TopP, config.Seed)
+	scalar.StoreInt32(dst, TopPSampleFloat32Native(logitView, config.Temperature, config.TopP, config.Seed))
 }

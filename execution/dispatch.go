@@ -114,8 +114,8 @@ type dispatcher struct {
 	values         *valueTable
 	graph          *ast.Graph
 	graphName      string
-	plan           *runtime.ExecutionPlan
-	nodeByID       map[string]*ast.GraphNode
+	program        *executionProgram
+	compileErr     error
 	deviceBackend  executionDevice
 	memory         tensor.Backend
 	weights        WeightStore
@@ -134,22 +134,19 @@ func newDispatcher(
 	workspaces *WorkspaceMap,
 	launchBindings ir.SymbolMap,
 ) *dispatcher {
-	nodeByID := make(map[string]*ast.GraphNode, len(graph.Nodes))
+	program, compileErr := compileExecutionProgram(graph, plan)
+	values := newValueTable()
 
-	for _, node := range graph.Nodes {
-		if node == nil {
-			continue
-		}
-
-		nodeByID[node.ID] = node
+	if compileErr == nil {
+		values = newValueTableWithSlots(program.slotByName, len(program.slotNames))
 	}
 
 	dispatcher := &dispatcher{
-		values:         newValueTable(),
+		values:         values,
 		graph:          graph,
 		graphName:      graphName,
-		plan:           plan,
-		nodeByID:       nodeByID,
+		program:        program,
+		compileErr:     compileErr,
 		deviceBackend:  deviceBackend,
 		memory:         memory,
 		weights:        weights,
@@ -261,12 +258,28 @@ func (dispatcher *dispatcher) canBatchDevice() bool {
 		return false
 	}
 
+	if dispatcher.program == nil {
+		return dispatcher.graphCanBatchDevice()
+	}
+
+	for _, layer := range dispatcher.program.layers {
+		for _, step := range layer {
+			if step.readsDeviceScalar {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func (dispatcher *dispatcher) graphCanBatchDevice() bool {
 	for _, node := range dispatcher.graph.Nodes {
 		if node == nil {
 			continue
 		}
 
-		if dispatcher.nodeReadsDeviceScalar(node) {
+		if nodeReadsDeviceScalar(node) {
 			return false
 		}
 	}
@@ -274,29 +287,20 @@ func (dispatcher *dispatcher) canBatchDevice() bool {
 	return true
 }
 
-func (dispatcher *dispatcher) nodeReadsDeviceScalar(node *ast.GraphNode) bool {
+func nodeReadsDeviceScalar(node *ast.GraphNode) bool {
 	return node.Op == "positional.rope" && len(node.Inputs) >= 2
 }
 
 func (dispatcher *dispatcher) runLayers() error {
-	for layerIndex, layer := range dispatcher.plan.Layers {
-		for _, nodeID := range layer {
-			node, ok := dispatcher.nodeByID[nodeID]
-
-			if !ok {
-				return fmt.Errorf(
-					"execution: plan layer %d references unknown node %q",
-					layerIndex, nodeID,
-				)
-			}
-
-			if err := dispatcher.runNode(node); err != nil {
-				return fmt.Errorf("execution: node %q (%s): %w", node.ID, node.Op, err)
-			}
-		}
+	if dispatcher.compileErr != nil {
+		return dispatcher.compileErr
 	}
 
-	return nil
+	if dispatcher.program == nil {
+		return fmt.Errorf("execution: compiled program is required")
+	}
+
+	return dispatcher.program.run(dispatcher)
 }
 
 /*
@@ -335,6 +339,14 @@ view; this path currently fails over to "no CPU kernel attached" if the
 graph was compiled with TargetMetal only.
 */
 func (dispatcher *dispatcher) runFusedNode(node *ast.GraphNode) error {
+	return dispatcher.runFusedNodeWithSlots(node, nil, -1)
+}
+
+func (dispatcher *dispatcher) runFusedNodeWithSlots(
+	node *ast.GraphNode,
+	inputSlots []int,
+	outputSlot int,
+) error {
 	setAny, ok := node.Attributes[codegen.KernelAttribute]
 
 	if !ok {
@@ -365,8 +377,8 @@ func (dispatcher *dispatcher) runFusedNode(node *ast.GraphNode) error {
 	inputBuffers := make([][]float32, 0, len(cpuKernel.Inputs()))
 	var count int
 
-	for _, inputName := range cpuKernel.Inputs() {
-		inputTensor, err := dispatcher.values.tensor(inputName)
+	for inputIndex, inputName := range cpuKernel.Inputs() {
+		inputTensor, err := dispatcher.fusedInputTensor(node, inputName, inputIndex, inputSlots)
 
 		if err != nil {
 			return err
@@ -385,7 +397,7 @@ func (dispatcher *dispatcher) runFusedNode(node *ast.GraphNode) error {
 		}
 	}
 
-	outputTensor, err := dispatcher.allocateLike(inputBuffers[0], count)
+	outputTensor, err := dispatcher.allocateLike(node, inputBuffers[0], count)
 
 	if err != nil {
 		return err
@@ -401,16 +413,63 @@ func (dispatcher *dispatcher) runFusedNode(node *ast.GraphNode) error {
 		return err
 	}
 
-	dispatcher.values.set(node.ID, outputTensor)
+	dispatcher.storeNodeValue(node.ID, outputSlot, outputTensor)
 
 	return nil
+}
+
+func (dispatcher *dispatcher) fusedInputTensor(
+	node *ast.GraphNode,
+	inputName string,
+	inputIndex int,
+	inputSlots []int,
+) (tensor.Tensor, error) {
+	if inputIndex < len(inputSlots) {
+		raw, ok := dispatcher.values.getSlot(inputSlots[inputIndex])
+
+		if ok {
+			return dispatcher.tensorFromFusedValue(inputName, raw)
+		}
+	}
+
+	for nodeInputIndex, nodeInputName := range node.Inputs {
+		if nodeInputName != inputName {
+			continue
+		}
+
+		if nodeInputIndex >= len(inputSlots) {
+			break
+		}
+
+		raw, ok := dispatcher.values.getSlot(inputSlots[nodeInputIndex])
+
+		if ok {
+			return dispatcher.tensorFromFusedValue(inputName, raw)
+		}
+	}
+
+	return dispatcher.values.tensor(inputName)
+}
+
+func (dispatcher *dispatcher) tensorFromFusedValue(inputName string, value any) (tensor.Tensor, error) {
+	inputTensor, ok := value.(tensor.Tensor)
+
+	if !ok {
+		return nil, fmt.Errorf("fused node input %q has type %T, expected tensor.Tensor", inputName, value)
+	}
+
+	return inputTensor, nil
 }
 
 /*
 allocateLike returns a new host tensor of the requested length, initialised
 to zero. Used by the fused kernel runner.
 */
-func (dispatcher *dispatcher) allocateLike(reference []float32, count int) (tensor.Tensor, error) {
+func (dispatcher *dispatcher) allocateLike(
+	node *ast.GraphNode,
+	reference []float32,
+	count int,
+) (tensor.Tensor, error) {
 	_ = reference
 
 	shape, err := tensor.NewShape([]int{count})
@@ -425,23 +484,50 @@ func (dispatcher *dispatcher) allocateLike(reference []float32, count int) (tens
 		return nil, fmt.Errorf("execution: derive byte count: %w", err)
 	}
 
-	return dispatcher.memory.Upload(shape, dtype.Float32, make([]byte, byteCount))
+	return dispatcher.allocateOutput(node, shape, dtype.Float32, byteCount)
 }
 
 func (dispatcher *dispatcher) runAssign(node *ast.GraphNode) error {
+	return dispatcher.runAssignWithSlots(node, nil, -1)
+}
+
+func (dispatcher *dispatcher) runAssignWithSlots(
+	node *ast.GraphNode,
+	inputSlots []int,
+	outputSlot int,
+) error {
 	if len(node.Inputs) != 1 {
 		return fmt.Errorf("value.assign expects exactly one input, got %d", len(node.Inputs))
 	}
 
-	value, ok := dispatcher.values.get(node.Inputs[0])
+	value, ok := dispatcher.assignInputValue(node.Inputs[0], inputSlots)
 
 	if !ok {
 		return fmt.Errorf("value.assign input %q not found", node.Inputs[0])
 	}
 
-	dispatcher.values.set(node.ID, value)
+	dispatcher.storeNodeValue(node.ID, outputSlot, value)
 
 	return nil
+}
+
+func (dispatcher *dispatcher) assignInputValue(inputName string, inputSlots []int) (any, bool) {
+	if len(inputSlots) == 1 {
+		if value, ok := dispatcher.values.getSlot(inputSlots[0]); ok {
+			return value, true
+		}
+	}
+
+	return dispatcher.values.get(inputName)
+}
+
+func (dispatcher *dispatcher) storeNodeValue(name string, slot int, value any) {
+	if dispatcher.values.hasSlot(slot) {
+		dispatcher.values.setSlot(slot, value)
+		return
+	}
+
+	dispatcher.values.set(name, value)
 }
 
 /*

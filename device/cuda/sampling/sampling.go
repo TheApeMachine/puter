@@ -39,10 +39,11 @@ Host is the CUDA dispatch surface sampling operations call into.
 type Host interface {
 	NeedsPlatform()
 	SamplingIndex(
+		dst unsafe.Pointer,
 		kernel SamplingKernel,
 		config device.SamplingConfig,
 		logits unsafe.Pointer,
 		vocabSize int,
 		format dtype.DType,
-	) int32
+	)
 }

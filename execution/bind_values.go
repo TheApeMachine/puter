@@ -150,6 +150,20 @@ func (resolver *bindResolver) resolveInputTensor(source string) (tensor.Tensor, 
 	}
 
 	inputName := resolver.node.Inputs[inputIndex]
+	inputSlot := resolver.inputSlot(inputIndex)
+
+	if raw, ok := resolver.dispatcher.values.getSlot(inputSlot); ok {
+		inputTensor, err := resolver.tensorFromValue(raw)
+
+		if err != nil {
+			return nil, fmt.Errorf("input %q: %w", inputName, err)
+		}
+
+		resolver.dispatcher.values.setSlot(inputSlot, inputTensor)
+
+		return inputTensor, nil
+	}
+
 	raw, ok := resolver.dispatcher.values.get(inputName)
 
 	if ok {
@@ -176,6 +190,14 @@ func (resolver *bindResolver) resolveInputTensor(source string) (tensor.Tensor, 
 	}
 
 	return nil, fmt.Errorf("execution: value %q not found", inputName)
+}
+
+func (resolver *bindResolver) inputSlot(inputIndex int) int {
+	if inputIndex < 0 || inputIndex >= len(resolver.inputSlots) {
+		return -1
+	}
+
+	return resolver.inputSlots[inputIndex]
 }
 
 func (resolver *bindResolver) inputIndex(source string) (int, error) {

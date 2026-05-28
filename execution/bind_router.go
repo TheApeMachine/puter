@@ -9,6 +9,7 @@ import (
 
 type binaryDeviceCall func(unsafe.Pointer, unsafe.Pointer, unsafe.Pointer, int, dtype.DType)
 type unaryDeviceCall func(unsafe.Pointer, unsafe.Pointer, int, dtype.DType)
+type deviceMethodCall func(executionDevice, map[string]any, []any) error
 
 type batchNormDenormDevice interface {
 	BatchNormDenorm(
@@ -24,57 +25,103 @@ func callRouter(
 	configFields map[string]any,
 	args []any,
 ) error {
-	switch bind.Method {
+	call := bind.call
+
+	if call != nil {
+		return call(deviceBackend, configFields, args)
+	}
+
+	resolved, err := deviceMethodCallFor(bind.Method)
+
+	if err != nil {
+		return err
+	}
+
+	return resolved(deviceBackend, configFields, args)
+}
+
+func deviceMethodCallFor(method string) (deviceMethodCall, error) {
+	switch method {
 	case "Lookup":
-		return callLookup(deviceBackend, args)
+		return func(deviceBackend executionDevice, _ map[string]any, args []any) error {
+			return callLookup(deviceBackend, args)
+		}, nil
 	case "TimestepEmbedding":
-		return callTimestepEmbedding(deviceBackend, configFields, args)
+		return callTimestepEmbedding, nil
 	case "Matmul":
-		return callMatmul(deviceBackend, args)
+		return func(deviceBackend executionDevice, _ map[string]any, args []any) error {
+			return callMatmul(deviceBackend, args)
+		}, nil
 	case "Conv2D":
-		return callConv2D(deviceBackend, configFields, args)
+		return callConv2D, nil
 	case "RMSNorm":
-		return callRMSNorm(deviceBackend, configFields, args)
+		return callRMSNorm, nil
 	case "AdaptiveRMSNorm":
-		return callAdaptiveRMSNorm(deviceBackend, configFields, args)
+		return callAdaptiveRMSNorm, nil
 	case "LayerNorm":
-		return callLayerNorm(deviceBackend, args)
+		return func(deviceBackend executionDevice, _ map[string]any, args []any) error {
+			return callLayerNorm(deviceBackend, args)
+		}, nil
 	case "GroupNorm":
-		return callGroupNorm(deviceBackend, configFields, args)
+		return callGroupNorm, nil
 	case "ModulatedLayerNorm":
-		return callModulatedLayerNorm(deviceBackend, configFields, args)
+		return callModulatedLayerNorm, nil
 	case "BatchNormDenorm":
-		return callBatchNormDenorm(deviceBackend, args)
+		return func(deviceBackend executionDevice, _ map[string]any, args []any) error {
+			return callBatchNormDenorm(deviceBackend, args)
+		}, nil
 	case "Add":
-		return callBinary("Add", args, deviceBackend.Add)
+		return func(deviceBackend executionDevice, _ map[string]any, args []any) error {
+			return callBinary("Add", args, deviceBackend.Add)
+		}, nil
 	case "Sub":
-		return callBinary("Sub", args, deviceBackend.Sub)
+		return func(deviceBackend executionDevice, _ map[string]any, args []any) error {
+			return callBinary("Sub", args, deviceBackend.Sub)
+		}, nil
 	case "Mul":
-		return callBinary("Mul", args, deviceBackend.Mul)
+		return func(deviceBackend executionDevice, _ map[string]any, args []any) error {
+			return callBinary("Mul", args, deviceBackend.Mul)
+		}, nil
 	case "Div":
-		return callBinary("Div", args, deviceBackend.Div)
+		return func(deviceBackend executionDevice, _ map[string]any, args []any) error {
+			return callBinary("Div", args, deviceBackend.Div)
+		}, nil
 	case "ReLU":
-		return callUnary("ReLU", args, deviceBackend.ReLU)
+		return func(deviceBackend executionDevice, _ map[string]any, args []any) error {
+			return callUnary("ReLU", args, deviceBackend.ReLU)
+		}, nil
 	case "Sigmoid":
-		return callUnary("Sigmoid", args, deviceBackend.Sigmoid)
+		return func(deviceBackend executionDevice, _ map[string]any, args []any) error {
+			return callUnary("Sigmoid", args, deviceBackend.Sigmoid)
+		}, nil
 	case "Tanh":
-		return callUnary("Tanh", args, deviceBackend.Tanh)
+		return func(deviceBackend executionDevice, _ map[string]any, args []any) error {
+			return callUnary("Tanh", args, deviceBackend.Tanh)
+		}, nil
 	case "Gelu":
-		return callUnary("Gelu", args, deviceBackend.Gelu)
+		return func(deviceBackend executionDevice, _ map[string]any, args []any) error {
+			return callUnary("Gelu", args, deviceBackend.Gelu)
+		}, nil
 	case "Silu":
-		return callUnary("Silu", args, deviceBackend.Silu)
+		return func(deviceBackend executionDevice, _ map[string]any, args []any) error {
+			return callUnary("Silu", args, deviceBackend.Silu)
+		}, nil
 	case "SwiGLU":
-		return callSwiGLU(deviceBackend, args)
+		return func(deviceBackend executionDevice, _ map[string]any, args []any) error {
+			return callSwiGLU(deviceBackend, args)
+		}, nil
 	case "SwiGLUTensors":
-		return callSwiGLUTensors(deviceBackend, args)
+		return func(deviceBackend executionDevice, _ map[string]any, args []any) error {
+			return callSwiGLUTensors(deviceBackend, args)
+		}, nil
 	case "RoPE":
-		return callRoPE(deviceBackend, configFields, args)
+		return callRoPE, nil
 	case "MultiAxisRoPE":
-		return callMultiAxisRoPE(deviceBackend, configFields, args)
+		return callMultiAxisRoPE, nil
 	case "MultiHeadAttention":
-		return callMultiHeadAttention(deviceBackend, configFields, args)
+		return callMultiHeadAttention, nil
 	default:
-		return fmt.Errorf("router: unknown method %q", bind.Method)
+		return nil, fmt.Errorf("router: unknown method %q", method)
 	}
 }
 

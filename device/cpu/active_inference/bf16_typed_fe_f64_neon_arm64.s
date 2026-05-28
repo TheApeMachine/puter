@@ -16,12 +16,20 @@
 #define AI_BF16_STORE_FE_SUM(fd) \
 	FCVTDS fd, F0 ;\
 	FMOVS F0, R6 ;\
+	LSR  $16, R6, R7 ;\
+	AND  $1, R7, R7 ;\
+	ADD  $0x7fff, R6, R6 ;\
+	ADD  R7, R6, R6 ;\
 	LSR  $16, R6, R6 ;\
 	MOVH R6, ret+32(FP)
 
 #define AI_BF16_STORE_EFE_SUM(fd) \
 	FCVTDS fd, F0 ;\
 	FMOVS F0, R6 ;\
+	LSR  $16, R6, R7 ;\
+	AND  $1, R7, R7 ;\
+	ADD  $0x7fff, R6, R6 ;\
+	ADD  R7, R6, R6 ;\
 	LSR  $16, R6, R6 ;\
 	MOVH R6, ret+40(FP)
 

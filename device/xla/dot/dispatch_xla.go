@@ -20,5 +20,5 @@ func (product *Product) Dot(
 	count int,
 	format dtype.DType,
 ) {
-	*(*float32)(dst) = product.host.DotProduct(left, right, count, format)
+	product.host.DotProduct(dst, left, right, count, format)
 }

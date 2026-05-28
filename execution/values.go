@@ -22,11 +22,27 @@ The table never owns the values: tensors are released by the caller when
 the graph call returns, and host-side payloads are GC-managed.
 */
 type valueTable struct {
-	values map[string]any
+	values     map[string]any
+	slotByName map[string]int
+	slots      []any
 }
 
 func newValueTable() *valueTable {
 	return &valueTable{values: make(map[string]any)}
+}
+
+func newValueTableWithSlots(slotByName map[string]int, slotCount int) *valueTable {
+	table := &valueTable{
+		values:     make(map[string]any),
+		slotByName: make(map[string]int, len(slotByName)),
+		slots:      make([]any, slotCount),
+	}
+
+	for name, slot := range slotByName {
+		table.slotByName[name] = slot
+	}
+
+	return table
 }
 
 func (table *valueTable) set(name string, value any) {
@@ -34,16 +50,55 @@ func (table *valueTable) set(name string, value any) {
 		return
 	}
 
+	if table.slotByName != nil {
+		if slot, ok := table.slotByName[name]; ok {
+			table.setSlot(slot, value)
+			return
+		}
+	}
+
 	table.values[name] = value
 }
 
 func (table *valueTable) get(name string) (any, bool) {
+	if table.slotByName != nil {
+		if slot, ok := table.slotByName[name]; ok {
+			return table.getSlot(slot)
+		}
+	}
+
 	value, ok := table.values[name]
 	return value, ok
 }
 
+func (table *valueTable) setSlot(slot int, value any) {
+	if !table.hasSlot(slot) {
+		return
+	}
+
+	table.slots[slot] = value
+}
+
+func (table *valueTable) getSlot(slot int) (any, bool) {
+	if !table.hasSlot(slot) {
+		return nil, false
+	}
+
+	value := table.slots[slot]
+
+	if value == nil {
+		return nil, false
+	}
+
+	return value, true
+}
+
+func (table *valueTable) hasSlot(slot int) bool {
+	return slot >= 0 && slot < len(table.slots)
+}
+
 func (table *valueTable) tensor(name string) (tensor.Tensor, error) {
-	raw, ok := table.values[name]
+	raw, ok := table.get(name)
 
 	if !ok {
 		return nil, fmt.Errorf("execution: value %q not found", name)
@@ -59,7 +114,7 @@ func (table *valueTable) tensor(name string) (tensor.Tensor, error) {
 }
 
 func (table *valueTable) tokenIDs(name string) ([]int, error) {
-	raw, ok := table.values[name]
+	raw, ok := table.get(name)
 
 	if !ok {
 		return nil, fmt.Errorf("execution: value %q not found", name)

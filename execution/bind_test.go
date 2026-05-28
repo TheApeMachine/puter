@@ -9,7 +9,6 @@ import (
 	"github.com/theapemachine/manifesto/ast"
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/ir"
-	"github.com/theapemachine/manifesto/runtime"
 	"github.com/theapemachine/manifesto/tensor"
 	"github.com/theapemachine/puter/device"
 )
@@ -1344,8 +1343,6 @@ func newTestDispatcher(deviceBackend executionDevice, memory tensor.Backend) *di
 		values:        newValueTable(),
 		graph:         &ast.Graph{},
 		graphName:     "test",
-		plan:          &runtime.ExecutionPlan{},
-		nodeByID:      make(map[string]*ast.GraphNode),
 		deviceBackend: deviceBackend,
 		memory:        memory,
 		weights:       nilWeightStore{},

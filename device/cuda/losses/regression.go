@@ -8,20 +8,12 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 )
 
-/*
-Each regression loss writes its scalar result into `*dst`
-(ARCHITECTURE.md §2.2). The CUDA host currently computes on device and
-reads back internally; once the static memory planner lands
-(GAPS.md P1) the host signature will take a device pointer directly.
-*/
 func (losses *Losses) MSE(
 	dst, predictions, targets unsafe.Pointer,
 	count int,
 	format dtype.DType,
 ) {
-	_ = count
-
-	*(*float32)(dst) = losses.host.PairLossScalar(predictions, targets, format, KernelMSE)
+	losses.host.PairLossScalar(dst, predictions, targets, count, format, KernelMSE)
 }
 
 func (losses *Losses) MAE(
@@ -29,9 +21,7 @@ func (losses *Losses) MAE(
 	count int,
 	format dtype.DType,
 ) {
-	_ = count
-
-	*(*float32)(dst) = losses.host.PairLossScalar(predictions, targets, format, KernelMAE)
+	losses.host.PairLossScalar(dst, predictions, targets, count, format, KernelMAE)
 }
 
 func (losses *Losses) Huber(
@@ -39,7 +29,5 @@ func (losses *Losses) Huber(
 	count int,
 	format dtype.DType,
 ) {
-	_ = count
-
-	*(*float32)(dst) = losses.host.PairLossScalar(predictions, targets, format, KernelHuber)
+	losses.host.PairLossScalar(dst, predictions, targets, count, format, KernelHuber)
 }

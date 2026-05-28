@@ -26,8 +26,9 @@ Host is the Metal dispatch surface dot operations call into.
 type Host interface {
 	NeedsPlatform()
 	DotProduct(
+		dst unsafe.Pointer,
 		left, right unsafe.Pointer,
 		count int,
 		format dtype.DType,
-	) float32
+	)
 }

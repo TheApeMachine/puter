@@ -10,15 +10,12 @@ import (
 
 func (losses *Losses) BinaryCrossEntropy(dst, predictions, targets unsafe.Pointer, count int, format dtype.DType) {
 	losses.stubHost()
-	*(*float32)(dst) = 0
 }
 
 func (losses *Losses) KLDivergence(dst, predictions, targets unsafe.Pointer, count int, format dtype.DType) {
 	losses.stubHost()
-	*(*float32)(dst) = 0
 }
 
 func (losses *Losses) CrossEntropy(dst unsafe.Pointer, logits unsafe.Pointer, targets unsafe.Pointer, batchSize, classes int, format dtype.DType) {
 	losses.stubHost()
-	*(*float32)(dst) = 0
 }

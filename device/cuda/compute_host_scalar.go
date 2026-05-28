@@ -15,126 +15,116 @@ import (
 )
 
 func (host *ComputeHost) ReductionScalar(
+	dst unsafe.Pointer,
 	values unsafe.Pointer,
 	count int,
 	format dtype.DType,
 	kernel reduction.ReductionKernel,
-) float32 {
+) {
 	if count == 0 || host.bridge == nil {
-		return 0
+		return
 	}
 
 	elementCount := uint32(count)
 	scratchA := host.bridge.borrowScratch(reductionScratchBytes(elementCount))
 	scratchB := host.bridge.borrowScratch(reductionScratchBytes(elementCount))
-	outBuffer := host.bridge.borrowScratch(4)
 
 	defer host.bridge.releaseScratch(scratchA)
 	defer host.bridge.releaseScratch(scratchB)
-	defer host.bridge.releaseScratch(outBuffer)
 
 	if err := reduction.DispatchReduction(
 		host.contextRef(),
 		resolveBufferRef(values),
 		scratchA,
 		scratchB,
-		outBuffer,
+		resolveBufferRef(dst),
 		format,
 		kernel,
 		elementCount,
 	); err != nil {
 		host.dispatchError(err)
 	}
-
-	return host.bridge.readFloat32Scalar(outBuffer)
 }
 
 func (host *ComputeHost) DotProduct(
+	dst unsafe.Pointer,
 	left, right unsafe.Pointer,
 	count int,
 	format dtype.DType,
-) float32 {
+) {
 	if count == 0 || host.bridge == nil {
-		return 0
+		return
 	}
 
 	elementCount := uint32(count)
 	scratchBuffer := host.bridge.borrowScratch(dotScratchBytes(elementCount))
-	outBuffer := host.bridge.borrowScratch(4)
 
 	defer host.bridge.releaseScratch(scratchBuffer)
-	defer host.bridge.releaseScratch(outBuffer)
 
 	if err := dot.DispatchDot(
 		host.contextRef(),
 		resolveBufferRef(left),
 		resolveBufferRef(right),
 		scratchBuffer,
-		outBuffer,
+		resolveBufferRef(dst),
 		format,
 		elementCount,
 	); err != nil {
 		host.dispatchError(err)
 	}
-
-	return host.bridge.readFloat32Scalar(outBuffer)
 }
 
 func (host *ComputeHost) PairLossScalar(
+	dst unsafe.Pointer,
 	predictions, targets unsafe.Pointer,
+	count int,
 	format dtype.DType,
 	kernel losses.LossKernel,
-) float32 {
-	count := host.elementCount(predictions, targets)
-
+) {
 	if count == 0 || host.bridge == nil {
-		return 0
+		return
 	}
 
-	scratchBuffer := host.bridge.borrowScratch(reductionScratchBytes(count))
-	outBuffer := host.bridge.borrowScratch(4)
+	elementCount := uint32(count)
+	scratchBuffer := host.bridge.borrowScratch(reductionScratchBytes(elementCount))
 
 	defer host.bridge.releaseScratch(scratchBuffer)
-	defer host.bridge.releaseScratch(outBuffer)
 
 	if err := losses.DispatchPairLoss(
 		host.contextRef(),
 		resolveBufferRef(predictions),
 		resolveBufferRef(targets),
 		scratchBuffer,
-		outBuffer,
+		resolveBufferRef(dst),
 		format,
 		kernel,
-		count,
+		elementCount,
 	); err != nil {
 		host.dispatchError(err)
 	}
-
-	return host.bridge.readFloat32Scalar(outBuffer)
 }
 
 func (host *ComputeHost) CrossEntropyScalar(
+	dst unsafe.Pointer,
 	logits, targets unsafe.Pointer,
 	batchSize, classes int,
 	format dtype.DType,
-) float32 {
+) {
 	if batchSize == 0 || classes == 0 || host.bridge == nil {
-		return 0
+		return
 	}
 
 	batch := uint32(batchSize)
 	scratchBuffer := host.bridge.borrowScratch(crossEntropyScratchBytes(batch))
-	outBuffer := host.bridge.borrowScratch(4)
 
 	defer host.bridge.releaseScratch(scratchBuffer)
-	defer host.bridge.releaseScratch(outBuffer)
 
 	if err := losses.DispatchCrossEntropy(
 		host.contextRef(),
 		resolveBufferRef(logits),
 		resolveBufferRef(targets),
 		scratchBuffer,
-		outBuffer,
+		resolveBufferRef(dst),
 		nil,
 		format,
 		batch,
@@ -142,8 +132,6 @@ func (host *ComputeHost) CrossEntropyScalar(
 	); err != nil {
 		host.dispatchError(err)
 	}
-
-	return host.bridge.readFloat32Scalar(outBuffer)
 }
 
 func samplingRandomTarget(seed uint64) float32 {
@@ -170,20 +158,19 @@ func effectiveSamplingCount(kernel sampling.SamplingKernel, config device.Sampli
 }
 
 func (host *ComputeHost) SamplingIndex(
+	dst unsafe.Pointer,
 	kernel sampling.SamplingKernel,
 	config device.SamplingConfig,
 	logits unsafe.Pointer,
 	vocabSize int,
 	format dtype.DType,
-) int32 {
+) {
 	if vocabSize == 0 || host.bridge == nil {
-		return 0
+		return
 	}
 
 	count := uint32(vocabSize)
-	outBuffer := host.bridge.borrowScratch(4)
-
-	defer host.bridge.releaseScratch(outBuffer)
+	outBuffer := resolveBufferRef(dst)
 
 	if kernel == sampling.KernelGreedy {
 		if err := sampling.DispatchSampling(
@@ -200,7 +187,7 @@ func (host *ComputeHost) SamplingIndex(
 			host.dispatchError(err)
 		}
 
-		return host.bridge.readInt32Scalar(outBuffer)
+		return
 	}
 
 	effectiveCount := effectiveSamplingCount(kernel, config, count)
@@ -226,14 +213,13 @@ func (host *ComputeHost) SamplingIndex(
 	); err != nil {
 		host.dispatchError(err)
 	}
-
-	return host.bridge.readInt32Scalar(outBuffer)
 }
 
 func (host *ComputeHost) DispatchSimilarity(
+	dst unsafe.Pointer,
 	left, right unsafe.Pointer,
 	count int,
 	format dtype.DType,
-) float32 {
-	return host.DotProduct(left, right, count, format)
+) {
+	host.DotProduct(dst, left, right, count, format)
 }

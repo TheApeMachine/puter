@@ -37,14 +37,14 @@ func SumBFloat16Native(values []dtype.BF16) dtype.BF16 {
 		return 0
 	}
 
-	var result float32
+	var result dtype.BF16
 	Default.Sum(
 		unsafe.Pointer(&result),
 		unsafe.Pointer(&values[0]),
 		len(values),
 		dtype.BFloat16,
 	)
-	return dtype.NewBfloat16FromFloat32(result)
+	return result
 }
 
 func SumFloat16Native(values []dtype.F16) dtype.F16 {
@@ -52,14 +52,14 @@ func SumFloat16Native(values []dtype.F16) dtype.F16 {
 		return 0
 	}
 
-	var result float32
+	var result dtype.F16
 	Default.Sum(
 		unsafe.Pointer(&result),
 		unsafe.Pointer(&values[0]),
 		len(values),
 		dtype.Float16,
 	)
-	return dtype.Fromfloat32(result)
+	return result
 }
 
 func ReduceProdFloat32Native(values []float32) float32 {

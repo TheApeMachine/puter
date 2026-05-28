@@ -15,7 +15,7 @@ func (sampling *Sampling) TopKSample(
 	config device.SamplingConfig,
 	format dtype.DType,
 ) {
-	*(*int32)(dst) = sampling.host.SamplingIndex(KernelTopK, config, logits, vocabSize, format)
+	sampling.host.SamplingIndex(dst, KernelTopK, config, logits, vocabSize, format)
 }
 
 func (sampling *Sampling) TopPSample(
@@ -24,5 +24,5 @@ func (sampling *Sampling) TopPSample(
 	config device.SamplingConfig,
 	format dtype.DType,
 ) {
-	*(*int32)(dst) = sampling.host.SamplingIndex(KernelTopP, config, logits, vocabSize, format)
+	sampling.host.SamplingIndex(dst, KernelTopP, config, logits, vocabSize, format)
 }

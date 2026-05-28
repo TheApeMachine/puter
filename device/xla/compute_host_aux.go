@@ -253,12 +253,13 @@ func (host *ComputeHost) DispatchTimestepEmbedding(
 }
 
 func (host *ComputeHost) DispatchGreedySample(
+	dst unsafe.Pointer,
 	logits unsafe.Pointer,
 	vocabSize int,
 	format dtype.DType,
-) int32 {
+) {
 	if vocabSize == 0 || host.bridge == nil {
-		return 0
+		return
 	}
 
 	inputShape, err := ShapeFromVector(vocabSize)
@@ -275,10 +276,8 @@ func (host *ComputeHost) DispatchGreedySample(
 		OutputShape: scalarShape,
 	}
 
-	outputTensor := host.borrowScalarBuffer(dtype.Int32)
-	defer outputTensor.Close()
-
 	inputTensor := host.requireDeviceTensor(logits)
+	outputTensor := host.requireDeviceTensor(dst)
 
 	host.dispatchError(host.builder.ExecuteGreedySample(
 		host.bridge,
@@ -286,20 +285,4 @@ func (host *ComputeHost) DispatchGreedySample(
 		inputTensor,
 		outputTensor,
 	))
-
-	return host.readScalarInt32(outputTensor)
-}
-
-func (host *ComputeHost) readScalarInt32(deviceTensor *DeviceTensor) int32 {
-	_, bytesOut, err := host.bridge.download(deviceTensor)
-	host.dispatchError(err)
-
-	if len(bytesOut) < 4 {
-		host.dispatchError(&loweringError{message: "empty XLA int32 scalar download"})
-	}
-
-	return int32(bytesOut[0]) |
-		int32(bytesOut[1])<<8 |
-		int32(bytesOut[2])<<16 |
-		int32(bytesOut[3])<<24
 }

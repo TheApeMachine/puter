@@ -20,11 +20,12 @@ type Host interface {
 	NeedsPlatform()
 	NotImplemented(methodName string)
 	ReductionScalar(
+		dst unsafe.Pointer,
 		values unsafe.Pointer,
 		count int,
 		format dtype.DType,
 		kernel ReductionKernel,
-	) float32
+	)
 }
 
 /*

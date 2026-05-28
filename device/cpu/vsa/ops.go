@@ -4,6 +4,7 @@ import (
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/puter/device/cpu/internal/scalar"
 )
 
 func (vsa VSA) Bind(left, right, output unsafe.Pointer, count int, format dtype.DType) {
@@ -64,7 +65,7 @@ Similarity writes the dot-product similarity of `left` and `right` into
 */
 func (vsa VSA) Similarity(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
 	if count == 0 {
-		*(*float32)(dst) = 0
+		scalar.StoreFloat32(dst, 0, format)
 		return
 	}
 
@@ -73,7 +74,7 @@ func (vsa VSA) Similarity(dst, left, right unsafe.Pointer, count int, format dty
 	leftView := unsafe.Slice((*float32)(left), count)
 	rightView := unsafe.Slice((*float32)(right), count)
 
-	*(*float32)(dst) = VsaSimilarityFloat32Native(leftView, rightView)
+	scalar.StoreFloat32(dst, VsaSimilarityFloat32Native(leftView, rightView), format)
 }
 
 func requireVSAFloat32(format dtype.DType) {

@@ -12,14 +12,14 @@ import (
 )
 
 func (host *ComputeHost) PairLossScalar(
+	dst unsafe.Pointer,
 	predictions, targets unsafe.Pointer,
+	count int,
 	format dtype.DType,
 	kernel losses.LossKernel,
-) float32 {
-	count := host.elementCount(predictions, targets)
-
+) {
 	if count == 0 || host.bridge == nil {
-		return 0
+		return
 	}
 
 	inputShape, err := ShapeFromCount(count)
@@ -36,11 +36,9 @@ func (host *ComputeHost) PairLossScalar(
 		OutputShape: scalarShape,
 	}
 
-	outputTensor := host.borrowScalarBuffer(format)
-	defer outputTensor.Close()
-
 	predictionTensor := host.requireDeviceTensor(predictions)
 	targetTensor := host.requireDeviceTensor(targets)
+	outputTensor := host.requireDeviceTensor(dst)
 	operationName := pairLossOperationName(kernel)
 
 	host.dispatchError(host.builder.ExecutePairLoss(
@@ -51,17 +49,16 @@ func (host *ComputeHost) PairLossScalar(
 		targetTensor,
 		outputTensor,
 	))
-
-	return host.readScalarFloat32(outputTensor)
 }
 
 func (host *ComputeHost) CrossEntropyScalar(
+	dst unsafe.Pointer,
 	logits, targets unsafe.Pointer,
 	batchSize, classes int,
 	format dtype.DType,
-) float32 {
+) {
 	if batchSize == 0 || classes == 0 || host.bridge == nil {
-		return 0
+		return
 	}
 
 	logitsShape, err := ShapeFromRowsCols(batchSize, classes)
@@ -81,11 +78,9 @@ func (host *ComputeHost) CrossEntropyScalar(
 		OutputShape: scalarShape,
 	}
 
-	outputTensor := host.borrowScalarBuffer(format)
-	defer outputTensor.Close()
-
 	logitsTensor := host.requireDeviceTensor(logits)
 	targetTensor := host.requireDeviceTensor(targets)
+	outputTensor := host.requireDeviceTensor(dst)
 
 	host.dispatchError(host.builder.ExecuteCrossEntropy(
 		host.bridge,
@@ -94,8 +89,6 @@ func (host *ComputeHost) CrossEntropyScalar(
 		targetTensor,
 		outputTensor,
 	))
-
-	return host.readScalarFloat32(outputTensor)
 }
 
 func pairLossOperationName(kernel losses.LossKernel) string {

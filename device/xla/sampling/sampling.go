@@ -19,9 +19,9 @@ Host is the XLA dispatch surface sampling operations call into.
 */
 type Host interface {
 	NeedsPlatform()
-	DispatchGreedySample(logits unsafe.Pointer, vocabSize int, format dtype.DType) int32
-	DispatchTopKSample(config device.SamplingConfig, logits unsafe.Pointer, vocabSize int, format dtype.DType) int32
-	DispatchTopPSample(config device.SamplingConfig, logits unsafe.Pointer, vocabSize int, format dtype.DType) int32
+	DispatchGreedySample(dst, logits unsafe.Pointer, vocabSize int, format dtype.DType)
+	DispatchTopKSample(dst unsafe.Pointer, config device.SamplingConfig, logits unsafe.Pointer, vocabSize int, format dtype.DType)
+	DispatchTopPSample(dst unsafe.Pointer, config device.SamplingConfig, logits unsafe.Pointer, vocabSize int, format dtype.DType)
 	NotImplemented(string)
 }
 

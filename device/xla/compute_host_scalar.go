@@ -6,19 +6,19 @@ import (
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
-	"github.com/theapemachine/manifesto/dtype/convert"
 	"github.com/theapemachine/manifesto/tensor"
 	"github.com/theapemachine/puter/device/xla/reduction"
 )
 
 func (host *ComputeHost) ReductionScalar(
+	dst unsafe.Pointer,
 	values unsafe.Pointer,
 	count int,
 	format dtype.DType,
 	kernel reduction.ReductionKernel,
-) float32 {
+) {
 	if count == 0 || host.bridge == nil {
-		return 0
+		return
 	}
 
 	inputShape, err := ShapeFromCount(count)
@@ -35,10 +35,8 @@ func (host *ComputeHost) ReductionScalar(
 		OutputShape: scalarShape,
 	}
 
-	outputTensor := host.borrowScalarBuffer(format)
-	defer outputTensor.Close()
-
 	inputTensor := host.requireDeviceTensor(values)
+	outputTensor := host.requireDeviceTensor(dst)
 	operationName := reductionOperationName(kernel)
 
 	host.dispatchError(host.builder.ExecuteReduction(
@@ -48,45 +46,16 @@ func (host *ComputeHost) ReductionScalar(
 		inputTensor,
 		outputTensor,
 	))
-
-	return host.readScalarFloat32(outputTensor)
-}
-
-func (host *ComputeHost) borrowScalarBuffer(format dtype.DType) *DeviceTensor {
-	elementSize, err := format.Size()
-	host.dispatchError(err)
-
-	scalarShape, err := tensor.NewShape([]int{})
-	host.dispatchError(err)
-
-	bytesIn := make([]byte, elementSize)
-	deviceTensor, err := host.bridge.stageUpload(scalarShape, format, bytesIn, false)
-	host.dispatchError(err)
-
-	return deviceTensor.(*DeviceTensor)
-}
-
-func (host *ComputeHost) readScalarFloat32(deviceTensor *DeviceTensor) float32 {
-	_, bytesOut, err := host.bridge.download(deviceTensor)
-	host.dispatchError(err)
-
-	decoded, err := convert.BytesToFloat32(deviceTensor.format(), bytesOut)
-	host.dispatchError(err)
-
-	if len(decoded) == 0 {
-		host.dispatchError(&loweringError{message: "empty XLA scalar download"})
-	}
-
-	return decoded[0]
 }
 
 func (host *ComputeHost) DotProduct(
+	dst unsafe.Pointer,
 	left, right unsafe.Pointer,
 	count int,
 	format dtype.DType,
-) float32 {
+) {
 	if count == 0 || host.bridge == nil {
-		return 0
+		return
 	}
 
 	inputShape, err := ShapeFromCount(count)
@@ -103,11 +72,9 @@ func (host *ComputeHost) DotProduct(
 		OutputShape: scalarShape,
 	}
 
-	outputTensor := host.borrowScalarBuffer(format)
-	defer outputTensor.Close()
-
 	leftTensor := host.requireDeviceTensor(left)
 	rightTensor := host.requireDeviceTensor(right)
+	outputTensor := host.requireDeviceTensor(dst)
 
 	host.dispatchError(host.builder.ExecuteDot(
 		host.bridge,
@@ -116,8 +83,6 @@ func (host *ComputeHost) DotProduct(
 		rightTensor,
 		outputTensor,
 	))
-
-	return host.readScalarFloat32(outputTensor)
 }
 
 func reductionOperationName(kernel reduction.ReductionKernel) string {

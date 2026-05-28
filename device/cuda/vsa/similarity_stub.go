@@ -10,5 +10,4 @@ import (
 
 func (vsa *VSA) Similarity(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
 	vsa.stubHost()
-	*(*float32)(dst) = 0
 }

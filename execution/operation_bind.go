@@ -23,6 +23,7 @@ type OperationBind struct {
 	Output         asset.BindOutput
 	Args           []asset.BindArg
 	selectedInput  int
+	call           deviceMethodCall
 }
 
 type operationSchema struct {
@@ -93,7 +94,39 @@ func (registry *operationRegistry) Bind(node *ast.GraphNode) (OperationBind, err
 	bind.OutputNames = portNames(entry.schema.Outputs)
 	bind.ConfigDefaults = configDefaults(entry.schema.Config)
 
+	if err := bind.prepareCall(); err != nil {
+		return OperationBind{}, err
+	}
+
 	return bind, nil
+}
+
+func (bind *OperationBind) prepareCall() error {
+	if isIntrinsicMethod(bind.Method) {
+		return nil
+	}
+
+	if isPageIntrinsicMethod(bind.Method) {
+		return nil
+	}
+
+	call, err := deviceMethodCallFor(bind.Method)
+
+	if err != nil {
+		return err
+	}
+
+	bind.call = call
+
+	return nil
+}
+
+func (bind OperationBind) deviceCall() (deviceMethodCall, error) {
+	if bind.call != nil {
+		return bind.call, nil
+	}
+
+	return deviceMethodCallFor(bind.Method)
 }
 
 func configDefaults(params []asset.ConfigParam) map[string]any {

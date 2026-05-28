@@ -18,13 +18,27 @@ type bindResolver struct {
 	output      tensor.Tensor
 	outputShape tensor.Shape
 	outputDType dtype.DType
+	inputSlots  []int
+	outputSlot  int
 }
 
 func runBoundNode(dispatcher *dispatcher, node *ast.GraphNode, bind OperationBind) error {
+	return runBoundNodeWithSlots(dispatcher, node, bind, nil, -1)
+}
+
+func runBoundNodeWithSlots(
+	dispatcher *dispatcher,
+	node *ast.GraphNode,
+	bind OperationBind,
+	inputSlots []int,
+	outputSlot int,
+) error {
 	resolver := &bindResolver{
 		dispatcher: dispatcher,
 		node:       node,
 		bind:       bind,
+		inputSlots: inputSlots,
+		outputSlot: outputSlot,
 	}
 
 	outputShape, err := resolver.resolveOutputShape()
@@ -49,7 +63,7 @@ func runBoundNode(dispatcher *dispatcher, node *ast.GraphNode, bind OperationBin
 			return fmt.Errorf("bind op %q: %w", node.Op, err)
 		}
 
-		dispatcher.values.set(node.ID, output)
+		resolver.storeOutput(output)
 
 		return nil
 	}
@@ -98,13 +112,28 @@ func runBoundNode(dispatcher *dispatcher, node *ast.GraphNode, bind OperationBin
 		return err
 	}
 
-	if err := callRouter(dispatcher.deviceBackend, bind, configFields, args); err != nil {
+	call, err := bind.deviceCall()
+
+	if err != nil {
 		return fmt.Errorf("bind op %q: %w", node.Op, err)
 	}
 
-	dispatcher.values.set(node.ID, output)
+	if err := call(dispatcher.deviceBackend, configFields, args); err != nil {
+		return fmt.Errorf("bind op %q: %w", node.Op, err)
+	}
+
+	resolver.storeOutput(output)
 
 	return nil
+}
+
+func (resolver *bindResolver) storeOutput(value any) {
+	if resolver.dispatcher.values.hasSlot(resolver.outputSlot) {
+		resolver.dispatcher.values.setSlot(resolver.outputSlot, value)
+		return
+	}
+
+	resolver.dispatcher.values.set(resolver.node.ID, value)
 }
 
 func scalarInt32Tensor(value tensor.Tensor) (int32, error) {

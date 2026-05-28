@@ -1186,6 +1186,107 @@ func (builder *Builder) ExecuteSoftmaxSort(
 	return builder.recordExecute(bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef()))
 }
 
+/*
+ExecuteProbabilisticSample compiles and executes top-k or top-p sampling to scalar int32.
+*/
+func (builder *Builder) ExecuteProbabilisticSample(
+	bridge *xlaBridge,
+	operationName string,
+	context LoweringContext,
+	floatParams []float64,
+	intParams []int64,
+	input *DeviceTensor,
+	output *DeviceTensor,
+) error {
+	programKey, err := builder.ProgramKeyFor(operationName, context, floatParams, intParams)
+
+	if err != nil {
+		return err
+	}
+
+	executable, err := builder.loadProbabilisticSampleExecutable(
+		bridge,
+		programKey,
+		context,
+		floatParams,
+		intParams,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return builder.recordExecute(
+		bridge.executeUnary(C.XLAExecutableRef(executable.handle), input.bufferRef(), output.bufferRef()),
+	)
+}
+
+func (builder *Builder) loadProbabilisticSampleExecutable(
+	bridge *xlaBridge,
+	programKey ProgramKey,
+	context LoweringContext,
+	floatParams []float64,
+	intParams []int64,
+) (*CompiledExecutable, error) {
+	if cached, ok := builder.CachedExecutable(programKey); ok {
+		return cached, nil
+	}
+
+	if len(context.InputShapes) != 1 {
+		return nil, &loweringError{message: "probabilistic sample requires one input shape"}
+	}
+
+	vocabSize := context.InputShapes[0].Dims()[0]
+	temperature := float32(1)
+	target := float32(0)
+	topP := float32(1)
+	topK := vocabSize
+
+	if len(floatParams) > 0 {
+		temperature = float32(floatParams[0])
+	}
+
+	if len(floatParams) > 1 {
+		target = float32(floatParams[1])
+	}
+
+	if len(floatParams) > 2 {
+		topP = float32(floatParams[2])
+	}
+
+	if len(intParams) > 0 && intParams[0] > 0 && intParams[0] <= int64(vocabSize) {
+		topK = int(intParams[0])
+	}
+
+	hloText, err := hlo.RenderProbabilisticSample(
+		fmt.Sprintf("puter_%s", programKey.Operation),
+		context.InputDTypes[0],
+		vocabSize,
+		programKey.Operation,
+		temperature,
+		target,
+		topK,
+		topP,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	executableRef, err := bridge.compileHLO(hloText)
+
+	if err != nil {
+		return nil, err
+	}
+
+	compiled := &CompiledExecutable{
+		key:    programKey,
+		handle: uintptr(executableRef),
+	}
+	builder.RecordExecutable(programKey, compiled)
+	return compiled, nil
+}
+
 func (builder *Builder) loadSoftmaxSortExecutable(
 	bridge *xlaBridge,
 	programKey ProgramKey,
