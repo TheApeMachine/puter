@@ -40,7 +40,7 @@ type upsampleNearest2DDevice interface {
 func isIntrinsicMethod(method string) bool {
 	switch method {
 	case "shape.reshape", "shape.transpose", "shape.view_as_heads", "shape.merge_heads", "shape.last_token", "shape.concat", "shape.slice",
-		"shape.upsample_nearest2d", "math.gated_residual":
+		"shape.cast", "shape.upsample_nearest2d", "math.gated_residual":
 		return true
 	default:
 		return false
@@ -51,6 +51,8 @@ func runIntrinsic(resolver *bindResolver) (any, error) {
 	switch resolver.bind.Method {
 	case "shape.reshape", "shape.view_as_heads", "shape.merge_heads":
 		return runReshapeIntrinsic(resolver)
+	case "shape.cast":
+		return runCastIntrinsic(resolver)
 	case "shape.transpose":
 		return runTransposeIntrinsic(resolver)
 	case "shape.last_token":
