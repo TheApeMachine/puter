@@ -10,11 +10,9 @@ import (
 )
 
 /*
-FP16 elementwise parity. NEON widens via FCVTL/FCVTL2, computes in
-f32, narrows via FCVTN/FCVTN2. Scalar reference uses dtype.Fromfloat32
-and (*F16).Float32() which produce IEEE 754 round-to-nearest-even
-results — same rounding mode as the hardware FCVTL/FCVTN. The two
-paths should agree bit-for-bit at the f16 representation.
+FP16 elementwise parity. NEON uses native .8H arithmetic. Scalar
+reference uses dtype.Fromfloat32 and (*F16).Float32() — parity is
+bitwise on the f16 representation.
 */
 
 func assertF16Equal(t *testing.T, op string, scalar, neon []dtype.F16) {

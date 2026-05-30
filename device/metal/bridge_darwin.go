@@ -12,6 +12,7 @@ import (
 
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
+	"github.com/theapemachine/puter/device/metal/fusion"
 	"github.com/theapemachine/qpool"
 )
 
@@ -31,8 +32,9 @@ import "C"
 var kernelsMetalLibrary []byte
 
 type metalBridge struct {
-	device  C.MetalDeviceRef
-	backend *Backend
+	device      C.MetalDeviceRef
+	backend     *Backend
+	fusionCache *fusion.Cache
 }
 
 func openMetalBridge(backend *Backend) (*metalBridge, error) {
@@ -53,8 +55,9 @@ func openMetalBridge(backend *Backend) (*metalBridge, error) {
 	}
 
 	return &metalBridge{
-		device:  device,
-		backend: backend,
+		device:      device,
+		backend:     backend,
+		fusionCache: fusion.NewCache(),
 	}, nil
 }
 
@@ -130,6 +133,11 @@ func (bridge *metalBridge) recommendedMaxWorkingSet() int64 {
 }
 
 func (bridge *metalBridge) close() error {
+	if bridge.fusionCache != nil {
+		bridge.fusionCache.Close()
+		bridge.fusionCache = nil
+	}
+
 	if bridge.device != nil {
 		C.metal_device_release(bridge.device)
 		bridge.device = nil

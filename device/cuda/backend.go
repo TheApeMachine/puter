@@ -28,6 +28,7 @@ import (
 	"github.com/theapemachine/puter/device/cuda/dropout"
 	"github.com/theapemachine/puter/device/cuda/elementwise"
 	"github.com/theapemachine/puter/device/cuda/embedding"
+	"github.com/theapemachine/puter/device/cuda/geometry"
 	"github.com/theapemachine/puter/device/cuda/hawkes"
 	"github.com/theapemachine/puter/device/cuda/layernorm"
 	"github.com/theapemachine/puter/device/cuda/losses"
@@ -62,6 +63,7 @@ type Backend struct {
 	losses.Losses
 	sampling.Sampling
 	embedding.Embedding
+	geometry.Geometry
 	normalization.Normalization
 	layernorm.Norm
 	rope.RotaryEmbedding

@@ -17,7 +17,9 @@ import (
 	"github.com/theapemachine/puter/device/metal/dropout"
 	"github.com/theapemachine/puter/device/metal/elementwise"
 	"github.com/theapemachine/puter/device/metal/embedding"
+	"github.com/theapemachine/puter/device/metal/geometry"
 	"github.com/theapemachine/puter/device/metal/hawkes"
+	"github.com/theapemachine/puter/device/metal/interpretability"
 	"github.com/theapemachine/puter/device/metal/layernorm"
 	"github.com/theapemachine/puter/device/metal/losses"
 	"github.com/theapemachine/puter/device/metal/matmul"
@@ -54,10 +56,12 @@ type Backend struct {
 	losses.Losses
 	sampling.Sampling
 	embedding.Embedding
+	geometry.Geometry
 	normalization.Normalization
 	layernorm.Norm
 	rope.RotaryEmbedding
 	hawkes.Hawkes
+	interpretability.Interpretability
 	physics.Physics
 	causal.Causal
 	attention.Attention

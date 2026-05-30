@@ -132,7 +132,7 @@ The Metal quintet (§2.3.1) appears compliant across all families. CUDA `.cu` pe
 
 ## 3. manifesto — compiler/optimizer/codegen/scheduler
 
-Manifesto today is a **HuggingFace checkpoint compiler with a sequential interpreter**, not the multi-stage AOT compiler the architecture describes. There is no `codegen/`, `optimizer/`, or `scheduler/` top-level directory.
+Manifesto today is a **multi-stage compiler** with optimizer, codegen, and partial scheduler/planner coverage. `manifesto/optimizer/`, `manifesto/codegen/`, and `manifesto/ir/planner.go` exist; full PortType typer integration and async stream executor remain open.
 
 ### 3.1 Pipeline stage coverage
 
@@ -143,8 +143,8 @@ Manifesto today is a **HuggingFace checkpoint compiler with a sequential interpr
 | Hindley-Milner port unification                                          | 2.2   | ✗         | —                                                              | Not implemented.                                                                                                                  |
 | Adaptor synthesis (Transpose/Cast/Reshape insertion)                     | 2.3   | ✗         | —                                                              | Not implemented.                                                                                                                  |
 | `FusionAST` + elementwise clustering                                     | 3.1   | ✓         | `manifesto/optimizer/fusion_ast.go`, `fuse.go`, `constant_fold.go`, `rewrite.go` | FusionAST/ASTNode types match spec blueprint §1. `optimizer.Fuse` clusters DAG-shaped subgraphs (chains + sibling fan-in like SwiGLU and residual Add). Constant folding + identity elim + scale-into-Linear flag also land. Tests cover the patterns. |
-| CPU JIT codegen (LLVM → AVX-512/AVX2/SSE2/NEON)                          | 3.2a  | ✗         | `manifesto/codegen/cpu.go`                                     | What exists: a tree-walking Go interpreter (`CPUKernel.Run` calls `evalCPU` per element). No LLVM bindings, no IR builder, no SIMD. The interpreter is a reference evaluator for correctness — it is **not** the spec's JIT codegen path. Phase 3.2a needs LLVM + CPUID-driven AVX-512/AVX2/SSE2/NEON emission, both still missing. |
-| GPU JIT codegen (MSL / PTX)                                              | 3.2b  | ✗ partial | `manifesto/codegen/metal.go`                                   | MSL **source generator** ships (`MetalKernel.Source` returns `kernel void` source per blueprint §2). What's missing: `MTLLibrary` compilation, pipeline state object caching, and `puter/device/metal` integration that loads + dispatches the compiled pipeline. No CUDA/PTX path either. |
+| CPU JIT codegen (LLVM → AVX-512/AVX2/SSE2/NEON)                          | 3.2a  | ✗ partial | `manifesto/codegen/llvm/`, `manifesto/codegen/cpu.go`            | **Phase 0 landed 2026-05-29.** FusionAST → llir IR → LLVM MCJIT via `tinygo.org/x/go-llvm` (build tag `codegen_llvm`). **Phase 1 partial 2026-05-29:** explicit `<N x float>` vector loops + scalar tail for vectorizable fusions (arithmetic + ReLU/LeakyReLU); `HostISALevel` / `CPUFeaturesForLevel` feed MCJIT; per-ISA parity via `EmitKernelForLevel`. Transcendentals (SwiGLU, Gelu, etc.) stay scalar. Parity vs `EmitReferenceCPU` at N ∈ {1,7,64,1024,8192} (`make test-jit`). `EmitCPU` → JIT when `codegen_llvm` is on. **Still missing:** vector transcendental IR, full 3.2a sign-off on amd64 CI for all ISA tiers. |
+| GPU JIT codegen (MSL / PTX)                                              | 3.2b  | ✗ partial | `manifesto/codegen/metal/`, `manifesto/codegen/metal.go`, `puter/device/metal/fusion/` | **Phase 3.2b partial 2026-05-29.** MSL source via `EmitMSL`; `MTLLibrary` compile + `MTLComputePipelineState` via `newLibraryWithSource` in `codegen/metal/fusion_jit_darwin.m`. Host-upload parity vs `EmitReferenceCPU` at N ∈ {1,7,64,1024,8192} (`make test-metal` in manifesto). Darwin `AttachKernels` attaches compiled `EmitMetalRunner`; `execution` dispatches fused nodes on device buffers via `fusion.Cache.Program(...).Dispatch` when memory is Metal (`execution/dispatch_fused_device_darwin.go`). Device-buffer parity at N ∈ {1,7,64,1024,8192} (`CGO_ENABLED=1 go test -ldflags='-checklinkname=0' -tags=cgo ./device/metal/fusion/...`). **Still missing:** end-to-end executor integration test through `execution.Backend` (blocked on `device.Backend` optimizer-family wiring), PTX/CUDA path (out of scope). |
 | XLA HLO lowering + PJRT compile cache                                    | 3.2c  | ✗         | —                                                              | Not present in manifesto; stub bridge in `puter/device/xla`.                                                                      |
 | Cache-tiling for Matmul/Conv                                             | 3.3   | ✗ partial | `manifesto/optimizer/tiling.go`                                | `optimizer.Tile` attaches a `TileConfig` struct as metadata on every Matmul/Conv node, sized to fit a default L1 budget. **No consumer reads it.** The tiled matmul loops themselves don't exist — codegen for heavy ops is unwritten. The annotation is wiring only. |
 | Liveness analysis (`[Start, End]` per port)                              | 4.1   | ✗         | —                                                              | Not implemented.                                                                                                                  |
@@ -208,7 +208,38 @@ Tests (`unify_test.go`) cover: identical types, static/static, symbol binding fr
 - `node.go` updated to add `ID`, `JitKernel`, `StreamID`, `SyncBarriers`.
 - `port.go` updated to add `ID`, `Type`, `Allocation`.
 
-Unit tests cover construction, stride resolution, interval overlap semantics, and field preservation. **What remains is the *implementation* of the passes that populate these fields** — PortType unification (Phase 2.2), liveness analysis + coloring allocator (Phase 4.1–4.2), DAG scheduler with stream partitioning (Phase 4.4), JIT codegen (Phase 3.2). The types they read/write now exist; their implementations are still pending per the GAPS.md §3.1 pipeline matrix.
+Unit tests cover construction, stride resolution, interval overlap semantics, and field preservation. **What remains is the *implementation* of the passes that populate these fields** — PortType unification pipeline wiring (Phase 2.2), DAG scheduler with stream partitioning (Phase 4.4), and Phase 1+ LLVM JIT (explicit SIMD per ISA). Liveness + interval coloring (**Phase 4.1–4.2**) landed in `ir/planner.go`. Phase 0 LLVM JIT landed in `codegen/llvm/` (see §3.2.a).
+
+---
+
+### 3.2.a CPU LLVM JIT — **PARTIAL (Phase 0 + Phase 1) LANDED 2026-05-29**
+
+FusionAST elementwise kernels compile to LLVM IR and execute via MCJIT:
+
+| Component | Path | Status |
+|-----------|------|--------|
+| Scalar reference evaluator | `manifesto/codegen/reference.go`, `cpu.go` | ✓ |
+| llir IR builder (all `NodeType` values) | `manifesto/codegen/llvm/ir_builder_scalar.go` | ✓ |
+| Explicit SIMD vector loop + scalar tail | `manifesto/codegen/llvm/ir_builder_vector.go` | ✓ Phase 1 |
+| Vectorizability gate (no transcendentals) | `manifesto/codegen/llvm/ir_vectorizable.go` | ✓ Phase 1 |
+| Host ISA tier + vector width | `manifesto/codegen/llvm/host_isa.go` | ✓ Phase 1 |
+| FusionAST validation before emit | `manifesto/codegen/llvm/ir_validate.go` | ✓ |
+| MCJIT compile + run (C ABI shim) | `manifesto/codegen/llvm/jit_llvm.go` | ✓ |
+| Per-ISA MCJIT (`EmitKernelForLevel`) | `manifesto/codegen/llvm/emit_kernel.go` | ✓ Phase 1 |
+| CPUID → LLVM target features | `manifesto/codegen/llvm/host_features.go` | ✓ |
+| Build-tag split (`codegen_llvm`) | `emit_cpu_ref.go` / `emit_cpu_jit.go` | ✓ |
+| Parity tests N ∈ {1,7,64,1024,8192} | `codegen/llvm_jit_parity_test.go` | ✓ |
+| Per-ISA parity (host-supported tiers) | `TestEmitKernelForLevelParity` | ✓ Phase 1 |
+| IR asserts `<N x float>` vector ops | `codegen/llvm/ir_test.go` | ✓ Phase 1 |
+| Makefile gate | `make test-jit` (requires Homebrew/system LLVM 21+) | ✓ |
+
+Kernel ABI: `void fused_<name>(float** inputs, float* out, i32 count)`.
+
+Vectorizable fusions emit a main loop at `HostVectorWidth()` lanes (16/8/4 for AVX-512/AVX2/NEON+SSE2) plus a scalar tail. Non-vectorizable fusions (SwiGLU, Gelu, Sigmoid chains) use scalar loops only.
+
+Verified fusions: ReLU(Add(x,y)), Mul(Sigmoid(gate), up), ReLU(Add(Add(a,b), c)).
+
+**Still missing for Phase 3.2a completion:** vector transcendental lowering (libm or polynomial IR per lane), amd64 CI verification of SSE2/AVX2/AVX512 parity tiers.
 
 ---
 
@@ -329,12 +360,12 @@ This is the order I'd suggest. Each item is roughly self-contained.
 ### P1 — foundational compiler work
 4. **Excise diffusion-specific Go (§6.5).** Delete `manifesto/diffusion/` package and `manifesto/runtime/{scheduler,latents,executor_diffusion,pipeline_scheduler}*.go`. Remove `scheduler.*` and `diffusion.prepare_latents` step dispatch from `executor.go`. Requires landing RNG / shape-inference / scalar-arithmetic atomics first (see §6.5 sequencing).
 5. **PortType unification + adaptor synthesis (§4.1–§4.2).** Without this, the compiler can't validate connections or auto-insert Transpose/Cast/Reshape.
-6. **FusionAST + elementwise fusion pass (§4.3).** ✓ **partial — front-end only.** What landed 2026-05-25: `manifesto/optimizer/` with the spec's `FusionAST`/`ASTNode` types, a recursive DAG-shaped fusion pass (`optimizer.Fuse`) covering chains and tree patterns (SwiGLU `Mul(Sigmoid(gate), up)`, residual `Add(Add(a, b), c)`), `optimizer.ConstantFold`, `optimizer.Rewrite` (identity elim + scale-into-Linear flag), and `optimizer.Tile` which **attaches a TileConfig struct as metadata only — no consumer reads it yet**. `manifesto/codegen` ships two things that are **not** the spec's Phase 3.2 JIT codegen: (a) `codegen.CPUKernel` is a tree-walking Go interpreter that evaluates the AST per element — no LLVM, no SIMD, no JIT; it's a reference evaluator only. (b) `codegen.MetalKernel` emits an MSL *source string* but nothing compiles it — no `MTLLibrary` invocation, no pipeline state object, no integration with `puter/device/metal`. `compiler.CompileAssets` runs `optimizer.Run → codegen.AttachKernels` and attaches the interpreter to each `FuseOp`, which is enough to execute fused subgraphs correctly through the new dispatcher, but it does not satisfy Phase 3.2a (CPU LLVM JIT) or Phase 3.2b (Metal/CUDA pipeline compilation). Those two remain **✗**.
+6. **FusionAST + elementwise fusion pass (§4.3).** ✓ **partial — front-end + Phase 0 JIT.** What landed 2026-05-25: `manifesto/optimizer/` with the spec's `FusionAST`/`ASTNode` types, a recursive DAG-shaped fusion pass (`optimizer.Fuse`) covering chains and tree patterns (SwiGLU `Mul(Sigmoid(gate), up)`, residual `Add(Add(a, b), c)`), `optimizer.ConstantFold`, `optimizer.Rewrite` (identity elim + scale-into-Linear flag), and `optimizer.Tile` which **attaches a TileConfig struct as metadata only — no consumer reads it yet**. `manifesto/codegen` ships: (a) `codegen.EmitReferenceCPU` / `CPUKernel` — scalar reference evaluator; (b) `codegen/llvm` — llir IR builder + MCJIT path behind `-tags=codegen_llvm` (**Phase 0 parity verified 2026-05-29**, see §3.2.a); (c) `codegen.MetalKernel` — MSL *source string* only (no `MTLLibrary` compile). `compiler.CompileAssets` runs `optimizer.Run → codegen.AttachKernels`. Phase 3.2a is **partial**; Phase 3.2b (Metal pipeline compilation) remains **✗ partial**.
 7. **Liveness analysis + interval-coloring allocator (§5.1).** The blueprint code (`scheduler.MemoryPlanner.AllocateOffsets`) is also concrete. 64-byte alignment is non-negotiable.
 8. **Symbolic stride solver (§5.1 + §4 of blueprints).** Required for dynamic batch/seq dimensions.
 
 ### P2 — codegen and execution
-8. **CPU JIT codegen via LLVM** with CPUID-driven AVX-512/AVX2/SSE2/NEON paths (the spec's later addendum is unambiguous: keep all three x86 paths plus NEON).
+8. **CPU JIT codegen via LLVM** with CPUID-driven AVX-512/AVX2/SSE2/NEON paths (the spec's later addendum is unambiguous: keep all three x86 paths plus NEON). **Phase 0 ✓ + Phase 1 partial (2026-05-29):** explicit `<N x float>` vector loops, per-ISA `EmitKernelForLevel` parity, JIT default `EmitCPU` with `codegen_llvm`. **Still open:** vector transcendental IR, amd64 CI sign-off for all x86 tiers.
 9. **GPU JIT codegen** — MSL source generator (Metal), PTX/CUDA C++ via NVRTC. The `ShaderGenerator.GenerateMetal` blueprint is the starting template.
 10. **Async DAG executor with stream partitioning and hardware semaphores (§5.2).** Maps `StreamID`/`SyncBarriers` to native queues. No `runtime.Pinner` in the loop. Workspace allocated via `posix_memalign` / `cudaMalloc` / `MTLBuffer`, off the Go heap.
 

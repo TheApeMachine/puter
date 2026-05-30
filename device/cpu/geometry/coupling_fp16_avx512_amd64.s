@@ -1,0 +1,103 @@
+#include "textflag.h"
+
+DATA geomCouplingFP16AbsMask16AVX512<>+0(SB)/2, $0x7fff
+DATA geomCouplingFP16Eps16AVX512<>+0(SB)/2, $0x211f
+GLOBL geomCouplingFP16AbsMask16AVX512<>(SB), RODATA|NOPTR, $2
+GLOBL geomCouplingFP16Eps16AVX512<>(SB), RODATA|NOPTR, $2
+
+#define COUPLING_FP16_X8 \
+	VPAND  X2, X0, X30; \
+	VPAND  X3, X1, X30; \
+	VMULPH X4, X2, X3; \
+	VSQRTPH X5, X4; \
+	VCMPPH K1, X5, X29, $13; \
+	VMULPH X7, X0, X1; \
+	VMULPH X6, X5, X5; \
+	VDIVPH X8, X7, X6; \
+	VPXORD X9, X9, X9; \
+	VBLENDMPH X0, X8, X9, K1
+
+#define COUPLING_FP16_Y16 \
+	VPAND  Y2, Y0, Y30; \
+	VPAND  Y3, Y1, Y30; \
+	VMULPH Y4, Y2, Y3; \
+	VSQRTPH Y5, Y4; \
+	VCMPPH K1, Y5, Y29, $13; \
+	VMULPH Y7, Y0, Y1; \
+	VMULPH Y6, Y5, Y5; \
+	VDIVPH Y8, Y7, Y6; \
+	VPXORD Y9, Y9, Y9; \
+	VBLENDMPH Y0, Y8, Y9, K1
+
+#define COUPLING_FP16_SCALAR \
+	VPBROADCASTW (SI), X2; \
+	VPBROADCASTW (R8), X3; \
+	VPAND  X30, X2, X2; \
+	VPAND  X30, X3, X3; \
+	VMULPH X4, X2, X3; \
+	VSQRTPH X5, X4; \
+	VCMPPH K1, X5, X29, $13; \
+	VMULPH X7, X2, X3; \
+	VMULPH X6, X5, X5; \
+	VDIVPH X8, X7, X6; \
+	VPXORD X9, X9, X9; \
+	VBLENDMPH X2, X8, X9, K1
+
+// func PhaseCouplingFloat16AVX512Asm(dst, left, right *uint16, count int)
+TEXT ·PhaseCouplingFloat16AVX512Asm(SB), NOSPLIT, $0-32
+	MOVQ destination+0(FP), DI
+	MOVQ leftGrowth+8(FP), SI
+	MOVQ rightGrowth+16(FP), R8
+	MOVQ count+24(FP), CX
+
+	VPBROADCASTW geomCouplingFP16AbsMask16AVX512<>(SB), Y30
+	VPBROADCASTW geomCouplingFP16Eps16AVX512<>(SB), Y29
+	VPBROADCASTW geomCouplingFP16AbsMask16AVX512<>(SB), X30
+	VPBROADCASTW geomCouplingFP16Eps16AVX512<>(SB), X29
+
+pcfp16_avx512_w16:
+	CMPQ CX, $16
+	JL   pcfp16_avx512_w8
+
+	VMOVUPH Y0, (SI)
+	VMOVUPH Y1, (R8)
+	COUPLING_FP16_Y16
+	VMOVUPH Y0, (DI)
+
+	ADDQ $32, SI
+	ADDQ $32, R8
+	ADDQ $32, DI
+	SUBQ $16, CX
+	JMP  pcfp16_avx512_w16
+
+pcfp16_avx512_w8:
+	CMPQ CX, $8
+	JL   pcfp16_avx512_tail
+
+	VMOVUPH X0, (SI)
+	VMOVUPH X1, (R8)
+	COUPLING_FP16_X8
+	VMOVUPH X0, (DI)
+
+	ADDQ $16, SI
+	ADDQ $16, R8
+	ADDQ $16, DI
+	SUBQ $8, CX
+	JMP  pcfp16_avx512_w8
+
+pcfp16_avx512_tail:
+	TESTQ CX, CX
+	JZ   pcfp16_avx512_done
+
+pcfp16_avx512_scalar:
+	COUPLING_FP16_SCALAR
+	VMOVD X2, AX
+	MOVW  AX, (DI)
+	ADDQ  $2, SI
+	ADDQ  $2, R8
+	ADDQ  $2, DI
+	DECQ  CX
+	JNZ  pcfp16_avx512_scalar
+
+pcfp16_avx512_done:
+	RET

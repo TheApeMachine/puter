@@ -14,6 +14,7 @@ import (
 	"github.com/theapemachine/puter/device/xla/dropout"
 	"github.com/theapemachine/puter/device/xla/elementwise"
 	"github.com/theapemachine/puter/device/xla/embedding"
+	"github.com/theapemachine/puter/device/xla/geometry"
 	"github.com/theapemachine/puter/device/xla/hawkes"
 	"github.com/theapemachine/puter/device/xla/layernorm"
 	"github.com/theapemachine/puter/device/xla/losses"
@@ -42,6 +43,7 @@ func (backend *Backend) bindFamilies(computeHost *ComputeHost) {
 	backend.Losses = losses.New(computeHost)
 	backend.Sampling = sampling.New(computeHost)
 	backend.Embedding = embedding.New(computeHost)
+	backend.Geometry = geometry.New()
 	backend.Normalization = normalization.New(computeHost)
 	backend.Norm = layernorm.New(computeHost)
 	backend.RotaryEmbedding = rope.New(computeHost)

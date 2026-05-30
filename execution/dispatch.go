@@ -333,10 +333,9 @@ func (dispatcher *dispatcher) runNode(node *ast.GraphNode) error {
 }
 
 /*
-runFusedNode picks the CPU kernel attached by codegen and runs it directly.
-Metal-resident fusion lands once metal.Backend exposes a host-visible
-view; this path currently fails over to "no CPU kernel attached" if the
-graph was compiled with TargetMetal only.
+runFusedNode picks the Metal or CPU kernel attached by codegen and runs it.
+On Darwin with CGO, TargetMetal carries an MTLLibrary-compiled runner when
+the memory backend is Metal; otherwise the scalar CPU reference is used.
 */
 func (dispatcher *dispatcher) runFusedNode(node *ast.GraphNode) error {
 	return dispatcher.runFusedNodeWithSlots(node, nil, -1)
@@ -362,22 +361,20 @@ func (dispatcher *dispatcher) runFusedNodeWithSlots(
 		)
 	}
 
-	cpuAny := kernelSet.For(codegen.TargetCPU)
+	runner, err := dispatcher.fusedElementwiseRunner(kernelSet)
 
-	if cpuAny == nil {
-		return fmt.Errorf("fused node has no TargetCPU kernel attached")
+	if err != nil {
+		return err
 	}
 
-	cpuKernel, ok := cpuAny.(*codegen.CPUKernel)
-
-	if !ok {
-		return fmt.Errorf("kernel for TargetCPU is %T, want *codegen.CPUKernel", cpuAny)
+	if ran, err := dispatcher.tryRunFusedOnMetalDevice(runner, node, inputSlots, outputSlot); ran || err != nil {
+		return err
 	}
 
-	inputBuffers := make([][]float32, 0, len(cpuKernel.Inputs()))
+	inputBuffers := make([][]float32, 0, len(runner.Inputs()))
 	var count int
 
-	for inputIndex, inputName := range cpuKernel.Inputs() {
+	for inputIndex, inputName := range runner.Inputs() {
 		inputTensor, err := dispatcher.fusedInputTensor(node, inputName, inputIndex, inputSlots)
 
 		if err != nil {
@@ -409,13 +406,46 @@ func (dispatcher *dispatcher) runFusedNodeWithSlots(
 		return fmt.Errorf("fused node output allocation: %w", err)
 	}
 
-	if err := cpuKernel.Run(inputBuffers, outputBuffer, count); err != nil {
+	if err := runner.Run(inputBuffers, outputBuffer, count); err != nil {
 		return err
 	}
 
 	dispatcher.storeNodeValue(node.ID, outputSlot, outputTensor)
 
 	return nil
+}
+
+func (dispatcher *dispatcher) fusedElementwiseRunner(
+	kernelSet *codegen.KernelSet,
+) (codegen.ElementwiseRunner, error) {
+	if dispatcher.memory.Location() == tensor.Metal {
+		metalKernel := kernelSet.For(codegen.TargetMetal)
+
+		if metalKernel != nil {
+			runner, ok := metalKernel.(codegen.ElementwiseRunner)
+
+			if ok {
+				return runner, nil
+			}
+		}
+	}
+
+	cpuKernel := kernelSet.For(codegen.TargetCPU)
+
+	if cpuKernel == nil {
+		return nil, fmt.Errorf("fused node has no TargetCPU kernel attached")
+	}
+
+	runner, ok := cpuKernel.(codegen.ElementwiseRunner)
+
+	if !ok {
+		return nil, fmt.Errorf(
+			"kernel for TargetCPU is %T, want codegen.ElementwiseRunner",
+			cpuKernel,
+		)
+	}
+
+	return runner, nil
 }
 
 func (dispatcher *dispatcher) fusedInputTensor(

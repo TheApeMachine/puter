@@ -7,8 +7,11 @@
 #include "textflag.h"
 
 #define VFMLA_S4(m, n, d)  WORD $(0x4E20CC00 | ((m) << 16) | ((n) << 5) | (d))
+#define VFMUL_H8(m, n, d)  WORD $(0x6E401C00 | ((m) << 16) | ((n) << 5) | (d))
 #define VFCVTL_4S(n, d)     WORD $(0x0E217800 | ((n) << 5) | (d))
 #define VFCVTN_4H(n, d)     WORD $(0x0E216800 | ((n) << 5) | (d))
+#define VFADD_S4(m, n, d)   WORD $(0x4E20D400 | ((m) << 16) | ((n) << 5) | (d))
+#define FADDP_S(n, d)       WORD $(0x7E30D800 | ((n) << 5) | (d))
 
 // func Conv2dStride1RowFP16NEONAsm(
 //     outRow *uint16,
@@ -26,7 +29,7 @@
 //     ihStart int,
 //     iwStart int,
 // )
-TEXT ·Conv2dStride1RowFP16NEONAsm(SB), NOSPLIT, $0-112
+TEXT ·Conv2dStride1RowFP16NEONAsm(SB), NOSPLIT, $16-112
     MOVD outRow+0(FP), R0
     MOVD input+8(FP), R1
     MOVD weight+16(FP), R2
@@ -47,6 +50,7 @@ TEXT ·Conv2dStride1RowFP16NEONAsm(SB), NOSPLIT, $0-112
     LSL  $1, R10, R10
     MUL  R7, R11, R11
     ADD  R11, R1, R1
+    MOVD RSP, R23
 
     VDUP V28.S[0], V28.S4
     WORD $(0x4EA01C00 | (28 << 16) | (28 << 5) | 0)
@@ -77,11 +81,13 @@ kw_loop:
     CBZ  R19, kw_done
     MOVHU (R21), R22
     VMOV R22, V1.H[0]
-    VFCVTL_4S(1, 4)
-    VDUP V4.S[0], V4.S4
+    VMOV V1.H[0], R22
+    MOVH R22, (R23)
+    VLD1R (R23), [V1.H4]
     VLD1 (R20), [V2.H4]
-    VFCVTL_4S(2, 20)
-    VFMLA_S4(20, 4, 0)
+    VFMUL_H8(2, 1, 24)
+    VFCVTL_4S(24, 20)
+    VFADD_S4(20, 0, 0)
     ADD  $2, R21
     ADD  $2, R20
     SUB  $1, R19
@@ -126,18 +132,16 @@ cpd_fp16_loop16:
     BLT  cpd_fp16_loop8
     VLD1.P 32(R0), [V0.H8, V1.H8]
     VLD1.P 32(R1), [V2.H8, V3.H8]
-    VFCVTL_4S(0, 4)
-    WORD $(0x4E217800 | (0 << 5) | 5)
-    VFCVTL_4S(1, 6)
-    WORD $(0x4E217800 | (1 << 5) | 7)
-    VFCVTL_4S(2, 8)
-    WORD $(0x4E217800 | (2 << 5) | 9)
-    VFCVTL_4S(3, 10)
-    WORD $(0x4E217800 | (3 << 5) | 11)
-    VFMLA_S4(8, 4, 16)
-    VFMLA_S4(9, 5, 17)
-    VFMLA_S4(10, 6, 18)
-    VFMLA_S4(11, 7, 19)
+    VFMUL_H8(2, 0, 24)
+    VFMUL_H8(3, 1, 25)
+    VFCVTL_4S(24, 4)
+    WORD $(0x4E217800 | (24 << 5) | 5)
+    VFCVTL_4S(25, 6)
+    WORD $(0x4E217800 | (25 << 5) | 7)
+    VFADD_S4(4, 16, 16)
+    VFADD_S4(5, 17, 17)
+    VFADD_S4(6, 18, 18)
+    VFADD_S4(7, 19, 19)
     SUB  $16, R2
     B    cpd_fp16_loop16
 
@@ -146,12 +150,11 @@ cpd_fp16_loop8:
     BLT  cpd_fp16_reduce
     VLD1.P 16(R0), [V0.H8]
     VLD1.P 16(R1), [V2.H8]
-    VFCVTL_4S(0, 4)
-    WORD $(0x4E217800 | (0 << 5) | 5)
-    VFCVTL_4S(2, 8)
-    WORD $(0x4E217800 | (2 << 5) | 9)
-    VFMLA_S4(8, 4, 16)
-    VFMLA_S4(9, 5, 17)
+    VFMUL_H8(2, 0, 24)
+    VFCVTL_4S(24, 4)
+    WORD $(0x4E217800 | (24 << 5) | 5)
+    VFADD_S4(4, 16, 16)
+    VFADD_S4(5, 17, 17)
     SUB  $8, R2
     B    cpd_fp16_loop8
 

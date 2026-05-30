@@ -7,7 +7,6 @@ import (
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
-	"github.com/theapemachine/puter/device"
 	"github.com/theapemachine/puter/device/cpu/activation"
 	"github.com/theapemachine/puter/device/cpu/active_inference"
 	"github.com/theapemachine/puter/device/cpu/attention"
@@ -18,7 +17,9 @@ import (
 	"github.com/theapemachine/puter/device/cpu/dropout"
 	"github.com/theapemachine/puter/device/cpu/elementwise"
 	"github.com/theapemachine/puter/device/cpu/embedding"
+	"github.com/theapemachine/puter/device/cpu/geometry"
 	"github.com/theapemachine/puter/device/cpu/hawkes"
+	"github.com/theapemachine/puter/device/cpu/interpretability"
 	"github.com/theapemachine/puter/device/cpu/layernorm"
 	"github.com/theapemachine/puter/device/cpu/losses"
 	"github.com/theapemachine/puter/device/cpu/masking"
@@ -60,10 +61,12 @@ type Backend struct {
 	losses.Losses
 	sampling.Sampling
 	embedding.Embedding
+	geometry.Geometry
 	normalization.Normalization
 	layernorm.Norm
 	rope.RotaryEmbedding
 	hawkes.Hawkes
+	interpretability.Interpretability
 	physics.Physics
 	causal.Causal
 	masking.Masking
@@ -115,5 +118,3 @@ func (backend *Backend) Close() error {
 
 	return nil
 }
-
-var _ device.Backend = (*Backend)(nil)

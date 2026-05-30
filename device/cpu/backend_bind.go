@@ -11,7 +11,9 @@ import (
 	"github.com/theapemachine/puter/device/cpu/dropout"
 	"github.com/theapemachine/puter/device/cpu/elementwise"
 	"github.com/theapemachine/puter/device/cpu/embedding"
+	"github.com/theapemachine/puter/device/cpu/geometry"
 	"github.com/theapemachine/puter/device/cpu/hawkes"
+	"github.com/theapemachine/puter/device/cpu/interpretability"
 	"github.com/theapemachine/puter/device/cpu/layernorm"
 	"github.com/theapemachine/puter/device/cpu/losses"
 	"github.com/theapemachine/puter/device/cpu/masking"
@@ -39,10 +41,12 @@ func (backend *Backend) bindFamilies() {
 	backend.Losses = losses.New()
 	backend.Sampling = sampling.New()
 	backend.Embedding = embedding.New()
+	backend.Geometry = geometry.New()
 	backend.Normalization = normalization.New()
 	backend.Norm = layernorm.New()
 	backend.RotaryEmbedding = rope.New()
 	backend.Hawkes = hawkes.New()
+	backend.Interpretability = interpretability.New()
 	backend.Physics = physics.New()
 	backend.Causal = causal.New()
 	backend.Masking = masking.New()

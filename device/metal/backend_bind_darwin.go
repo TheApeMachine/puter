@@ -3,7 +3,6 @@
 package metal
 
 import (
-	"github.com/theapemachine/puter/device"
 	"github.com/theapemachine/puter/device/metal/activation"
 	"github.com/theapemachine/puter/device/metal/active_inference"
 	"github.com/theapemachine/puter/device/metal/attention"
@@ -14,7 +13,9 @@ import (
 	"github.com/theapemachine/puter/device/metal/dropout"
 	"github.com/theapemachine/puter/device/metal/elementwise"
 	"github.com/theapemachine/puter/device/metal/embedding"
+	"github.com/theapemachine/puter/device/metal/geometry"
 	"github.com/theapemachine/puter/device/metal/hawkes"
+	"github.com/theapemachine/puter/device/metal/interpretability"
 	"github.com/theapemachine/puter/device/metal/layernorm"
 	"github.com/theapemachine/puter/device/metal/losses"
 	"github.com/theapemachine/puter/device/metal/matmul"
@@ -41,10 +42,12 @@ func (backend *Backend) bindFamilies(computeHost *ComputeHost) {
 	backend.Losses = losses.New(computeHost)
 	backend.Sampling = sampling.New(computeHost)
 	backend.Embedding = embedding.New(computeHost)
+	backend.Geometry = geometry.New()
 	backend.Normalization = normalization.New(computeHost)
 	backend.Norm = layernorm.New(computeHost)
 	backend.RotaryEmbedding = rope.New(computeHost)
 	backend.Hawkes = hawkes.New(computeHost)
+	backend.Interpretability = interpretability.New(computeHost)
 	backend.Physics = physics.New(computeHost)
 	backend.Causal = causal.New(computeHost)
 	backend.Attention = attention.New(computeHost)
@@ -54,5 +57,3 @@ func (backend *Backend) bindFamilies(computeHost *ComputeHost) {
 	backend.Dequantization = dequant.New(computeHost)
 	backend.Quantization = quant.New(computeHost)
 }
-
-var _ device.Backend = (*Backend)(nil)

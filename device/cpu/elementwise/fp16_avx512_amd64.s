@@ -1,408 +1,156 @@
 #include "textflag.h"
 
-#define VCVTPS2PH_Y0_X2 WORD $0xC4E3; WORD $0x7D1D; BYTE $0xD8; BYTE $0x00
+DATA ewAbsMaskFP16AVX512<>+0(SB)/2, $0x7fff
+DATA ewSignMaskFP16AVX512<>+0(SB)/2, $0x8000
+GLOBL ewAbsMaskFP16AVX512<>(SB), RODATA|NOPTR, $2
+GLOBL ewSignMaskFP16AVX512<>(SB), RODATA|NOPTR, $2
+
 #define VCVTPS2PH_X0_X2 WORD $0xC4E3; WORD $0x7D1D; BYTE $0xD0; BYTE $0x00
 
-DATA ewZeroFP16AVX512<>+0(SB)/4, $0x00000000
-GLOBL ewZeroFP16AVX512<>(SB), RODATA|NOPTR, $4
+#define FP16_BINARY_AVX512(op_y16, op_x8, op_scalar) \
+	MOVQ dst+0(FP), DI \
+	MOVQ left+8(FP), SI \
+	MOVQ right+16(FP), R8 \
+	MOVQ n+24(FP), CX \
+loop16: \
+	CMPQ CX, $16 \
+	JL   loop8 \
+	VMOVUPH Y0, (SI) \
+	VMOVUPH Y1, (R8) \
+	op_y16 \
+	VMOVUPH Y0, (DI) \
+	ADDQ $32, SI \
+	ADDQ $32, R8 \
+	ADDQ $32, DI \
+	SUBQ $16, CX \
+	JMP  loop16 \
+loop8: \
+	CMPQ CX, $8 \
+	JL   scalar_tail \
+	VMOVUPH X0, (SI) \
+	VMOVUPH X1, (R8) \
+	op_x8 \
+	VMOVUPH X0, (DI) \
+	ADDQ $16, SI \
+	ADDQ $16, R8 \
+	ADDQ $16, DI \
+	SUBQ $8, CX \
+	JMP  loop8 \
+scalar_tail: \
+	TESTQ CX, CX \
+	JZ   done \
+scalar_loop: \
+	VPBROADCASTW (SI), X2 \
+	VPBROADCASTW (R8), X3 \
+	op_scalar \
+	VMOVD X2, AX \
+	MOVW AX, (DI) \
+	ADDQ $2, SI \
+	ADDQ $2, R8 \
+	ADDQ $2, DI \
+	DECQ CX \
+	JNZ  scalar_loop \
+done: \
+	RET
 
-DATA ewAbsMaskFP16AVX512<>+0(SB)/4, $0x7fffffff
-GLOBL ewAbsMaskFP16AVX512<>(SB), RODATA|NOPTR, $4
+#define ADD_Y16 VADDPH Y1, Y0, Y0
+#define ADD_X8  VADDPH X1, X0, X0
+#define ADD_SCALAR VADDPH X3, X2, X2
 
-DATA ewSignMaskFP16AVX512<>+0(SB)/4, $0x80000000
-GLOBL ewSignMaskFP16AVX512<>(SB), RODATA|NOPTR, $4
+#define SUB_Y16 VSUBPH Y1, Y0, Y0
+#define SUB_X8  VSUBPH X1, X0, X0
+#define SUB_SCALAR VSUBPH X3, X2, X2
 
-#define WIDEN_FP16_8H(baseReg, dstY) \
-	VMOVDQU X2, (baseReg); \
-	VCVTPH2PS X2, dstY; \
-	VPSRLDQ $8, X2, X3; \
-	VCVTPH2PS X3, Y4; \
-	VEXTRACTI128 $0, Y4, X4; \
-	VINSERTF128 $1, X4, dstY, dstY
+#define MUL_Y16 VMULPH Y1, Y0, Y0
+#define MUL_X8  VMULPH X1, X0, X0
+#define MUL_SCALAR VMULPH X3, X2, X2
 
-#define NARROW_FP16_Y8(dstReg) \
-	VCVTPS2PH_Y0_X2; \
-	VMOVDQU X2, (dstReg); \
-	VEXTRACTF128 $1, Y0, X0; \
-	VCVTPS2PH_X0_X2; \
-	VMOVDQU X2, 8(dstReg)
+#define DIV_Y16 VDIVPH Y1, Y0, Y0
+#define DIV_X8  VDIVPH X1, X0, X0
+#define DIV_SCALAR VDIVPH X3, X2, X2
 
-#define WIDEN_FP16_4H(baseReg, dstY) \
-	VMOVDQU X2, (baseReg); \
-	VCVTPH2PS X2, dstY
+#define MAX_Y16 \
+	VMAXPH Y1, Y0, Y0
 
-#define NARROW_FP16_Y4(dstReg) \
-	VCVTPS2PH_Y0_X2; \
-	VMOVDQU X2, (dstReg)
+#define MAX_X8 \
+	VMAXPH X1, X0, X0
+
+#define MAX_SCALAR \
+	VMAXPH X3, X2, X2
+
+#define MIN_Y16 \
+	VMINPH Y1, Y0, Y0
+
+#define MIN_X8 \
+	VMINPH X1, X0, X0
+
+#define MIN_SCALAR \
+	VMINPH X3, X2, X2
 
 // func AddFloat16AVX512Asm(dst, left, right *uint16, n int)
 TEXT ·AddFloat16AVX512Asm(SB), NOSPLIT, $0-32
-	MOVQ dst+0(FP), DI
-	MOVQ left+8(FP), SI
-	MOVQ right+16(FP), R8
-	MOVQ n+24(FP), CX
-f16add_w8:
-	CMPQ CX, $8
-	JL   f16add_w4
-	WIDEN_FP16_8H(SI, Y0)
-	WIDEN_FP16_8H(R8, Y1)
-	VADDPS Y1, Y0, Y0
-	NARROW_FP16_Y8(DI)
-	ADDQ $16, SI
-	ADDQ $16, R8
-	ADDQ $16, DI
-	SUBQ $8, CX
-	JMP  f16add_w8
-f16add_w4:
-	CMPQ CX, $4
-	JL   f16add_tail
-	WIDEN_FP16_4H(SI, Y0)
-	WIDEN_FP16_4H(R8, Y1)
-	VADDPS Y1, Y0, Y0
-	NARROW_FP16_Y4(DI)
-	ADDQ $8, SI
-	ADDQ $8, R8
-	ADDQ $8, DI
-	SUBQ $4, CX
-	JMP  f16add_w4
-f16add_tail:
-	TESTQ CX, CX
-	JZ   f16add_done
-f16add_scalar:
-	MOVWLZX (SI), AX
-	VMOVD X2, AX
-	VCVTPH2PS X2, X2
-	MOVWLZX (R8), DX
-	VMOVD X3, DX
-	VCVTPH2PS X3, X3
-	VADDSS X3, X2, X2
-	VMOVAPS X2, X0
-	VCVTPS2PH_X0_X2
-	MOVL  X2, AX
-	MOVW  AX, (DI)
-	ADDQ $2, SI
-	ADDQ $2, R8
-	ADDQ $2, DI
-	DECQ CX
-	JNZ  f16add_scalar
-f16add_done:
-	RET
+	FP16_BINARY_AVX512(ADD_Y16, ADD_X8, ADD_SCALAR)
 
 // func SubFloat16AVX512Asm(dst, left, right *uint16, n int)
 TEXT ·SubFloat16AVX512Asm(SB), NOSPLIT, $0-32
-	MOVQ dst+0(FP), DI
-	MOVQ left+8(FP), SI
-	MOVQ right+16(FP), R8
-	MOVQ n+24(FP), CX
-f16sub_w8:
-	CMPQ CX, $8
-	JL   f16sub_w4
-	WIDEN_FP16_8H(SI, Y0)
-	WIDEN_FP16_8H(R8, Y1)
-	VSUBPS Y1, Y0, Y0
-	NARROW_FP16_Y8(DI)
-	ADDQ $16, SI
-	ADDQ $16, R8
-	ADDQ $16, DI
-	SUBQ $8, CX
-	JMP  f16sub_w8
-f16sub_w4:
-	CMPQ CX, $4
-	JL   f16sub_tail
-	WIDEN_FP16_4H(SI, Y0)
-	WIDEN_FP16_4H(R8, Y1)
-	VSUBPS Y1, Y0, Y0
-	NARROW_FP16_Y4(DI)
-	ADDQ $8, SI
-	ADDQ $8, R8
-	ADDQ $8, DI
-	SUBQ $4, CX
-	JMP  f16sub_w4
-f16sub_tail:
-	TESTQ CX, CX
-	JZ   f16sub_done
-f16sub_scalar:
-	MOVWLZX (SI), AX
-	VMOVD X2, AX
-	VCVTPH2PS X2, X2
-	MOVWLZX (R8), DX
-	VMOVD X3, DX
-	VCVTPH2PS X3, X3
-	VSUBSS X3, X2, X2
-	VMOVAPS X2, X0
-	VCVTPS2PH_X0_X2
-	MOVL  X2, AX
-	MOVW  AX, (DI)
-	ADDQ $2, SI
-	ADDQ $2, R8
-	ADDQ $2, DI
-	DECQ CX
-	JNZ  f16sub_scalar
-f16sub_done:
-	RET
+	FP16_BINARY_AVX512(SUB_Y16, SUB_X8, SUB_SCALAR)
 
 // func MulFloat16AVX512Asm(dst, left, right *uint16, n int)
 TEXT ·MulFloat16AVX512Asm(SB), NOSPLIT, $0-32
-	MOVQ dst+0(FP), DI
-	MOVQ left+8(FP), SI
-	MOVQ right+16(FP), R8
-	MOVQ n+24(FP), CX
-f16mul_w8:
-	CMPQ CX, $8
-	JL   f16mul_w4
-	WIDEN_FP16_8H(SI, Y0)
-	WIDEN_FP16_8H(R8, Y1)
-	VMULPS Y1, Y0, Y0
-	NARROW_FP16_Y8(DI)
-	ADDQ $16, SI
-	ADDQ $16, R8
-	ADDQ $16, DI
-	SUBQ $8, CX
-	JMP  f16mul_w8
-f16mul_w4:
-	CMPQ CX, $4
-	JL   f16mul_tail
-	WIDEN_FP16_4H(SI, Y0)
-	WIDEN_FP16_4H(R8, Y1)
-	VMULPS Y1, Y0, Y0
-	NARROW_FP16_Y4(DI)
-	ADDQ $8, SI
-	ADDQ $8, R8
-	ADDQ $8, DI
-	SUBQ $4, CX
-	JMP  f16mul_w4
-f16mul_tail:
-	TESTQ CX, CX
-	JZ   f16mul_done
-f16mul_scalar:
-	MOVWLZX (SI), AX
-	VMOVD X2, AX
-	VCVTPH2PS X2, X2
-	MOVWLZX (R8), DX
-	VMOVD X3, DX
-	VCVTPH2PS X3, X3
-	VMULSS X3, X2, X2
-	VMOVAPS X2, X0
-	VCVTPS2PH_X0_X2
-	MOVL  X2, AX
-	MOVW  AX, (DI)
-	ADDQ $2, SI
-	ADDQ $2, R8
-	ADDQ $2, DI
-	DECQ CX
-	JNZ  f16mul_scalar
-f16mul_done:
-	RET
+	FP16_BINARY_AVX512(MUL_Y16, MUL_X8, MUL_SCALAR)
 
 // func DivFloat16AVX512Asm(dst, left, right *uint16, n int)
 TEXT ·DivFloat16AVX512Asm(SB), NOSPLIT, $0-32
-	MOVQ dst+0(FP), DI
-	MOVQ left+8(FP), SI
-	MOVQ right+16(FP), R8
-	MOVQ n+24(FP), CX
-f16div_w8:
-	CMPQ CX, $8
-	JL   f16div_w4
-	WIDEN_FP16_8H(SI, Y0)
-	WIDEN_FP16_8H(R8, Y1)
-	VDIVPS Y1, Y0, Y0
-	NARROW_FP16_Y8(DI)
-	ADDQ $16, SI
-	ADDQ $16, R8
-	ADDQ $16, DI
-	SUBQ $8, CX
-	JMP  f16div_w8
-f16div_w4:
-	CMPQ CX, $4
-	JL   f16div_tail
-	WIDEN_FP16_4H(SI, Y0)
-	WIDEN_FP16_4H(R8, Y1)
-	VDIVPS Y1, Y0, Y0
-	NARROW_FP16_Y4(DI)
-	ADDQ $8, SI
-	ADDQ $8, R8
-	ADDQ $8, DI
-	SUBQ $4, CX
-	JMP  f16div_w4
-f16div_tail:
-	TESTQ CX, CX
-	JZ   f16div_done
-f16div_scalar:
-	MOVWLZX (SI), AX
-	VMOVD X2, AX
-	VCVTPH2PS X2, X2
-	MOVWLZX (R8), DX
-	VMOVD X3, DX
-	VCVTPH2PS X3, X3
-	VDIVSS X3, X2, X2
-	VMOVAPS X2, X0
-	VCVTPS2PH_X0_X2
-	MOVL  X2, AX
-	MOVW  AX, (DI)
-	ADDQ $2, SI
-	ADDQ $2, R8
-	ADDQ $2, DI
-	DECQ CX
-	JNZ  f16div_scalar
-f16div_done:
-	RET
+	FP16_BINARY_AVX512(DIV_Y16, DIV_X8, DIV_SCALAR)
 
 // func MaxFloat16AVX512Asm(dst, left, right *uint16, n int)
 TEXT ·MaxFloat16AVX512Asm(SB), NOSPLIT, $0-32
-	MOVQ dst+0(FP), DI
-	MOVQ left+8(FP), SI
-	MOVQ right+16(FP), R8
-	MOVQ n+24(FP), CX
-f16max_w8:
-	CMPQ CX, $8
-	JL   f16max_w4
-	WIDEN_FP16_8H(SI, Y0)
-	WIDEN_FP16_8H(R8, Y1)
-	VCMPPS $6, Y0, Y1, Y2
-	VBLENDVPS Y1, Y0, Y2, Y0
-	NARROW_FP16_Y8(DI)
-	ADDQ $16, SI
-	ADDQ $16, R8
-	ADDQ $16, DI
-	SUBQ $8, CX
-	JMP  f16max_w8
-f16max_w4:
-	CMPQ CX, $4
-	JL   f16max_tail
-	WIDEN_FP16_4H(SI, Y0)
-	WIDEN_FP16_4H(R8, Y1)
-	VCMPPS $6, Y0, Y1, Y2
-	VBLENDVPS Y1, Y0, Y2, Y0
-	NARROW_FP16_Y4(DI)
-	ADDQ $8, SI
-	ADDQ $8, R8
-	ADDQ $8, DI
-	SUBQ $4, CX
-	JMP  f16max_w4
-f16max_tail:
-	TESTQ CX, CX
-	JZ   f16max_done
-f16max_scalar:
-	MOVWLZX (SI), AX
-	VMOVD X2, AX
-	VCVTPH2PS X2, X2
-	MOVWLZX (R8), DX
-	VMOVD X3, DX
-	VCVTPH2PS X3, X3
-	VCMPSS $6, X2, X3, X4
-	VBLENDVPS X3, X2, X4, X2
-	VMOVAPS X2, X0
-	VCVTPS2PH_X0_X2
-	MOVL  X2, AX
-	MOVW  AX, (DI)
-	ADDQ $2, SI
-	ADDQ $2, R8
-	ADDQ $2, DI
-	DECQ CX
-	JNZ  f16max_scalar
-f16max_done:
-	RET
+	FP16_BINARY_AVX512(MAX_Y16, MAX_X8, MAX_SCALAR)
 
 // func MinFloat16AVX512Asm(dst, left, right *uint16, n int)
 TEXT ·MinFloat16AVX512Asm(SB), NOSPLIT, $0-32
-	MOVQ dst+0(FP), DI
-	MOVQ left+8(FP), SI
-	MOVQ right+16(FP), R8
-	MOVQ n+24(FP), CX
-f16min_w8:
-	CMPQ CX, $8
-	JL   f16min_w4
-	WIDEN_FP16_8H(SI, Y0)
-	WIDEN_FP16_8H(R8, Y1)
-	VCMPPS $6, Y1, Y0, Y2
-	VBLENDVPS Y1, Y0, Y2, Y0
-	NARROW_FP16_Y8(DI)
-	ADDQ $16, SI
-	ADDQ $16, R8
-	ADDQ $16, DI
-	SUBQ $8, CX
-	JMP  f16min_w8
-f16min_w4:
-	CMPQ CX, $4
-	JL   f16min_tail
-	WIDEN_FP16_4H(SI, Y0)
-	WIDEN_FP16_4H(R8, Y1)
-	VCMPPS $6, Y1, Y0, Y2
-	VBLENDVPS Y1, Y0, Y2, Y0
-	NARROW_FP16_Y4(DI)
-	ADDQ $8, SI
-	ADDQ $8, R8
-	ADDQ $8, DI
-	SUBQ $4, CX
-	JMP  f16min_w4
-f16min_tail:
-	TESTQ CX, CX
-	JZ   f16min_done
-f16min_scalar:
-	MOVWLZX (SI), AX
-	VMOVD X2, AX
-	VCVTPH2PS X2, X2
-	MOVWLZX (R8), DX
-	VMOVD X3, DX
-	VCVTPH2PS X3, X3
-	VCMPSS $6, X3, X2, X4
-	VBLENDVPS X3, X2, X4, X2
-	VMOVAPS X2, X0
-	VCVTPS2PH_X0_X2
-	MOVL  X2, AX
-	MOVW  AX, (DI)
-	ADDQ $2, SI
-	ADDQ $2, R8
-	ADDQ $2, DI
-	DECQ CX
-	JNZ  f16min_scalar
-f16min_done:
-	RET
+	FP16_BINARY_AVX512(MIN_Y16, MIN_X8, MIN_SCALAR)
 
 // func AbsFloat16AVX512Asm(dst, src *uint16, n int)
 TEXT ·AbsFloat16AVX512Asm(SB), NOSPLIT, $0-24
 	MOVQ dst+0(FP), DI
 	MOVQ src+8(FP), SI
 	MOVQ n+16(FP), CX
-	VBROADCASTSS ewAbsMaskFP16AVX512<>(SB), Y1
-f16abs_w8:
+	VPBROADCASTW ewAbsMaskFP16AVX512<>(SB), Y30
+abs_w16:
+	CMPQ CX, $16
+	JL   abs_w8
+	VMOVUPH Y0, (SI)
+	VPAND Y30, Y0, Y0
+	VMOVUPH Y0, (DI)
+	ADDQ $32, SI
+	ADDQ $32, DI
+	SUBQ $16, CX
+	JMP  abs_w16
+abs_w8:
 	CMPQ CX, $8
-	JL   f16abs_w4
-	WIDEN_FP16_8H(SI, Y0)
-	VANDPS Y1, Y0, Y0
-	NARROW_FP16_Y8(DI)
+	JL   abs_tail
+	VMOVUPH X0, (SI)
+	VPAND X30, X0, X0
+	VMOVUPH X0, (DI)
 	ADDQ $16, SI
 	ADDQ $16, DI
 	SUBQ $8, CX
-	JMP  f16abs_w8
-f16abs_w4:
-	CMPQ CX, $4
-	JL   f16abs_tail
-	WIDEN_FP16_4H(SI, Y0)
-	VANDPS X1, X0, X0
-	NARROW_FP16_Y4(DI)
-	ADDQ $8, SI
-	ADDQ $8, DI
-	SUBQ $4, CX
-	JMP  f16abs_w4
-f16abs_tail:
+	JMP  abs_w8
+abs_tail:
 	TESTQ CX, CX
-	JZ   f16abs_done
-	VBROADCASTSS ewAbsMaskFP16AVX512<>(SB), X1
-f16abs_scalar:
-	MOVWLZX (SI), AX
+	JZ   abs_done
+	VPBROADCASTW ewAbsMaskFP16AVX512<>(SB), X30
+abs_scalar:
+	VPBROADCASTW (SI), X2
+	VPAND X30, X2, X2
 	VMOVD X2, AX
-	VCVTPH2PS X2, X2
-	VANDPS X1, X2, X2
-	VMOVAPS X2, X0
-	VCVTPS2PH_X0_X2
-	MOVL  X2, AX
-	MOVW  AX, (DI)
+	MOVW AX, (DI)
 	ADDQ $2, SI
 	ADDQ $2, DI
 	DECQ CX
-	JNZ  f16abs_scalar
-f16abs_done:
+	JNZ  abs_scalar
+abs_done:
 	RET
 
 // func NegFloat16AVX512Asm(dst, src *uint16, n int)
@@ -410,45 +158,41 @@ TEXT ·NegFloat16AVX512Asm(SB), NOSPLIT, $0-24
 	MOVQ dst+0(FP), DI
 	MOVQ src+8(FP), SI
 	MOVQ n+16(FP), CX
-	VBROADCASTSS ewSignMaskFP16AVX512<>(SB), Y1
-f16neg_w8:
+	VPBROADCASTW ewSignMaskFP16AVX512<>(SB), Y30
+neg_w16:
+	CMPQ CX, $16
+	JL   neg_w8
+	VMOVUPH Y0, (SI)
+	VPXOR Y30, Y0, Y0
+	VMOVUPH Y0, (DI)
+	ADDQ $32, SI
+	ADDQ $32, DI
+	SUBQ $16, CX
+	JMP  neg_w16
+neg_w8:
 	CMPQ CX, $8
-	JL   f16neg_w4
-	WIDEN_FP16_8H(SI, Y0)
-	VXORPS Y1, Y0, Y0
-	NARROW_FP16_Y8(DI)
+	JL   neg_tail
+	VMOVUPH X0, (SI)
+	VPXOR X30, X0, X0
+	VMOVUPH X0, (DI)
 	ADDQ $16, SI
 	ADDQ $16, DI
 	SUBQ $8, CX
-	JMP  f16neg_w8
-f16neg_w4:
-	CMPQ CX, $4
-	JL   f16neg_tail
-	WIDEN_FP16_4H(SI, Y0)
-	VXORPS X1, X0, X0
-	NARROW_FP16_Y4(DI)
-	ADDQ $8, SI
-	ADDQ $8, DI
-	SUBQ $4, CX
-	JMP  f16neg_w4
-f16neg_tail:
+	JMP  neg_w8
+neg_tail:
 	TESTQ CX, CX
-	JZ   f16neg_done
-	VBROADCASTSS ewSignMaskFP16AVX512<>(SB), X1
-f16neg_scalar:
-	MOVWLZX (SI), AX
+	JZ   neg_done
+	VPBROADCASTW ewSignMaskFP16AVX512<>(SB), X30
+neg_scalar:
+	VPBROADCASTW (SI), X2
+	VPXOR X30, X2, X2
 	VMOVD X2, AX
-	VCVTPH2PS X2, X2
-	VXORPS X1, X2, X2
-	VMOVAPS X2, X0
-	VCVTPS2PH_X0_X2
-	MOVL  X2, AX
-	MOVW  AX, (DI)
+	MOVW AX, (DI)
 	ADDQ $2, SI
 	ADDQ $2, DI
 	DECQ CX
-	JNZ  f16neg_scalar
-f16neg_done:
+	JNZ  neg_scalar
+neg_done:
 	RET
 
 // func SqrtFloat16AVX512Asm(dst, src *uint16, n int)
@@ -456,43 +200,39 @@ TEXT ·SqrtFloat16AVX512Asm(SB), NOSPLIT, $0-24
 	MOVQ dst+0(FP), DI
 	MOVQ src+8(FP), SI
 	MOVQ n+16(FP), CX
-f16sqrt_w8:
+sqrt_w16:
+	CMPQ CX, $16
+	JL   sqrt_w8
+	VMOVUPH Y0, (SI)
+	VSQRTPH Y0, Y0
+	VMOVUPH Y0, (DI)
+	ADDQ $32, SI
+	ADDQ $32, DI
+	SUBQ $16, CX
+	JMP  sqrt_w16
+sqrt_w8:
 	CMPQ CX, $8
-	JL   f16sqrt_w4
-	WIDEN_FP16_8H(SI, Y0)
-	VSQRTPS Y0, Y0
-	NARROW_FP16_Y8(DI)
+	JL   sqrt_tail
+	VMOVUPH X0, (SI)
+	VSQRTPH X0, X0
+	VMOVUPH X0, (DI)
 	ADDQ $16, SI
 	ADDQ $16, DI
 	SUBQ $8, CX
-	JMP  f16sqrt_w8
-f16sqrt_w4:
-	CMPQ CX, $4
-	JL   f16sqrt_tail
-	WIDEN_FP16_4H(SI, Y0)
-	VSQRTPS X0, X0
-	NARROW_FP16_Y4(DI)
-	ADDQ $8, SI
-	ADDQ $8, DI
-	SUBQ $4, CX
-	JMP  f16sqrt_w4
-f16sqrt_tail:
+	JMP  sqrt_w8
+sqrt_tail:
 	TESTQ CX, CX
-	JZ   f16sqrt_done
-f16sqrt_scalar:
-	MOVWLZX (SI), AX
+	JZ   sqrt_done
+sqrt_scalar:
+	VPBROADCASTW (SI), X2
+	VSQRTPH X2, X2
 	VMOVD X2, AX
-	VCVTPH2PS X2, X2
-	VSQRTSS X2, X2, X2
-	VMOVAPS X2, X0
-	VCVTPS2PH_X0_X2
-	MOVL  X2, AX
-	MOVW  AX, (DI)
+	MOVW AX, (DI)
 	ADDQ $2, SI
 	ADDQ $2, DI
 	DECQ CX
-	JNZ  f16sqrt_scalar
-f16sqrt_done:
+	JNZ  sqrt_scalar
+sqrt_done:
 	RET
 
 // func ReluFloat16AVX512Asm(dst, src *uint16, n int)
@@ -500,48 +240,45 @@ TEXT ·ReluFloat16AVX512Asm(SB), NOSPLIT, $0-24
 	MOVQ dst+0(FP), DI
 	MOVQ src+8(FP), SI
 	MOVQ n+16(FP), CX
-	VBROADCASTSS ewZeroFP16AVX512<>(SB), Y1
-f16relu_w8:
+	VPXORD Y31, Y31, Y31
+relu_w16:
+	CMPQ CX, $16
+	JL   relu_w8
+	VMOVUPH Y0, (SI)
+	VCMPPH K1, Y0, Y31, $13
+	VBLENDMPH Y0, Y31, Y0, K1
+	VMOVUPH Y0, (DI)
+	ADDQ $32, SI
+	ADDQ $32, DI
+	SUBQ $16, CX
+	JMP  relu_w16
+relu_w8:
 	CMPQ CX, $8
-	JL   f16relu_w4
-	WIDEN_FP16_8H(SI, Y0)
-	VCMPPS $6, Y0, Y1, Y2
-	VBLENDVPS Y1, Y0, Y2, Y0
-	NARROW_FP16_Y8(DI)
+	JL   relu_tail
+	VMOVUPH X0, (SI)
+	VPXORD X31, X31, X31
+	VCMPPH K1, X0, X31, $13
+	VBLENDMPH X0, X31, X0, K1
+	VMOVUPH X0, (DI)
 	ADDQ $16, SI
 	ADDQ $16, DI
 	SUBQ $8, CX
-	JMP  f16relu_w8
-f16relu_w4:
-	CMPQ CX, $4
-	JL   f16relu_tail
-	WIDEN_FP16_4H(SI, Y0)
-	VCMPPS $6, Y0, Y1, Y2
-	VBLENDVPS Y1, Y0, Y2, Y0
-	NARROW_FP16_Y4(DI)
-	ADDQ $8, SI
-	ADDQ $8, DI
-	SUBQ $4, CX
-	JMP  f16relu_w4
-f16relu_tail:
+	JMP  relu_w8
+relu_tail:
 	TESTQ CX, CX
-	JZ   f16relu_done
-	VXORPS X1, X1, X1
-f16relu_scalar:
-	MOVWLZX (SI), AX
+	JZ   relu_done
+	VPXORD X31, X31, X31
+relu_scalar:
+	VPBROADCASTW (SI), X2
+	VCMPPH K1, X2, X31, $13
+	VBLENDMPH X2, X31, X2, K1
 	VMOVD X2, AX
-	VCVTPH2PS X2, X2
-	VCMPSS $6, X2, X1, X4
-	VBLENDVPS X1, X2, X4, X2
-	VMOVAPS X2, X0
-	VCVTPS2PH_X0_X2
-	MOVL  X2, AX
-	MOVW  AX, (DI)
+	MOVW AX, (DI)
 	ADDQ $2, SI
 	ADDQ $2, DI
 	DECQ CX
-	JNZ  f16relu_scalar
-f16relu_done:
+	JNZ  relu_scalar
+relu_done:
 	RET
 
 // func AxpyFloat16AVX512Asm(y, x *uint16, alpha float32, n int)
@@ -550,49 +287,44 @@ TEXT ·AxpyFloat16AVX512Asm(SB), NOSPLIT, $0-32
 	MOVQ x+8(FP), SI
 	MOVSS alpha+16(FP), X15
 	MOVQ n+24(FP), CX
-axpyfp16_w8:
+	VMOVAPS X15, X0
+	VCVTPS2PH_X0_X2
+	VPBROADCASTW X2, Y31
+	VEXTRACTI128 $0, Y31, X31
+axpy_w16:
+	CMPQ CX, $16
+	JL   axpy_w8
+	VMOVUPH Y0, (DI)
+	VMOVUPH Y1, (SI)
+	VFMADD231PH Y31, Y1, Y0
+	VMOVUPH Y0, (DI)
+	ADDQ $32, DI
+	ADDQ $32, SI
+	SUBQ $16, CX
+	JMP  axpy_w16
+axpy_w8:
 	CMPQ CX, $8
-	JL   axpyfp16_w4
-	WIDEN_FP16_8H(DI, Y0)
-	WIDEN_FP16_8H(SI, Y1)
-	VBROADCASTSS X15, Y31
-	VFMADD231PS Y31, Y1, Y0
-	NARROW_FP16_Y8(DI)
+	JL   axpy_tail
+	VMOVUPH X0, (DI)
+	VMOVUPH X1, (SI)
+	VFMADD231PH X31, X1, X0
+	VMOVUPH X0, (DI)
 	ADDQ $16, DI
 	ADDQ $16, SI
 	SUBQ $8, CX
-	JMP  axpyfp16_w8
-axpyfp16_w4:
-	CMPQ CX, $4
-	JL   axpyfp16_tail
-	WIDEN_FP16_4H(DI, Y0)
-	WIDEN_FP16_4H(SI, Y1)
-	VBROADCASTSS X15, Y31
-	VFMADD231PS Y31, Y1, Y0
-	NARROW_FP16_Y4(DI)
-	ADDQ $8, DI
-	ADDQ $8, SI
-	SUBQ $4, CX
-	JMP  axpyfp16_w4
-axpyfp16_tail:
+	JMP  axpy_w8
+axpy_tail:
 	TESTQ CX, CX
-	JZ   axpyfp16_done
-axpyfp16_scalar:
-	MOVWLZX (DI), AX
-	VMOVD X2, AX
-	VCVTPH2PS X2, X2
-	MOVWLZX (SI), DX
-	VMOVD X3, DX
-	VCVTPH2PS X3, X3
-	VMULSS X15, X3, X3
-	VADDSS X3, X2, X2
-	VMOVAPS X2, X0
-	VCVTPS2PH_X0_X2
-	MOVL  X2, AX
-	MOVW  AX, (DI)
+	JZ   axpy_done
+axpy_scalar:
+	VPBROADCASTW (DI), X0
+	VPBROADCASTW (SI), X1
+	VFMADD231PH X31, X1, X0
+	VMOVD X0, AX
+	MOVW AX, (DI)
 	ADDQ $2, DI
 	ADDQ $2, SI
 	DECQ CX
-	JNZ  axpyfp16_scalar
-axpyfp16_done:
+	JNZ  axpy_scalar
+axpy_done:
 	RET

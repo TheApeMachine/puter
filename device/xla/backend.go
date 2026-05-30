@@ -25,6 +25,7 @@ import (
 	"github.com/theapemachine/puter/device/xla/dropout"
 	"github.com/theapemachine/puter/device/xla/elementwise"
 	"github.com/theapemachine/puter/device/xla/embedding"
+	"github.com/theapemachine/puter/device/xla/geometry"
 	"github.com/theapemachine/puter/device/xla/hawkes"
 	"github.com/theapemachine/puter/device/xla/layernorm"
 	"github.com/theapemachine/puter/device/xla/losses"
@@ -61,6 +62,7 @@ type Backend struct {
 	losses.Losses
 	sampling.Sampling
 	embedding.Embedding
+	geometry.Geometry
 	normalization.Normalization
 	layernorm.Norm
 	rope.RotaryEmbedding
