@@ -224,11 +224,13 @@ static inline void groupnorm_rows(
     for (uint offset = threadIndex; offset < groupSize; offset += normalizationThreadCount) {
         uint channel = channelStart + offset / spatial;
         float inputValue = Storage::load(input, groupOffset + offset);
-        float delta = inputValue - mean;
-        float normalized = delta * invStdDev;
         float scaleValue = Storage::load(scale, channel);
         float biasValue = Storage::load(bias, channel);
-        Storage::store(out, groupOffset + offset, fma(normalized, scaleValue, biasValue));
+        Storage::store(
+            out,
+            groupOffset + offset,
+            (inputValue - mean) * invStdDev * scaleValue + biasValue
+        );
     }
 }
 

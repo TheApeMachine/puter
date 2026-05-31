@@ -26,6 +26,7 @@ import (
 	"github.com/theapemachine/puter/device/metal/normalization"
 	metaloptimizer "github.com/theapemachine/puter/device/metal/optimizer"
 	metalpool "github.com/theapemachine/puter/device/metal/pool"
+	metalresonant "github.com/theapemachine/puter/device/metal/resonant"
 	metalrope "github.com/theapemachine/puter/device/metal/rope"
 	metalshape "github.com/theapemachine/puter/device/metal/shape"
 )
@@ -1409,6 +1410,75 @@ func (host *ComputeHost) DispatchCopyContiguous(dst, src unsafe.Pointer, count i
 		format,
 		uint32(count*elementBytes),
 	))
+}
+
+func (host *ComputeHost) DispatchResonantUpdateForward(
+	x, y, vr, vi, diag unsafe.Pointer,
+	xOut, yOut, aOut, bOut, invROut unsafe.Pointer,
+	batchTime, headCount, headDim int,
+	config device.ResonantUpdateConfig,
+	format dtype.DType,
+) {
+	if batchTime*headCount*headDim == 0 {
+		return
+	}
+
+	if err := metalresonant.DispatchResonantUpdateForwardRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(x))),
+		uintptr(unsafe.Pointer(resolveBufferRef(y))),
+		uintptr(unsafe.Pointer(resolveBufferRef(vr))),
+		uintptr(unsafe.Pointer(resolveBufferRef(vi))),
+		uintptr(unsafe.Pointer(resolveBufferRef(diag))),
+		uintptr(unsafe.Pointer(resolveBufferRef(xOut))),
+		uintptr(unsafe.Pointer(resolveBufferRef(yOut))),
+		uintptr(unsafe.Pointer(resolveBufferRef(aOut))),
+		uintptr(unsafe.Pointer(resolveBufferRef(bOut))),
+		uintptr(unsafe.Pointer(resolveBufferRef(invROut))),
+		batchTime,
+		headCount,
+		headDim,
+		config,
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
+}
+
+func (host *ComputeHost) DispatchResonantUpdateBackward(
+	gradXOut, gradYOut unsafe.Pointer,
+	x, y, diag, a, b, invR unsafe.Pointer,
+	gradX, gradY, gradVR, gradVI unsafe.Pointer,
+	batchTime, headCount, headDim int,
+	config device.ResonantUpdateConfig,
+	format dtype.DType,
+) {
+	if batchTime*headCount*headDim == 0 {
+		return
+	}
+
+	if err := metalresonant.DispatchResonantUpdateBackwardRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(gradXOut))),
+		uintptr(unsafe.Pointer(resolveBufferRef(gradYOut))),
+		uintptr(unsafe.Pointer(resolveBufferRef(x))),
+		uintptr(unsafe.Pointer(resolveBufferRef(y))),
+		uintptr(unsafe.Pointer(resolveBufferRef(diag))),
+		uintptr(unsafe.Pointer(resolveBufferRef(a))),
+		uintptr(unsafe.Pointer(resolveBufferRef(b))),
+		uintptr(unsafe.Pointer(resolveBufferRef(invR))),
+		uintptr(unsafe.Pointer(resolveBufferRef(gradX))),
+		uintptr(unsafe.Pointer(resolveBufferRef(gradY))),
+		uintptr(unsafe.Pointer(resolveBufferRef(gradVR))),
+		uintptr(unsafe.Pointer(resolveBufferRef(gradVI))),
+		batchTime,
+		headCount,
+		headDim,
+		config,
+		format,
+	); err != nil {
+		host.dispatchError(err)
+	}
 }
 
 func (host *ComputeHost) DispatchReshape(input, output unsafe.Pointer, count int, format dtype.DType) {

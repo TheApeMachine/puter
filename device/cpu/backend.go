@@ -25,11 +25,13 @@ import (
 	"github.com/theapemachine/puter/device/cpu/masking"
 	"github.com/theapemachine/puter/device/cpu/matmul"
 	"github.com/theapemachine/puter/device/cpu/normalization"
+	"github.com/theapemachine/puter/device/cpu/optimizer"
 	"github.com/theapemachine/puter/device/cpu/physics"
 	"github.com/theapemachine/puter/device/cpu/pool"
 	"github.com/theapemachine/puter/device/cpu/predictive_coding"
 	"github.com/theapemachine/puter/device/cpu/quant"
 	"github.com/theapemachine/puter/device/cpu/reduction"
+	"github.com/theapemachine/puter/device/cpu/resonant"
 	"github.com/theapemachine/puter/device/cpu/rope"
 	"github.com/theapemachine/puter/device/cpu/sampling"
 	"github.com/theapemachine/puter/device/cpu/vsa"
@@ -74,6 +76,8 @@ type Backend struct {
 	vsa.VSA
 	active_inference.ActiveInference
 	predictive_coding.PredictiveCoding
+	resonant.Resonant
+	optimizer.Stepper
 	dequant.Dequantization
 	quant.Quantization
 }

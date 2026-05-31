@@ -40,6 +40,7 @@ import (
 	"github.com/theapemachine/puter/device/cuda/predictive_coding"
 	"github.com/theapemachine/puter/device/cuda/quant"
 	"github.com/theapemachine/puter/device/cuda/reduction"
+	"github.com/theapemachine/puter/device/cuda/resonant"
 	"github.com/theapemachine/puter/device/cuda/rope"
 	"github.com/theapemachine/puter/device/cuda/sampling"
 	"github.com/theapemachine/puter/device/cuda/vsa"
@@ -75,6 +76,7 @@ type Backend struct {
 	vsa.VSA
 	active_inference.ActiveInference
 	predictive_coding.PredictiveCoding
+	resonant.Resonant
 	dequant.Dequantization
 	quant.Quantization
 }

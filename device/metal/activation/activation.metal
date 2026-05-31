@@ -31,24 +31,95 @@ constant float metalFastExp32PolyC2 = 0.5f;
 constant float metalFastExp32PolyC1 = 1.0f;
 constant float metalFastExp32PolyC0 = 1.0f;
 
+static inline float metal_exp32_go_reference(float value) {
+    float scaled = value * metalFastExp32Log2E;
+    int32_t exponentInt = int32_t(scaled);
+
+    if (scaled < 0.0f) {
+        exponentInt--;
+    }
+
+    float fraction = scaled - float(exponentInt);
+    float poly = metalFastExp32PolyC0 + fraction * (
+        0.69314718f + fraction * (
+            0.24022650f + fraction * (
+                0.05550410f + fraction * (
+                    0.00961812f + fraction * 0.00133389f
+                )
+            )
+        )
+    );
+    uint polyBits = as_type<uint>(poly);
+    polyBits += uint(exponentInt) << 23;
+
+    return as_type<float>(polyBits);
+}
+
+static inline float4 metal_exp32_horner_float4(float4 value) {
+#pragma METAL fp_contract(off)
+    float4 scaled = value * metalFastExp32Log2E;
+    float4 roundedK = rint(scaled);
+    float4 fraction = value - roundedK * metalFastExp32Ln2;
+    float4 poly = metalFastExp32PolyC7;
+
+    poly = fraction * poly + metalFastExp32PolyC6;
+    poly = fraction * poly + metalFastExp32PolyC5;
+    poly = fraction * poly + metalFastExp32PolyC4;
+    poly = fraction * poly + metalFastExp32PolyC3;
+    poly = fraction * poly + metalFastExp32PolyC2;
+    poly = fraction * poly + metalFastExp32PolyC1;
+    poly = fraction * poly + metalFastExp32PolyC0;
+
+    int4 exponentInt = int4(roundedK);
+    uint4 scaleBits = as_type<uint4>(exponentInt + 127) << 23;
+
+    return poly * as_type<float4>(scaleBits);
+#pragma METAL fp_contract(on)
+}
+
+static inline float4 metal_fast_tanh_exp32_float4(float4 value) {
+#pragma METAL fp_contract(off)
+    float4 expTwoValue = metal_exp32_horner_float4(2.0f * value);
+    float4 numerator = expTwoValue - 1.0f;
+    float4 denominator = expTwoValue + 1.0f;
+
+    return numerator / denominator;
+#pragma METAL fp_contract(on)
+}
+
+static inline float4 metal_gelu_tanh_neon_float4(float4 value) {
+#pragma METAL fp_contract(off)
+    float4 valueCubed = value * value * value;
+    float4 innerArg = fma(metalGeluTanhBeta, valueCubed, value);
+    float4 inner = metalGeluTanhAlpha * innerArg;
+    float4 tanhValue = metal_fast_tanh_exp32_float4(inner);
+    float4 onePlusTanh = 1.0f + tanhValue;
+    float4 scaled = value * onePlusTanh;
+
+    return 0.5f * scaled;
+#pragma METAL fp_contract(on)
+}
+
 static inline float metal_exp32_horner(float value) {
+#pragma METAL fp_contract(off)
     float scaled = value * metalFastExp32Log2E;
     float roundedK = rint(scaled);
     float fraction = value - roundedK * metalFastExp32Ln2;
     float poly = metalFastExp32PolyC7;
 
-    poly = fma(fraction, poly, metalFastExp32PolyC6);
-    poly = fma(fraction, poly, metalFastExp32PolyC5);
-    poly = fma(fraction, poly, metalFastExp32PolyC4);
-    poly = fma(fraction, poly, metalFastExp32PolyC3);
-    poly = fma(fraction, poly, metalFastExp32PolyC2);
-    poly = fma(fraction, poly, metalFastExp32PolyC1);
-    poly = fma(fraction, poly, metalFastExp32PolyC0);
+    poly = fraction * poly + metalFastExp32PolyC6;
+    poly = fraction * poly + metalFastExp32PolyC5;
+    poly = fraction * poly + metalFastExp32PolyC4;
+    poly = fraction * poly + metalFastExp32PolyC3;
+    poly = fraction * poly + metalFastExp32PolyC2;
+    poly = fraction * poly + metalFastExp32PolyC1;
+    poly = fraction * poly + metalFastExp32PolyC0;
 
     int32_t exponentInt = int32_t(roundedK);
     uint scaleBits = as_type<uint>(exponentInt + 127) << 23;
 
     return poly * as_type<float>(scaleBits);
+#pragma METAL fp_contract(on)
 }
 
 static inline float metal_fast_exp32(float value) {
@@ -64,9 +135,13 @@ static inline float metal_fast_exp32(float value) {
 }
 
 static inline float metal_fast_tanh_exp32(float value) {
-    float expTwoValue = metal_fast_exp32(2.0f * value);
+#pragma METAL fp_contract(off)
+    float expTwoValue = metal_exp32_horner(2.0f * value);
+    float numerator = expTwoValue - 1.0f;
+    float denominator = expTwoValue + 1.0f;
 
-    return (expTwoValue - 1.0f) / (expTwoValue + 1.0f);
+    return numerator / denominator;
+#pragma METAL fp_contract(on)
 }
 
 // Matches cpumath.FastTanh32 in device/cpu/math/f32.go.

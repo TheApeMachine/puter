@@ -26,6 +26,7 @@ import (
 	"github.com/theapemachine/puter/device/xla/predictive_coding"
 	"github.com/theapemachine/puter/device/xla/quant"
 	"github.com/theapemachine/puter/device/xla/reduction"
+	"github.com/theapemachine/puter/device/xla/resonant"
 	"github.com/theapemachine/puter/device/xla/rope"
 	"github.com/theapemachine/puter/device/xla/sampling"
 	"github.com/theapemachine/puter/device/xla/vsa"
@@ -55,6 +56,7 @@ func (backend *Backend) bindFamilies(computeHost *ComputeHost) {
 	backend.VSA = vsa.New(computeHost)
 	backend.ActiveInference = active_inference.New(computeHost)
 	backend.PredictiveCoding = predictive_coding.New(computeHost)
+	backend.Resonant = resonant.New()
 	backend.Dequantization = dequant.New(computeHost)
 	backend.Quantization = quant.New(computeHost)
 }

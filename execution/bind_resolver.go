@@ -12,14 +12,15 @@ import (
 )
 
 type bindResolver struct {
-	dispatcher  *dispatcher
-	node        *ast.GraphNode
-	bind        OperationBind
-	output      tensor.Tensor
-	outputShape tensor.Shape
-	outputDType dtype.DType
-	inputSlots  []int
-	outputSlot  int
+	dispatcher    *dispatcher
+	node          *ast.GraphNode
+	bind          OperationBind
+	output        tensor.Tensor
+	outputsByName map[string]tensor.Tensor
+	outputShape   tensor.Shape
+	outputDType   dtype.DType
+	inputSlots    []int
+	outputSlot    int
 }
 
 func runBoundNode(dispatcher *dispatcher, node *ast.GraphNode, bind OperationBind) error {
@@ -76,13 +77,21 @@ func runBoundNodeWithSlots(
 		return nil
 	}
 
-	output, err := resolver.allocateOutput()
+	var output tensor.Tensor
+
+	if isResonantMultiOutputMethod(bind.Method) {
+		err = resolver.allocateResonantOutputs()
+	} else {
+		output, err = resolver.allocateOutput()
+
+		if err == nil {
+			resolver.output = output
+		}
+	}
 
 	if err != nil {
 		return fmt.Errorf("bind op %q: allocate output: %w", node.Op, err)
 	}
-
-	resolver.output = output
 
 	configFields, err := resolver.resolveConfigFields()
 
@@ -120,6 +129,11 @@ func runBoundNodeWithSlots(
 
 	if err := call(dispatcher.deviceBackend, configFields, args); err != nil {
 		return fmt.Errorf("bind op %q: %w", node.Op, err)
+	}
+
+	if isResonantMultiOutputMethod(bind.Method) {
+		resolver.storeResonantOutputs()
+		return nil
 	}
 
 	resolver.storeOutput(output)
@@ -468,8 +482,18 @@ func (resolver *bindResolver) resolveOutputRef(parts []string) (any, error) {
 		return nil, fmt.Errorf("output ref requires a port name and property")
 	}
 
-	switch strings.Join(parts[2:], ".") {
+	portName := parts[1]
+	property := strings.Join(parts[2:], ".")
+
+	switch property {
 	case "pointer":
+		if resolver.outputsByName != nil {
+			if namedOutput, ok := resolver.outputsByName[portName]; ok {
+				pointer, _, err := pointerOf(namedOutput)
+				return pointer, err
+			}
+		}
+
 		if resolver.output == nil {
 			return nil, fmt.Errorf("output pointer requested before allocation")
 		}
@@ -482,7 +506,7 @@ func (resolver *bindResolver) resolveOutputRef(parts []string) (any, error) {
 	case "dtype":
 		return resolver.outputDType, nil
 	default:
-		return nil, fmt.Errorf("unknown output property %q", strings.Join(parts[2:], "."))
+		return nil, fmt.Errorf("unknown output property %q", property)
 	}
 }
 

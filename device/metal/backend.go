@@ -35,6 +35,7 @@ import (
 	"github.com/theapemachine/puter/device/metal/predictive_coding"
 	"github.com/theapemachine/puter/device/metal/quant"
 	"github.com/theapemachine/puter/device/metal/reduction"
+	"github.com/theapemachine/puter/device/metal/resonant"
 	"github.com/theapemachine/puter/device/metal/rope"
 	"github.com/theapemachine/puter/device/metal/sampling"
 	"github.com/theapemachine/puter/device/metal/shape"
@@ -82,6 +83,7 @@ type Backend struct {
 	vsa.VSA
 	active_inference.ActiveInference
 	predictive_coding.PredictiveCoding
+	resonant.Resonant
 	dequant.Dequantization
 	quant.Quantization
 }

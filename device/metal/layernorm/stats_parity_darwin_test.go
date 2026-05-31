@@ -43,10 +43,8 @@ func TestLayerNormMetalStatsParity(t *testing.T) {
 		row := input[rowIndex*cols : (rowIndex+1)*cols]
 		sum := cpulayernorm.SumFloat32Native(row)
 		wantMean := float32(float64(sum) / float64(cols))
-		variance := float32(
-			float64(cpulayernorm.LayerNormSquaredDiffSumNative(row, wantMean)) / float64(cols),
-		)
-		wantInvStdDev := float32(1.0 / math.Sqrt(float64(variance+1e-5)))
+		variance := float64(cpulayernorm.LayerNormSquaredDiffSumNative(row, wantMean)) / float64(cols)
+		wantInvStdDev := float32(1.0 / math.Sqrt(variance+1e-5))
 
 		gotMean := stats[rowIndex*2]
 		gotInvStdDev := stats[rowIndex*2+1]

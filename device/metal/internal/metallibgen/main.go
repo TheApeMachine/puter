@@ -124,7 +124,7 @@ func (generator *Generator) needsStrictFP(source string) bool {
 	}
 
 	switch baseName {
-	case "optimizer.metal", "model_editing.metal":
+	case "optimizer.metal", "model_editing.metal", "standard.metal", "activation.metal", "resonant_update.metal":
 		return true
 	default:
 		return false

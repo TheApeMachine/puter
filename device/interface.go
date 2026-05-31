@@ -247,6 +247,28 @@ type Embedding interface {
 	)
 }
 
+/*
+Resonant applies coupled phasor updates used by resonant-network blocks.
+Tensors use layout (batch_time, head_count, head_dim); diag is (head_count, head_dim).
+*/
+type Resonant interface {
+	ResonantUpdateForward(
+		x, y, vr, vi, diag unsafe.Pointer,
+		xOut, yOut, aOut, bOut, invROut unsafe.Pointer,
+		batchTime, headCount, headDim int,
+		config ResonantUpdateConfig,
+		format dtype.DType,
+	)
+	ResonantUpdateBackward(
+		gradXOut, gradYOut unsafe.Pointer,
+		x, y, diag, a, b, invR unsafe.Pointer,
+		gradX, gradY, gradVR, gradVI unsafe.Pointer,
+		batchTime, headCount, headDim int,
+		config ResonantUpdateConfig,
+		format dtype.DType,
+	)
+}
+
 type Hawkes interface {
 	HawkesIntensity(
 		eventTimes, queryTimes, output unsafe.Pointer,
@@ -668,6 +690,7 @@ type Backend interface {
 	PredictiveCoding
 	Quant
 	Reduction
+	Resonant
 	RoPE
 	Sampling
 	Shape

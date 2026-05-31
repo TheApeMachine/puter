@@ -20,54 +20,74 @@ static inline void groupnorm_stats_rows_f32(
     uint channelStart = groupIndex * channelsPerGroup;
     uint groupSize = channelsPerGroup * spatial;
     uint groupOffset = (batchIndex * channels + channelStart) * spatial;
-    ulong sum64 = SF64_NORM_ZERO;
+    float mean;
 
-    for (uint offset = threadIndex; offset < groupSize; offset += normalizationThreadCount) {
-        float value = input[groupOffset + offset];
-        sum64 = metal_sf64_add(sum64, metal_sf32_to64(as_type<uint>(value)));
-    }
+    if (threadIndex == 0) {
+        ulong sum64 = SF64_NORM_ZERO;
 
-    sf64Reduction[threadIndex] = sum64;
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-
-    for (uint stride = normalizationThreadCount / 2; stride > 0; stride >>= 1) {
-        if (threadIndex < stride) {
-            sf64Reduction[threadIndex] = metal_sf64_add(
-                sf64Reduction[threadIndex],
-                sf64Reduction[threadIndex + stride]
-            );
+        for (uint offset = 0; offset < groupSize; offset++) {
+            float value = input[groupOffset + offset];
+            sum64 = metal_sf64_add(sum64, metal_sf32_to64(as_type<uint>(value)));
         }
 
-        threadgroup_barrier(mem_flags::mem_threadgroup);
+        sf64Reduction[0] = sum64;
     }
 
-    float mean = metal_norm_mean_f32(sf64Reduction[0], groupSize);
-    ulong variance64 = SF64_NORM_ZERO;
-
-    for (uint offset = threadIndex; offset < groupSize; offset += normalizationThreadCount) {
-        float delta = input[groupOffset + offset] - mean;
-        ulong delta64 = metal_sf32_to64(as_type<uint>(delta));
-        variance64 = metal_sf64_add(variance64, metal_sf64_mul(delta64, delta64));
-    }
-
-    sf64Reduction[threadIndex] = variance64;
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
-    for (uint stride = normalizationThreadCount / 2; stride > 0; stride >>= 1) {
-        if (threadIndex < stride) {
-            sf64Reduction[threadIndex] = metal_sf64_add(
-                sf64Reduction[threadIndex],
-                sf64Reduction[threadIndex + stride]
-            );
+    if (threadIndex == 0) {
+        mean = metal_norm_mean_f32(sf64Reduction[0], groupSize);
+        reduction[0] = mean;
+    }
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    mean = reduction[0];
+
+    if (threadIndex == 0) {
+#pragma METAL fp_contract(off)
+        float lane0 = 0.0f;
+        float lane1 = 0.0f;
+        float lane2 = 0.0f;
+        float lane3 = 0.0f;
+
+        for (uint block = 0; block + 4 <= groupSize; block += 4) {
+            float delta0 = input[groupOffset + block] - mean;
+            float delta1 = input[groupOffset + block + 1] - mean;
+            float delta2 = input[groupOffset + block + 2] - mean;
+            float delta3 = input[groupOffset + block + 3] - mean;
+            lane0 = fma(delta0, delta0, lane0);
+            lane1 = fma(delta1, delta1, lane1);
+            lane2 = fma(delta2, delta2, lane2);
+            lane3 = fma(delta3, delta3, lane3);
         }
 
-        threadgroup_barrier(mem_flags::mem_threadgroup);
+        uint tailStart = groupSize & ~3u;
+        uint tailCount = groupSize & 3u;
+
+        if (tailCount >= 1) {
+            float delta = input[groupOffset + tailStart] - mean;
+            lane0 = fma(delta, delta, lane0);
+        }
+
+        if (tailCount >= 2) {
+            float delta = input[groupOffset + tailStart + 1] - mean;
+            lane1 = fma(delta, delta, lane1);
+        }
+
+        if (tailCount >= 3) {
+            float delta = input[groupOffset + tailStart + 2] - mean;
+            lane2 = fma(delta, delta, lane2);
+        }
+
+        reduction[0] = (lane0 + lane1) + (lane2 + lane3);
+#pragma METAL fp_contract(on)
     }
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
 
     if (threadIndex == 0) {
         rowStats[row * 2] = mean;
-        float varianceSum = as_type<float>(metal_sf64_to32(sf64Reduction[0]));
-        rowStats[row * 2 + 1] = metal_norm_inv_std_dev_f32(varianceSum, groupSize);
+        rowStats[row * 2 + 1] = metal_norm_inv_std_dev_f32(reduction[0], groupSize);
     }
 }
 

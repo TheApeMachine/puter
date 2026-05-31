@@ -19,11 +19,13 @@ import (
 	"github.com/theapemachine/puter/device/cpu/masking"
 	"github.com/theapemachine/puter/device/cpu/matmul"
 	"github.com/theapemachine/puter/device/cpu/normalization"
+	"github.com/theapemachine/puter/device/cpu/optimizer"
 	"github.com/theapemachine/puter/device/cpu/physics"
 	"github.com/theapemachine/puter/device/cpu/pool"
 	"github.com/theapemachine/puter/device/cpu/predictive_coding"
 	"github.com/theapemachine/puter/device/cpu/quant"
 	"github.com/theapemachine/puter/device/cpu/reduction"
+	"github.com/theapemachine/puter/device/cpu/resonant"
 	"github.com/theapemachine/puter/device/cpu/rope"
 	"github.com/theapemachine/puter/device/cpu/sampling"
 	"github.com/theapemachine/puter/device/cpu/vsa"
@@ -54,6 +56,8 @@ func (backend *Backend) bindFamilies() {
 	backend.VSA = vsa.New()
 	backend.ActiveInference = active_inference.New()
 	backend.PredictiveCoding = predictive_coding.New()
+	backend.Resonant = resonant.New()
+	backend.Stepper = optimizer.NewStepper()
 	backend.Dequantization = dequant.New()
 	backend.Quantization = quant.New()
 }

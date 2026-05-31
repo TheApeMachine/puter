@@ -1,21 +1,25 @@
 #include <metal_stdlib>
 #include "activation.metal"
 #include "../elementwise/elementwise_f64_math.metalinc"
+#include "../elementwise/elementwise_f64_transcendental.metalinc"
 #include "activation_ops_f16.metalinc"
 #include "activation_ops_bf16.metalinc"
 
+#pragma METAL fp_contract(off)
+
 using namespace metal;
+
+#pragma METAL fp_contract(off)
 
 static inline float metal_gelu_tanh_softfloat_scalar(float value) {
     float valueCubed = value * value * value;
-    float inner = metalGeluTanhAlpha * fma(metalGeluTanhBeta, valueCubed, value);
-    float tanhValue = metal_fast_tanh_rational(inner);
-    ulong value64 = metal_sf32_to64(as_type<uint>(value));
-    ulong tanh64 = metal_sf32_to64(as_type<uint>(tanhValue));
-    ulong onePlusTanh = metal_sf64_add(SF64_ONE, tanh64);
-    ulong product = metal_sf64_mul(SF64_HALF, metal_sf64_mul(value64, onePlusTanh));
+    float innerArg = fma(metalGeluTanhBeta, valueCubed, value);
+    float inner = metalGeluTanhAlpha * innerArg;
+    float tanhValue = metal_fast_tanh_exp32(inner);
+    float onePlusTanh = 1.0f + tanhValue;
+    float scaled = value * onePlusTanh;
 
-    return as_type<float>(metal_sf64_to32(product));
+    return 0.5f * scaled;
 }
 
 
@@ -186,12 +190,7 @@ struct LogSigmoidOp {
 
 struct GeluTanhOp {
     float4 operator()(float4 value) const {
-        return float4(
-            metal_gelu_tanh_softfloat_scalar(value.x),
-            metal_gelu_tanh_softfloat_scalar(value.y),
-            metal_gelu_tanh_softfloat_scalar(value.z),
-            metal_gelu_tanh_softfloat_scalar(value.w)
-        );
+        return metal_gelu_tanh_neon_float4(value);
     }
 
     float operator()(float value) const {

@@ -32,6 +32,7 @@ import (
 	"github.com/theapemachine/puter/device/metal/predictive_coding"
 	"github.com/theapemachine/puter/device/metal/quant"
 	"github.com/theapemachine/puter/device/metal/reduction"
+	"github.com/theapemachine/puter/device/metal/resonant"
 	"github.com/theapemachine/puter/device/metal/rope"
 	"github.com/theapemachine/puter/device/metal/sampling"
 	"github.com/theapemachine/puter/device/metal/shape"
@@ -69,6 +70,7 @@ func (backend *Backend) bindFamilies(computeHost *ComputeHost) {
 	backend.VSA = vsa.New(computeHost)
 	backend.ActiveInference = active_inference.New(computeHost)
 	backend.PredictiveCoding = predictive_coding.New(computeHost)
+	backend.Resonant = resonant.New(computeHost)
 	backend.Dequantization = dequant.New(computeHost)
 	backend.Quantization = quant.New(computeHost)
 }

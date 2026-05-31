@@ -37,6 +37,7 @@ import (
 	"github.com/theapemachine/puter/device/xla/predictive_coding"
 	"github.com/theapemachine/puter/device/xla/quant"
 	"github.com/theapemachine/puter/device/xla/reduction"
+	"github.com/theapemachine/puter/device/xla/resonant"
 	"github.com/theapemachine/puter/device/xla/rope"
 	"github.com/theapemachine/puter/device/xla/sampling"
 	"github.com/theapemachine/puter/device/xla/vsa"
@@ -74,6 +75,7 @@ type Backend struct {
 	vsa.VSA
 	active_inference.ActiveInference
 	predictive_coding.PredictiveCoding
+	resonant.Resonant
 	dequant.Dequantization
 	quant.Quantization
 }

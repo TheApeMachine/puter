@@ -97,6 +97,23 @@ type executionDevice interface {
 
 	// Attention family.
 	MultiHeadAttention(config device.MultiHeadAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK int, format dtype.DType)
+
+	// Resonant family.
+	ResonantUpdateForward(
+		x, y, vr, vi, diag unsafe.Pointer,
+		xOut, yOut, aOut, bOut, invROut unsafe.Pointer,
+		batchTime, headCount, headDim int,
+		config device.ResonantUpdateConfig,
+		format dtype.DType,
+	)
+	ResonantUpdateBackward(
+		gradXOut, gradYOut unsafe.Pointer,
+		x, y, diag, a, b, invR unsafe.Pointer,
+		gradX, gradY, gradVR, gradVI unsafe.Pointer,
+		batchTime, headCount, headDim int,
+		config device.ResonantUpdateConfig,
+		format dtype.DType,
+	)
 }
 
 type batchExecutionDevice interface {

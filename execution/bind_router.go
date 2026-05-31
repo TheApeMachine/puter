@@ -120,6 +120,10 @@ func deviceMethodCallFor(method string) (deviceMethodCall, error) {
 		return callMultiAxisRoPE, nil
 	case "MultiHeadAttention":
 		return callMultiHeadAttention, nil
+	case "ResonantUpdateForward":
+		return callResonantUpdateForward, nil
+	case "ResonantUpdateBackward":
+		return callResonantUpdateBackward, nil
 	default:
 		return nil, fmt.Errorf("router: unknown method %q", method)
 	}

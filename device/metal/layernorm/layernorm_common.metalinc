@@ -91,32 +91,76 @@ static inline void compute_row_stats(
     thread float& mean,
     thread float& invStdDev
 ) {
-    float sumF32 = reduce_sum<Storage, Scalar>(input, reduction, rowOffset, cols, threadIndex);
-    ulong sum64 = metal_sf32_to64(as_type<uint>(sumF32));
-    mean = as_type<float>(metal_sf64_to32(metal_sf64_div(sum64, metal_sf64_int_to64(int(cols)))));
-    float localVariance = 0.0f;
-    float localCompensation = 0.0f;
+    if (threadIndex == 0) {
+        ulong sum64 = SF64_NORM_ZERO;
 
-    for (uint col = threadIndex; col < cols; col += normalizationThreadCount) {
-        float delta = Storage::load(input, rowOffset + col) - mean;
-        float value = delta * delta - localCompensation;
-        float nextVariance = localVariance + value;
-        localCompensation = (nextVariance - localVariance) - value;
-        localVariance = nextVariance;
-    }
-
-    reduction[threadIndex] = localVariance;
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-
-    for (uint stride = normalizationThreadCount / 2; stride > 0; stride >>= 1) {
-        if (threadIndex < stride) {
-            reduction[threadIndex] += reduction[threadIndex + stride];
+        for (uint col = 0; col < cols; col++) {
+            float value = Storage::load(input, rowOffset + col);
+            sum64 = metal_sf64_add(sum64, metal_sf32_to64(as_type<uint>(value)));
         }
 
-        threadgroup_barrier(mem_flags::mem_threadgroup);
+        sf64Reduction[0] = sum64;
     }
 
-    invStdDev = metal_norm_inv_std_dev_f32(reduction[0], cols);
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    if (threadIndex == 0) {
+        mean = metal_norm_mean_f32(sf64Reduction[0], cols);
+        reduction[0] = mean;
+    }
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    mean = reduction[0];
+
+    if (threadIndex == 0) {
+#pragma METAL fp_contract(off)
+        float lane0 = 0.0f;
+        float lane1 = 0.0f;
+        float lane2 = 0.0f;
+        float lane3 = 0.0f;
+
+        for (uint block = 0; block + 4 <= cols; block += 4) {
+            float delta0 = Storage::load(input, rowOffset + block) - mean;
+            float delta1 = Storage::load(input, rowOffset + block + 1) - mean;
+            float delta2 = Storage::load(input, rowOffset + block + 2) - mean;
+            float delta3 = Storage::load(input, rowOffset + block + 3) - mean;
+            lane0 = fma(delta0, delta0, lane0);
+            lane1 = fma(delta1, delta1, lane1);
+            lane2 = fma(delta2, delta2, lane2);
+            lane3 = fma(delta3, delta3, lane3);
+        }
+
+        uint tailStart = cols & ~3u;
+        uint tailCount = cols & 3u;
+
+        if (tailCount >= 1) {
+            float delta = Storage::load(input, rowOffset + tailStart) - mean;
+            lane0 = fma(delta, delta, lane0);
+        }
+
+        if (tailCount >= 2) {
+            float delta = Storage::load(input, rowOffset + tailStart + 1) - mean;
+            lane1 = fma(delta, delta, lane1);
+        }
+
+        if (tailCount >= 3) {
+            float delta = Storage::load(input, rowOffset + tailStart + 2) - mean;
+            lane2 = fma(delta, delta, lane2);
+        }
+
+        reduction[0] = (lane0 + lane1) + (lane2 + lane3);
+#pragma METAL fp_contract(on)
+    }
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    if (threadIndex == 0) {
+        invStdDev = metal_norm_inv_std_dev_f32(reduction[0], cols);
+        reduction[1] = invStdDev;
+    }
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    invStdDev = reduction[1];
 }
 
 template <typename Storage, typename Scalar>

@@ -7,6 +7,7 @@ import (
 
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/puter/device"
+	cpuoptimizer "github.com/theapemachine/puter/device/cpu/optimizer"
 	"github.com/theapemachine/puter/device/metal/activation"
 	"github.com/theapemachine/puter/device/metal/elementwise"
 	"github.com/theapemachine/puter/device/metal/losses"
@@ -369,8 +370,6 @@ func (host *ComputeHost) DispatchApplyMask(input, mask, output unsafe.Pointer, c
 	host.unavailable()
 }
 
-
-
 func (host *ComputeHost) DispatchInvSqrtDimScale(out, input unsafe.Pointer, dim int32, format dtype.DType) {
 	host.unavailable()
 }
@@ -528,6 +527,27 @@ func (host *ComputeHost) DispatchPageGatherWithLiveRows(
 func (host *ComputeHost) DispatchPageWrite(
 	storage, values, pageIDs, offsets, output unsafe.Pointer,
 	pageSize int,
+	format dtype.DType,
+) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchResonantUpdateForward(
+	x, y, vr, vi, diag unsafe.Pointer,
+	xOut, yOut, aOut, bOut, invROut unsafe.Pointer,
+	batchTime, headCount, headDim int,
+	config device.ResonantUpdateConfig,
+	format dtype.DType,
+) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchResonantUpdateBackward(
+	gradXOut, gradYOut unsafe.Pointer,
+	x, y, diag, a, b, invR unsafe.Pointer,
+	gradX, gradY, gradVR, gradVI unsafe.Pointer,
+	batchTime, headCount, headDim int,
+	config device.ResonantUpdateConfig,
 	format dtype.DType,
 ) {
 	host.unavailable()

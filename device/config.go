@@ -54,6 +54,12 @@ type GroupNormConfig struct {
 	Groups int
 }
 
+type ResonantUpdateConfig struct {
+	Scale    float32
+	Damping  float32
+	ZeroDiag bool
+}
+
 type TimestepEmbeddingConfig struct {
 	MaxPeriod          float32
 	DownscaleFreqShift float32

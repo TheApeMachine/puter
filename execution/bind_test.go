@@ -429,6 +429,27 @@ func (recorder *recordingDevice) MultiHeadAttention(
 	})
 }
 
+func (recordingDevice) ResonantUpdateForward(
+	x, y, vr, vi, diag unsafe.Pointer,
+	xOut, yOut, aOut, bOut, invROut unsafe.Pointer,
+	batchTime, headCount, headDim int,
+	config device.ResonantUpdateConfig,
+	format dtype.DType,
+) {
+	panic("recordingDevice.ResonantUpdateForward invoked")
+}
+
+func (recordingDevice) ResonantUpdateBackward(
+	gradXOut, gradYOut unsafe.Pointer,
+	x, y, diag, a, b, invR unsafe.Pointer,
+	gradX, gradY, gradVR, gradVI unsafe.Pointer,
+	batchTime, headCount, headDim int,
+	config device.ResonantUpdateConfig,
+	format dtype.DType,
+) {
+	panic("recordingDevice.ResonantUpdateBackward invoked")
+}
+
 func TestRunBoundNodeUsesOperationYAML(t *testing.T) {
 	convey.Convey("Given math.add is declared with a YAML bind", t, func() {
 		memory := tensor.NewHostBackend()

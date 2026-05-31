@@ -1,7 +1,11 @@
 #ifndef PUTER_DEVICE_METAL_INTERNAL_NORM_STATS_METALINC
 #define PUTER_DEVICE_METAL_INTERNAL_NORM_STATS_METALINC
 
+#include <metal_stdlib>
 #include "../elementwise/elementwise_f64_soft.metalinc"
+#include "../elementwise/elementwise_f64_transcendental.metalinc"
+
+using namespace metal;
 
 constant ulong SF64_NORM_EPSILON = 0x3EE4F8B588E368F1u;
 constant ulong SF64_NORM_ZERO = 0x0u;
@@ -66,9 +70,58 @@ static inline float metal_norm_inv_std_dev_f32(float varianceSum, uint count) {
     ulong count64 = metal_sf64_int_to64(int(count));
     ulong variance64 = metal_sf64_div(varSum64, count64);
     ulong varianceWithEpsilon = metal_sf64_add(variance64, SF64_NORM_EPSILON);
-    float varianceMean = as_type<float>(metal_sf64_to32(varianceWithEpsilon));
+    ulong sqrtVariance = metal_sf64_sqrt(varianceWithEpsilon);
+    ulong invStdDev64 = metal_sf64_div(SF64_TRAN_ONE, sqrtVariance);
 
-    return 1.0f / precise::sqrt(varianceMean);
+    return as_type<float>(metal_sf64_to32(invStdDev64));
+}
+
+static inline float metal_norm_squared_diff_sum_f32(
+    device const float* input,
+    uint baseOffset,
+    uint count,
+    float mean
+) {
+#pragma METAL fp_contract(off)
+    float lane0 = 0.0f;
+    float lane1 = 0.0f;
+    float lane2 = 0.0f;
+    float lane3 = 0.0f;
+
+    for (uint block = 0; block + 4 <= count; block += 4) {
+        float delta0 = input[baseOffset + block] - mean;
+        float delta1 = input[baseOffset + block + 1] - mean;
+        float delta2 = input[baseOffset + block + 2] - mean;
+        float delta3 = input[baseOffset + block + 3] - mean;
+        lane0 = fma(delta0, delta0, lane0);
+        lane1 = fma(delta1, delta1, lane1);
+        lane2 = fma(delta2, delta2, lane2);
+        lane3 = fma(delta3, delta3, lane3);
+    }
+
+    uint tailStart = count & ~3u;
+    uint tailCount = count & 3u;
+
+    if (tailCount >= 1) {
+        float delta = input[baseOffset + tailStart] - mean;
+        lane0 = fma(delta, delta, lane0);
+    }
+
+    if (tailCount >= 2) {
+        float delta = input[baseOffset + tailStart + 1] - mean;
+        lane1 = fma(delta, delta, lane1);
+    }
+
+    if (tailCount >= 3) {
+        float delta = input[baseOffset + tailStart + 2] - mean;
+        lane2 = fma(delta, delta, lane2);
+    }
+
+    float pairLeft = lane0 + lane1;
+    float pairRight = lane2 + lane3;
+
+    return pairLeft + pairRight;
+#pragma METAL fp_contract(on)
 }
 
 #endif

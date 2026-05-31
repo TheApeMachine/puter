@@ -6,6 +6,7 @@
 // reduction/aggregate.metal for the precedent).
 
 #include <metal_stdlib>
+#include "../elementwise/elementwise_f64_transcendental.metalinc"
 
 using namespace metal;
 
@@ -16,7 +17,6 @@ constant uint PHILOX_M1 = 0xCD9E8D57u;
 constant uint PHILOX_W0 = 0x9E3779B9u;
 constant uint PHILOX_W1 = 0xBB67AE85u;
 
-constant float TWO_PI_F = 6.28318530717958647692f;
 constant float SMALLEST_POSITIVE_F32 = 0x1.0p-23f;
 
 /*
@@ -113,19 +113,7 @@ ctrHi); for very large output buffers split the work across launches
 with explicit ctrHi increments.
 */
 inline float2 box_muller_pair(float uniformFirst, float uniformSecond) {
-    float first = uniformFirst;
-    float second = uniformSecond;
-
-    if (first == 0.0f) {
-        first = SMALLEST_POSITIVE_F32;
-    }
-
-    float magnitude = precise::sqrt(-2.0f * precise::log(first));
-    float angle = TWO_PI_F * second;
-    float sinValue = precise::sin(angle);
-    float cosValue = precise::cos(angle);
-
-    return float2(magnitude * cosValue, magnitude * sinValue);
+    return metal_sf64_box_muller_pair(uniformFirst, uniformSecond);
 }
 
 kernel void random_normal_float32(

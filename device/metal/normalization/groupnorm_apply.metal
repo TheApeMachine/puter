@@ -29,8 +29,9 @@ kernel void groupnorm_apply_float32(
 
     for (uint offset = threadIndex; offset < groupSize; offset += groupnormApplyThreadCount) {
         uint channel = channelStart + offset / spatial;
-        float delta = input[groupOffset + offset] - mean;
-        float normalized = delta * invStdDev;
+        float inputValue = input[groupOffset + offset];
+        float normalized = inputValue - mean;
+        normalized = normalized * invStdDev;
         out[groupOffset + offset] = fma(normalized, scale[channel], bias[channel]);
     }
 }

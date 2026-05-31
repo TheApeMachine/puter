@@ -362,6 +362,32 @@ func castMultiHeadAttentionConfig(fields map[string]any) (device.MultiHeadAttent
 	}, nil
 }
 
+func castResonantUpdateConfig(fields map[string]any) (device.ResonantUpdateConfig, error) {
+	scale, err := castFloat64Field(fields, "Scale")
+
+	if err != nil {
+		return device.ResonantUpdateConfig{}, err
+	}
+
+	damping, err := castFloat64Field(fields, "Damping")
+
+	if err != nil {
+		return device.ResonantUpdateConfig{}, err
+	}
+
+	zeroDiag, err := castBoolField(fields, "ZeroDiag")
+
+	if err != nil {
+		return device.ResonantUpdateConfig{}, err
+	}
+
+	return device.ResonantUpdateConfig{
+		Scale:    float32(scale),
+		Damping:  float32(damping),
+		ZeroDiag: zeroDiag,
+	}, nil
+}
+
 func castFloat64Field(fields map[string]any, name string) (float64, error) {
 	value, ok := fields[name]
 
