@@ -7,6 +7,7 @@
 // pattern to nearest-even bf16, and narrows via VUZP2.
 
 #include "textflag.h"
+#include "../neon_bf16_macros.inc"
 
 // FADD vector .4S: 0x4E20D400 base
 #define VFADD_S4(m, n, d) WORD $(0x4E20D400 | ((m) << 16) | ((n) << 5) | (d))
@@ -23,25 +24,6 @@
 // ORR .16B (vector move): base 0x4EA01C00 with Rm=Rn
 #define VMOV_B16(src, dst) WORD $(0x4EA01C00 | ((src) << 16) | ((src) << 5) | (dst))
 
-// Widen 8 bf16 lanes (one .H8 vector) into 2 f32 vectors using V31=0.
-// VZIP1 src, zero, dst → dst[2k]=zero[k]=0, dst[2k+1]=src[k]
-// reinterpreting dst as .S4 yields [src[k] << 16] = widened bf16 ✓
-#define WIDEN_H8_TO_S4_LOW(src_h8, dst_h8)  VZIP1 src_h8, V31.H8, dst_h8
-#define WIDEN_H8_TO_S4_HIGH(src_h8, dst_h8) VZIP2 src_h8, V31.H8, dst_h8
-
-// Narrow 2 f32 vectors (.S4 each, 8 lanes total) into 1 bf16 .H8.
-// VUZP2 picks the odd-indexed halfwords of the source pair, which in
-// little-endian is the upper 16 bits of each .S lane = bf16 bits.
-// Go reverses source order, so to get s0's odd lanes first then
-// s1's we write VUZP2 s1, s0, dst.
-#define NARROW_S4_TO_H8(s0_h8, s1_h8, dst_h8) VUZP2 s1_h8, s0_h8, dst_h8
-
-#define ROUND_BF16_S4(reg_s4)             \
-    VUSHR $16, reg_s4, V16.S4             \
-    VAND  V29.B16, V16.B16, V16.B16       \
-    VADD  V28.S4, V16.S4, V16.S4          \
-    VADD  V16.S4, reg_s4, reg_s4
-
 // ADD scalar tail: F0 = F0 + F1
 #define ADD_SCALAR_S FADDS F1, F0, F0
 // SUB scalar tail: F0 = F0 - F1
@@ -57,32 +39,28 @@
     MOVD right+16(FP), R2                                           \
     MOVD n+24(FP), R3                                               \
                                                                     \
-    VEOR V31.B16, V31.B16, V31.B16                                  \
-    MOVD $0x7fff, R6                                                  \
-    VDUP R6, V28.S4                                                   \
-    MOVD $1, R6                                                       \
-    VDUP R6, V29.S4                                                   \
+    BF16_RNE_INIT                                                  \
                                                                     \
 loop16:                                                             \
     CMP  $16, R3                                                    \
     BLT  loop8                                                      \
     VLD1.P 32(R1), [V0.H8, V1.H8]                                   \
     VLD1.P 32(R2), [V2.H8, V3.H8]                                   \
-    WIDEN_H8_TO_S4_LOW(V0.H8, V4.H8)                                \
-    WIDEN_H8_TO_S4_HIGH(V0.H8, V5.H8)                               \
-    WIDEN_H8_TO_S4_LOW(V1.H8, V6.H8)                                \
-    WIDEN_H8_TO_S4_HIGH(V1.H8, V7.H8)                               \
-    WIDEN_H8_TO_S4_LOW(V2.H8, V8.H8)                                \
-    WIDEN_H8_TO_S4_HIGH(V2.H8, V9.H8)                               \
-    WIDEN_H8_TO_S4_LOW(V3.H8, V10.H8)                               \
-    WIDEN_H8_TO_S4_HIGH(V3.H8, V11.H8)                              \
+    BF16_BITS_TO_F32_LOW(V0.H8, V4.H8)                                \
+    BF16_BITS_TO_F32_HIGH(V0.H8, V5.H8)                               \
+    BF16_BITS_TO_F32_LOW(V1.H8, V6.H8)                                \
+    BF16_BITS_TO_F32_HIGH(V1.H8, V7.H8)                               \
+    BF16_BITS_TO_F32_LOW(V2.H8, V8.H8)                                \
+    BF16_BITS_TO_F32_HIGH(V2.H8, V9.H8)                               \
+    BF16_BITS_TO_F32_LOW(V3.H8, V10.H8)                               \
+    BF16_BITS_TO_F32_HIGH(V3.H8, V11.H8)                              \
     op_4x4                                                          \
     ROUND_BF16_S4(V4.S4)                                             \
     ROUND_BF16_S4(V5.S4)                                             \
     ROUND_BF16_S4(V6.S4)                                             \
     ROUND_BF16_S4(V7.S4)                                             \
-    NARROW_S4_TO_H8(V4.H8, V5.H8, V12.H8)                           \
-    NARROW_S4_TO_H8(V6.H8, V7.H8, V13.H8)                           \
+    F32_BITS_TO_BF16_H8(V4.H8, V5.H8, V12.H8)                           \
+    F32_BITS_TO_BF16_H8(V6.H8, V7.H8, V13.H8)                           \
     VST1.P [V12.H8, V13.H8], 32(R0)                                 \
     SUB  $16, R3                                                    \
     B    loop16                                                     \
@@ -92,14 +70,14 @@ loop8:                                                              \
     BLT  scalar_tail                                                \
     VLD1.P 16(R1), [V0.H8]                                          \
     VLD1.P 16(R2), [V2.H8]                                          \
-    WIDEN_H8_TO_S4_LOW(V0.H8, V4.H8)                                \
-    WIDEN_H8_TO_S4_HIGH(V0.H8, V5.H8)                               \
-    WIDEN_H8_TO_S4_LOW(V2.H8, V8.H8)                                \
-    WIDEN_H8_TO_S4_HIGH(V2.H8, V9.H8)                               \
+    BF16_BITS_TO_F32_LOW(V0.H8, V4.H8)                                \
+    BF16_BITS_TO_F32_HIGH(V0.H8, V5.H8)                               \
+    BF16_BITS_TO_F32_LOW(V2.H8, V8.H8)                                \
+    BF16_BITS_TO_F32_HIGH(V2.H8, V9.H8)                               \
     op_2x2                                                          \
     ROUND_BF16_S4(V4.S4)                                             \
     ROUND_BF16_S4(V5.S4)                                             \
-    NARROW_S4_TO_H8(V4.H8, V5.H8, V12.H8)                           \
+    F32_BITS_TO_BF16_H8(V4.H8, V5.H8, V12.H8)                           \
     VST1.P [V12.H8], 16(R0)                                         \
     SUB  $8, R3                                                     \
     B    loop8                                                      \
@@ -115,12 +93,7 @@ scalar_loop:                                                        \
     FMOVS R4, F0                                                    \
     FMOVS R5, F1                                                    \
     op_scalar                                                       \
-    FMOVS F0, R4                                                    \
-    LSR  $16, R4, R5                                                 \
-    AND  $1, R5, R5                                                  \
-    ADD  $0x7fff, R4, R4                                             \
-    ADD  R5, R4, R4                                                  \
-    LSR  $16, R4, R4                                                \
+    BF16_RNE_SCALAR_F0_TO(R4)                                       \
     MOVH R4, (R0)                                                   \
     ADD  $2, R1                                                     \
     ADD  $2, R2                                                     \

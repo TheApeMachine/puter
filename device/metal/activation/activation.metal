@@ -69,6 +69,27 @@ static inline float metal_fast_tanh_exp32(float value) {
     return (expTwoValue - 1.0f) / (expTwoValue + 1.0f);
 }
 
+// Matches cpumath.FastTanh32 in device/cpu/math/f32.go.
+static inline float metal_fast_tanh_rational(float value) {
+    if (value > 4.92f) {
+        return 1.0f;
+    }
+
+    if (value < -4.92f) {
+        return -1.0f;
+    }
+
+    float valueSquared = value * value;
+    float numerator = value * (
+        135135.0f + valueSquared * (17325.0f + valueSquared * (378.0f + valueSquared))
+    );
+    float denominator = 135135.0f + valueSquared * (
+        62370.0f + valueSquared * (3150.0f + valueSquared * 28.0f)
+    );
+
+    return numerator / denominator;
+}
+
 // Called from standard.metal's gelu_tanh kernels via `#include
 // "activation.metal"`. Standalone compilation of activation.metal sees
 // no caller, so silence -Wunused-function with __attribute__((unused)).
@@ -76,23 +97,10 @@ __attribute__((unused))
 static inline float metal_fast_gelu_tanh(float value) {
     float valueCubed = value * value * value;
     float inner = metalGeluTanhAlpha * fma(metalGeluTanhBeta, valueCubed, value);
-    const float expInnerLimit = metalFastExp32Max * 0.5f;
-
-    if (inner >= expInnerLimit) {
-        return value;
-    }
-
-    if (inner <= -expInnerLimit) {
-        return 0.0f;
-    }
-
-    float tanhValue = metal_fast_tanh_exp32(inner);
+    float tanhValue = metal_fast_tanh_rational(inner);
 
 #pragma METAL fp_contract(off)
-    float onePlusTanh = 1.0f + tanhValue;
-    float scaled = value * onePlusTanh;
-
-    return 0.5f * scaled;
+    return 0.5f * value * (1.0f + tanhValue);
 #pragma METAL fp_contract(on)
 }
 

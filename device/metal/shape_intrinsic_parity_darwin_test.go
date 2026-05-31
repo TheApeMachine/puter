@@ -30,7 +30,7 @@ func TestPageWriteGatherMetalLayerParity(testingObject *testing.T) {
 		offsets := uploadInt32MetalTensor(testingObject, backend, []int32{0, 1})
 		defer offsets.Close()
 
-		backend.PageWrite(
+		backend.KVPageWrite(
 			storage.DispatchPointer(),
 			values.DispatchPointer(),
 			pageIDs.DispatchPointer(),
@@ -49,7 +49,7 @@ func TestPageWriteGatherMetalLayerParity(testingObject *testing.T) {
 		output := uploadRoPETensor(testingObject, backend, make([]float32, 2))
 		defer output.Close()
 
-		backend.PageGather(
+		backend.KVPageGather(
 			storage.DispatchPointer(),
 			pageTable.DispatchPointer(),
 			output.DispatchPointer(),
@@ -83,7 +83,7 @@ func TestLastTokenMetalParity(testingObject *testing.T) {
 		output := uploadRoPETensor(testingObject, backend, make([]float32, 2))
 		defer output.Close()
 
-		backend.LastToken(
+		backend.IntrinsicLastToken(
 			input.DispatchPointer(),
 			output.DispatchPointer(),
 			3,
@@ -116,7 +116,7 @@ func TestConcatMetalParity(testingObject *testing.T) {
 		output := uploadRoPETensor(testingObject, backend, make([]float32, 6))
 		defer output.Close()
 
-		backend.ConcatLastDim(
+		backend.IntrinsicConcatLastDim(
 			left.DispatchPointer(),
 			right.DispatchPointer(),
 			output.DispatchPointer(),
@@ -158,7 +158,7 @@ func TestSliceMetalParity(testingObject *testing.T) {
 		output := uploadRoPETensor(testingObject, backend, make([]float32, 8))
 		defer output.Close()
 
-		backend.Slice(
+		backend.IntrinsicSlice(
 			input.DispatchPointer(),
 			output.DispatchPointer(),
 			2,
@@ -203,7 +203,7 @@ func TestTransposeMetalParity(testingObject *testing.T) {
 		output := uploadRoPETensor(testingObject, backend, make([]float32, 24))
 		defer output.Close()
 
-		backend.Transpose(
+		backend.IntrinsicTranspose(
 			input.DispatchPointer(),
 			output.DispatchPointer(),
 			3,
@@ -250,7 +250,7 @@ func TestUpsampleNearest2DMetalParity(testingObject *testing.T) {
 		output := uploadRoPETensor(testingObject, backend, make([]float32, 32))
 		defer output.Close()
 
-		backend.UpsampleNearest2D(
+		backend.IntrinsicUpsampleNearest2D(
 			input.DispatchPointer(),
 			output.DispatchPointer(),
 			2,
@@ -303,7 +303,7 @@ func BenchmarkPageWriteGatherMetal(benchmark *testing.B) {
 	benchmark.ResetTimer()
 
 	for benchmark.Loop() {
-		backend.PageWrite(
+		backend.KVPageWrite(
 			storage.DispatchPointer(),
 			values.DispatchPointer(),
 			pageIDs.DispatchPointer(),
@@ -316,7 +316,7 @@ func BenchmarkPageWriteGatherMetal(benchmark *testing.B) {
 			0,
 			dtype.Float32,
 		)
-		backend.PageGather(
+		backend.KVPageGather(
 			storage.DispatchPointer(),
 			pageTable.DispatchPointer(),
 			output.DispatchPointer(),
@@ -352,7 +352,7 @@ func BenchmarkSliceMetal(benchmark *testing.B) {
 	benchmark.ResetTimer()
 
 	for benchmark.Loop() {
-		backend.Slice(
+		backend.IntrinsicSlice(
 			input.DispatchPointer(),
 			output.DispatchPointer(),
 			sliceLen,
@@ -388,7 +388,7 @@ func BenchmarkUpsampleNearest2DMetal(benchmark *testing.B) {
 	benchmark.ResetTimer()
 
 	for benchmark.Loop() {
-		backend.UpsampleNearest2D(
+		backend.IntrinsicUpsampleNearest2D(
 			input.DispatchPointer(),
 			output.DispatchPointer(),
 			channels,
@@ -420,7 +420,7 @@ func BenchmarkTransposeMetal(benchmark *testing.B) {
 	benchmark.ResetTimer()
 
 	for benchmark.Loop() {
-		backend.Transpose(
+		backend.IntrinsicTranspose(
 			input.DispatchPointer(),
 			output.DispatchPointer(),
 			4,
@@ -452,7 +452,7 @@ func BenchmarkConcatMetal(benchmark *testing.B) {
 	benchmark.ResetTimer()
 
 	for benchmark.Loop() {
-		backend.ConcatLastDim(
+		backend.IntrinsicConcatLastDim(
 			left.DispatchPointer(),
 			right.DispatchPointer(),
 			output.DispatchPointer(),

@@ -1,21 +1,5 @@
 #include "textflag.h"
-
-#define WIDEN_BF16_4H(srcReg, dstY) \
-	VMOVDQU X2, (srcReg); \
-	VPMOVZXWD X2, dstY; \
-	VPSLLD $16, dstY, dstY
-
-#define NARROW_BF16_Y0_TO_4H(dstReg) \
-	VPSRLD $16, Y0, Y0; \
-	VEXTRACTI128 $0, Y0, X2; \
-	MOVL  X2, AX; \
-	MOVW  AX, (dstReg); \
-	PEXTRD $1, X2, AX; \
-	MOVW  AX, 2(dstReg); \
-	PEXTRD $2, X2, AX; \
-	MOVW  AX, 4(dstReg); \
-	PEXTRD $3, X2, AX; \
-	MOVW  AX, 6(dstReg)
+#include "../avx512_bf16_macros.inc"
 
 // func Conv2dStride1RowBF16AVX512Asm(
 //     outRow, input, weight *uint16,
@@ -73,7 +57,7 @@ kw_loop:
 	VMOVD X2, DX
 	VBROADCASTSS X2, Y2
 
-	WIDEN_BF16_4H(R11, Y3)
+	BF16_LOAD_4H(R11, Y3)
 	VFMADD231PS Y1, Y3, Y2
 
 	ADDQ $2, R11
@@ -103,7 +87,7 @@ kh_done:
 
 c_done:
 	VMOVAPS Y1, Y0
-	NARROW_BF16_Y0_TO_4H(DI)
+	PACK_BF16_4H(DI)
 
 	ADDQ $8, DI
 	ADDQ $8, SI
@@ -128,12 +112,8 @@ cpd_bf16_w8:
 	CMPQ CX, $8
 	JL   cpd_bf16_w4
 
-	VMOVDQU X1, (SI)
-	VMOVDQU X2, (DI)
-	VPMOVZXWD X1, Y3
-	VPSLLD    $16, Y3, Y3
-	VPMOVZXWD X2, Y4
-	VPSLLD    $16, Y4, Y4
+	BF16_LOAD_8H(SI, Y3)
+	BF16_LOAD_8H(DI, Y4)
 	VMULPS    Y4, Y3, Y3
 	VADDPS    Y3, Y0, Y0
 
@@ -146,12 +126,8 @@ cpd_bf16_w4:
 	CMPQ CX, $4
 	JL   cpd_bf16_reduce
 
-	VMOVDQU X1, (SI)
-	VMOVDQU X2, (DI)
-	VPMOVZXWD X1, Y3
-	VPSLLD    $16, Y3, Y3
-	VPMOVZXWD X2, Y4
-	VPSLLD    $16, Y4, Y4
+	BF16_LOAD_4H(SI, Y3)
+	BF16_LOAD_4H(DI, Y4)
 	VMULPS    Y4, Y3, Y3
 	VADDPS    Y3, Y0, Y0
 

@@ -1,21 +1,5 @@
 #include "textflag.h"
-
-#define WIDEN_BF16_4H(srcReg, dstY) \
-	VMOVDQU X2, (srcReg); \
-	VPMOVZXWD X2, dstY; \
-	VPSLLD $16, dstY, dstY
-
-#define NARROW_BF16_Y0_TO_4H(dstReg) \
-	VPSRLD $16, Y0, Y0; \
-	VEXTRACTI128 $0, Y0, X2; \
-	MOVL  X2, AX; \
-	MOVW  AX, (dstReg); \
-	PEXTRD $1, X2, AX; \
-	MOVW  AX, 2(dstReg); \
-	PEXTRD $2, X2, AX; \
-	MOVW  AX, 4(dstReg); \
-	PEXTRD $3, X2, AX; \
-	MOVW  AX, 6(dstReg)
+#include "../avx512_bf16_macros.inc"
 
 // func ConvTranspose2dTapBF16AVX512Asm(outRow *uint16, weightVal float32, inputCol *uint16, outCols int)
 TEXT ·ConvTranspose2dTapBF16AVX512Asm(SB), NOSPLIT, $0-32
@@ -28,10 +12,10 @@ TEXT ·ConvTranspose2dTapBF16AVX512Asm(SB), NOSPLIT, $0-32
 	CMPQ CX, $4
 	JL   ct_bf16_tap_done
 
-	WIDEN_BF16_4H(DI, Y0)
-	WIDEN_BF16_4H(SI, Y1)
+	BF16_LOAD_4H(DI, Y0)
+	BF16_LOAD_4H(SI, Y1)
 	VFMADD231PS Y0, Y1, Y2
-	NARROW_BF16_Y0_TO_4H(DI)
+	PACK_BF16_4H(DI)
 
 ct_bf16_tap_done:
 	RET

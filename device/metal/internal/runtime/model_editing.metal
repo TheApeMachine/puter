@@ -32,18 +32,14 @@ kernel void weight_graft_add_float32(
     }
 
     uint tail = count - offset;
-    float4 weightVec = float4(
-        weightsScalar[offset],
-        weightsScalar[offset + 1u],
-        weightsScalar[offset + 2u],
-        weightsScalar[offset + 3u]
-    );
-    float4 injectionVec = float4(
-        injectionScalar[offset],
-        injectionScalar[offset + 1u],
-        injectionScalar[offset + 2u],
-        injectionScalar[offset + 3u]
-    );
+    float4 weightVec = float4(0.0f);
+    float4 injectionVec = float4(0.0f);
+
+    for (uint lane = 0; lane < tail; ++lane) {
+        weightVec[lane] = weightsScalar[offset + lane];
+        injectionVec[lane] = injectionScalar[offset + lane];
+    }
+
     float4 result = weightVec + injectionVec;
 
     weight_graft_write_tail(weightsScalar, offset, tail, result);
@@ -60,7 +56,14 @@ kernel void weight_graft_add_float16(
     uint offset = index * 4u;
 
     if (offset + 4u <= count) {
-        weights[index] = weights[index] + injection[index];
+        half4 weightHalf = weights[index];
+        half4 injectionHalf = injection[index];
+        weights[index] = half4(
+            half(float(weightHalf.x) + float(injectionHalf.x)),
+            half(float(weightHalf.y) + float(injectionHalf.y)),
+            half(float(weightHalf.z) + float(injectionHalf.z)),
+            half(float(weightHalf.w) + float(injectionHalf.w))
+        );
         return;
     }
 
@@ -69,22 +72,11 @@ kernel void weight_graft_add_float16(
     }
 
     uint tail = count - offset;
-    half4 weightVec = half4(
-        weightsScalar[offset],
-        weightsScalar[offset + 1u],
-        weightsScalar[offset + 2u],
-        weightsScalar[offset + 3u]
-    );
-    half4 injectionVec = half4(
-        injectionScalar[offset],
-        injectionScalar[offset + 1u],
-        injectionScalar[offset + 2u],
-        injectionScalar[offset + 3u]
-    );
-    half4 result = weightVec + injectionVec;
 
     for (uint lane = 0; lane < tail; ++lane) {
-        weightsScalar[offset + lane] = result[lane];
+        uint elementIndex = offset + lane;
+        float sum = float(weightsScalar[elementIndex]) + float(injectionScalar[elementIndex]);
+        weightsScalar[elementIndex] = half(sum);
     }
 }
 

@@ -1,14 +1,6 @@
 #include "textflag.h"
-
-#define VCVTPS2PH_Y0_X2 WORD $0xC4E3; WORD $0x7D1D; BYTE $0xD8; BYTE $0x00
-
-#define WIDEN_FP16_4H(srcReg, dstY) \
-	VMOVDQU X2, (srcReg); \
-	VCVTPH2PS X2, dstY
-
-#define NARROW_FP16_Y0_TO_4H(dstReg) \
-	VCVTPS2PH_Y0_X2; \
-	VMOVDQU X2, (dstReg)
+#include "../avx512_fp16_macros.inc"
+#include "../f16c_fp16_macros.inc"
 
 // func Conv2dStride1RowFP16AVX512Asm(
 //     outRow, input, weight *uint16,
@@ -17,12 +9,12 @@
 //     inHStride, inCStride, wHStride, wCStride int,
 //     ihStart, iwStart int,
 // )
-TEXT ·Conv2dStride1RowFP16AVX512Asm(SB), NOSPLIT, $0-112
+TEXT ·Conv2dStride1RowFP16AVX512Asm(SB), NOSPLIT, $16-112
 	MOVQ outRow+0(FP), DI
 	MOVQ input+8(FP), SI
 	MOVQ weight+16(FP), BX
 	MOVSS biasValue+24(FP), X0
-	VBROADCASTSS X0, Y0
+	VBROADCASTSS X0, X1
 	MOVQ outCols+32(FP), CX
 	MOVQ inHStride+64(FP), R15
 	MOVQ ihStart+96(FP), R11
@@ -35,7 +27,7 @@ col_block_loop:
 	CMPQ CX, $4
 	JL   conv2d_fp16_done
 
-	VMOVAPS Y0, Y1
+	VMOVAPS X1, X1
 
 	MOVQ inChannels+40(FP), R12
 	MOVQ SI, R13
@@ -62,12 +54,13 @@ kw_loop:
 	JZ    kw_done
 
 	MOVWLZX (R15), DX
-	VMOVD X2, DX
-	VCVTPH2PS X2, X2
-	VBROADCASTSS X2, Y2
+	MOVW DX, 0(SP)
+	VPBROADCASTW 0(SP), X2
 
-	WIDEN_FP16_4H(R11, Y3)
-	VFMADD231PS Y1, Y3, Y2
+	VMOVDQU X3, (R11)
+	VMULPH_X3_X2_X4
+	VCVTPH2PS X4, X5
+	VADDPS X5, X1, X1
 
 	ADDQ $2, R11
 	ADDQ $2, R15
@@ -95,8 +88,8 @@ kh_done:
 	JMP  c_loop
 
 c_done:
-	VMOVAPS Y1, Y0
-	NARROW_FP16_Y0_TO_4H(DI)
+	VMOVAPS X1, X0
+	FP16_NARROW_X0_TO_4H(DI)
 
 	ADDQ $8, DI
 	ADDQ $8, SI
@@ -105,6 +98,7 @@ c_done:
 
 conv2d_fp16_done:
 	RET
+
 
 // func Conv2dPatchDotFP16AVX512Asm(weight, patch *uint16, n int) float32
 TEXT ·Conv2dPatchDotFP16AVX512Asm(SB), NOSPLIT, $0-28
@@ -121,12 +115,15 @@ cpd_fp16_w8:
 	CMPQ CX, $8
 	JL   cpd_fp16_w4
 
-	VMOVDQU X1, (SI)
-	VMOVDQU X2, (DI)
-	VCVTPH2PS X1, Y3
-	VCVTPH2PS X2, Y4
-	VMULPS    Y4, Y3, Y3
-	VADDPS    Y3, Y0, Y0
+	VMOVUPH_Y0_SI
+	VMOVUPH_Y1_DI
+	VMULPH_Y3_Y0_Y1
+	VEXTRACTI128 $0, Y3, X10
+	VEXTRACTI128 $1, Y3, X11
+	VCVTPH2PS X10, Y12
+	VCVTPH2PS X11, Y13
+	VADDPS Y12, Y0, Y0
+	VADDPS Y13, Y0, Y0
 
 	ADDQ $16, SI
 	ADDQ $16, DI
@@ -139,10 +136,9 @@ cpd_fp16_w4:
 
 	VMOVDQU X1, (SI)
 	VMOVDQU X2, (DI)
-	VCVTPH2PS X1, Y3
-	VCVTPH2PS X2, Y4
-	VMULPS    Y4, Y3, Y3
-	VADDPS    Y3, Y0, Y0
+	VMULPH_X3_X1_X2
+	VCVTPH2PS X3, X12
+	VADDPS X12, X0, X0
 
 	ADDQ $8, SI
 	ADDQ $8, DI

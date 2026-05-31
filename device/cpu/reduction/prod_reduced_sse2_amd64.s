@@ -1,4 +1,6 @@
 #include "textflag.h"
+#include "../sse2_bf16_macros.inc"
+#include "../f16c_fp16_macros.inc"
 
 DATA prodOneF32SSE2<>+0(SB)/4, $0x3f800000
 GLOBL prodOneF32SSE2<>(SB), RODATA|NOPTR, $4
@@ -26,14 +28,7 @@ prod_bf16_sse2_w4:
 	CMPQ CX, $4
 	JL    prod_bf16_sse2_tail
 
-	VMOVDQU X1, (SI)
-	VPXOR   X3, X3, X3
-	VPUNPCKLWD X3, X1, X4
-	VPUNPCKHWD X3, X1, X5
-	VPSLLD  $16, X4, X4
-	VPSLLD  $16, X5, X5
-	VINSERTF128 $1, X5, Y4, Y4
-	VEXTRACTF128 $0, Y4, X4
+	BF16_WIDEN_SSE2_4(SI, X4, X5)
 	BF16_PROD_HMUL_XMM4_INTO_X0
 
 	ADDQ $8, SI
@@ -77,8 +72,7 @@ prod_fp16_sse2_w4:
 	CMPQ CX, $4
 	JL    prod_fp16_sse2_tail
 
-	VMOVDQU X1, (SI)
-	VCVTPH2PS X1, X4
+	FP16_WIDEN_SSE2_4(SI, X4)
 	BF16_PROD_HMUL_XMM4_INTO_X0
 
 	ADDQ $8, SI

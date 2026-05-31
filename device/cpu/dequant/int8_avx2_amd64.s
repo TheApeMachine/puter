@@ -1,4 +1,5 @@
 #include "textflag.h"
+#include "x86_int8_macros.inc"
 
 // func DequantInt8AVX2Asm(dst *float32, src *int8, count int, scale float32, zeroPoint int16)
 TEXT ·DequantInt8AVX2Asm(SB), NOSPLIT, $0-30
@@ -20,11 +21,7 @@ dequant_i8_avx2_w8:
 	CMPQ CX, $8
 	JL   dequant_i8_avx2_w4
 
-	VMOVDQU (SI), X0
-	VPMOVSXBD X0, Y0
-	VPSUBD  Y0, Y14, Y0
-	VCVTDQ2PS Y0, Y0
-	VMULPS  Y0, Y15, Y0
+	INT8_AVX2_W8_DEQUAT
 	VMOVUPS Y0, (DI)
 
 	ADDQ $8, SI
@@ -36,11 +33,7 @@ dequant_i8_avx2_w4:
 	CMPQ CX, $4
 	JL   dequant_i8_avx2_scalar_tail
 
-	VMOVD (SI), X0
-	VPMOVSXBD X0, X0
-	VPSUBD  X0, X14, X0
-	VCVTDQ2PS X0, X0
-	VMULPS  X0, X15, X0
+	INT8_AVX2_W4_DEQUAT
 	VMOVUPS X0, (DI)
 
 	ADDQ $4, SI

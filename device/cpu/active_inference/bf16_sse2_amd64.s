@@ -1,24 +1,5 @@
 #include "textflag.h"
-
-#define WIDEN_BF16_4(src, xLo, xHi) \
-	VMOVDQU X2, (src); \
-	VPXOR  X3, X3, X3; \
-	VPUNPCKLWD X3, X2, xLo; \
-	VPUNPCKHWD X3, X2, xHi; \
-	VPSLLD $16, xLo, xLo; \
-	VPSLLD $16, xHi, xHi
-
-#define NARROW_BF16_4(xLo, xHi, dst) \
-	VPSRLD $16, xLo, xLo; \
-	VPSRLD $16, xHi, xHi; \
-	MOVL  xLo, AX; \
-	MOVW  AX, (dst); \
-	PEXTRD $1, xLo, AX; \
-	MOVW  AX, 2(dst); \
-	MOVL  xHi, AX; \
-	MOVW  AX, 4(dst); \
-	PEXTRD $1, xHi, AX; \
-	MOVW  AX, 6(dst)
+#include "../sse2_bf16_macros.inc"
 
 #define AI_BF16_ACCUM_F64_X(prodLo, prodHi, accumX) \
 	CVTPS2PD prodLo, X8; \
@@ -48,11 +29,11 @@ ai_bf16_sse2_pw_w4:
 	CMPQ CX, $4
 	JL   ai_bf16_sse2_pw_tail
 
-	WIDEN_BF16_4(SI, X4, X5)
-	WIDEN_BF16_4(DX, X6, X7)
+	BF16_WIDEN_SSE2_4(SI, X4, X5)
+	BF16_WIDEN_SSE2_4(DX, X6, X7)
 	MULPS X6, X4
 	MULPS X7, X5
-	NARROW_BF16_4(X4, X5, DI)
+	PACK_BF16_SSE2_8H(X4, X5, DI)
 
 	ADDQ $8, SI
 	ADDQ $8, DX
@@ -72,9 +53,7 @@ ai_bf16_sse2_pw_scalar:
 	SHLQ  $16, AX
 	VMOVD X3, AX
 	MULSS X3, X2
-	VPSRLD $16, X2, X2
-	MOVL  X2, AX
-	MOVW  AX, (DI)
+	PACK_BF16_SCALAR_X2(DI)
 	ADDQ $2, SI
 	ADDQ $2, DX
 	ADDQ $2, DI
@@ -100,12 +79,12 @@ ai_bf16_sse2_bu_mul_w4:
 	CMPQ CX, $4
 	JL   ai_bf16_sse2_bu_mul_tail
 
-	WIDEN_BF16_4(SI, X4, X5)
-	WIDEN_BF16_4(DX, X6, X7)
+	BF16_WIDEN_SSE2_4(SI, X4, X5)
+	BF16_WIDEN_SSE2_4(DX, X6, X7)
 	MULPS X6, X4
 	MULPS X7, X5
 	AI_BF16_ACCUM_F64_X(X4, X5, X0)
-	NARROW_BF16_4(X4, X5, DI)
+	PACK_BF16_SSE2_8H(X4, X5, DI)
 
 	ADDQ $8, SI
 	ADDQ $8, DX
@@ -128,9 +107,7 @@ ai_bf16_sse2_bu_mul_scalar:
 	MOVSS X2, X1
 	CVTSS2SD X1, X1
 	ADDSD X1, X0
-	VPSRLD $16, X2, X2
-	MOVL  X2, AX
-	MOVW  AX, (DI)
+	PACK_BF16_SCALAR_X2(DI)
 	ADDQ $2, SI
 	ADDQ $2, DX
 	ADDQ $2, DI
@@ -158,10 +135,10 @@ ai_bf16_sse2_bu_scale_w4:
 	CMPQ CX, $4
 	JL   ai_bf16_sse2_bu_scale_tail
 
-	WIDEN_BF16_4(DI, X4, X5)
+	BF16_WIDEN_SSE2_4(DI, X4, X5)
 	MULPS X3, X4
 	MULPS X3, X5
-	NARROW_BF16_4(X4, X5, DI)
+	PACK_BF16_SSE2_8H(X4, X5, DI)
 
 	ADDQ $8, DI
 	SUBQ $4, CX
@@ -176,9 +153,7 @@ ai_bf16_sse2_bu_scale_scalar:
 	SHLQ  $16, AX
 	VMOVD X2, AX
 	MULSS X3, X2
-	VPSRLD $16, X2, X2
-	MOVL  X2, AX
-	MOVW  AX, (DI)
+	PACK_BF16_SCALAR_X2(DI)
 	ADDQ $2, DI
 	DECQ CX
 	JNZ  ai_bf16_sse2_bu_scale_scalar
@@ -209,9 +184,7 @@ ai_bf16_sse2_bu_done:
 	SHUFPD $1, X1, X1; \
 	ADDPD X1, X0; \
 	CVTSD2SS X0, X0; \
-	VPSRLD $16, X0, X0; \
-	MOVL X0, AX; \
-	MOVW AX, ret+32(FP)
+	PACK_BF16_SCALAR_F32_X0_TO(ret+32(FP))
 
 #define AI_BF16_SSE2_STORE_EFE_RESULT \
 	ADDPD X1, X0; \
@@ -219,9 +192,7 @@ ai_bf16_sse2_bu_done:
 	SHUFPD $1, X1, X1; \
 	ADDPD X1, X0; \
 	CVTSD2SS X0, X0; \
-	VPSRLD $16, X0, X0; \
-	MOVL X0, AX; \
-	MOVW AX, ret+40(FP)
+	PACK_BF16_SCALAR_F32_X0_TO(ret+40(FP))
 
 // func FreeEnergyBFloat16SSE2Asm(likelihood, posterior, prior *uint16, count int) uint16
 TEXT ·FreeEnergyBFloat16SSE2Asm(SB), NOSPLIT, $96-34
@@ -256,9 +227,9 @@ ai_bf16_sse2_fe_w4:
 	CMPQ CX, $4
 	JL   ai_bf16_sse2_fe_tail
 
-	WIDEN_BF16_4(SI, X3, X10)
-	WIDEN_BF16_4(DX, X4, X11)
-	WIDEN_BF16_4(R8, X5, X12)
+	BF16_WIDEN_SSE2_4(SI, X3, X10)
+	BF16_WIDEN_SSE2_4(DX, X4, X11)
+	BF16_WIDEN_SSE2_4(R8, X5, X12)
 	MAXPS X2, X3
 	MAXPS X2, X4
 	MAXPS X2, X5
@@ -397,8 +368,8 @@ ai_bf16_sse2_efe_obs_w4:
 	CMPQ CX, $4
 	JL   ai_bf16_sse2_efe_obs_tail
 
-	WIDEN_BF16_4(SI, X3, X10)
-	WIDEN_BF16_4(DX, X4, X11)
+	BF16_WIDEN_SSE2_4(SI, X3, X10)
+	BF16_WIDEN_SSE2_4(DX, X4, X11)
 	MAXPS X2, X3
 	MAXPS X2, X4
 
@@ -468,7 +439,7 @@ ai_bf16_sse2_efe_state_w4:
 	CMPQ CX, $4
 	JL   ai_bf16_sse2_efe_state_tail
 
-	WIDEN_BF16_4(R8, X3, X10)
+	BF16_WIDEN_SSE2_4(R8, X3, X10)
 	MAXPS X2, X3
 
 	AI_BF16_SSE2_LOAD_LOG_POLY

@@ -1,6 +1,6 @@
 //go:build !darwin || !cgo
 
-package attention
+package masking
 
 import (
 	"unsafe"
@@ -8,26 +8,26 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 )
 
-func (attention *Attention) ApplyMask(
+func (masking *Masking) ApplyMask(
 	input, mask, output unsafe.Pointer,
 	count int,
 	format dtype.DType,
 ) {
-	attention.stubHost()
+	masking.host.NeedsPlatform()
 }
 
-func (attention *Attention) CausalMask(
+func (masking *Masking) CausalMask(
 	output unsafe.Pointer,
 	seqQ, seqK int,
 	format dtype.DType,
 ) {
-	attention.stubHost()
+	masking.host.NeedsPlatform()
 }
 
-func (attention *Attention) ALiBiBias(
+func (masking *Masking) ALiBiBias(
 	scores, slope, output unsafe.Pointer,
 	seqQ, seqK int,
 	format dtype.DType,
 ) {
-	attention.stubHost()
+	masking.host.NeedsPlatform()
 }

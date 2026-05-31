@@ -91,28 +91,9 @@ static inline void compute_row_stats(
     thread float& mean,
     thread float& invStdDev
 ) {
-    ulong sum64 = SF64_NORM_ZERO;
-
-    for (uint col = threadIndex; col < cols; col += normalizationThreadCount) {
-        float value = Storage::load(input, rowOffset + col);
-        sum64 = metal_sf64_add(sum64, metal_sf32_to64(as_type<uint>(value)));
-    }
-
-    sf64Reduction[threadIndex] = sum64;
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-
-    for (uint stride = normalizationThreadCount / 2; stride > 0; stride >>= 1) {
-        if (threadIndex < stride) {
-            sf64Reduction[threadIndex] = metal_sf64_add(
-                sf64Reduction[threadIndex],
-                sf64Reduction[threadIndex + stride]
-            );
-        }
-
-        threadgroup_barrier(mem_flags::mem_threadgroup);
-    }
-
-    mean = metal_norm_mean_f32(sf64Reduction[0], cols);
+    float sumF32 = reduce_sum<Storage, Scalar>(input, reduction, rowOffset, cols, threadIndex);
+    ulong sum64 = metal_sf32_to64(as_type<uint>(sumF32));
+    mean = as_type<float>(metal_sf64_to32(metal_sf64_div(sum64, metal_sf64_int_to64(int(cols)))));
     float localVariance = 0.0f;
     float localCompensation = 0.0f;
 

@@ -1,16 +1,10 @@
 #include "textflag.h"
-
-#define VCVTPS2PH_X0_X2 WORD $0xC4E3; WORD $0x7D1D; BYTE $0xD0; BYTE $0x00
+#include "../f16c_fp16_macros.inc"
 
 DATA poolNegInfFP16SSE2<>+0(SB)/4, $0xFF800000
 DATA poolOneFP16SSE2<>+0(SB)/4, $0x3F800000
 GLOBL poolNegInfFP16SSE2<>(SB), RODATA|NOPTR, $4
 GLOBL poolOneFP16SSE2<>(SB), RODATA|NOPTR, $4
-
-#define NARROW_FP16_X1_TO_4H(dstPtr) \
-	MOVAPS X1, X0; \
-	VCVTPS2PH_X0_X2; \
-	VMOVDQU X2, (dstPtr)
 
 // func MaxPool2DStride1RowFP16SSE2Asm(
 //     outRow, input *uint16,
@@ -66,7 +60,7 @@ mp_sse2_fp16_kw_done:
 	JMP  mp_sse2_fp16_kh_loop
 
 mp_sse2_fp16_kh_done:
-	NARROW_FP16_X1_TO_4H(AX)
+	FP16_NARROW_X1_TO_4H(AX)
 
 	ADDQ $8, AX
 	ADDQ $8, BX
@@ -138,7 +132,7 @@ ap_sse2_fp16_kw_done:
 
 ap_sse2_fp16_kh_done:
 	MULPS X0, X1
-	NARROW_FP16_X1_TO_4H(AX)
+	FP16_NARROW_X1_TO_4H(AX)
 
 	ADDQ $8, AX
 	ADDQ $8, BX
@@ -150,18 +144,6 @@ ap_sse2_fp16_done:
 
 DATA poolQuarterFP16SSE2<>+0(SB)/4, $0x3E800000
 GLOBL poolQuarterFP16SSE2<>(SB), RODATA|NOPTR, $4
-
-#define WIDEN_FP16_4H_TO_X4(srcPtr, dstX) \
-	VMOVDQU X2, (srcPtr); \
-	VCVTPH2PS X2, dstX
-
-#define NARROW_FP16_X1_TO_2H(dstPtr) \
-	MOVAPS X1, X0; \
-	VCVTPS2PH_X0_X2; \
-	MOVL  X2, AX; \
-	MOVW  AX, (dstPtr); \
-	PEXTRW $1, X2, AX; \
-	MOVW  AX, 2(dstPtr)
 
 #define POOL22_SSE2_FP16_PAIR_MAX() \
 	VSHUFPS $0xB1, X0, X0, X2; \
@@ -200,10 +182,10 @@ mp22_sse2_fp16_col_loop:
 	CMPQ CX, $2
 	JL   mp22_sse2_fp16_done
 
-	WIDEN_FP16_4H_TO_X4(BX, X0)
-	WIDEN_FP16_4H_TO_X4(R10, X1)
+	FP16_LOAD_4H_TO_X4(BX, X0)
+	FP16_LOAD_4H_TO_X4(R10, X1)
 	POOL22_SSE2_FP16_PAIR_MAX()
-	NARROW_FP16_X1_TO_2H(AX)
+	FP16_NARROW_X1_TO_2H(AX)
 
 	ADDQ $8, BX
 	ADDQ $8, R10
@@ -237,11 +219,11 @@ ap22_sse2_fp16_col_loop:
 	CMPQ CX, $2
 	JL   ap22_sse2_fp16_done
 
-	WIDEN_FP16_4H_TO_X4(BX, X0)
-	WIDEN_FP16_4H_TO_X4(R10, X1)
+	FP16_LOAD_4H_TO_X4(BX, X0)
+	FP16_LOAD_4H_TO_X4(R10, X1)
 	POOL22_SSE2_FP16_PAIR_SUM()
 	VMULPS  X15, X1, X1
-	NARROW_FP16_X1_TO_2H(AX)
+	FP16_NARROW_X1_TO_2H(AX)
 
 	ADDQ $8, BX
 	ADDQ $8, R10

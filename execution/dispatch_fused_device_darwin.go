@@ -68,7 +68,7 @@ func (dispatcher *dispatcher) tryRunFusedOnMetalDevice(
 		}
 	}
 
-	outputTensor, err := dispatcher.allocateLike(node, inputBuffers[0], count)
+	outputTensor, err := dispatcher.allocateLike(node, nil, count)
 
 	if err != nil {
 		return true, err

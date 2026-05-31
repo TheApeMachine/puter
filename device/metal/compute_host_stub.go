@@ -364,3 +364,223 @@ func (host *ComputeHost) DotProduct(dst, left, right unsafe.Pointer, count int, 
 func (host *ComputeHost) DispatchSimilarity(dst, left, right unsafe.Pointer, count int, format dtype.DType) {
 	host.unavailable()
 }
+
+func (host *ComputeHost) DispatchApplyMask(input, mask, output unsafe.Pointer, count int, format dtype.DType) {
+	host.unavailable()
+}
+
+
+
+func (host *ComputeHost) DispatchInvSqrtDimScale(out, input unsafe.Pointer, dim int32, format dtype.DType) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchLogSumExp(input, output unsafe.Pointer, cols int, format dtype.DType) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchOuter(
+	left, right, output unsafe.Pointer,
+	leftCount, rightCount int,
+	format dtype.DType,
+) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchWeightGraftAdd(weights, injection unsafe.Pointer, count int, format dtype.DType) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchCheckpointEncode(input, output unsafe.Pointer, format dtype.DType) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchCheckpointDecode(input, output unsafe.Pointer, format dtype.DType) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchAdagrad(
+	config cpuoptimizer.AdagradConfig,
+	params, gradients, accumulator, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchAdam(
+	config cpuoptimizer.AdamConfig,
+	params, gradients, firstMoment, secondMoment, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchAdamax(
+	config cpuoptimizer.AdamaxConfig,
+	params, gradients, firstMoment, infinityMoment, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchAdamW(
+	config cpuoptimizer.AdamWConfig,
+	params, gradients, firstMoment, secondMoment, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchHebbian(
+	config cpuoptimizer.HebbianConfig,
+	weights, post, pre, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchLARS(
+	config cpuoptimizer.LARSConfig,
+	params, gradients, momentum, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchLBFGS(
+	config cpuoptimizer.LBFGSConfig,
+	params, gradients, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchLion(
+	config cpuoptimizer.LionConfig,
+	params, gradients, momentum, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchRMSprop(
+	config cpuoptimizer.RMSpropConfig,
+	params, gradients, secondMoment, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchSGD(
+	config cpuoptimizer.SGDConfig,
+	params, gradients, momentum, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchCopyContiguous(dst, src unsafe.Pointer, count int, format dtype.DType) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchConcat(left, right, output unsafe.Pointer, format dtype.DType) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchGather(source, indices, output unsafe.Pointer, outerDim, innerDim int, format dtype.DType) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchLastToken(input, output unsafe.Pointer, batch, seq, hidden int, format dtype.DType) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchMaskedFill(input, mask, fill, output unsafe.Pointer, count int, format dtype.DType) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchMergeHeads(input, output unsafe.Pointer, batch, seq, heads, headDim int, format dtype.DType) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchPageGather(storage, pageTable, pageSize, output unsafe.Pointer, format dtype.DType) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchPageGatherWithLiveRows(
+	storage, pageTable, pageSize, output unsafe.Pointer,
+	liveRows int,
+	format dtype.DType,
+) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchPageWrite(
+	storage, values, pageIDs, offsets, output unsafe.Pointer,
+	pageSize int,
+	format dtype.DType,
+) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchReshape(input, output unsafe.Pointer, count int, format dtype.DType) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchScatter(
+	target, indices, updates, output unsafe.Pointer,
+	outerDim, innerDim int,
+	format dtype.DType,
+) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchSlice(input, output unsafe.Pointer, dim, start, end int, format dtype.DType) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchSplit2(input, left, right unsafe.Pointer, format dtype.DType) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchSplitHeads(input, output unsafe.Pointer, batch, seq, heads, headDim int, format dtype.DType) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchTranspose(input, permutation, output unsafe.Pointer, rank int, format dtype.DType) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchTranspose2D(input, output unsafe.Pointer, rows, cols int, format dtype.DType) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchUpsampleNearest2D(
+	input, output unsafe.Pointer,
+	batch, channels, inHeight, inWidth, outHeight, outWidth int,
+	format dtype.DType,
+) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchViewAsHeads(
+	input, output unsafe.Pointer,
+	batch, seq, numHeads, headDim int,
+	format dtype.DType,
+) {
+	host.unavailable()
+}
+
+func (host *ComputeHost) DispatchWhere(mask, positive, negative, output unsafe.Pointer, count int, format dtype.DType) {
+	host.unavailable()
+}

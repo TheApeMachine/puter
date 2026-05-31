@@ -87,6 +87,20 @@ func (bridge *metalBridge) readInt32Scalar(bufferRef C.MetalBufferRef) int32 {
 	return *(*int32)(contents)
 }
 
+func (bridge *metalBridge) writeInt32Scalar(bufferRef C.MetalBufferRef, value int32) {
+	if bufferRef == nil {
+		return
+	}
+
+	contents := C.metal_buffer_contents(bufferRef)
+
+	if contents == nil {
+		panic("metal: nil scratch buffer contents")
+	}
+
+	*(*int32)(contents) = value
+}
+
 func int64MulChecked(left, right int64, operation string, input uint32) int64 {
 	product := left * right
 

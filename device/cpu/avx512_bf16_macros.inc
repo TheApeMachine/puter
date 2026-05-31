@@ -1,0 +1,130 @@
+// AVX-512 bf16 lane helpers: bit-cast load into .PS, RNE pack back to .H.
+
+DATA bf16RNEOneAVX512<>+0(SB)/4, $0x00000001
+DATA bf16RNEOneAVX512<>+4(SB)/4, $0x00000001
+DATA bf16RNEOneAVX512<>+8(SB)/4, $0x00000001
+DATA bf16RNEOneAVX512<>+12(SB)/4, $0x00000001
+DATA bf16RNEOneAVX512<>+16(SB)/4, $0x00000001
+DATA bf16RNEOneAVX512<>+20(SB)/4, $0x00000001
+DATA bf16RNEOneAVX512<>+24(SB)/4, $0x00000001
+DATA bf16RNEOneAVX512<>+28(SB)/4, $0x00000001
+GLOBL bf16RNEOneAVX512<>(SB), RODATA|NOPTR, $32
+
+DATA bf16RNEBiasAVX512<>+0(SB)/4, $0x00007fff
+DATA bf16RNEBiasAVX512<>+4(SB)/4, $0x00007fff
+DATA bf16RNEBiasAVX512<>+8(SB)/4, $0x00007fff
+DATA bf16RNEBiasAVX512<>+12(SB)/4, $0x00007fff
+DATA bf16RNEBiasAVX512<>+16(SB)/4, $0x00007fff
+DATA bf16RNEBiasAVX512<>+20(SB)/4, $0x00007fff
+DATA bf16RNEBiasAVX512<>+24(SB)/4, $0x00007fff
+DATA bf16RNEBiasAVX512<>+28(SB)/4, $0x00007fff
+GLOBL bf16RNEBiasAVX512<>(SB), RODATA|NOPTR, $32
+
+#define BF16_LOAD_8H(baseReg, dstY) \
+	VMOVDQU X2, (baseReg); \
+	VPMOVZXWD X2, dstY; \
+	VPSLLD $16, dstY, dstY; \
+	VPSRLDQ $8, X2, X3; \
+	VPMOVZXWD X3, Y4; \
+	VPSLLD $16, Y4, Y4; \
+	VEXTRACTI128 $0, Y4, X4; \
+	VINSERTF128 $1, X4, dstY, dstY
+
+#define BF16_LOAD_4H(baseReg, dstY) \
+	VMOVDQU X2, (baseReg); \
+	VPMOVZXWD X2, dstY; \
+	VPSLLD $16, dstY, dstY
+
+#define BF16_LOAD_4H_W8_LANES(baseReg, dstY) \
+	VMOVDQU X2, (baseReg); \
+	VPXOR X3, X3, X3; \
+	VPUNPCKLWD X3, X2, X4; \
+	VPUNPCKHWD X3, X2, X5; \
+	VPSLLD $16, X4, X4; \
+	VPSLLD $16, X5, X5; \
+	VINSERTF128 $1, X5, Y4, dstY
+
+#define BF16_RNE_Y8 \
+	VPSRLD $16, Y0, Y1; \
+	VPANDD bf16RNEOneAVX512<>(SB), Y1, Y1; \
+	VPADDD bf16RNEBiasAVX512<>(SB), Y1, Y1; \
+	VPADDD Y1, Y0, Y0; \
+	VPSRLD $16, Y0, Y0
+
+#define BF16_RNE_Y4 \
+	VPSRLD $16, Y0, Y1; \
+	VPANDD bf16RNEOneAVX512<>(SB), Y1, Y1; \
+	VPADDD bf16RNEBiasAVX512<>(SB), Y1, Y1; \
+	VPADDD Y1, Y0, Y0; \
+	VPSRLD $16, Y0, Y0
+
+#define PACK_BF16_8H(dstReg) \
+	BF16_RNE_Y8; \
+	VEXTRACTI128 $0, Y0, X2; \
+	MOVL X2, AX; \
+	MOVW AX, (dstReg); \
+	PEXTRD $1, X2, AX; \
+	MOVW AX, 2(dstReg); \
+	PEXTRD $2, X2, AX; \
+	MOVW AX, 4(dstReg); \
+	PEXTRD $3, X2, AX; \
+	MOVW AX, 6(dstReg); \
+	VEXTRACTI128 $1, Y0, X2; \
+	MOVL X2, AX; \
+	MOVW AX, 8(dstReg); \
+	PEXTRD $1, X2, AX; \
+	MOVW AX, 10(dstReg); \
+	PEXTRD $2, X2, AX; \
+	MOVW AX, 12(dstReg); \
+	PEXTRD $3, X2, AX; \
+	MOVW AX, 14(dstReg)
+
+#define PACK_BF16_4H(dstReg) \
+	BF16_RNE_Y4; \
+	VEXTRACTI128 $0, Y0, X2; \
+	MOVL X2, AX; \
+	MOVW AX, (dstReg); \
+	PEXTRD $1, X2, AX; \
+	MOVW AX, 2(dstReg); \
+	PEXTRD $2, X2, AX; \
+	MOVW AX, 4(dstReg); \
+	PEXTRD $3, X2, AX; \
+	MOVW AX, 6(dstReg)
+
+#define PACK_BF16_X1_4H(dstReg) \
+	VPSRLD $16, X1, X2; \
+	VPANDD bf16RNEOneAVX512<>(SB), X2, X2; \
+	VPADDD bf16RNEBiasAVX512<>(SB), X2, X2; \
+	VPADDD X2, X1, X1; \
+	VPSRLD $16, X1, X1; \
+	MOVL X1, AX; \
+	MOVW AX, (dstReg); \
+	PEXTRD $1, X1, AX; \
+	MOVW AX, 2(dstReg); \
+	PEXTRD $2, X1, AX; \
+	MOVW AX, 4(dstReg); \
+	PEXTRD $3, X1, AX; \
+	MOVW AX, 6(dstReg)
+
+#define PACK_BF16_SCALAR_F32_X0_TO(dstFP) \
+	VPSRLD $16, X0, X1; \
+	VPANDD bf16RNEOneAVX512<>(SB), X1, X1; \
+	VPADDD bf16RNEBiasAVX512<>(SB), X1, X1; \
+	VPADDD X1, X0, X0; \
+	VPSRLD $16, X0, X0; \
+	MOVL X0, AX; \
+	MOVW AX, dstFP
+
+#define BF16_LOAD_4H_TO_X4(srcPtr, dstX) \
+	VMOVDQU X2, (srcPtr); \
+	VPMOVZXWD X2, dstX; \
+	VPSLLD $16, dstX, dstX
+
+#define PACK_BF16_SCALAR_X2(dstPtr) \
+	VPSRLD $16, X2, X3; \
+	VPANDD bf16RNEOneAVX512<>(SB), X3, X3; \
+	VPADDD bf16RNEBiasAVX512<>(SB), X3, X3; \
+	VPADDD X3, X2, X2; \
+	VPSRLD $16, X2, X2; \
+	MOVL X2, AX; \
+	MOVW AX, (dstPtr)

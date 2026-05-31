@@ -1,8 +1,7 @@
 #include "textflag.h"
+#include "../avx512_bf16_macros.inc"
 
 // func MatmulRowBF16AVX512Asm(cRow, aRow, b *uint16, inner, colsBlock, bCols int)
-//
-// Eight output columns per block on AVX-512 (256-bit FMA path).
 TEXT ·MatmulRowBF16AVX512Asm(SB), NOSPLIT, $0-48
 	MOVQ cRow+0(FP), DI
 	MOVQ aRow+8(FP), SI
@@ -45,28 +44,7 @@ mm_k8:
 	JMP  mm_k8
 
 mm_k8_done:
-	VPSRLD $16, Y0, Y0
-	VEXTRACTI128 $0, Y0, X2
-	MOVL  X2, AX
-	MOVW  AX, (DI)
-	PSRLQ $32, X2
-	MOVL  X2, AX
-	MOVW  AX, 2(DI)
-	PEXTRD $2, X2, AX
-	MOVW  AX, 4(DI)
-	PEXTRD $3, X2, AX
-	MOVW  AX, 6(DI)
-
-	VEXTRACTI128 $1, Y0, X2
-	MOVL  X2, AX
-	MOVW  AX, 8(DI)
-	PSRLQ $32, X2
-	MOVL  X2, AX
-	MOVW  AX, 10(DI)
-	PEXTRD $2, X2, AX
-	MOVW  AX, 12(DI)
-	PEXTRD $3, X2, AX
-	MOVW  AX, 14(DI)
+	PACK_BF16_8H(DI)
 
 	ADDQ $16, DI
 	ADDQ $16, BX
@@ -104,16 +82,8 @@ mm_k4:
 	JMP  mm_k4
 
 mm_k4_done:
-	VPSRLD $16, X0, X0
-	MOVL  X0, AX
-	MOVW  AX, (DI)
-	PSRLQ $32, X0
-	MOVL  X0, AX
-	MOVW  AX, 2(DI)
-	PEXTRD $2, X0, AX
-	MOVW  AX, 4(DI)
-	PEXTRD $3, X0, AX
-	MOVW  AX, 6(DI)
+	VMOVAPS X0, X1
+	PACK_BF16_X1_4H(DI)
 
 	ADDQ $8, DI
 	ADDQ $8, BX

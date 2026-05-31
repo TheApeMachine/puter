@@ -1,11 +1,5 @@
 #include "textflag.h"
-
-#define VCVTPS2PH_X0_X2 WORD $0xC4E3; WORD $0x7D1D; BYTE $0xD0; BYTE $0x00
-
-#define NARROW_BF16_F32_X0_TO_RET \
-	MOVL  X0, AX; \
-	SHRQ  $16, AX; \
-	MOVW  AX, ret+24(FP)
+#include "../sse2_bf16_macros.inc"
 
 // func DotBFloat16SSE2Asm(left, right *uint16, count int) uint16
 TEXT ·DotBFloat16SSE2Asm(SB), NOSPLIT, $0-26
@@ -22,22 +16,7 @@ dot_bf16_sse2_w4:
 	CMPQ CX, $4
 	JL   dot_bf16_sse2_reduce
 
-	VMOVDQU X1, (SI)
-	VMOVDQU X2, (DI)
-	VPXOR   X3, X3, X3
-	VPUNPCKLWD X3, X1, X4
-	VPUNPCKLWD X3, X2, X5
-	VPSLLD  $16, X4, X4
-	VPSLLD  $16, X5, X5
-	MULPS   X4, X5
-	ADDPS   X5, X0
-
-	VPUNPCKHWD X3, X1, X4
-	VPUNPCKHWD X3, X2, X5
-	VPSLLD  $16, X4, X4
-	VPSLLD  $16, X5, X5
-	MULPS   X4, X5
-	ADDPS   X5, X0
+	BF16_DOT_W4_SSE2(SI, DI)
 
 	ADDQ $8, SI
 	ADDQ $8, DI
@@ -71,10 +50,10 @@ dot_bf16_sse2_scalar:
 	JNZ  dot_bf16_sse2_scalar
 
 dot_bf16_sse2_store:
-	NARROW_BF16_F32_X0_TO_RET
+	PACK_BF16_SCALAR_F32_X0_TO(ret+24(FP))
 	RET
 
 dot_bf16_sse2_zero:
 	XORPS X0, X0
-	NARROW_BF16_F32_X0_TO_RET
+	PACK_BF16_SCALAR_F32_X0_TO(ret+24(FP))
 	RET

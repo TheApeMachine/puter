@@ -1,0 +1,307 @@
+// Go math.Log, math.Sqrt, math.Sincos via softfloat64 for Metal parity.
+
+#ifndef ELEMENTWISE_F64_TRANSCENDENTAL_METALINC
+#define ELEMENTWISE_F64_TRANSCENDENTAL_METALINC
+
+#include "elementwise_f64_soft.metalinc"
+
+constant ulong SF64_TRAN_ONE = 0x3FF0000000000000u;
+constant ulong SF64_TRAN_TWO = 0x4000000000000000u;
+constant ulong SF64_TRAN_HALF = 0x3FE0000000000000u;
+constant ulong SF64_TRAN_SQRT2_HALF = 0x3FE6A09E667F3BCDu;
+constant ulong SF64_TRAN_LN2_HI = 0x3FE62E42FEE00000u;
+constant ulong SF64_TRAN_LN2_LO = 0x3DEA39EF35793C76u;
+constant ulong SF64_TRAN_L1 = 0x3FE5555555555593u;
+constant ulong SF64_TRAN_L2 = 0x3FD999999997FA04u;
+constant ulong SF64_TRAN_L3 = 0x3FD2492494229359u;
+constant ulong SF64_TRAN_L4 = 0x3FCC71C51D8E78AFu;
+constant ulong SF64_TRAN_L5 = 0x3FC7466496CB03DEu;
+constant ulong SF64_TRAN_L6 = 0x3FC39A09D078C69Fu;
+constant ulong SF64_TRAN_L7 = 0x3FC2F112DF3E5244u;
+constant ulong SF64_TRAN_PI4A = 0x3FE921FB40000000u;
+constant ulong SF64_TRAN_PI4B = 0x3E64442D00000000u;
+constant ulong SF64_TRAN_PI4C = 0x3CE8469898CC5170u;
+constant ulong SF64_TRAN_FOUR_OVER_PI = 0x40045F306DC9C882u;
+constant ulong SF64_TRAN_TWO_PI = 0x401921FB54442D18u;
+constant ulong SF64_TRAN_NEG_TWO = 0xC000000000000000u;
+constant ulong SF64_TRAN_GELU_ALPHA = 0x3FE979F6D1B7177Eu;
+constant ulong SF64_TRAN_GELU_BETA = 0x3FB6E9EE92157326u;
+constant ulong SF64_TRAN_SMALLEST_POSITIVE = 0x3AE0000000000000u;
+constant ulong SF64_TRAN_NEG_INF = 0xFFF0000000000000u;
+
+constant ulong SF64_TRAN_SIN0 = 0x3DE5D8FD1FD19CCDu;
+constant ulong SF64_TRAN_SIN1 = 0xBE5AE5E5A9291F5Du;
+constant ulong SF64_TRAN_SIN2 = 0x3EC71DE3567D48A1u;
+constant ulong SF64_TRAN_SIN3 = 0xBF2A01A019BFDF03u;
+constant ulong SF64_TRAN_SIN4 = 0x3F8111111110F7D0u;
+constant ulong SF64_TRAN_SIN5 = 0xBFC5555555555548u;
+constant ulong SF64_TRAN_COS0 = 0xBDA8FA49A0861A9Bu;
+constant ulong SF64_TRAN_COS1 = 0x3E21EE9D7B4E3F05u;
+constant ulong SF64_TRAN_COS2 = 0xBE927E4F7EAC4BC6u;
+constant ulong SF64_TRAN_COS3 = 0x3EFA01A019C844F5u;
+constant ulong SF64_TRAN_COS4 = 0xBF56C16C16C14F91u;
+constant ulong SF64_TRAN_COS5 = 0x3FA555555555554Bu;
+
+static inline bool metal_sf64_is_zero(ulong value) {
+    return (value & 0x7FFFFFFFFFFFFFFFul) == 0;
+}
+
+static inline bool metal_sf64_is_negative(ulong value) {
+    return (value & (1ul << 63)) != 0 && !metal_sf64_is_zero(value);
+}
+
+static inline void metal_sf64_log_extract(
+    ulong value,
+    thread ulong& fraction,
+    thread int& exponentOut
+) {
+    uint expField = uint((value >> SF64_MANTBITS) & ((1ul << SF64_EXPBITS) - 1));
+    exponentOut = int(expField) - 1022;
+    fraction = (value & ~0x7FF0000000000000ul) | (ulong(1022) << SF64_MANTBITS);
+}
+
+static inline ulong metal_sf64_log(ulong value) {
+    if (metal_sf64_isnan(value)) {
+        return value;
+    }
+
+    if (metal_sf64_isinf_pos(value)) {
+        return value;
+    }
+
+    if (metal_sf64_is_zero(value)) {
+        return SF64_TRAN_NEG_INF;
+    }
+
+    if (metal_sf64_is_negative(value)) {
+        return SF64_NAN64;
+    }
+
+    ulong fraction;
+    int exponent;
+    metal_sf64_log_extract(value, fraction, exponent);
+
+    if (metal_sf64_lt(fraction, SF64_TRAN_SQRT2_HALF)) {
+        fraction = metal_sf64_mul(fraction, SF64_TRAN_TWO);
+        exponent--;
+    }
+
+    ulong delta = metal_sf64_add(fraction, metal_sf64_neg(SF64_TRAN_ONE));
+    ulong denominator = metal_sf64_add(SF64_TRAN_TWO, delta);
+    ulong series = metal_sf64_div(delta, denominator);
+    ulong seriesSquared = metal_sf64_mul(series, series);
+    ulong seriesFourth = metal_sf64_mul(seriesSquared, seriesSquared);
+    ulong oddInner = metal_sf64_add(SF64_TRAN_L5, metal_sf64_mul(seriesFourth, SF64_TRAN_L7));
+    oddInner = metal_sf64_add(SF64_TRAN_L3, metal_sf64_mul(seriesFourth, oddInner));
+    oddInner = metal_sf64_add(SF64_TRAN_L1, metal_sf64_mul(seriesFourth, oddInner));
+    ulong oddTerm = metal_sf64_mul(seriesSquared, oddInner);
+    ulong evenInner = metal_sf64_add(SF64_TRAN_L4, metal_sf64_mul(seriesFourth, SF64_TRAN_L6));
+    evenInner = metal_sf64_add(SF64_TRAN_L2, metal_sf64_mul(seriesFourth, evenInner));
+    ulong evenTerm = metal_sf64_mul(seriesFourth, evenInner);
+    ulong seriesTail = metal_sf64_add(oddTerm, evenTerm);
+    ulong halfDeltaSquared = metal_sf64_mul(SF64_TRAN_HALF, metal_sf64_mul(delta, delta));
+    ulong exponentFloat = metal_sf64_int_to64(exponent);
+    ulong exponentHi = metal_sf64_mul(exponentFloat, SF64_TRAN_LN2_HI);
+    ulong exponentLo = metal_sf64_mul(exponentFloat, SF64_TRAN_LN2_LO);
+    ulong seriesTimes = metal_sf64_mul(series, metal_sf64_add(halfDeltaSquared, seriesTail));
+    ulong bracket = metal_sf64_add(
+        delta,
+        metal_sf64_neg(
+            metal_sf64_add(
+                halfDeltaSquared,
+                metal_sf64_neg(metal_sf64_add(seriesTimes, exponentLo))
+            )
+        )
+    );
+
+    return metal_sf64_add(exponentHi, metal_sf64_neg(bracket));
+}
+
+static inline ulong metal_sf64_sqrt(ulong value) {
+    if (metal_sf64_isnan(value)) {
+        return value;
+    }
+
+    if (metal_sf64_is_negative(value)) {
+        return SF64_NAN64;
+    }
+
+    if (metal_sf64_is_zero(value)) {
+        return value;
+    }
+
+    if (metal_sf64_isinf_pos(value)) {
+        return value;
+    }
+
+    float estimate = precise::sqrt(as_type<float>(metal_sf64_to32(value)));
+    ulong root = metal_sf32_to64(as_type<uint>(estimate));
+
+    for (uint iteration = 0; iteration < 8; iteration++) {
+        ulong halfRoot = metal_sf64_mul(root, SF64_TRAN_HALF);
+        ulong ratio = metal_sf64_div(value, root);
+        root = metal_sf64_mul(halfRoot, metal_sf64_add(root, ratio));
+    }
+
+    return root;
+}
+
+static inline ulong metal_sf64_horner5(
+    ulong variable,
+    ulong coefficient5,
+    ulong coefficient4,
+    ulong coefficient3,
+    ulong coefficient2,
+    ulong coefficient1
+) {
+    ulong result = coefficient5;
+    result = metal_sf64_add(metal_sf64_mul(variable, result), coefficient4);
+    result = metal_sf64_add(metal_sf64_mul(variable, result), coefficient3);
+    result = metal_sf64_add(metal_sf64_mul(variable, result), coefficient2);
+    result = metal_sf64_add(metal_sf64_mul(variable, result), coefficient1);
+    return result;
+}
+
+static inline void metal_sf64_sincos(
+    ulong angle,
+    thread ulong& sinOut,
+    thread ulong& cosOut
+) {
+    if (metal_sf64_isnan(angle)) {
+        sinOut = SF64_NAN64;
+        cosOut = SF64_NAN64;
+        return;
+    }
+
+    if (metal_sf64_isinf_pos(angle) || metal_sf64_isinf_neg(angle)) {
+        sinOut = SF64_NAN64;
+        cosOut = SF64_NAN64;
+        return;
+    }
+
+    if (metal_sf64_is_zero(angle)) {
+        sinOut = angle;
+        cosOut = SF64_TRAN_ONE;
+        return;
+    }
+
+    bool sinSign = false;
+    bool cosSign = false;
+    ulong absAngle = angle;
+
+    if (metal_sf64_is_negative(angle)) {
+        absAngle = metal_sf64_neg(angle);
+        sinSign = true;
+    }
+
+    int octant = metal_sf64_to_int(metal_sf64_mul(absAngle, SF64_TRAN_FOUR_OVER_PI));
+    ulong yFloat = metal_sf64_int_to64(octant);
+
+    if ((octant & 1) == 1) {
+        octant++;
+        yFloat = metal_sf64_int_to64(octant);
+    }
+
+    octant &= 7;
+    ulong piTermA = metal_sf64_mul(yFloat, SF64_TRAN_PI4A);
+    ulong piTermB = metal_sf64_mul(yFloat, SF64_TRAN_PI4B);
+    ulong piTermC = metal_sf64_mul(yFloat, SF64_TRAN_PI4C);
+    ulong reduced = metal_sf64_add(
+        metal_sf64_add(
+            metal_sf64_add(absAngle, metal_sf64_neg(piTermA)),
+            metal_sf64_neg(piTermB)
+        ),
+        metal_sf64_neg(piTermC)
+    );
+
+    if (octant > 3) {
+        octant -= 4;
+        sinSign = !sinSign;
+        cosSign = !cosSign;
+    }
+
+    if (octant > 1) {
+        cosSign = !cosSign;
+    }
+
+    ulong reducedSquared = metal_sf64_mul(reduced, reduced);
+    ulong reducedFourth = metal_sf64_mul(reducedSquared, reducedSquared);
+    ulong cosSeries = metal_sf64_horner5(
+        reducedFourth,
+        SF64_TRAN_COS5,
+        SF64_TRAN_COS4,
+        SF64_TRAN_COS3,
+        SF64_TRAN_COS2,
+        SF64_TRAN_COS1
+    );
+    ulong cosValue = metal_sf64_add(
+        SF64_TRAN_ONE,
+        metal_sf64_neg(
+            metal_sf64_mul(
+                SF64_TRAN_HALF,
+                metal_sf64_add(
+                    reducedSquared,
+                    metal_sf64_neg(metal_sf64_mul(reducedFourth, cosSeries))
+                )
+            )
+        )
+    );
+    ulong sinSeries = metal_sf64_horner5(
+        reducedFourth,
+        SF64_TRAN_SIN5,
+        SF64_TRAN_SIN4,
+        SF64_TRAN_SIN3,
+        SF64_TRAN_SIN2,
+        SF64_TRAN_SIN1
+    );
+    ulong sinValue = metal_sf64_add(
+        reduced,
+        metal_sf64_mul(
+            reduced,
+            metal_sf64_mul(reducedSquared, sinSeries)
+        )
+    );
+
+    if (octant == 1 || octant == 2) {
+        ulong swapped = sinValue;
+        sinValue = cosValue;
+        cosValue = swapped;
+    }
+
+    if (cosSign) {
+        cosValue = metal_sf64_neg(cosValue);
+    }
+
+    if (sinSign) {
+        sinValue = metal_sf64_neg(sinValue);
+    }
+
+    sinOut = sinValue;
+    cosOut = cosValue;
+}
+
+static inline ulong metal_sf64_from_float32(float value) {
+    return metal_sf32_to64(as_type<uint>(value));
+}
+
+static inline float2 metal_sf64_box_muller_pair(float uniformFirst, float uniformSecond) {
+    ulong first = metal_sf64_from_float32(uniformFirst);
+
+    if (uniformFirst == 0.0f) {
+        first = SF64_TRAN_SMALLEST_POSITIVE;
+    }
+
+    ulong logFirst = metal_sf64_log(first);
+    ulong negTwoLog = metal_sf64_mul(SF64_TRAN_NEG_TWO, logFirst);
+    ulong magnitude = metal_sf64_sqrt(negTwoLog);
+    ulong angle = metal_sf64_mul(SF64_TRAN_TWO_PI, metal_sf64_from_float32(uniformSecond));
+    ulong sinValue;
+    ulong cosValue;
+    metal_sf64_sincos(angle, sinValue, cosValue);
+    float gaussianFirst = as_type<float>(metal_sf64_to32(metal_sf64_mul(magnitude, cosValue)));
+    float gaussianSecond = as_type<float>(metal_sf64_to32(metal_sf64_mul(magnitude, sinValue)));
+
+    return float2(gaussianFirst, gaussianSecond);
+}
+
+#endif

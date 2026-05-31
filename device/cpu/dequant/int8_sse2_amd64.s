@@ -1,4 +1,5 @@
 #include "textflag.h"
+#include "x86_int8_macros.inc"
 
 // func DequantInt8SSE2Asm(dst *float32, src *int8, count int, scale float32, zeroPoint int16)
 TEXT ·DequantInt8SSE2Asm(SB), NOSPLIT, $0-30
@@ -20,18 +21,8 @@ dequant_i8_sse2_w4:
 	CMPQ CX, $4
 	JL   dequant_i8_sse2_scalar_tail
 
-	VMOVD (SI), X0
-	VPUNPCKLBW X0, X0, X0
-	VPSRAW $8, X0, X0
-	MOVAPS X0, X2
-	VPUNPCKLWD X0, X0, X0
-	VPSRAD $16, X0, X0
-	VPUNPCKHWD X2, X2, X2
-	VPSRAD $16, X2, X2
-	MOVLHPS X2, X0
-	VPSUBD X14, X0, X0
-	VCVTDQ2PS X0, X0
-	VMULPS X15, X0, X0
+	INT8_SSE2_W4_LOAD_SX_X0
+	INT8_SSE2_DEQUANT_X0
 	MOVUPS X0, (DI)
 
 	ADDQ $4, SI

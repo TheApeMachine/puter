@@ -10,16 +10,24 @@ import (
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/manifesto/tensor"
 	"github.com/theapemachine/puter/device"
+	cpuoptimizer "github.com/theapemachine/puter/device/cpu/optimizer"
 	"github.com/theapemachine/puter/device/metal/activation"
 	"github.com/theapemachine/puter/device/metal/attention"
+	"github.com/theapemachine/puter/device/metal/checkpoint"
 	"github.com/theapemachine/puter/device/metal/convolution"
 	"github.com/theapemachine/puter/device/metal/dropout"
 	"github.com/theapemachine/puter/device/metal/elementwise"
 	"github.com/theapemachine/puter/device/metal/embedding"
 	"github.com/theapemachine/puter/device/metal/layernorm"
+	"github.com/theapemachine/puter/device/metal/masking"
+	metalmath "github.com/theapemachine/puter/device/metal/math"
 	"github.com/theapemachine/puter/device/metal/matmul"
+	"github.com/theapemachine/puter/device/metal/model_editing"
 	"github.com/theapemachine/puter/device/metal/normalization"
+	metaloptimizer "github.com/theapemachine/puter/device/metal/optimizer"
+	metalpool "github.com/theapemachine/puter/device/metal/pool"
 	metalrope "github.com/theapemachine/puter/device/metal/rope"
+	metalshape "github.com/theapemachine/puter/device/metal/shape"
 )
 
 type ComputeHost struct {
@@ -113,24 +121,67 @@ func (host *ComputeHost) BinaryElementwise(dst, left, right unsafe.Pointer, form
 	}
 }
 
-func (host *ComputeHost) DispatchALiBiBias(scores, slope, output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
-	host.unavailable()
-}
-
 func (host *ComputeHost) DispatchAdaptiveAvgPool2D(input, output unsafe.Pointer, batch, channels, inHeight, inWidth, outHeight, outWidth int, format dtype.DType) {
-	host.unavailable()
+	if batch == 0 || channels == 0 || inHeight == 0 || inWidth == 0 || outHeight == 0 || outWidth == 0 {
+		return
+	}
+
+	host.dispatchError(metalpool.DispatchPool2DRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(batch),
+		uint32(channels),
+		uint32(inHeight),
+		uint32(inWidth),
+		uint32(outHeight),
+		uint32(outWidth),
+		false,
+		true,
+	))
 }
 
 func (host *ComputeHost) DispatchAdaptiveMaxPool2D(input, output unsafe.Pointer, batch, channels, inHeight, inWidth, outHeight, outWidth int, format dtype.DType) {
-	host.unavailable()
-}
+	if batch == 0 || channels == 0 || inHeight == 0 || inWidth == 0 || outHeight == 0 || outWidth == 0 {
+		return
+	}
 
-func (host *ComputeHost) DispatchApplyMask(input, mask, output unsafe.Pointer, count int, format dtype.DType) {
-	host.unavailable()
+	host.dispatchError(metalpool.DispatchPool2DRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(batch),
+		uint32(channels),
+		uint32(inHeight),
+		uint32(inWidth),
+		uint32(outHeight),
+		uint32(outWidth),
+		true,
+		true,
+	))
 }
 
 func (host *ComputeHost) DispatchAvgPool2D(config device.PoolConfig, input, output unsafe.Pointer, batch, channels, inHeight, inWidth, outHeight, outWidth int, format dtype.DType) {
-	host.unavailable()
+	if batch == 0 || channels == 0 || inHeight == 0 || inWidth == 0 || outHeight == 0 || outWidth == 0 {
+		return
+	}
+
+	host.dispatchError(metalpool.DispatchPool2DRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(batch),
+		uint32(channels),
+		uint32(inHeight),
+		uint32(inWidth),
+		uint32(outHeight),
+		uint32(outWidth),
+		false,
+		false,
+	))
 }
 
 func (host *ComputeHost) DispatchAxpy(y, x unsafe.Pointer, alpha float32, format dtype.DType) {
@@ -197,10 +248,6 @@ func (host *ComputeHost) DispatchBundle(left, right, output unsafe.Pointer, coun
 }
 
 func (host *ComputeHost) DispatchCATE(treated, control, output unsafe.Pointer, count int, format dtype.DType) {
-	host.unavailable()
-}
-
-func (host *ComputeHost) DispatchCausalMask(output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
 	host.unavailable()
 }
 
@@ -402,7 +449,24 @@ func (host *ComputeHost) DispatchMarkovMutualInformation(joint, output unsafe.Po
 }
 
 func (host *ComputeHost) DispatchMaxPool2D(config device.PoolConfig, input, output unsafe.Pointer, batch, channels, inHeight, inWidth, outHeight, outWidth int, format dtype.DType) {
-	host.unavailable()
+	if batch == 0 || channels == 0 || inHeight == 0 || inWidth == 0 || outHeight == 0 || outWidth == 0 {
+		return
+	}
+
+	host.dispatchError(metalpool.DispatchPool2DRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(batch),
+		uint32(channels),
+		uint32(inHeight),
+		uint32(inWidth),
+		uint32(outHeight),
+		uint32(outWidth),
+		true,
+		false,
+	))
 }
 
 func (host *ComputeHost) DispatchMultiHeadAttention(config device.MultiHeadAttentionConfig, query, key, value, output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
@@ -892,4 +956,930 @@ func (host *ComputeHost) UnaryParam(dst, src unsafe.Pointer, format dtype.DType,
 	); err != nil {
 		host.dispatchError(err)
 	}
+}
+func (host *ComputeHost) DispatchApplyMask(input, mask, output unsafe.Pointer, count int, format dtype.DType) {
+	if count == 0 {
+		return
+	}
+
+	host.dispatchError(masking.DispatchApplyMaskRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(mask))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(count),
+	))
+}
+
+func (host *ComputeHost) DispatchCausalMask(output unsafe.Pointer, seqQ, seqK int, format dtype.DType) {
+	if seqQ == 0 || seqK == 0 {
+		return
+	}
+
+	host.dispatchError(masking.DispatchCausalMaskRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(seqQ),
+		uint32(seqK),
+	))
+}
+
+func (host *ComputeHost) DispatchALiBiBias(
+	scores, slope, output unsafe.Pointer,
+	seqQ, seqK int,
+	format dtype.DType,
+) {
+	if seqQ == 0 || seqK == 0 {
+		return
+	}
+
+	host.dispatchError(masking.DispatchALiBiBiasRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(scores))),
+		uintptr(unsafe.Pointer(resolveBufferRef(slope))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(seqQ),
+		uint32(seqK),
+	))
+}
+
+func (host *ComputeHost) DispatchInvSqrtDimScale(
+	out, input unsafe.Pointer,
+	dim int32,
+	format dtype.DType,
+) {
+	count := host.elementCount(input, out)
+
+	if count == 0 || dim <= 0 || host.bridge == nil {
+		return
+	}
+
+	dimBuffer := host.bridge.borrowScratch(4)
+
+	defer host.bridge.releaseScratch(dimBuffer)
+
+	host.bridge.writeInt32Scalar(dimBuffer, dim)
+
+	host.dispatchError(metalmath.DispatchInvSqrtDimScaleRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(dimBuffer)),
+		uintptr(unsafe.Pointer(resolveBufferRef(out))),
+		format,
+		uint32(count),
+	))
+}
+
+func (host *ComputeHost) DispatchLogSumExp(input, output unsafe.Pointer, cols int, format dtype.DType) {
+	rows, columnCount := host.matrixRowsCols(input)
+
+	if rows == 0 || columnCount == 0 {
+		return
+	}
+
+	if cols > 0 {
+		columnCount = uint32(cols)
+	}
+
+	host.dispatchError(metalmath.DispatchLogSumExpRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		rows,
+		columnCount,
+	))
+}
+
+func (host *ComputeHost) DispatchOuter(
+	left, right, output unsafe.Pointer,
+	leftCount, rightCount int,
+	format dtype.DType,
+) {
+	if leftCount == 0 || rightCount == 0 {
+		return
+	}
+
+	host.dispatchError(metalmath.DispatchOuterRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(left))),
+		uintptr(unsafe.Pointer(resolveBufferRef(right))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(leftCount),
+		uint32(rightCount),
+	))
+}
+
+func (host *ComputeHost) DispatchWeightGraftAdd(
+	weights, injection unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	if count == 0 {
+		return
+	}
+
+	host.dispatchError(model_editing.DispatchWeightGraftAddRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(weights))),
+		uintptr(unsafe.Pointer(resolveBufferRef(injection))),
+		format,
+		uint32(count),
+	))
+}
+
+func (host *ComputeHost) DispatchCheckpointEncode(input, output unsafe.Pointer, format dtype.DType) {
+	inputTensor := resolveDeviceTensor(input)
+	outputTensor := resolveDeviceTensor(output)
+
+	if inputTensor == nil || outputTensor == nil {
+		host.dispatchError(tensor.ErrNeedsPlatformSetup)
+	}
+
+	elementCount, err := checkpoint.CheckpointElementCount(format, inputTensor.Len())
+
+	if err != nil {
+		host.dispatchError(err)
+	}
+
+	inputDims := inputTensor.Shape().Dims()
+	dims := make([]uint64, len(inputDims))
+
+	for index, dimension := range inputDims {
+		dims[index] = uint64(dimension)
+	}
+
+	host.dispatchError(checkpoint.DispatchCheckpointEncodeRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		uint32(len(inputDims)),
+		elementCount,
+		dims,
+	))
+}
+
+func (host *ComputeHost) DispatchCheckpointDecode(input, output unsafe.Pointer, format dtype.DType) {
+	inputTensor := resolveDeviceTensor(input)
+	outputTensor := resolveDeviceTensor(output)
+
+	if inputTensor == nil || outputTensor == nil {
+		host.dispatchError(tensor.ErrNeedsPlatformSetup)
+	}
+
+	elementCount, err := checkpoint.CheckpointElementCount(format, outputTensor.Len())
+
+	if err != nil {
+		host.dispatchError(err)
+	}
+
+	host.dispatchError(checkpoint.DispatchCheckpointDecodeRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		checkpoint.CheckpointHeaderBytes(outputTensor.Shape().Rank()),
+		elementCount,
+	))
+}
+
+func (host *ComputeHost) DispatchAdagrad(
+	config cpuoptimizer.AdagradConfig,
+	params, gradients, accumulator, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	if count == 0 {
+		return
+	}
+
+	host.dispatchError(metaloptimizer.DispatchOptimizer3Refs(
+		host.contextRef(),
+		metaloptimizer.OperationAdagrad,
+		uintptr(unsafe.Pointer(resolveBufferRef(params))),
+		uintptr(unsafe.Pointer(resolveBufferRef(gradients))),
+		uintptr(unsafe.Pointer(resolveBufferRef(accumulator))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(count),
+		metaloptimizer.AdagradMetalConfig(config),
+	))
+}
+
+func (host *ComputeHost) DispatchAdam(
+	config cpuoptimizer.AdamConfig,
+	params, gradients, firstMoment, secondMoment, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	if count == 0 {
+		return
+	}
+
+	host.dispatchError(metaloptimizer.DispatchOptimizer4Refs(
+		host.contextRef(),
+		metaloptimizer.OperationAdam,
+		uintptr(unsafe.Pointer(resolveBufferRef(params))),
+		uintptr(unsafe.Pointer(resolveBufferRef(gradients))),
+		uintptr(unsafe.Pointer(resolveBufferRef(firstMoment))),
+		uintptr(unsafe.Pointer(resolveBufferRef(secondMoment))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(count),
+		metaloptimizer.AdamMetalConfig(config),
+	))
+}
+
+func (host *ComputeHost) DispatchAdamax(
+	config cpuoptimizer.AdamaxConfig,
+	params, gradients, firstMoment, infinityMoment, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	if count == 0 {
+		return
+	}
+
+	host.dispatchError(metaloptimizer.DispatchOptimizer4Refs(
+		host.contextRef(),
+		metaloptimizer.OperationAdamax,
+		uintptr(unsafe.Pointer(resolveBufferRef(params))),
+		uintptr(unsafe.Pointer(resolveBufferRef(gradients))),
+		uintptr(unsafe.Pointer(resolveBufferRef(firstMoment))),
+		uintptr(unsafe.Pointer(resolveBufferRef(infinityMoment))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(count),
+		metaloptimizer.AdamaxMetalConfig(config),
+	))
+}
+
+func (host *ComputeHost) DispatchAdamW(
+	config cpuoptimizer.AdamWConfig,
+	params, gradients, firstMoment, secondMoment, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	if count == 0 {
+		return
+	}
+
+	host.dispatchError(metaloptimizer.DispatchOptimizer4Refs(
+		host.contextRef(),
+		metaloptimizer.OperationAdamW,
+		uintptr(unsafe.Pointer(resolveBufferRef(params))),
+		uintptr(unsafe.Pointer(resolveBufferRef(gradients))),
+		uintptr(unsafe.Pointer(resolveBufferRef(firstMoment))),
+		uintptr(unsafe.Pointer(resolveBufferRef(secondMoment))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(count),
+		metaloptimizer.AdamWMetalConfig(config),
+	))
+}
+
+func (host *ComputeHost) DispatchHebbian(
+	config cpuoptimizer.HebbianConfig,
+	weights, post, pre, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	postTensor := resolveDeviceTensor(post)
+	preTensor := resolveDeviceTensor(pre)
+
+	if postTensor == nil || preTensor == nil || count == 0 {
+		return
+	}
+
+	postDims := postTensor.Shape().Dims()
+	preDims := preTensor.Shape().Dims()
+	postCount := uint32(1)
+	preCount := uint32(1)
+
+	for _, dimension := range postDims {
+		postCount *= uint32(dimension)
+	}
+
+	for _, dimension := range preDims {
+		preCount *= uint32(dimension)
+	}
+
+	host.dispatchError(metaloptimizer.DispatchHebbianRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(weights))),
+		uintptr(unsafe.Pointer(resolveBufferRef(post))),
+		uintptr(unsafe.Pointer(resolveBufferRef(pre))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		postCount,
+		preCount,
+		config,
+	))
+}
+
+func (host *ComputeHost) DispatchLARS(
+	config cpuoptimizer.LARSConfig,
+	params, gradients, momentum, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	if count == 0 {
+		return
+	}
+
+	host.dispatchError(metaloptimizer.DispatchLARSRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(params))),
+		uintptr(unsafe.Pointer(resolveBufferRef(gradients))),
+		uintptr(unsafe.Pointer(resolveBufferRef(momentum))),
+		uintptr(unsafe.Pointer(resolveBufferRef(momentum))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(count),
+		1,
+		config,
+	))
+}
+
+func (host *ComputeHost) DispatchLBFGS(
+	config cpuoptimizer.LBFGSConfig,
+	params, gradients, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	if count == 0 {
+		return
+	}
+
+	host.dispatchError(metaloptimizer.DispatchOptimizer2Refs(
+		host.contextRef(),
+		metaloptimizer.OperationLBFGS,
+		uintptr(unsafe.Pointer(resolveBufferRef(params))),
+		uintptr(unsafe.Pointer(resolveBufferRef(gradients))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(count),
+		metaloptimizer.LBFGSMetalConfig(config),
+	))
+}
+
+func (host *ComputeHost) DispatchLion(
+	config cpuoptimizer.LionConfig,
+	params, gradients, momentum, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	if count == 0 {
+		return
+	}
+
+	host.dispatchError(metaloptimizer.DispatchOptimizer3Refs(
+		host.contextRef(),
+		metaloptimizer.OperationLion,
+		uintptr(unsafe.Pointer(resolveBufferRef(params))),
+		uintptr(unsafe.Pointer(resolveBufferRef(gradients))),
+		uintptr(unsafe.Pointer(resolveBufferRef(momentum))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(count),
+		metaloptimizer.LionMetalConfig(config),
+	))
+}
+
+func (host *ComputeHost) DispatchRMSprop(
+	config cpuoptimizer.RMSpropConfig,
+	params, gradients, secondMoment, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	if count == 0 {
+		return
+	}
+
+	host.dispatchError(metaloptimizer.DispatchOptimizer3Refs(
+		host.contextRef(),
+		metaloptimizer.OperationRMSprop,
+		uintptr(unsafe.Pointer(resolveBufferRef(params))),
+		uintptr(unsafe.Pointer(resolveBufferRef(gradients))),
+		uintptr(unsafe.Pointer(resolveBufferRef(secondMoment))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(count),
+		metaloptimizer.RMSpropMetalConfig(config),
+	))
+}
+
+func (host *ComputeHost) DispatchSGD(
+	config cpuoptimizer.SGDConfig,
+	params, gradients, momentum, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	if count == 0 {
+		return
+	}
+
+	host.dispatchError(metaloptimizer.DispatchOptimizer3Refs(
+		host.contextRef(),
+		metaloptimizer.OperationSGD,
+		uintptr(unsafe.Pointer(resolveBufferRef(params))),
+		uintptr(unsafe.Pointer(resolveBufferRef(gradients))),
+		uintptr(unsafe.Pointer(resolveBufferRef(momentum))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(count),
+		metaloptimizer.SGDMetalConfig(config),
+	))
+}
+
+func (host *ComputeHost) DispatchCopyContiguous(dst, src unsafe.Pointer, count int, format dtype.DType) {
+	elementBytes := metalshape.ElementByteSize(format)
+
+	if count == 0 || elementBytes == 0 {
+		return
+	}
+
+	host.dispatchError(metalshape.DispatchCopyBytesRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(src))),
+		uintptr(unsafe.Pointer(resolveBufferRef(dst))),
+		format,
+		uint32(count*elementBytes),
+	))
+}
+
+func (host *ComputeHost) DispatchReshape(input, output unsafe.Pointer, count int, format dtype.DType) {
+	host.DispatchCopyContiguous(output, input, count, format)
+}
+
+func (host *ComputeHost) DispatchSplitHeads(
+	input, output unsafe.Pointer,
+	batch, seq, heads, headDim int,
+	format dtype.DType,
+) {
+	host.DispatchCopyContiguous(output, input, batch*seq*heads*headDim, format)
+}
+
+func (host *ComputeHost) DispatchViewAsHeads(
+	input, output unsafe.Pointer,
+	batch, seq, numHeads, headDim int,
+	format dtype.DType,
+) {
+	host.DispatchCopyContiguous(output, input, batch*seq*numHeads*headDim, format)
+}
+
+func (host *ComputeHost) DispatchConcat(left, right, output unsafe.Pointer, format dtype.DType) {
+	leftTensor := resolveDeviceTensor(left)
+	rightTensor := resolveDeviceTensor(right)
+
+	if leftTensor == nil || rightTensor == nil {
+		host.dispatchError(tensor.ErrNeedsPlatformSetup)
+	}
+
+	elementBytes := metalshape.ElementByteSize(format)
+
+	if elementBytes == 0 {
+		host.dispatchError(tensor.ErrNeedsPlatformSetup)
+	}
+
+	leftBytes := uint32(leftTensor.Bytes())
+	rightBytes := uint32(rightTensor.Bytes())
+
+	host.dispatchError(metalshape.DispatchConcatBytesRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(left))),
+		uintptr(unsafe.Pointer(resolveBufferRef(right))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		leftBytes,
+		rightBytes,
+	))
+}
+
+func (host *ComputeHost) DispatchSplit2(input, left, right unsafe.Pointer, format dtype.DType) {
+	leftTensor := resolveDeviceTensor(left)
+	rightTensor := resolveDeviceTensor(right)
+
+	if leftTensor == nil || rightTensor == nil {
+		host.dispatchError(tensor.ErrNeedsPlatformSetup)
+	}
+
+	elementBytes := metalshape.ElementByteSize(format)
+
+	if elementBytes == 0 {
+		host.dispatchError(tensor.ErrNeedsPlatformSetup)
+	}
+
+	leftBytes := uint32(leftTensor.Bytes())
+	rightBytes := uint32(rightTensor.Bytes())
+
+	host.dispatchError(metalshape.DispatchSplit2BytesRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(left))),
+		uintptr(unsafe.Pointer(resolveBufferRef(right))),
+		format,
+		leftBytes,
+		rightBytes,
+	))
+}
+
+func (host *ComputeHost) DispatchGather(
+	source, indices, output unsafe.Pointer,
+	outerDim, innerDim int,
+	format dtype.DType,
+) {
+	outputTensor := resolveDeviceTensor(output)
+
+	if outputTensor == nil || outerDim == 0 || innerDim == 0 {
+		return
+	}
+
+	outRows := uint32(outputTensor.Len() / innerDim)
+
+	host.dispatchError(metalshape.DispatchGatherRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(source))),
+		uintptr(unsafe.Pointer(resolveBufferRef(indices))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(outerDim),
+		uint32(innerDim),
+		outRows,
+	))
+}
+
+func (host *ComputeHost) DispatchScatter(
+	target, indices, updates, output unsafe.Pointer,
+	outerDim, innerDim int,
+	format dtype.DType,
+) {
+	updatesTensor := resolveDeviceTensor(updates)
+
+	if updatesTensor == nil || outerDim == 0 || innerDim == 0 {
+		return
+	}
+
+	updateRows := uint32(updatesTensor.Len() / innerDim)
+
+	host.dispatchError(metalshape.DispatchScatterRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(target))),
+		uintptr(unsafe.Pointer(resolveBufferRef(indices))),
+		uintptr(unsafe.Pointer(resolveBufferRef(updates))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(outerDim),
+		uint32(innerDim),
+		updateRows,
+	))
+}
+
+func (host *ComputeHost) DispatchMergeHeads(
+	input, output unsafe.Pointer,
+	batch, seq, heads, headDim int,
+	format dtype.DType,
+) {
+	if batch == 0 || seq == 0 || heads == 0 || headDim == 0 {
+		return
+	}
+
+	host.dispatchError(metalshape.DispatchMergeHeadsRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(batch),
+		uint32(seq),
+		uint32(heads),
+		uint32(headDim),
+	))
+}
+
+func (host *ComputeHost) DispatchTranspose2D(
+	input, output unsafe.Pointer,
+	rows, cols int,
+	format dtype.DType,
+) {
+	if rows == 0 || cols == 0 {
+		return
+	}
+
+	host.dispatchError(metalshape.DispatchTranspose2DBytesRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(rows),
+		uint32(cols),
+	))
+}
+
+func (host *ComputeHost) DispatchLastToken(
+	input, output unsafe.Pointer,
+	batch, seq, hidden int,
+	format dtype.DType,
+) {
+	elementBytes := metalshape.ElementByteSize(format)
+
+	if batch == 0 || seq == 0 || hidden == 0 || elementBytes == 0 {
+		return
+	}
+
+	hiddenBytes := uint32(hidden * elementBytes)
+	outBytes := uint32(batch * hidden * elementBytes)
+
+	host.dispatchError(metalshape.DispatchLastTokenBytesRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(seq),
+		hiddenBytes,
+		outBytes,
+	))
+}
+
+func (host *ComputeHost) DispatchUpsampleNearest2D(
+	input, output unsafe.Pointer,
+	batch, channels, inHeight, inWidth, outHeight, outWidth int,
+	format dtype.DType,
+) {
+	if batch == 0 || channels == 0 || inHeight == 0 || inWidth == 0 || outHeight == 0 || outWidth == 0 {
+		return
+	}
+
+	outputTensor := resolveDeviceTensor(output)
+	outElements := uint32(outputTensor.Len() / batch)
+
+	host.dispatchError(metalshape.DispatchUpsampleNearest2DBytesRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(channels),
+		uint32(inHeight),
+		uint32(inWidth),
+		uint32(outHeight),
+		uint32(outWidth),
+		outElements,
+	))
+}
+
+func (host *ComputeHost) DispatchWhere(
+	mask, positive, negative, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	if count == 0 {
+		return
+	}
+
+	host.dispatchError(metalshape.DispatchWhereRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(mask))),
+		uintptr(unsafe.Pointer(resolveBufferRef(positive))),
+		uintptr(unsafe.Pointer(resolveBufferRef(negative))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(count),
+	))
+}
+
+func (host *ComputeHost) DispatchMaskedFill(
+	input, mask, fill, output unsafe.Pointer,
+	count int,
+	format dtype.DType,
+) {
+	if count == 0 {
+		return
+	}
+
+	host.dispatchError(metalshape.DispatchMaskedFillRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(mask))),
+		uintptr(unsafe.Pointer(resolveBufferRef(fill))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(count),
+	))
+}
+
+func (host *ComputeHost) DispatchSlice(
+	input, output unsafe.Pointer,
+	dim, start, end int,
+	format dtype.DType,
+) {
+	inputTensor := resolveDeviceTensor(input)
+	outputTensor := resolveDeviceTensor(output)
+	elementBytes := metalshape.ElementByteSize(format)
+
+	if inputTensor == nil || outputTensor == nil || elementBytes == 0 || dim < 0 || end <= start {
+		host.dispatchError(tensor.ErrShapeMismatch)
+	}
+
+	inputDims := inputTensor.Shape().Dims()
+
+	if dim >= len(inputDims) {
+		host.dispatchError(tensor.ErrShapeMismatch)
+	}
+
+	sliceLen := end - start
+	inner := 1
+
+	for index := dim + 1; index < len(inputDims); index++ {
+		inner *= inputDims[index]
+	}
+
+	innerBytes := uint32(inner * elementBytes)
+
+	host.dispatchError(metalshape.DispatchSliceBytesRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(sliceLen),
+		uint32(inputDims[dim]),
+		innerBytes,
+		uint32(start),
+		uint32(outputTensor.Bytes()),
+	))
+}
+
+func (host *ComputeHost) DispatchTranspose(
+	input, permutation, output unsafe.Pointer,
+	rank int,
+	format dtype.DType,
+) {
+	inputTensor := resolveDeviceTensor(input)
+
+	if inputTensor == nil || rank <= 0 {
+		return
+	}
+
+	permutationView := unsafe.Slice((*int32)(permutation), rank)
+	permutationValues := make([]uint32, rank)
+	inputStrides := make([]uint32, rank)
+	outputStrides := make([]uint32, rank)
+	inputDims := inputTensor.Shape().Dims()
+
+	if len(inputDims) != rank {
+		host.dispatchError(tensor.ErrShapeMismatch)
+	}
+
+	stride := 1
+
+	for index := rank - 1; index >= 0; index-- {
+		inputStrides[index] = uint32(stride)
+		stride *= inputDims[index]
+	}
+
+	outputDims := make([]int, rank)
+
+	for index := 0; index < rank; index++ {
+		permutationValues[index] = uint32(permutationView[index])
+		outputDims[index] = inputDims[permutationView[index]]
+	}
+
+	stride = 1
+
+	for index := rank - 1; index >= 0; index-- {
+		outputStrides[index] = uint32(stride)
+		stride *= outputDims[index]
+	}
+
+	host.dispatchError(metalshape.DispatchTransposeRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(input))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(rank),
+		uint32(inputTensor.Len()),
+		permutationValues,
+		inputStrides,
+		outputStrides,
+	))
+}
+
+func (host *ComputeHost) DispatchPageWrite(
+	storage, values, pageIDs, offsets, output unsafe.Pointer,
+	pageSize int,
+	format dtype.DType,
+) {
+	storageTensor := resolveDeviceTensor(storage)
+	valuesTensor := resolveDeviceTensor(values)
+
+	if storageTensor == nil || valuesTensor == nil || pageSize <= 0 {
+		host.dispatchError(tensor.ErrShapeMismatch)
+	}
+
+	storageDims := storageTensor.Shape().Dims()
+	valueDims := valuesTensor.Shape().Dims()
+
+	if len(storageDims) < 2 || len(valueDims) != len(storageDims)-1 || storageDims[1] != pageSize {
+		host.dispatchError(tensor.ErrShapeMismatch)
+	}
+
+	inner := 1
+
+	for index := 2; index < len(storageDims); index++ {
+		inner *= storageDims[index]
+	}
+
+	host.dispatchError(metalshape.DispatchPageWriteRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(storage))),
+		uintptr(unsafe.Pointer(resolveBufferRef(values))),
+		uintptr(unsafe.Pointer(resolveBufferRef(pageIDs))),
+		uintptr(unsafe.Pointer(resolveBufferRef(offsets))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(storageDims[0]),
+		uint32(pageSize),
+		uint32(inner),
+		uint32(valueDims[0]),
+		0,
+		0,
+	))
+}
+
+func (host *ComputeHost) DispatchPageGather(
+	storage, pageTable, pageSize, output unsafe.Pointer,
+	format dtype.DType,
+) {
+	host.dispatchPageGather(storage, pageTable, pageSize, output, 0, format)
+}
+
+func (host *ComputeHost) DispatchPageGatherWithLiveRows(
+	storage, pageTable, pageSize, output unsafe.Pointer,
+	liveRows int,
+	format dtype.DType,
+) {
+	host.dispatchPageGather(storage, pageTable, pageSize, output, liveRows, format)
+}
+
+func (host *ComputeHost) dispatchPageGather(
+	storage, pageTable, pageSizePointer, output unsafe.Pointer,
+	liveRows int,
+	format dtype.DType,
+) {
+	storageTensor := resolveDeviceTensor(storage)
+	pageTableTensor := resolveDeviceTensor(pageTable)
+	outputTensor := resolveDeviceTensor(output)
+	pageSize := host.int32FromDeviceScalar(pageSizePointer)
+
+	if storageTensor == nil || pageTableTensor == nil || outputTensor == nil || pageSize <= 0 {
+		host.dispatchError(tensor.ErrShapeMismatch)
+	}
+
+	storageDims := storageTensor.Shape().Dims()
+	outputDims := outputTensor.Shape().Dims()
+
+	if len(storageDims) < 2 || len(outputDims) != len(storageDims)-1 || storageDims[1] != pageSize {
+		host.dispatchError(tensor.ErrShapeMismatch)
+	}
+
+	inner := 1
+
+	for index := 2; index < len(storageDims); index++ {
+		inner *= storageDims[index]
+	}
+
+	outRows := outputDims[0]
+
+	if liveRows > 0 && liveRows < outRows {
+		outRows = liveRows
+	}
+
+	maxRows := pageTableTensor.Len() * pageSize
+
+	if maxRows < outRows {
+		outRows = maxRows
+	}
+
+	host.dispatchError(metalshape.DispatchPageGatherRefs(
+		host.contextRef(),
+		uintptr(unsafe.Pointer(resolveBufferRef(storage))),
+		uintptr(unsafe.Pointer(resolveBufferRef(pageTable))),
+		uintptr(unsafe.Pointer(resolveBufferRef(output))),
+		format,
+		uint32(storageDims[0]),
+		uint32(pageSize),
+		uint32(inner),
+		uint32(outRows),
+		0,
+		0,
+	))
+}
+
+func (host *ComputeHost) int32FromDeviceScalar(pointer unsafe.Pointer) int {
+	if host.bridge == nil {
+		return 0
+	}
+
+	return int(host.bridge.readInt32Scalar(resolveBufferRef(pointer)))
 }

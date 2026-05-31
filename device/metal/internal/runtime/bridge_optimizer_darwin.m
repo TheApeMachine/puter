@@ -170,6 +170,8 @@ int metal_dispatch_optimizer4(
     MetalBufferRef secondRef,
     MetalBufferRef outRef,
     uint32_t count,
+    const void* configBytes,
+    size_t configBytesLen,
     uint64_t completionToken,
     MetalStatus* status
 ) {
@@ -201,6 +203,7 @@ int metal_dispatch_optimizer4(
             [encoder setBuffer:(__bridge id<MTLBuffer>)secondRef offset:0 atIndex:3];
             [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:4];
             [encoder setBytes:&count length:sizeof(count) atIndex:5];
+            [encoder setBytes:configBytes length:configBytesLen atIndex:6];
         }
     );
 }
@@ -214,6 +217,8 @@ int metal_dispatch_optimizer3(
     MetalBufferRef stateRef,
     MetalBufferRef outRef,
     uint32_t count,
+    const void* configBytes,
+    size_t configBytesLen,
     uint64_t completionToken,
     MetalStatus* status
 ) {
@@ -245,6 +250,7 @@ int metal_dispatch_optimizer3(
             [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:3];
             [encoder setBytes:&count length:sizeof(count) atIndex:4];
             [encoder setBytes:&operationCode length:sizeof(operationCode) atIndex:5];
+            [encoder setBytes:configBytes length:configBytesLen atIndex:6];
         }
     );
 }
@@ -257,6 +263,8 @@ int metal_dispatch_optimizer2(
     MetalBufferRef gradientsRef,
     MetalBufferRef outRef,
     uint32_t count,
+    const void* configBytes,
+    size_t configBytesLen,
     uint64_t completionToken,
     MetalStatus* status
 ) {
@@ -285,6 +293,7 @@ int metal_dispatch_optimizer2(
             [encoder setBuffer:(__bridge id<MTLBuffer>)gradientsRef offset:0 atIndex:1];
             [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:2];
             [encoder setBytes:&count length:sizeof(count) atIndex:3];
+            [encoder setBytes:configBytes length:configBytesLen atIndex:4];
         }
     );
 }

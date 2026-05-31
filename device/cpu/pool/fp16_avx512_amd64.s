@@ -1,17 +1,48 @@
 #include "textflag.h"
-
-#define VCVTPS2PH_Y0_X2 WORD $0xC4E3; WORD $0x7D1D; BYTE $0xD8; BYTE $0x00
+#include "../avx512_fp16_macros.inc"
+#include "../f16c_fp16_macros.inc"
 
 DATA poolNegInfHalfAVX512<>+0(SB)/2, $0xfc00
-DATA poolOneHalfAVX512<>+0(SB)/2, $0x3c00
+DATA poolOneF32AVX512<>+0(SB)/4, $0x3F800000
 DATA poolQuarterHalfAVX512<>+0(SB)/2, $0x3400
 GLOBL poolNegInfHalfAVX512<>(SB), RODATA|NOPTR, $2
-GLOBL poolOneHalfAVX512<>(SB), RODATA|NOPTR, $2
+GLOBL poolOneF32AVX512<>(SB), RODATA|NOPTR, $4
 GLOBL poolQuarterHalfAVX512<>(SB), RODATA|NOPTR, $2
 
-#define NARROW_FP16_X1_TO_4H(dstPtr) \
-	VCVTPS2PH_Y0_X2; \
-	VMOVDQU X2, (dstPtr)
+DATA poolFp16EvenShuf<>+0(SB)/1, $0x00
+DATA poolFp16EvenShuf<>+1(SB)/1, $0x80
+DATA poolFp16EvenShuf<>+2(SB)/1, $0x04
+DATA poolFp16EvenShuf<>+3(SB)/1, $0x80
+DATA poolFp16EvenShuf<>+4(SB)/1, $0x08
+DATA poolFp16EvenShuf<>+5(SB)/1, $0x80
+DATA poolFp16EvenShuf<>+6(SB)/1, $0x0c
+DATA poolFp16EvenShuf<>+7(SB)/1, $0x80
+DATA poolFp16EvenShuf<>+8(SB)/1, $0x80
+DATA poolFp16EvenShuf<>+9(SB)/1, $0x80
+DATA poolFp16EvenShuf<>+10(SB)/1, $0x80
+DATA poolFp16EvenShuf<>+11(SB)/1, $0x80
+DATA poolFp16EvenShuf<>+12(SB)/1, $0x80
+DATA poolFp16EvenShuf<>+13(SB)/1, $0x80
+DATA poolFp16EvenShuf<>+14(SB)/1, $0x80
+DATA poolFp16EvenShuf<>+15(SB)/1, $0x80
+DATA poolFp16OddShuf<>+0(SB)/1, $0x02
+DATA poolFp16OddShuf<>+1(SB)/1, $0x80
+DATA poolFp16OddShuf<>+2(SB)/1, $0x06
+DATA poolFp16OddShuf<>+3(SB)/1, $0x80
+DATA poolFp16OddShuf<>+4(SB)/1, $0x0a
+DATA poolFp16OddShuf<>+5(SB)/1, $0x80
+DATA poolFp16OddShuf<>+6(SB)/1, $0x0e
+DATA poolFp16OddShuf<>+7(SB)/1, $0x80
+DATA poolFp16OddShuf<>+8(SB)/1, $0x80
+DATA poolFp16OddShuf<>+9(SB)/1, $0x80
+DATA poolFp16OddShuf<>+10(SB)/1, $0x80
+DATA poolFp16OddShuf<>+11(SB)/1, $0x80
+DATA poolFp16OddShuf<>+12(SB)/1, $0x80
+DATA poolFp16OddShuf<>+13(SB)/1, $0x80
+DATA poolFp16OddShuf<>+14(SB)/1, $0x80
+DATA poolFp16OddShuf<>+15(SB)/1, $0x80
+GLOBL poolFp16EvenShuf<>(SB), RODATA|NOPTR, $16
+GLOBL poolFp16OddShuf<>(SB), RODATA|NOPTR, $16
 
 // func MaxPool2DStride1RowFP16AVX512Asm(
 //     outRow, input *uint16,
@@ -30,13 +61,13 @@ TEXT ·MaxPool2DStride1RowFP16AVX512Asm(SB), NOSPLIT, $0-56
 	IMULQ R10, R9
 	ADDQ R9, BX
 
-	VPBROADCASTW poolNegInfHalfAVX512<>(SB), X0
+	VPBROADCASTW poolNegInfHalfAVX512<>(SB), X1
 
 mp512_fp16_col_loop:
 	CMPQ CX, $4
 	JL   mp512_fp16_done
 
-	VMOVDQU X0, X1
+	VMOVDQU X1, X0
 
 	MOVQ DX, R11
 	MOVQ BX, R12
@@ -53,7 +84,7 @@ mp512_fp16_kw_loop:
 	JZ   mp512_fp16_kw_done
 
 	VMOVDQU X2, (R14)
-	VMAXPH X2, X1, X1
+	VMAXPH_X0_X2_X0
 
 	ADDQ $8, R14
 	DECQ  R13
@@ -65,7 +96,8 @@ mp512_fp16_kw_done:
 	JMP   mp512_fp16_kh_loop
 
 mp512_fp16_kh_done:
-	VMOVDQU X1, (AX)
+	MOVQ AX, DI
+	STORE_X0_8H_DI
 
 	ADDQ $8, AX
 	ADDQ $8, BX
@@ -93,13 +125,14 @@ TEXT ·AvgPool2DStride1RowFP16AVX512Asm(SB), NOSPLIT, $0-56
 	ADDQ R9, BX
 
 	IMULQ R8, DX
+	IMULQ kH+24(FP), DX
 	MOVQ  DX, R11
 	CVTSQ2SS R11, X14
-	MOVSS X14, X0
-	VCVTPS2PH_Y0_X2
-	VPBROADCASTW X2, X15
-	VPBROADCASTW poolOneHalfAVX512<>(SB), X14
-	VDIVPH X15, X14, X0
+	VBROADCASTSS poolOneF32AVX512<>(SB), X13
+	VDIVSS  X14, X13, X12
+	VMOVAPS X12, X0
+	VCVTPS2PH_X0_X2
+	VPBROADCASTW X2, X3
 
 	MOVQ kH+24(FP), DX
 	MOVQ kW+32(FP), R8
@@ -108,7 +141,7 @@ ap512_fp16_col_loop:
 	CMPQ CX, $4
 	JL   ap512_fp16_done
 
-	VPXORD X1, X1, X1
+	VPXORD X0, X0, X0
 
 	MOVQ DX, R11
 	MOVQ BX, R12
@@ -125,7 +158,7 @@ ap512_fp16_kw_loop:
 	JZ   ap512_fp16_kw_done
 
 	VMOVDQU X2, (R14)
-	VADDPH X2, X1, X1
+	VADDPH_X0_X2_X0
 
 	ADDQ $8, R14
 	DECQ  R13
@@ -137,8 +170,9 @@ ap512_fp16_kw_done:
 	JMP   ap512_fp16_kh_loop
 
 ap512_fp16_kh_done:
-	VMULPH X0, X1, X1
-	VMOVDQU X1, (AX)
+	VDIVPH_X0_X0_X3
+	MOVQ AX, DI
+	STORE_X0_8H_DI
 
 	ADDQ $8, AX
 	ADDQ $8, BX
@@ -169,14 +203,17 @@ mp22512_fp16_col_loop:
 	CMPQ CX, $4
 	JL   mp22512_fp16_done
 
-	VMOVDQU (BX), X0
-	VMOVDQU 8(BX), X1
-	VMAXPH X1, X0, X2
-	VMOVDQU (R10), X3
-	VMOVDQU 8(R10), X4
-	VMAXPH X4, X3, X5
-	VMAXPH X5, X2, X0
-	VMOVDQU X0, (AX)
+	VMOVDQU X0, (BX)
+	VMOVDQU X1, (R10)
+	VPSHUFB poolFp16EvenShuf<>(SB), X0, X3
+	VPSHUFB poolFp16OddShuf<>(SB), X0, X4
+	VMAXPH_X5_X3_X4
+	VPSHUFB poolFp16EvenShuf<>(SB), X1, X6
+	VPSHUFB poolFp16OddShuf<>(SB), X1, X7
+	VMAXPH_X8_X6_X7
+	VMAXPH_X0_X5_X8
+	MOVQ AX, DI
+	STORE_X0_8H_DI
 
 	ADDQ $16, BX
 	ADDQ $16, R10
@@ -198,27 +235,30 @@ TEXT ·AvgPool2x2Stride2RowFP16AVX512Asm(SB), NOSPLIT, $0-40
 	MOVQ inWidth+24(FP), DX
 	MOVQ ihStart+32(FP), R8
 
-	VPBROADCASTW poolQuarterHalfAVX512<>(SB), X15
-
 	SHLQ $1, DX, R9
 	IMULQ R8, R9
 	ADDQ R9, BX
 	MOVQ BX, R10
 	ADDQ R9, R10
 
+	VPBROADCASTW poolQuarterHalfAVX512<>(SB), X2
+
 ap22512_fp16_col_loop:
 	CMPQ CX, $4
 	JL   ap22512_fp16_done
 
-	VMOVDQU (BX), X0
-	VMOVDQU 8(BX), X1
-	VADDPH X1, X0, X2
-	VMOVDQU (R10), X3
-	VMOVDQU 8(R10), X4
-	VADDPH X4, X3, X5
-	VADDPH X5, X2, X0
-	VMULPH X15, X0, X0
-	VMOVDQU X0, (AX)
+	VMOVDQU X0, (BX)
+	VMOVDQU X1, (R10)
+	VPSHUFB poolFp16EvenShuf<>(SB), X0, X3
+	VPSHUFB poolFp16OddShuf<>(SB), X0, X4
+	VADDPH_X5_X3_X4
+	VPSHUFB poolFp16EvenShuf<>(SB), X1, X6
+	VPSHUFB poolFp16OddShuf<>(SB), X1, X7
+	VADDPH_X8_X6_X7
+	VADDPH_X0_X5_X8
+	VMULPH_X0_X2_X0
+	MOVQ AX, DI
+	STORE_X0_8H_DI
 
 	ADDQ $16, BX
 	ADDQ $16, R10

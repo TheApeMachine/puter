@@ -1,4 +1,5 @@
 #include <metal_stdlib>
+#include "../internal/norm_stats.metalinc"
 
 using namespace metal;
 
@@ -193,8 +194,9 @@ static inline void groupnorm_rows(
     uint channelStart = groupIndex * channelsPerGroup;
     uint groupSize = channelsPerGroup * spatial;
     uint groupOffset = (batchIndex * channels + channelStart) * spatial;
-    float mean = reduce_sum<Storage, Scalar>(input, reduction, groupOffset, groupSize, threadIndex) /
-        float(groupSize);
+    float sumF32 = reduce_sum<Storage, Scalar>(input, reduction, groupOffset, groupSize, threadIndex);
+    ulong sum64 = metal_sf32_to64(as_type<uint>(sumF32));
+    float mean = as_type<float>(metal_sf64_to32(metal_sf64_div(sum64, metal_sf64_int_to64(int(groupSize)))));
     float localVariance = 0.0f;
     float localCompensation = 0.0f;
 
@@ -217,7 +219,7 @@ static inline void groupnorm_rows(
         threadgroup_barrier(mem_flags::mem_threadgroup);
     }
 
-    float invStdDev = rsqrt(reduction[0] / float(groupSize) + layerNormEpsilonMetal);
+    float invStdDev = metal_norm_inv_std_dev_f32(reduction[0], groupSize);
 
     for (uint offset = threadIndex; offset < groupSize; offset += normalizationThreadCount) {
         uint channel = channelStart + offset / spatial;

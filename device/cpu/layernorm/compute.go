@@ -499,8 +499,7 @@ func applyLayerNormRowBF16(
 func applyLayerNormRowF16(
 	row, outRow, scale, bias []dtype.F16,
 ) {
-	meanValue := SumFloat16Native(row)
-	mean := meanValue.Float32() / float32(len(row))
+	mean := layerNormMeanF16(row)
 	variance := layerNormVarianceF16(row, mean)
 	invStdDev := float32(1.0 / math.Sqrt(float64(variance+layerNormEpsilon)))
 
@@ -557,8 +556,7 @@ func applyModulatedLayerNormRowF16(
 	config device.ModulatedLayerNormConfig,
 	row, modulation, outRow []dtype.F16,
 ) {
-	meanValue := SumFloat16Native(row)
-	mean := meanValue.Float32() / float32(len(row))
+	mean := layerNormMeanF16(row)
 	variance := layerNormVarianceF16(row, mean)
 	invStdDev := float32(1.0 / math.Sqrt(float64(variance)+config.Epsilon))
 	cols := len(row)
@@ -569,6 +567,16 @@ func applyModulatedLayerNormRowF16(
 		scale := modulation[cols+columnIndex].Float32()
 		outRow[columnIndex] = dtype.Fromfloat32(normalized*(1+scale) + shift)
 	}
+}
+
+func layerNormMeanF16(row []dtype.F16) float32 {
+	var sum float32
+
+	for index := range row {
+		sum += row[index].Float32()
+	}
+
+	return sum / float32(len(row))
 }
 
 func layerNormVarianceBF16(row []dtype.BF16, mean float32) float32 {

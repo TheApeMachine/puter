@@ -1,9 +1,5 @@
 #include "textflag.h"
-
-#define NARROW_BF16_F32_X0_TO_RET \
-	MOVL  X0, AX; \
-	SHRQ  $16, AX; \
-	MOVW  AX, ret+16(FP)
+#include "../sse2_bf16_macros.inc"
 
 // func SumBFloat16SSE2Asm(src *uint16, count int) uint16
 TEXT ·SumBFloat16SSE2Asm(SB), NOSPLIT, $0-18
@@ -19,12 +15,7 @@ sum_bf16_sse2_w4:
 	CMPQ CX, $4
 	JL   sum_bf16_sse2_reduce
 
-	VMOVDQU X1, (SI)
-	VPXOR   X3, X3, X3
-	VPUNPCKLWD X3, X1, X4
-	VPUNPCKHWD X3, X1, X5
-	VPSLLD  $16, X4, X4
-	VPSLLD  $16, X5, X5
+	BF16_WIDEN_SSE2_4(SI, X4, X5)
 	ADDPS   X4, X0
 	ADDPS   X5, X0
 
@@ -54,10 +45,10 @@ sum_bf16_sse2_scalar:
 	JNZ  sum_bf16_sse2_scalar
 
 sum_bf16_sse2_store:
-	NARROW_BF16_F32_X0_TO_RET
+	PACK_BF16_SCALAR_F32_X0_TO(ret+16(FP))
 	RET
 
 sum_bf16_sse2_zero:
 	XORPS X0, X0
-	NARROW_BF16_F32_X0_TO_RET
+	PACK_BF16_SCALAR_F32_X0_TO(ret+16(FP))
 	RET

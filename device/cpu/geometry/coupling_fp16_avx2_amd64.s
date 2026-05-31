@@ -1,6 +1,5 @@
 #include "textflag.h"
-
-#define VCVTPS2PH_X0_X2 WORD $0xC4E3; WORD $0x7D1D; BYTE $0xD0; BYTE $0x00
+#include "../f16c_fp16_macros.inc"
 
 // func PhaseCouplingFloat16AVX2Asm(dst, left, right *uint16, count int)
 TEXT ·PhaseCouplingFloat16AVX2Asm(SB), NOSPLIT, $0-32

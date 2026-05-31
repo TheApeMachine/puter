@@ -11,6 +11,7 @@ import (
 	"github.com/theapemachine/puter/device/metal/active_inference"
 	"github.com/theapemachine/puter/device/metal/attention"
 	"github.com/theapemachine/puter/device/metal/causal"
+	"github.com/theapemachine/puter/device/metal/checkpoint"
 	"github.com/theapemachine/puter/device/metal/convolution"
 	"github.com/theapemachine/puter/device/metal/dequant"
 	"github.com/theapemachine/puter/device/metal/dot"
@@ -22,8 +23,13 @@ import (
 	"github.com/theapemachine/puter/device/metal/interpretability"
 	"github.com/theapemachine/puter/device/metal/layernorm"
 	"github.com/theapemachine/puter/device/metal/losses"
+	"github.com/theapemachine/puter/device/metal/masking"
+	"github.com/theapemachine/puter/device/metal/math"
 	"github.com/theapemachine/puter/device/metal/matmul"
+	"github.com/theapemachine/puter/device/metal/model_editing"
 	"github.com/theapemachine/puter/device/metal/normalization"
+	"github.com/theapemachine/puter/device/metal/optimizer"
+	"github.com/theapemachine/puter/device/metal/peel"
 	"github.com/theapemachine/puter/device/metal/physics"
 	"github.com/theapemachine/puter/device/metal/pool"
 	"github.com/theapemachine/puter/device/metal/predictive_coding"
@@ -31,6 +37,7 @@ import (
 	"github.com/theapemachine/puter/device/metal/reduction"
 	"github.com/theapemachine/puter/device/metal/rope"
 	"github.com/theapemachine/puter/device/metal/sampling"
+	"github.com/theapemachine/puter/device/metal/shape"
 	"github.com/theapemachine/puter/device/metal/vsa"
 	"github.com/theapemachine/qpool"
 )
@@ -64,7 +71,14 @@ type Backend struct {
 	interpretability.Interpretability
 	physics.Physics
 	causal.Causal
+	masking.Masking
+	math.Math
 	attention.Attention
+	checkpoint.Checkpoint
+	model_editing.ModelEditing
+	optimizer.Optimizer
+	peel.Peel
+	shape.Shape
 	vsa.VSA
 	active_inference.ActiveInference
 	predictive_coding.PredictiveCoding

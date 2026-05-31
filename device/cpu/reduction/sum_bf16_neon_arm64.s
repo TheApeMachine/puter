@@ -12,15 +12,13 @@
 // 8 mantissa bits each).
 
 #include "textflag.h"
+#include "../neon_bf16_macros.inc"
 
 // FADD vector .4S: 0x4E20D400 base
 #define VFADD_S4(m, n, d) WORD $(0x4E20D400 | ((m) << 16) | ((n) << 5) | (d))
 // FADDP scalar Sd, Vn.2S: pairwise add of S lanes (sz=0)
 // 0|1|0|11110|0|0|1|10000|11011|10|Rn|Rd = 0x7E30D800
 #define FADDP_S(n, d) WORD $(0x7E30D800 | ((n) << 5) | (d))
-
-#define WIDEN_H8_TO_S4_LOW(src_h8, dst_h8)  VZIP1 src_h8, V31.H8, dst_h8
-#define WIDEN_H8_TO_S4_HIGH(src_h8, dst_h8) VZIP2 src_h8, V31.H8, dst_h8
 
 // func SumBFloat16NEONAsm(src *uint16, n int) uint16
 TEXT ·SumBFloat16NEONAsm(SB), NOSPLIT, $0-18
@@ -39,10 +37,10 @@ sum_bf16_loop16:
     CMP  $16, R1
     BLT  sum_bf16_loop8
     VLD1.P 32(R0), [V0.H8, V1.H8]
-    WIDEN_H8_TO_S4_LOW(V0.H8, V4.H8)
-    WIDEN_H8_TO_S4_HIGH(V0.H8, V5.H8)
-    WIDEN_H8_TO_S4_LOW(V1.H8, V6.H8)
-    WIDEN_H8_TO_S4_HIGH(V1.H8, V7.H8)
+    BF16_BITS_TO_F32_LOW(V0.H8, V4.H8)
+    BF16_BITS_TO_F32_HIGH(V0.H8, V5.H8)
+    BF16_BITS_TO_F32_LOW(V1.H8, V6.H8)
+    BF16_BITS_TO_F32_HIGH(V1.H8, V7.H8)
     VFADD_S4(4, 16, 16)
     VFADD_S4(5, 17, 17)
     VFADD_S4(6, 18, 18)
@@ -54,8 +52,8 @@ sum_bf16_loop8:
     CMP  $8, R1
     BLT  sum_bf16_reduce
     VLD1.P 16(R0), [V0.H8]
-    WIDEN_H8_TO_S4_LOW(V0.H8, V4.H8)
-    WIDEN_H8_TO_S4_HIGH(V0.H8, V5.H8)
+    BF16_BITS_TO_F32_LOW(V0.H8, V4.H8)
+    BF16_BITS_TO_F32_HIGH(V0.H8, V5.H8)
     VFADD_S4(4, 16, 16)
     VFADD_S4(5, 17, 17)
     SUB  $8, R1
@@ -86,8 +84,6 @@ sum_bf16_scalar_loop:
     CBNZ R1, sum_bf16_scalar_loop
 
 sum_bf16_finalize:
-    // Narrow the f32 result to bf16 via shift-right-16 of the bit pattern.
-    FMOVS F0, R2
-    LSR  $16, R2, R2
+    BF16_RNE_SCALAR_F0_TO(R2)
     MOVH R2, ret+16(FP)
     RET

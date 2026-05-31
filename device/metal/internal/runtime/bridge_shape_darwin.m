@@ -372,3 +372,52 @@ int metal_dispatch_upsample_nearest2d_bytes(
         }
     );
 }
+
+int metal_dispatch_merge_heads(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef inputRef,
+    MetalBufferRef outRef,
+    uint32_t batch,
+    uint32_t seq,
+    uint32_t heads,
+    uint32_t headDim,
+    uint64_t completionToken,
+    MetalStatus* status
+) {
+    if (inputRef == NULL || outRef == NULL) {
+        metal_shape_status_set(status, -2, "nil Metal buffer");
+        return -2;
+    }
+
+    char kernelName[128];
+    int nameCode = metal_shape_kernel_name(
+        kernelName,
+        sizeof(kernelName),
+        "merge_heads",
+        elementDType,
+        status
+    );
+
+    if (nameCode != 0) {
+        return nameCode;
+    }
+
+    uint32_t count = batch * seq * heads * headDim;
+
+    return metal_shape_dispatch(
+        contextRef,
+        kernelName,
+        (NSUInteger)count,
+        completionToken,
+        status,
+        ^(id<MTLComputeCommandEncoder> encoder) {
+            [encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
+            [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:1];
+            [encoder setBytes:&batch length:sizeof(batch) atIndex:2];
+            [encoder setBytes:&seq length:sizeof(seq) atIndex:3];
+            [encoder setBytes:&heads length:sizeof(heads) atIndex:4];
+            [encoder setBytes:&headDim length:sizeof(headDim) atIndex:5];
+        }
+    );
+}

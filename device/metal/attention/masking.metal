@@ -38,9 +38,14 @@ kernel void apply_mask_float16(
     uint base = vectorIndex * 4;
 
     if (base + 3 < count) {
-        half4 leftVec = *((device const half4*)(input + base));
-        half4 maskVec = *((device const half4*)(mask + base));
-        *((device half4*)(out + base)) = leftVec + maskVec;
+        half4 leftHalf = *((device const half4*)(input + base));
+        half4 maskHalf = *((device const half4*)(mask + base));
+        *((device half4*)(out + base)) = half4(
+            half(float(leftHalf.x) + float(maskHalf.x)),
+            half(float(leftHalf.y) + float(maskHalf.y)),
+            half(float(leftHalf.z) + float(maskHalf.z)),
+            half(float(leftHalf.w) + float(maskHalf.w))
+        );
         return;
     }
 
@@ -48,7 +53,8 @@ kernel void apply_mask_float16(
         uint scalarIndex = base + offset;
 
         if (scalarIndex < count) {
-            out[scalarIndex] = input[scalarIndex] + mask[scalarIndex];
+            float sum = float(input[scalarIndex]) + float(mask[scalarIndex]);
+            out[scalarIndex] = half(sum);
         }
     }
 }

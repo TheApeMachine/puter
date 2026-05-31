@@ -192,7 +192,7 @@ func runUpsampleNearest2DDeviceIntrinsic(
 		return err
 	}
 
-	deviceBackend.UpsampleNearest2D(
+	deviceBackend.IntrinsicUpsampleNearest2D(
 		inputPointer,
 		outputPointer,
 		layout.channels,

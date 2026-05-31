@@ -126,7 +126,7 @@ type recordingSliceDevice struct {
 	calls []sliceCall
 }
 
-func (recorder *recordingSliceDevice) Slice(
+func (recorder *recordingSliceDevice) IntrinsicSlice(
 	input, output unsafe.Pointer,
 	sliceLen, inputDimSize, innerBytes, start, outBytes int,
 	format dtype.DType,

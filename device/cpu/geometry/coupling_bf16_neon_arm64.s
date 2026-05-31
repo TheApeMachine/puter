@@ -1,14 +1,8 @@
 #include "textflag.h"
+#include "../neon_bf16_macros.inc"
 
 // Per-lane canonical bf16 PhaseCoupling. Threshold uses integer compare on
 // RNE-narrowed bf16 bits (0x3c23 = phaseCouplingEpsBF16); no FCMPS.
-
-#define BF16_RNE_F32_TO_R4 \
-	LSR  $16, R4, R5; \
-	AND  $1, R5, R5; \
-	ADD  $0x7fff, R4, R4; \
-	ADD  R5, R4, R4; \
-	LSR  $16, R4, R4
 
 // func PhaseCouplingBFloat16NEONAsm(dst, left, right *uint16, count int)
 TEXT ·PhaseCouplingBFloat16NEONAsm(SB), NOSPLIT, $0-32
@@ -31,7 +25,7 @@ pcbf16_neon_loop:
 	FMULS F2, F3, F4
 	FSQRTS F4, F5
 	FMOVS F5, R4
-	BF16_RNE_F32_TO_R4
+	BF16_RNE_BITS_IN_REG(R4)
 	MOVD $0x3c23, R8
 	CMP  R4, R8
 	BLO  pcbf16_neon_compute
@@ -44,8 +38,7 @@ pcbf16_neon_compute:
 	FDIVS F8, F7, F0
 
 pcbf16_neon_store:
-	FMOVS F0, R4
-	BF16_RNE_F32_TO_R4
+	BF16_RNE_SCALAR_F0_TO(R4)
 	MOVH R4, (R0)
 	ADD  $2, R1
 	ADD  $2, R2

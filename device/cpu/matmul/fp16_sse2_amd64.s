@@ -1,7 +1,5 @@
 #include "textflag.h"
-
-#define VCVTPS2PH_Y0_X2 WORD $0xC4E3; WORD $0x7D1D; BYTE $0xD8; BYTE $0x00
-#define VCVTPS2PH_X0_X2 WORD $0xC4E3; WORD $0x7D1D; BYTE $0xD0; BYTE $0x00
+#include "../f16c_fp16_macros.inc"
 
 // func MatmulRowFP16SSE2Asm(cRow, aRow, b *uint16, inner, colsBlock, bCols int)
 TEXT ·MatmulRowFP16SSE2Asm(SB), NOSPLIT, $0-48
@@ -46,9 +44,7 @@ mm_k_loop:
 	JMP  mm_k_loop
 
 mm_k_done:
-	VCVTPS2PH_X0_X2
-	MOVQ X2, AX
-	MOVQ AX, (DI)
+	FP16_NARROW_X0_TO_4H(DI)
 
 	ADDQ $8, DI
 	ADDQ $8, BX

@@ -35,7 +35,8 @@ sum64_sse2_done:
 	RET
 
 sum64_sse2_zero:
-	MOVSD $0.0, ret+16(FP)
+	XORPS X0, X0
+	MOVSD X0, ret+16(FP)
 	RET
 
 // func DotFloat64SSE2Asm(left, right *float64, count int) float64
@@ -79,7 +80,8 @@ dot64_sse2_done:
 	RET
 
 dot64_sse2_zero:
-	MOVSD $0.0, ret+24(FP)
+	XORPS X0, X0
+	MOVSD X0, ret+24(FP)
 	RET
 
 // func SumOfSquaresFloat64SSE2Asm(src *float64, count int) float64
@@ -119,7 +121,8 @@ sumsq64_sse2_done:
 	RET
 
 sumsq64_sse2_zero:
-	MOVSD $0.0, ret+16(FP)
+	XORPS X0, X0
+	MOVSD X0, ret+16(FP)
 	RET
 
 // func ScaleFloat64SSE2Asm(dst, src *float64, scale float64, count int)
@@ -334,5 +337,6 @@ max64_sse2_done:
 	RET
 
 max64_sse2_zero:
-	MOVSD $0.0, ret+16(FP)
+	XORPS X0, X0
+	MOVSD X0, ret+16(FP)
 	RET

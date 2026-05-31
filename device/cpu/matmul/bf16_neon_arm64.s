@@ -2,14 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "textflag.h"
+#include "../neon_bf16_macros.inc"
 
 #define VFMLA_S4(m, n, d) WORD $(0x4E20CC00 | ((m) << 16) | ((n) << 5) | (d))
-#define VMOV_VREG(src, dst) WORD $(0x4EA01C00 | ((src) << 16) | ((src) << 5) | (dst))
-#define NARROW_BF16_S4_TO_H4(src) \
-    VMOV_VREG(src, 8) \
-    VMOV_VREG(src, 9) \
-    VUZP2 V9.H8, V8.H8, V12.H8
-
 // func MatmulRowBF16NEONAsm(cRow, aRow, b *uint16, inner, colsBlock, bCols int)
 TEXT ·MatmulRowBF16NEONAsm(SB), NOSPLIT, $0-48
     MOVD cRow+0(FP), R0
@@ -50,7 +45,7 @@ k_loop:
     B    k_loop
 
 k_done:
-    NARROW_BF16_S4_TO_H4(0)
+    F32_BITS_TO_BF16_H4(0)
     VST1 [V12.H4], (R0)
     ADD  $8, R0
     ADD  $8, R7

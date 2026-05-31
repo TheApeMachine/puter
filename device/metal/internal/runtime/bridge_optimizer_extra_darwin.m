@@ -12,6 +12,8 @@ int metal_dispatch_hebbian_step(
     MetalBufferRef outRef,
     uint32_t postCount,
     uint32_t preCount,
+    const void* configBytes,
+    size_t configBytesLen,
     uint64_t completionToken,
     MetalStatus* status
 ) {
@@ -39,6 +41,7 @@ int metal_dispatch_hebbian_step(
             [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:3];
             [encoder setBytes:&postCount length:sizeof(postCount) atIndex:4];
             [encoder setBytes:&preCount length:sizeof(preCount) atIndex:5];
+            [encoder setBytes:configBytes length:configBytesLen atIndex:6];
         }
     );
 }
@@ -53,6 +56,8 @@ int metal_dispatch_lars_step(
     MetalBufferRef outRef,
     uint32_t count,
     uint32_t groupCount,
+    const void* configBytes,
+    size_t configBytesLen,
     uint64_t completionToken,
     MetalStatus* status
 ) {
@@ -141,6 +146,7 @@ int metal_dispatch_lars_step(
         [stepEncoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:4];
         [stepEncoder setBytes:&count length:sizeof(count) atIndex:5];
         [stepEncoder setBytes:&groupCount length:sizeof(groupCount) atIndex:6];
+        [stepEncoder setBytes:configBytes length:configBytesLen atIndex:7];
 
         NSUInteger threadWidth = [stepPipeline threadExecutionWidth];
 

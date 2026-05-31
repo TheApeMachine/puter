@@ -6,6 +6,18 @@
 
 using namespace metal;
 
+static inline float metal_gelu_tanh_softfloat_scalar(float value) {
+    float valueCubed = value * value * value;
+    float inner = metalGeluTanhAlpha * fma(metalGeluTanhBeta, valueCubed, value);
+    float tanhValue = metal_fast_tanh_rational(inner);
+    ulong value64 = metal_sf32_to64(as_type<uint>(value));
+    ulong tanh64 = metal_sf32_to64(as_type<uint>(tanhValue));
+    ulong onePlusTanh = metal_sf64_add(SF64_ONE, tanh64);
+    ulong product = metal_sf64_mul(SF64_HALF, metal_sf64_mul(value64, onePlusTanh));
+
+    return as_type<float>(metal_sf64_to32(product));
+}
+
 
 struct ReluOp {
     float4 operator()(float4 value) const { return max(float4(0.0f), value); }
@@ -175,15 +187,15 @@ struct LogSigmoidOp {
 struct GeluTanhOp {
     float4 operator()(float4 value) const {
         return float4(
-            metal_fast_gelu_tanh(value.x),
-            metal_fast_gelu_tanh(value.y),
-            metal_fast_gelu_tanh(value.z),
-            metal_fast_gelu_tanh(value.w)
+            metal_gelu_tanh_softfloat_scalar(value.x),
+            metal_gelu_tanh_softfloat_scalar(value.y),
+            metal_gelu_tanh_softfloat_scalar(value.z),
+            metal_gelu_tanh_softfloat_scalar(value.w)
         );
     }
 
     float operator()(float value) const {
-        return metal_fast_gelu_tanh(value);
+        return metal_gelu_tanh_softfloat_scalar(value);
     }
 };
 

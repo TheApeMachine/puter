@@ -5,7 +5,7 @@ TEXT ·hasAVX512FP16Asm(SB), NOSPLIT, $0-1
 	MOVL  $7, AX
 	MOVL  $1, CX
 	CPUID
-	TESTL $(1<<23), EDX
+	TESTL $0x00800000, DX
 	JE    has_avx512_fp16_no
 	MOVB  $1, ret+0(FP)
 	RET

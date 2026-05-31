@@ -119,7 +119,16 @@ func (generator *Generator) MetalArgs(source string) []string {
 func (generator *Generator) needsStrictFP(source string) bool {
 	baseName := filepath.Base(source)
 
-	return strings.HasSuffix(baseName, "_apply.metal")
+	if strings.HasSuffix(baseName, "_apply.metal") {
+		return true
+	}
+
+	switch baseName {
+	case "optimizer.metal", "model_editing.metal":
+		return true
+	default:
+		return false
+	}
 }
 
 func (generator *Generator) MetallibArgs(sources []string) []string {

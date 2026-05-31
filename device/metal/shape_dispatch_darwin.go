@@ -132,7 +132,7 @@ int metal_dispatch_upsample_nearest2d_bytes(
 */
 import "C"
 
-func (backend *Backend) PageWrite(
+func (backend *Backend) KVPageWrite(
 	storage, values, pageIDs, offsets, output unsafe.Pointer,
 	pageCount, pageSize, inner, valueRows, storageOffset int,
 	format dtype.DType,
@@ -171,7 +171,7 @@ func (backend *Backend) PageWrite(
 	}
 }
 
-func (backend *Backend) PageGather(
+func (backend *Backend) KVPageGather(
 	storage, pageTable, output unsafe.Pointer,
 	pageCount, pageSize, inner, outRows, storageOffset int,
 	format dtype.DType,
@@ -208,7 +208,7 @@ func (backend *Backend) PageGather(
 	}
 }
 
-func (backend *Backend) Concat(
+func (backend *Backend) IntrinsicConcat(
 	left, right, output unsafe.Pointer,
 	leftBytes, rightBytes int,
 	format dtype.DType,
@@ -241,7 +241,7 @@ func (backend *Backend) Concat(
 	}
 }
 
-func (backend *Backend) ConcatLastDim(
+func (backend *Backend) IntrinsicConcatLastDim(
 	left, right, output unsafe.Pointer,
 	leftRowBytes, rightRowBytes, rowBytes, totalBytes int,
 	format dtype.DType,
@@ -276,7 +276,7 @@ func (backend *Backend) ConcatLastDim(
 	}
 }
 
-func (backend *Backend) Slice(
+func (backend *Backend) IntrinsicSlice(
 	input, output unsafe.Pointer,
 	sliceLen, inputDimSize, innerBytes, start, outBytes int,
 	format dtype.DType,
@@ -311,7 +311,7 @@ func (backend *Backend) Slice(
 	}
 }
 
-func (backend *Backend) Transpose(
+func (backend *Backend) IntrinsicTranspose(
 	input, output unsafe.Pointer,
 	rank, count int,
 	permutation, inputStrides, outputStrides []uint32,
@@ -351,7 +351,7 @@ func (backend *Backend) Transpose(
 	}
 }
 
-func (backend *Backend) LastToken(
+func (backend *Backend) IntrinsicLastToken(
 	input, output unsafe.Pointer,
 	seq, hiddenBytes, outBytes int,
 	format dtype.DType,
@@ -384,7 +384,7 @@ func (backend *Backend) LastToken(
 	}
 }
 
-func (backend *Backend) UpsampleNearest2D(
+func (backend *Backend) IntrinsicUpsampleNearest2D(
 	input, output unsafe.Pointer,
 	channels, inHeight, inWidth, outHeight, outWidth, outElements int,
 	format dtype.DType,

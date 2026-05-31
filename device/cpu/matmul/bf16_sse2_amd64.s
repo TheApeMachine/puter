@@ -1,9 +1,7 @@
 #include "textflag.h"
+#include "../sse2_bf16_macros.inc"
 
 // func MatmulRowBF16SSE2Asm(cRow, aRow, b *uint16, inner, colsBlock, bCols int)
-//
-// Four output columns per block. Widen bf16→f32 via PUNPCKLWD+PSLLD, accumulate
-// with MULPS/ADDPS, narrow with PSRLD+PEXTRW stores.
 TEXT ·MatmulRowBF16SSE2Asm(SB), NOSPLIT, $0-48
 	MOVQ cRow+0(FP), DI
 	MOVQ aRow+8(FP), SI
@@ -35,9 +33,7 @@ mm_k_loop:
 	SHUFPS $0, X1, X1
 
 	MOVQ (R14), X2
-	VPXOR X3, X3, X3
-	VPUNPCKLWD X3, X2, X2
-	VPSLLD $16, X2, X2
+	BF16_WIDEN_X2_LOW4(X2)
 
 	MULPS X2, X1
 	ADDPS X1, X0
@@ -48,16 +44,7 @@ mm_k_loop:
 	JMP  mm_k_loop
 
 mm_k_done:
-	VPSRLD $16, X0, X0
-	MOVL  X0, AX
-	MOVW  AX, (DI)
-	PSRLQ $32, X0
-	MOVL  X0, AX
-	MOVW  AX, 2(DI)
-	PEXTRD $2, X0, AX
-	MOVW  AX, 4(DI)
-	PEXTRD $3, X0, AX
-	MOVW  AX, 6(DI)
+	PACK_BF16_ACCUM_X0_4H(DI)
 
 	ADDQ $8, DI
 	ADDQ $8, BX

@@ -1,9 +1,5 @@
 #include "textflag.h"
-
-#define VCVTPS2PH_X0_X2 WORD $0xC4E3; WORD $0x7D1D; BYTE $0xD0; BYTE $0x00
-
-DATA geomCouplingFP16AbsMaskF32<>+0(SB)/4, $0x7fffffff
-GLOBL geomCouplingFP16AbsMaskF32<>(SB), RODATA|NOPTR, $4
+#include "../f16c_fp16_macros.inc"
 
 // func PhaseCouplingFloat16SSE2Asm(dst, left, right *uint16, count int)
 TEXT ·PhaseCouplingFloat16SSE2Asm(SB), NOSPLIT, $0-32
@@ -11,8 +7,6 @@ TEXT ·PhaseCouplingFloat16SSE2Asm(SB), NOSPLIT, $0-32
 	MOVQ leftGrowth+8(FP), SI
 	MOVQ rightGrowth+16(FP), R8
 	MOVQ count+24(FP), CX
-
-	VBROADCASTSS geomCouplingFP16AbsMaskF32<>(SB), X30
 
 pcfp16_sse2_loop:
 	TESTQ CX, CX

@@ -1,35 +1,12 @@
 #include "textflag.h"
+#include "../avx512_bf16_macros.inc"
+#include "../f16c_fp16_macros.inc"
 
 DATA l1ReducedAbsMaskAVX2<>+0(SB)/4, $0x7fffffff
 DATA l1ReducedAbsMaskAVX2<>+4(SB)/4, $0x7fffffff
 DATA l1ReducedAbsMaskAVX2<>+8(SB)/4, $0x7fffffff
 DATA l1ReducedAbsMaskAVX2<>+12(SB)/4, $0x7fffffff
 GLOBL l1ReducedAbsMaskAVX2<>(SB), RODATA|NOPTR, $16
-
-#define WIDEN_BF16_8H_AVX2(baseReg, dstY) \
-	VMOVDQU X1, (baseReg); \
-	VPXOR X3, X3, X3; \
-	VPUNPCKLWD X3, X1, X4; \
-	VPUNPCKHWD X3, X1, X5; \
-	VPSLLD $16, X4, X4; \
-	VPSLLD $16, X5, X5; \
-	VINSERTF128 $1, X5, Y4, dstY
-
-#define WIDEN_BF16_4H_AVX2(baseReg, dstY) \
-	VMOVDQU X1, (baseReg); \
-	VPXOR X3, X3, X3; \
-	VPUNPCKLWD X3, X1, X4; \
-	VPUNPCKHWD X3, X1, X5; \
-	VPSLLD $16, X4, X4; \
-	VPSLLD $16, X5, X5; \
-	VUNPCKLPD X4, X5, dstY
-
-#define WIDEN_FP16_8H_AVX2(baseReg, dstY) \
-	VMOVDQU X1, (baseReg); \
-	VCVTPH2PS X1, dstY; \
-	VPSRLDQ $8, X1, X2; \
-	VCVTPH2PS X2, X5; \
-	VINSERTF128 $1, X5, dstY, dstY
 
 #define BF16_MINMAX_REDUCE_AVX2 \
 	VEXTRACTF128 $1, Y0, X1; \
@@ -73,7 +50,7 @@ min_bf16_avx2_w8:
 	CMPQ CX, $8
 	JL    min_bf16_avx2_w4
 
-	WIDEN_BF16_8H_AVX2(SI, Y1)
+	BF16_LOAD_8H(SI, Y1)
 	VMINPS Y1, Y0, Y0
 
 	ADDQ $16, SI
@@ -84,13 +61,7 @@ min_bf16_avx2_w4:
 	CMPQ CX, $4
 	JL    min_bf16_avx2_tail
 
-	VMOVDQU X1, (SI)
-	VPXOR X3, X3, X3
-	VPUNPCKLWD X3, X1, X4
-	VPUNPCKHWD X3, X1, X5
-	VPSLLD $16, X4, X4
-	VPSLLD $16, X5, X5
-	VINSERTF128 $1, X5, Y4, Y1
+	BF16_LOAD_4H_W8_LANES(SI, Y1)
 	VMINPS Y1, Y0, Y0
 
 	ADDQ $8, SI
@@ -141,7 +112,7 @@ max_bf16_avx2_w8:
 	CMPQ CX, $8
 	JL    max_bf16_avx2_w4
 
-	WIDEN_BF16_8H_AVX2(SI, Y1)
+	BF16_LOAD_8H(SI, Y1)
 	VMAXPS Y1, Y0, Y0
 
 	ADDQ $16, SI
@@ -152,13 +123,7 @@ max_bf16_avx2_w4:
 	CMPQ CX, $4
 	JL    max_bf16_avx2_tail
 
-	VMOVDQU X1, (SI)
-	VPXOR X3, X3, X3
-	VPUNPCKLWD X3, X1, X4
-	VPUNPCKHWD X3, X1, X5
-	VPSLLD $16, X4, X4
-	VPSLLD $16, X5, X5
-	VINSERTF128 $1, X5, Y4, Y1
+	BF16_LOAD_4H_W8_LANES(SI, Y1)
 	VMAXPS Y1, Y0, Y0
 
 	ADDQ $8, SI
@@ -205,7 +170,7 @@ l1_bf16_avx2_w8:
 	CMPQ CX, $8
 	JL    l1_bf16_avx2_w4
 
-	WIDEN_BF16_8H_AVX2(SI, Y1)
+	BF16_LOAD_8H(SI, Y1)
 	VANDPS Y6, Y1, Y1
 	VADDPS Y1, Y0, Y0
 
@@ -217,13 +182,7 @@ l1_bf16_avx2_w4:
 	CMPQ CX, $4
 	JL    l1_bf16_avx2_tail
 
-	VMOVDQU X1, (SI)
-	VPXOR X3, X3, X3
-	VPUNPCKLWD X3, X1, X4
-	VPUNPCKHWD X3, X1, X5
-	VPSLLD $16, X4, X4
-	VPSLLD $16, X5, X5
-	VINSERTF128 $1, X5, Y4, Y1
+	BF16_LOAD_4H_W8_LANES(SI, Y1)
 	VANDPS Y6, Y1, Y1
 	VADDPS Y1, Y0, Y0
 
@@ -276,7 +235,7 @@ min_fp16_avx2_w8:
 	CMPQ CX, $8
 	JL    min_fp16_avx2_w4
 
-	WIDEN_FP16_8H_AVX2(SI, Y1)
+	FP16_WIDEN_AVX2_8H(SI, Y1)
 	VMINPS Y1, Y0, Y0
 
 	ADDQ $16, SI
@@ -287,8 +246,7 @@ min_fp16_avx2_w4:
 	CMPQ CX, $4
 	JL    min_fp16_avx2_tail
 
-	VMOVDQU X1, (SI)
-	VCVTPH2PS X1, Y1
+	FP16_WIDEN_AVX2_4H(SI, Y1)
 	VMINPS Y1, Y0, Y0
 
 	ADDQ $8, SI
@@ -339,7 +297,7 @@ max_fp16_avx2_w8:
 	CMPQ CX, $8
 	JL    max_fp16_avx2_w4
 
-	WIDEN_FP16_8H_AVX2(SI, Y1)
+	FP16_WIDEN_AVX2_8H(SI, Y1)
 	VMAXPS Y1, Y0, Y0
 
 	ADDQ $16, SI
@@ -350,8 +308,7 @@ max_fp16_avx2_w4:
 	CMPQ CX, $4
 	JL    max_fp16_avx2_tail
 
-	VMOVDQU X1, (SI)
-	VCVTPH2PS X1, Y1
+	FP16_WIDEN_AVX2_4H(SI, Y1)
 	VMAXPS Y1, Y0, Y0
 
 	ADDQ $8, SI
@@ -398,7 +355,7 @@ l1_fp16_avx2_w8:
 	CMPQ CX, $8
 	JL    l1_fp16_avx2_w4
 
-	WIDEN_FP16_8H_AVX2(SI, Y1)
+	FP16_WIDEN_AVX2_8H(SI, Y1)
 	VANDPS Y6, Y1, Y1
 	VADDPS Y1, Y0, Y0
 
@@ -410,8 +367,7 @@ l1_fp16_avx2_w4:
 	CMPQ CX, $4
 	JL    l1_fp16_avx2_tail
 
-	VMOVDQU X1, (SI)
-	VCVTPH2PS X1, Y1
+	FP16_WIDEN_AVX2_4H(SI, Y1)
 	VANDPS Y6, Y1, Y1
 	VADDPS Y1, Y0, Y0
 

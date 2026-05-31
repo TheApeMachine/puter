@@ -1,11 +1,5 @@
 #include "textflag.h"
-
-#define VCVTPS2PH_X0_X2 WORD $0xC4E3; WORD $0x7D1D; BYTE $0xD0; BYTE $0x00
-
-#define NARROW_FP16_F32_X0_TO_RET \
-	VCVTPS2PH_X0_X2; \
-	MOVL  X2, AX; \
-	MOVW  AX, ret+24(FP)
+#include "../f16c_fp16_macros.inc"
 
 // func DotFloat16SSE2Asm(left, right *uint16, count int) uint16
 TEXT ·DotFloat16SSE2Asm(SB), NOSPLIT, $0-26
@@ -61,10 +55,10 @@ dot_fp16_sse2_scalar:
 	JNZ  dot_fp16_sse2_scalar
 
 dot_fp16_sse2_store:
-	NARROW_FP16_F32_X0_TO_RET
+	FP16_NARROW_SCALAR_F32_X0_TO(ret+24(FP))
 	RET
 
 dot_fp16_sse2_zero:
 	XORPS X0, X0
-	NARROW_FP16_F32_X0_TO_RET
+	FP16_NARROW_SCALAR_F32_X0_TO(ret+24(FP))
 	RET

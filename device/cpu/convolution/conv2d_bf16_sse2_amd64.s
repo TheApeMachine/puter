@@ -1,20 +1,5 @@
 #include "textflag.h"
-
-#define WIDEN_BF16_4H_TO_X4(srcPtr, dstX) \
-	VMOVDQU X2, (srcPtr); \
-	VPMOVZXWD X2, dstX; \
-	VPSLLD $16, dstX, dstX
-
-#define NARROW_BF16_X1_TO_4H(dstPtr) \
-	VPSRLD $16, X1, X1; \
-	MOVL  X1, AX; \
-	MOVW  AX, (dstPtr); \
-	PEXTRD $1, X1, AX; \
-	MOVW  AX, 2(dstPtr); \
-	PEXTRD $2, X1, AX; \
-	MOVW  AX, 4(dstPtr); \
-	PEXTRD $3, X1, AX; \
-	MOVW  AX, 6(dstPtr)
+#include "../avx512_bf16_macros.inc"
 
 // func Conv2dStride1RowBF16SSE2Asm(
 //     outRow, input, weight *uint16,
@@ -72,7 +57,7 @@ kw_loop:
 	VMOVD X2, DX
 	SHUFPS $0, X2, X2
 
-	WIDEN_BF16_4H_TO_X4(R11, X3)
+	BF16_LOAD_4H_TO_X4(R11, X3)
 	MULPS X3, X2
 	ADDPS X2, X1
 
@@ -102,7 +87,7 @@ kh_done:
 	JMP  c_loop
 
 c_done:
-	NARROW_BF16_X1_TO_4H(DI)
+	PACK_BF16_X1_4H(DI)
 
 	ADDQ $8, DI
 	ADDQ $8, SI

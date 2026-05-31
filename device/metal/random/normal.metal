@@ -96,10 +96,8 @@ float32 samples. Each thread handles one Philox-4×32-10 block, producing
 four Gaussian outputs from a single (seed, counter+threadID) pair.
 
 The kernel's Philox output is bitwise equivalent to the CPU scalar
-reference. Box-Muller uses Metal's native single-precision log, sin,
-cos, sqrt — these do not bitwise match Go's F64-then-cast scalar
-reference, so parity tests assert ≤ 8 ULP per lane on the final
-Gaussians, not bitwise equality.
+reference. Box-Muller uses SF64 softfloat log/sqrt/sincos matching Go's
+float64-then-cast scalar reference in device/cpu/random/boxmuller.go.
 
 Buffer layout:
   [[buffer(0)]] device float *out  - destination, length ≥ count
@@ -114,6 +112,22 @@ ensure `ctrLo + threadCount` fits in 32 bits (no carry propagation into
 ctrHi); for very large output buffers split the work across launches
 with explicit ctrHi increments.
 */
+inline float2 box_muller_pair(float uniformFirst, float uniformSecond) {
+    float first = uniformFirst;
+    float second = uniformSecond;
+
+    if (first == 0.0f) {
+        first = SMALLEST_POSITIVE_F32;
+    }
+
+    float magnitude = precise::sqrt(-2.0f * precise::log(first));
+    float angle = TWO_PI_F * second;
+    float sinValue = precise::sin(angle);
+    float cosValue = precise::cos(angle);
+
+    return float2(magnitude * cosValue, magnitude * sinValue);
+}
+
 kernel void random_normal_float32(
     device float *out             [[buffer(0)]],
     constant uint &count          [[buffer(1)]],
@@ -137,8 +151,6 @@ kernel void random_normal_float32(
     float u2 = uniform_from_bits(w2);
     float u3 = uniform_from_bits(w3);
 
-    // Box-Muller degenerate-case guard matches the scalar reference:
-    // when u_first == 0, substitute 2^-23 so log() stays finite.
     if (u0 == 0.0f) {
         u0 = SMALLEST_POSITIVE_F32;
     }
@@ -146,30 +158,11 @@ kernel void random_normal_float32(
         u2 = SMALLEST_POSITIVE_F32;
     }
 
-    // Use metal::precise::* transcendentals rather than the default
-    // (fast) variants. The defaults can drift several ULPs from the
-    // correctly-rounded F32 result, which compounds through the
-    // magnitude × sin/cos multiply and shows up as 50+ ULP gaps on
-    // small-result lanes. The precise::* variants are spec'd at
-    // ≤ 1 ULP from correctly-rounded F32, which keeps the final
-    // Gaussian within the 8 ULP parity budget.
-    float magnitude0 = precise::sqrt(-2.0f * precise::log(u0));
-    float angle0 = TWO_PI_F * u1;
-    float magnitude1 = precise::sqrt(-2.0f * precise::log(u2));
-    float angle1 = TWO_PI_F * u3;
+    float2 pair0 = box_muller_pair(u0, u1);
+    float2 pair1 = box_muller_pair(u2, u3);
 
-    float sin0 = precise::sin(angle0);
-    float cos0 = precise::cos(angle0);
-    float sin1 = precise::sin(angle1);
-    float cos1 = precise::cos(angle1);
-
-    float z0 = magnitude0 * cos0;
-    float z1 = magnitude0 * sin0;
-    float z2 = magnitude1 * cos1;
-    float z3 = magnitude1 * sin1;
-
-    if (baseIdx + 0u < count) out[baseIdx + 0u] = z0;
-    if (baseIdx + 1u < count) out[baseIdx + 1u] = z1;
-    if (baseIdx + 2u < count) out[baseIdx + 2u] = z2;
-    if (baseIdx + 3u < count) out[baseIdx + 3u] = z3;
+    if (baseIdx + 0u < count) out[baseIdx + 0u] = pair0.x;
+    if (baseIdx + 1u < count) out[baseIdx + 1u] = pair0.y;
+    if (baseIdx + 2u < count) out[baseIdx + 2u] = pair1.x;
+    if (baseIdx + 3u < count) out[baseIdx + 3u] = pair1.y;
 }

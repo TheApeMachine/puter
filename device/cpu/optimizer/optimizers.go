@@ -95,6 +95,56 @@ func AdamStepFloat32(
 }
 
 /*
+AdamStepFloat32Scalar applies the portable scalar Adam reference without
+SIMD dispatch. Metal and other backend parity tests must compare against
+this path rather than AdamStepFloat32, which selects NEON on arm64.
+*/
+func AdamStepFloat32Scalar(
+	config AdamConfig,
+	params, gradients, firstMoment, secondMoment, output tensor.Tensor,
+) error {
+	paramsView, err := params.Float32Native()
+
+	if err != nil {
+		return err
+	}
+
+	gradView, err := gradients.Float32Native()
+
+	if err != nil {
+		return err
+	}
+
+	firstView, err := firstMoment.Float32Native()
+
+	if err != nil {
+		return err
+	}
+
+	secondView, err := secondMoment.Float32Native()
+
+	if err != nil {
+		return err
+	}
+
+	outView, err := output.Float32Native()
+
+	if err != nil {
+		return err
+	}
+
+	if len(paramsView) != len(gradView) ||
+		len(paramsView) != len(firstView) ||
+		len(paramsView) != len(secondView) ||
+		len(paramsView) != len(outView) {
+		return tensor.ErrShapeMismatch
+	}
+
+	adamStepSlicesScalar(config, paramsView, gradView, firstView, secondView, outView)
+	return nil
+}
+
+/*
 adamStepSlicesScalar is the portable scalar reference. The production
 adamStepSlices dispatches to a NEON-backed variant on arm64
 (AdamStepSlicesNEON in optimizers_f32_dispatch_arm64.go). On other

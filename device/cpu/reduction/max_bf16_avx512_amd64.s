@@ -1,19 +1,5 @@
 #include "textflag.h"
-
-#define WIDEN_BF16_8H(baseReg, dstY) \
-	VMOVDQU X1, (baseReg); \
-	VPMOVZXWD X1, dstY; \
-	VPSLLD $16, dstY, dstY; \
-	VPSRLDQ $8, X1, X2; \
-	VPMOVZXWD X2, Y3; \
-	VPSLLD $16, Y3, Y3; \
-	VEXTRACTI128 $0, Y3, X3; \
-	VINSERTF128 $1, X3, dstY, dstY
-
-#define WIDEN_BF16_4H(baseReg, dstY) \
-	VMOVDQU X1, (baseReg); \
-	VPMOVZXWD X1, dstY; \
-	VPSLLD $16, dstY, dstY
+#include "../avx512_bf16_macros.inc"
 
 // func MaxBFloat16AVX512Asm(src *uint16, count int) float32
 TEXT ·MaxBFloat16AVX512Asm(SB), NOSPLIT, $0-20
@@ -35,7 +21,7 @@ max_bf16_avx512_w8:
 	CMPQ CX, $8
 	JL    max_bf16_avx512_w4
 
-	WIDEN_BF16_8H(SI, Y1)
+	BF16_LOAD_8H(SI, Y1)
 	VMAXPS Y1, Y0, Y0
 
 	ADDQ $16, SI
@@ -46,7 +32,7 @@ max_bf16_avx512_w4:
 	CMPQ CX, $4
 	JL    max_bf16_avx512_reduce
 
-	WIDEN_BF16_4H(SI, Y1)
+	BF16_LOAD_4H(SI, Y1)
 	VMAXPS Y1, Y0, Y0
 
 	ADDQ $8, SI

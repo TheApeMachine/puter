@@ -1,24 +1,5 @@
 #include "textflag.h"
-
-#define WIDEN_BF16_8H(baseReg, dstY) \
-	VMOVDQU X1, (baseReg); \
-	VPMOVZXWD X1, dstY; \
-	VPSLLD $16, dstY, dstY; \
-	VPSRLDQ $8, X1, X2; \
-	VPMOVZXWD X2, Y3; \
-	VPSLLD $16, Y3, Y3; \
-	VEXTRACTI128 $0, Y3, X3; \
-	VINSERTF128 $1, X3, dstY, dstY
-
-#define WIDEN_BF16_4H(baseReg, dstY) \
-	VMOVDQU X1, (baseReg); \
-	VPMOVZXWD X1, dstY; \
-	VPSLLD $16, dstY, dstY
-
-#define NARROW_BF16_F32_X0_TO_RET \
-	MOVL  X0, AX; \
-	SHRQ  $16, AX; \
-	MOVW  AX, ret+16(FP)
+#include "../avx512_bf16_macros.inc"
 
 // func SumBFloat16AVX512Asm(src *uint16, count int) uint16
 TEXT ·SumBFloat16AVX512Asm(SB), NOSPLIT, $0-18
@@ -34,7 +15,7 @@ sum_bf16_w8:
 	CMPQ CX, $8
 	JL   sum_bf16_w4
 
-	WIDEN_BF16_8H(SI, Y1)
+	BF16_LOAD_8H(SI, Y1)
 	VADDPS Y1, Y0, Y0
 
 	ADDQ $16, SI
@@ -45,7 +26,7 @@ sum_bf16_w4:
 	CMPQ CX, $4
 	JL   sum_bf16_reduce
 
-	WIDEN_BF16_4H(SI, Y1)
+	BF16_LOAD_4H(SI, Y1)
 	VADDPS Y1, Y0, Y0
 
 	ADDQ $8, SI
@@ -72,10 +53,10 @@ sum_bf16_scalar:
 	JNZ  sum_bf16_scalar
 
 sum_bf16_store:
-	NARROW_BF16_F32_X0_TO_RET
+	PACK_BF16_SCALAR_F32_X0_TO(ret+16(FP))
 	RET
 
 sum_bf16_zero:
 	XORPS X0, X0
-	NARROW_BF16_F32_X0_TO_RET
+	PACK_BF16_SCALAR_F32_X0_TO(ret+16(FP))
 	RET

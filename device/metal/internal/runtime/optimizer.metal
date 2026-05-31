@@ -2,36 +2,41 @@
 
 using namespace metal;
 
-constant float adamLearningRate = 1.0e-4f;
-constant float adamBeta1 = 0.9f;
-constant float adamBeta2 = 0.999f;
-constant float adamEpsilon = 1.0e-8f;
-constant float adamWBeta1 = 0.9f;
-constant float adamWBeta2 = 0.999f;
-constant float adamWLearningRate = 1.0e-4f;
-constant float adamWEpsilon = 1.0e-8f;
-constant float adamWDecay = 1.0e-2f;
-constant float adamaxLearningRate = 2.0e-3f;
-constant float adamaxBeta1 = 0.9f;
-constant float adamaxBeta2 = 0.999f;
-constant float adamaxEpsilon = 1.0e-8f;
-constant float adagradLearningRate = 1.0e-2f;
-constant float adagradEpsilon = 1.0e-10f;
-constant float rmspropLearningRate = 1.0e-3f;
-constant float rmspropDecay = 0.99f;
-constant float rmspropEpsilon = 1.0e-8f;
-constant float lionLearningRate = 1.0e-4f;
-constant float lionBeta1 = 0.9f;
-constant float lionBeta2 = 0.99f;
-constant float sgdLearningRate = 1.0e-2f;
-constant float sgdMomentum = 0.9f;
-constant float larsLearningRate = 1.0e-2f;
-constant float larsMomentum = 0.9f;
-constant float larsWeightDecay = 1.0e-4f;
-constant float larsTrustCoeff = 1.0e-3f;
-constant float larsEpsilon = 1.0e-8f;
-constant float hebbianLearningRate = 1.0e-3f;
-constant float hebbianDecay = 1.0e-4f;
+struct Optimizer4Config {
+    float learningRate;
+    float beta1;
+    float beta2;
+    float epsilon;
+    float beta1Correction;
+    float beta2Correction;
+    float weightDecay;
+};
+
+struct Optimizer3Config {
+    float learningRate;
+    float epsilon;
+    float decay;
+    float beta1;
+    float beta2;
+    float momentum;
+};
+
+struct Optimizer2Config {
+    float learningRate;
+};
+
+struct HebbianConfig {
+    float learningRate;
+    float decay;
+};
+
+struct LARSConfig {
+    float learningRate;
+    float momentum;
+    float weightDecay;
+    float trustCoeff;
+    float epsilon;
+};
 
 static inline float optimizer_bf16_to_float(ushort value) {
     return as_type<float>(uint(value) << 16);
@@ -90,6 +95,7 @@ static inline void adam_step_kernel(
     device float* first,
     device float* second,
     device Scalar* out,
+    constant Optimizer4Config& config,
     uint count,
     uint index
 ) {
@@ -99,12 +105,23 @@ static inline void adam_step_kernel(
 
     float param = Storage::load(params, index);
     float grad = Storage::load(gradients, index);
-    first[index] = adamBeta1 * first[index] + (1.0f - adamBeta1) * grad;
-    second[index] = adamBeta2 * second[index] + (1.0f - adamBeta2) * grad * grad;
-    float correctedFirst = first[index] / (1.0f - adamBeta1);
-    float correctedSecond = second[index] / (1.0f - adamBeta2);
-    float denominator = sqrt(correctedSecond) + adamEpsilon;
-    Storage::store(out, index, param - adamLearningRate * correctedFirst / denominator);
+    float negBeta1 = 0.0f - config.beta1;
+    float oneMinusBeta1 = 1.0f + negBeta1;
+    float updatedFirst = config.beta1 * first[index];
+    updatedFirst = updatedFirst + oneMinusBeta1 * grad;
+    first[index] = updatedFirst;
+    float gradSquared = grad * grad;
+    float negBeta2 = 0.0f - config.beta2;
+    float oneMinusBeta2 = 1.0f + negBeta2;
+    float updatedSecond = config.beta2 * second[index];
+    updatedSecond = updatedSecond + oneMinusBeta2 * gradSquared;
+    second[index] = updatedSecond;
+    float correctedFirst = updatedFirst / config.beta1Correction;
+    float correctedSecond = updatedSecond / config.beta2Correction;
+    float sqrtSecond = precise::sqrt(correctedSecond);
+    float denominator = sqrtSecond + config.epsilon;
+    float step = config.learningRate * correctedFirst / denominator;
+    Storage::store(out, index, param - step);
 }
 
 template <typename Storage, typename Scalar>
@@ -114,6 +131,7 @@ static inline void adamw_step_kernel(
     device float* first,
     device float* second,
     device Scalar* out,
+    constant Optimizer4Config& config,
     uint count,
     uint index
 ) {
@@ -123,13 +141,23 @@ static inline void adamw_step_kernel(
 
     float param = Storage::load(params, index);
     float grad = Storage::load(gradients, index);
-    first[index] = adamWBeta1 * first[index] + (1.0f - adamWBeta1) * grad;
-    second[index] = adamWBeta2 * second[index] + (1.0f - adamWBeta2) * grad * grad;
-    float correctedFirst = first[index] / (1.0f - adamWBeta1);
-    float correctedSecond = second[index] / (1.0f - adamWBeta2);
-    float denominator = sqrt(correctedSecond) + adamWEpsilon;
-    float gradStep = adamWLearningRate * correctedFirst / denominator;
-    float decayStep = adamWLearningRate * adamWDecay * param;
+    float negBeta1 = 0.0f - config.beta1;
+    float oneMinusBeta1 = 1.0f + negBeta1;
+    float updatedFirst = config.beta1 * first[index];
+    updatedFirst = updatedFirst + oneMinusBeta1 * grad;
+    first[index] = updatedFirst;
+    float gradSquared = grad * grad;
+    float negBeta2 = 0.0f - config.beta2;
+    float oneMinusBeta2 = 1.0f + negBeta2;
+    float updatedSecond = config.beta2 * second[index];
+    updatedSecond = updatedSecond + oneMinusBeta2 * gradSquared;
+    second[index] = updatedSecond;
+    float correctedFirst = updatedFirst / config.beta1Correction;
+    float correctedSecond = updatedSecond / config.beta2Correction;
+    float sqrtSecond = precise::sqrt(correctedSecond);
+    float denominator = sqrtSecond + config.epsilon;
+    float gradStep = config.learningRate * correctedFirst / denominator;
+    float decayStep = config.learningRate * config.weightDecay * param;
     Storage::store(out, index, param - gradStep - decayStep);
 }
 
@@ -140,6 +168,7 @@ static inline void adamax_step_kernel(
     device float* first,
     device float* infinity,
     device Scalar* out,
+    constant Optimizer4Config& config,
     uint count,
     uint index
 ) {
@@ -149,12 +178,12 @@ static inline void adamax_step_kernel(
 
     float param = Storage::load(params, index);
     float grad = Storage::load(gradients, index);
-    first[index] = adamaxBeta1 * first[index] + (1.0f - adamaxBeta1) * grad;
-    infinity[index] = max(adamaxBeta2 * infinity[index], abs(grad));
-    float correctedFirst = first[index] / (1.0f - adamaxBeta1);
+    first[index] = config.beta1 * first[index] + (1.0f - config.beta1) * grad;
+    infinity[index] = max(config.beta2 * infinity[index], abs(grad));
+    float correctedFirst = first[index] / config.beta1Correction;
     Storage::store(
         out, index,
-        param - adamaxLearningRate * correctedFirst / (infinity[index] + adamaxEpsilon)
+        param - config.learningRate * correctedFirst / (infinity[index] + config.epsilon)
     );
 }
 
@@ -164,8 +193,9 @@ static inline void optimizer3_step_kernel(
     device const Scalar* gradients,
     device float* state,
     device Scalar* out,
-    uint count,
+    constant Optimizer3Config& config,
     uint operation,
+    uint count,
     uint index
 ) {
     if (index >= count) {
@@ -177,25 +207,31 @@ static inline void optimizer3_step_kernel(
 
     if (operation == 3u) {
         state[index] += grad * grad;
-        Storage::store(out, index, param - adagradLearningRate * grad / (sqrt(state[index]) + adagradEpsilon));
+        Storage::store(
+            out, index,
+            param - config.learningRate * grad / (sqrt(state[index]) + config.epsilon)
+        );
         return;
     }
 
     if (operation == 4u) {
-        state[index] = rmspropDecay * state[index] + (1.0f - rmspropDecay) * grad * grad;
-        Storage::store(out, index, param - rmspropLearningRate * grad / (sqrt(state[index]) + rmspropEpsilon));
+        state[index] = config.decay * state[index] + (1.0f - config.decay) * grad * grad;
+        Storage::store(
+            out, index,
+            param - config.learningRate * grad / (sqrt(state[index]) + config.epsilon)
+        );
         return;
     }
 
     if (operation == 5u) {
-        float update = lionBeta1 * state[index] + (1.0f - lionBeta1) * grad;
-        Storage::store(out, index, param - lionLearningRate * optimizer_sign(update));
-        state[index] = lionBeta2 * state[index] + (1.0f - lionBeta2) * grad;
+        float update = config.beta1 * state[index] + (1.0f - config.beta1) * grad;
+        Storage::store(out, index, param - config.learningRate * optimizer_sign(update));
+        state[index] = config.beta2 * state[index] + (1.0f - config.beta2) * grad;
         return;
     }
 
-    state[index] = sgdMomentum * state[index] + grad;
-    Storage::store(out, index, param - sgdLearningRate * state[index]);
+    state[index] = config.momentum * state[index] + grad;
+    Storage::store(out, index, param - config.learningRate * state[index]);
 }
 
 template <typename Storage, typename Scalar>
@@ -203,6 +239,7 @@ static inline void lbfgs_step_kernel(
     device const Scalar* params,
     device const Scalar* gradients,
     device Scalar* out,
+    constant Optimizer2Config& config,
     uint count,
     uint index
 ) {
@@ -212,7 +249,7 @@ static inline void lbfgs_step_kernel(
 
     Storage::store(
         out, index,
-        Storage::load(params, index) - Storage::load(gradients, index)
+        Storage::load(params, index) - config.learningRate * Storage::load(gradients, index)
     );
 }
 
@@ -222,20 +259,21 @@ static inline void hebbian_step_kernel(
     device const Scalar* post,
     device const Scalar* pre,
     device Scalar* out,
+    constant HebbianConfig& config,
     uint postCount,
     uint preCount,
     uint index
 ) {
-    uint count = postCount * preCount;
+    uint elementCount = postCount * preCount;
 
-    if (index >= count) {
+    if (index >= elementCount) {
         return;
     }
 
     uint postIndex = index / preCount;
     uint preIndex = index - postIndex * preCount;
-    float updated = Storage::load(weights, index) * (1.0f - hebbianDecay) +
-        hebbianLearningRate * Storage::load(post, postIndex) * Storage::load(pre, preIndex);
+    float updated = Storage::load(weights, index) * (1.0f - config.decay) +
+        config.learningRate * Storage::load(post, postIndex) * Storage::load(pre, preIndex);
     Storage::store(out, index, updated);
 }
 
@@ -285,6 +323,7 @@ static inline void lars_step_kernel(
     device float* momentum,
     device const float* scratch,
     device Scalar* out,
+    constant LARSConfig& config,
     uint count,
     uint groupCount,
     uint index
@@ -306,14 +345,14 @@ static inline void lars_step_kernel(
     float trust = 1.0f;
 
     if (paramNorm > 0.0f && gradNorm > 0.0f) {
-        trust = larsTrustCoeff * paramNorm /
-            (gradNorm + larsWeightDecay * paramNorm + larsEpsilon);
+        trust = config.trustCoeff * paramNorm /
+            (gradNorm + config.weightDecay * paramNorm + config.epsilon);
     }
 
     float param = Storage::load(params, index);
-    float decayed = Storage::load(gradients, index) + larsWeightDecay * param;
-    momentum[index] = larsMomentum * momentum[index] + decayed;
-    Storage::store(out, index, param - larsLearningRate * trust * momentum[index]);
+    float decayed = Storage::load(gradients, index) + config.weightDecay * param;
+    momentum[index] = config.momentum * momentum[index] + decayed;
+    Storage::store(out, index, param - config.learningRate * trust * momentum[index]);
 }
 
 #define OPTIMIZER4_KERNEL(name, storage, scalar, body) \
@@ -324,9 +363,10 @@ kernel void name( \
     device float* second [[buffer(3)]], \
     device scalar* out [[buffer(4)]], \
     constant uint& count [[buffer(5)]], \
+    constant Optimizer4Config& config [[buffer(6)]], \
     uint index [[thread_position_in_grid]] \
 ) { \
-    body<storage, scalar>(params, gradients, first, second, out, count, index); \
+    body<storage, scalar>(params, gradients, first, second, out, config, count, index); \
 }
 
 #define OPTIMIZER3_KERNEL(name, storage, scalar) \
@@ -337,9 +377,10 @@ kernel void name( \
     device scalar* out [[buffer(3)]], \
     constant uint& count [[buffer(4)]], \
     constant uint& operation [[buffer(5)]], \
+    constant Optimizer3Config& config [[buffer(6)]], \
     uint index [[thread_position_in_grid]] \
 ) { \
-    optimizer3_step_kernel<storage, scalar>(params, gradients, state, out, count, operation, index); \
+    optimizer3_step_kernel<storage, scalar>(params, gradients, state, out, config, operation, count, index); \
 }
 
 #define OPTIMIZER2_KERNEL(name, storage, scalar) \
@@ -348,9 +389,10 @@ kernel void name( \
     device const scalar* gradients [[buffer(1)]], \
     device scalar* out [[buffer(2)]], \
     constant uint& count [[buffer(3)]], \
+    constant Optimizer2Config& config [[buffer(4)]], \
     uint index [[thread_position_in_grid]] \
 ) { \
-    lbfgs_step_kernel<storage, scalar>(params, gradients, out, count, index); \
+    lbfgs_step_kernel<storage, scalar>(params, gradients, out, config, count, index); \
 }
 
 #define HEBBIAN_KERNEL(name, storage, scalar) \
@@ -361,9 +403,10 @@ kernel void name( \
     device scalar* out [[buffer(3)]], \
     constant uint& postCount [[buffer(4)]], \
     constant uint& preCount [[buffer(5)]], \
+    constant HebbianConfig& config [[buffer(6)]], \
     uint index [[thread_position_in_grid]] \
 ) { \
-    hebbian_step_kernel<storage, scalar>(weights, post, pre, out, postCount, preCount, index); \
+    hebbian_step_kernel<storage, scalar>(weights, post, pre, out, config, postCount, preCount, index); \
 }
 
 #define LARS_NORMS_KERNEL(name, storage, scalar) \
@@ -391,9 +434,10 @@ kernel void name( \
     device scalar* out [[buffer(4)]], \
     constant uint& count [[buffer(5)]], \
     constant uint& groupCount [[buffer(6)]], \
+    constant LARSConfig& config [[buffer(7)]], \
     uint index [[thread_position_in_grid]] \
 ) { \
-    lars_step_kernel<storage, scalar>(params, gradients, momentum, scratch, out, count, groupCount, index); \
+    lars_step_kernel<storage, scalar>(params, gradients, momentum, scratch, out, config, count, groupCount, index); \
 }
 
 OPTIMIZER4_KERNEL(adam_step_float32, Float32OptimizerStorage, float, adam_step_kernel)

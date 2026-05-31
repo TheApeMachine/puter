@@ -1,6 +1,0 @@
-#include "textflag.h"
-TEXT ·T(SB), NOSPLIT, $0-0
-	VPBROADCASTW (AX), X2
-	VMOVDQU X2, (SI)
-	VCVTPH2PS X2, Y4
-	RET

@@ -9,7 +9,7 @@ import (
 )
 
 type lastTokenDevice interface {
-	LastToken(
+	IntrinsicLastToken(
 		input, output unsafe.Pointer,
 		seq, hiddenBytes, outBytes int,
 		format dtype.DType,
@@ -17,12 +17,12 @@ type lastTokenDevice interface {
 }
 
 type concatDevice interface {
-	Concat(
+	IntrinsicConcat(
 		left, right, output unsafe.Pointer,
 		leftBytes, rightBytes int,
 		format dtype.DType,
 	)
-	ConcatLastDim(
+	IntrinsicConcatLastDim(
 		left, right, output unsafe.Pointer,
 		leftRowBytes, rightRowBytes, rowBytes, totalBytes int,
 		format dtype.DType,
@@ -30,7 +30,7 @@ type concatDevice interface {
 }
 
 type upsampleNearest2DDevice interface {
-	UpsampleNearest2D(
+	IntrinsicUpsampleNearest2D(
 		input, output unsafe.Pointer,
 		channels, inHeight, inWidth, outHeight, outWidth, outElements int,
 		format dtype.DType,
@@ -412,7 +412,7 @@ func runConcatDeviceIntrinsic(
 	}
 
 	if axis == 0 || outer == 1 {
-		deviceBackend.Concat(leftPointer, rightPointer, outputPointer, left.Bytes(), right.Bytes(), left.DType())
+		deviceBackend.IntrinsicConcat(leftPointer, rightPointer, outputPointer, left.Bytes(), right.Bytes(), left.DType())
 		return nil
 	}
 
@@ -444,7 +444,7 @@ func runConcatLastDimDevice(
 	rightRowBytes := rightDimensions[lastAxis] * elementSize
 	rowBytes := leftRowBytes + rightRowBytes
 
-	deviceBackend.ConcatLastDim(
+	deviceBackend.IntrinsicConcatLastDim(
 		leftPointer,
 		rightPointer,
 		outputPointer,
@@ -502,7 +502,7 @@ func runLastTokenDeviceIntrinsic(
 	rowBytes := rowElements * elementSize
 	outBytes := batch * rowBytes
 
-	deviceBackend.LastToken(
+	deviceBackend.IntrinsicLastToken(
 		inputPointer,
 		outputPointer,
 		sequence,

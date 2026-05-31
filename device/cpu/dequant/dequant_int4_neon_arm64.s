@@ -22,23 +22,16 @@
 //   out[i] = float32(value) * scale
 
 #include "textflag.h"
+#include "neon_dequant_macros.inc"
 
 // SHL .B8 by 4: 0x0F0C5400
 #define VSHL_B8_BY4(n, d)    WORD $(0x0F0C5400 | ((n) << 5) | (d))
 // SSHR .B8 by 4 (arithmetic right shift): 0x0F0C0400
 #define VSSHR_B8_BY4(n, d)   WORD $(0x0F0C0400 | ((n) << 5) | (d))
 // ZIP1 .B16: interleave low halves of two B8 vectors into one B16
-// Encoding ZIP1 .16B: 0|1|0|01110|00|0|Rm|0|011|1|0|Rn|Rd = 0x4E003800
 #define VZIP1_B16(m, n, d)   WORD $(0x4E003800 | ((m) << 16) | ((n) << 5) | (d))
-// SUB vector .B16 (integer): 0|1|1|01110|00|1|Rm|10000|1|Rn|Rd = 0x6E208400
+// SUB vector .B16 (integer)
 #define VSUB_B16(m, n, d)    WORD $(0x6E208400 | ((m) << 16) | ((n) << 5) | (d))
-// SXTL/SXTL2 chain (from int8 dequant kernel).
-#define VSXTL_H8(n, d)       WORD $(0x0F08A400 | ((n) << 5) | (d))
-#define VSXTL2_H8(n, d)      WORD $(0x4F08A400 | ((n) << 5) | (d))
-#define VSXTL_S4(n, d)       WORD $(0x0F10A400 | ((n) << 5) | (d))
-#define VSXTL2_S4(n, d)      WORD $(0x4F10A400 | ((n) << 5) | (d))
-#define VSCVTF_S4(n, d)      WORD $(0x4E21D800 | ((n) << 5) | (d))
-#define VFMUL_S4(m, n, d)    WORD $(0x6E20DC00 | ((m) << 16) | ((n) << 5) | (d))
 
 // func DequantInt4NEONAsm(dst *float32, src *byte, n int, scale float32, zeroPoint int8)
 TEXT ·DequantInt4NEONAsm(SB), NOSPLIT, $0-29

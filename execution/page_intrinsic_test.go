@@ -362,7 +362,7 @@ type recordingPageDevice struct {
 	gather pageGatherCall
 }
 
-func (recorder *recordingPageDevice) PageWrite(
+func (recorder *recordingPageDevice) KVPageWrite(
 	storage, values, pageIDs, offsets, output unsafe.Pointer,
 	pageCount, pageSize, inner, valueRows, storageOffset int,
 	format dtype.DType,
@@ -382,7 +382,7 @@ func (recorder *recordingPageDevice) PageWrite(
 	}
 }
 
-func (recorder *recordingPageDevice) PageGather(
+func (recorder *recordingPageDevice) KVPageGather(
 	storage, pageTable, output unsafe.Pointer,
 	pageCount, pageSize, inner, outRows, storageOffset int,
 	format dtype.DType,

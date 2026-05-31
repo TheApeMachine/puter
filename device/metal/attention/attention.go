@@ -35,11 +35,4 @@ type Host interface {
 		seqQ, seqK, depth, valueDim int,
 		format dtype.DType,
 	)
-	DispatchApplyMask(input, mask, output unsafe.Pointer, count int, format dtype.DType)
-	DispatchCausalMask(output unsafe.Pointer, seqQ, seqK int, format dtype.DType)
-	DispatchALiBiBias(
-		scores, slope, output unsafe.Pointer,
-		seqQ, seqK int,
-		format dtype.DType,
-	)
 }

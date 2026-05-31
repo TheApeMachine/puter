@@ -9,7 +9,7 @@ import (
 )
 
 type sliceDevice interface {
-	Slice(
+	IntrinsicSlice(
 		input, output unsafe.Pointer,
 		sliceLen, inputDimSize, innerBytes, start, outBytes int,
 		format dtype.DType,
@@ -247,7 +247,7 @@ func runSliceDeviceIntrinsic(
 		return err
 	}
 
-	deviceBackend.Slice(
+	deviceBackend.IntrinsicSlice(
 		inputPointer,
 		outputPointer,
 		layout.sliceLen(),

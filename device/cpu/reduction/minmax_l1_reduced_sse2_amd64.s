@@ -1,4 +1,6 @@
 #include "textflag.h"
+#include "../sse2_bf16_macros.inc"
+#include "../f16c_fp16_macros.inc"
 
 DATA l1ReducedAbsMaskSSE2<>+0(SB)/4, $0x7fffffff
 DATA l1ReducedAbsMaskSSE2<>+4(SB)/4, $0x7fffffff
@@ -53,12 +55,7 @@ min_bf16_sse2_w4:
 	CMPQ CX, $4
 	JL    min_bf16_sse2_tail
 
-	VMOVDQU X1, (SI)
-	VPXOR   X3, X3, X3
-	VPUNPCKLWD X3, X1, X4
-	VPUNPCKHWD X3, X1, X5
-	VPSLLD  $16, X4, X4
-	VPSLLD  $16, X5, X5
+	BF16_WIDEN_SSE2_4(SI, X4, X5)
 	VMINPS  X4, X0, X0
 	VMINPS  X5, X0, X0
 
@@ -113,12 +110,7 @@ max_bf16_sse2_w4:
 	CMPQ CX, $4
 	JL    max_bf16_sse2_tail
 
-	VMOVDQU X1, (SI)
-	VPXOR   X3, X3, X3
-	VPUNPCKLWD X3, X1, X4
-	VPUNPCKHWD X3, X1, X5
-	VPSLLD  $16, X4, X4
-	VPSLLD  $16, X5, X5
+	BF16_WIDEN_SSE2_4(SI, X4, X5)
 	VMAXPS  X4, X0, X0
 	VMAXPS  X5, X0, X0
 
@@ -178,14 +170,7 @@ l1_bf16_sse2_w4:
 	CMPQ CX, $4
 	JL    l1_bf16_sse2_tail
 
-	VMOVDQU X1, (SI)
-	VPXOR   X3, X3, X3
-	VPUNPCKLWD X3, X1, X4
-	VPUNPCKHWD X3, X1, X5
-	VPSLLD  $16, X4, X4
-	VPSLLD  $16, X5, X5
-	VINSERTF128 $1, X5, Y4, Y4
-	VEXTRACTF128 $0, Y4, X4
+	BF16_WIDEN_SSE2_4(SI, X4, X5)
 	VANDPS  X6, X4, X4
 	BF16_L1_HSUM_XMM4_INTO_X0
 
@@ -239,8 +224,7 @@ min_fp16_sse2_w4:
 	CMPQ CX, $4
 	JL    min_fp16_sse2_tail
 
-	VMOVDQU X1, (SI)
-	VCVTPH2PS X1, X4
+	FP16_WIDEN_SSE2_4(SI, X4)
 	VMINPS  X4, X0, X0
 
 	ADDQ $8, SI
@@ -294,8 +278,7 @@ max_fp16_sse2_w4:
 	CMPQ CX, $4
 	JL    max_fp16_sse2_tail
 
-	VMOVDQU X1, (SI)
-	VCVTPH2PS X1, X4
+	FP16_WIDEN_SSE2_4(SI, X4)
 	VMAXPS  X4, X0, X0
 
 	ADDQ $8, SI
@@ -354,8 +337,7 @@ l1_fp16_sse2_w4:
 	CMPQ CX, $4
 	JL    l1_fp16_sse2_tail
 
-	VMOVDQU X1, (SI)
-	VCVTPH2PS X1, X4
+	FP16_WIDEN_SSE2_4(SI, X4)
 	VANDPS  X6, X4, X4
 	BF16_L1_HSUM_XMM4_INTO_X0
 

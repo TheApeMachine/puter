@@ -5,15 +5,9 @@
 // block: widen bf16→f32, FMLA accumulate, RSHRN narrow f32→bf16.
 
 #include "textflag.h"
+#include "../neon_bf16_macros.inc"
 
 #define VFMLA_S4(m, n, d)  WORD $(0x4E20CC00 | ((m) << 16) | ((n) << 5) | (d))
-#define VMOV_VREG(src, dst) WORD $(0x4EA01C00 | ((src) << 16) | ((src) << 5) | (dst))
-#define NARROW_BF16_S4_TO_H4(src) \
-    VMOV_VREG(src, 8) \
-    VMOV_VREG(src, 9) \
-    VUZP2 V9.H8, V8.H8, V12.H8
-#define WIDEN_BF16_H4_TO_S4(src, dst) \
-    VZIP1 src, V31.H8, dst
 
 // func Conv2dStride1RowBF16NEONAsm(
 //     outRow *uint16,
@@ -86,7 +80,7 @@ kw_loop:
     FMOVS R22, F1
     VDUP V1.S[0], V1.S4
     VLD1 (R20), [V2.H4]
-    WIDEN_BF16_H4_TO_S4(V2.H8, V20.H8)
+    BF16_BITS_TO_F32_H4(V2.H8, V20.H8)
     VFMLA_S4(20, 1, 0)
     ADD  $2, R21
     ADD  $2, R20
@@ -106,7 +100,7 @@ kh_done:
     B    c_loop
 
 c_done:
-    NARROW_BF16_S4_TO_H4(0)
+    F32_BITS_TO_BF16_H4(0)
     VST1 [V12.H4], (R0)
     ADD  $8, R0
     ADD  $8, R1

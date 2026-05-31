@@ -9,7 +9,7 @@ import (
 )
 
 type transposeDevice interface {
-	Transpose(
+	IntrinsicTranspose(
 		input, output unsafe.Pointer,
 		rank, count int,
 		permutation, inputStrides, outputStrides []uint32,
@@ -262,7 +262,7 @@ func runTransposeDeviceIntrinsic(
 		return err
 	}
 
-	deviceBackend.Transpose(
+	deviceBackend.IntrinsicTranspose(
 		inputPointer,
 		outputPointer,
 		len(layout.inputDimensions),

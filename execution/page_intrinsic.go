@@ -11,12 +11,12 @@ import (
 )
 
 type pageIntrinsicDevice interface {
-	PageWrite(
+	KVPageWrite(
 		storage, values, pageIDs, offsets, output unsafe.Pointer,
 		pageCount, pageSize, inner, valueRows, storageOffset int,
 		format dtype.DType,
 	)
-	PageGather(
+	KVPageGather(
 		storage, pageTable, output unsafe.Pointer,
 		pageCount, pageSize, inner, outRows, storageOffset int,
 		format dtype.DType,
@@ -185,7 +185,7 @@ func runPageWriteDeviceIntrinsic(
 		return err
 	}
 
-	deviceBackend.PageWrite(
+	deviceBackend.KVPageWrite(
 		storagePointer,
 		valuesPointer,
 		pageIDsPointer,
@@ -322,7 +322,7 @@ func runPageGatherDeviceIntrinsic(
 		return err
 	}
 
-	deviceBackend.PageGather(
+	deviceBackend.KVPageGather(
 		storagePointer,
 		pageTablePointer,
 		outputPointer,

@@ -118,7 +118,7 @@ type recordingUpsampleNearest2DDevice struct {
 	calls []upsampleNearest2DCall
 }
 
-func (recorder *recordingUpsampleNearest2DDevice) UpsampleNearest2D(
+func (recorder *recordingUpsampleNearest2DDevice) IntrinsicUpsampleNearest2D(
 	input, output unsafe.Pointer,
 	channels, inHeight, inWidth, outHeight, outWidth, outElements int,
 	format dtype.DType,

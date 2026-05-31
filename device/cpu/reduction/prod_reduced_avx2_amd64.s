@@ -1,25 +1,9 @@
 #include "textflag.h"
+#include "../avx512_bf16_macros.inc"
+#include "../f16c_fp16_macros.inc"
 
 DATA prodOneF32AVX2<>+0(SB)/4, $0x3f800000
 GLOBL prodOneF32AVX2<>(SB), RODATA|NOPTR, $4
-
-#define WIDEN_BF16_8H_AVX2(baseReg, dstY) \
-	VMOVDQU X1, (baseReg); \
-	VPXOR X3, X3, X3; \
-	VPUNPCKLWD X3, X1, X4; \
-	VPUNPCKHWD X3, X1, X5; \
-	VPSLLD $16, X4, X4; \
-	VPSLLD $16, X5, X5; \
-	VINSERTF128 $1, X5, Y4, dstY
-
-#define WIDEN_BF16_4H_AVX2(baseReg, dstY) \
-	VMOVDQU X1, (baseReg); \
-	VPXOR X3, X3, X3; \
-	VPUNPCKLWD X3, X1, X4; \
-	VPUNPCKHWD X3, X1, X5; \
-	VPSLLD $16, X4, X4; \
-	VPSLLD $16, X5, X5; \
-	VUNPCKLPD X4, X5, dstY
 
 // func ProdBFloat16AVX2Asm(src *uint16, count int) float32
 TEXT ·ProdBFloat16AVX2Asm(SB), NOSPLIT, $0-20
@@ -35,7 +19,7 @@ prod_bf16_avx2_w8:
 	CMPQ CX, $8
 	JL    prod_bf16_avx2_w4
 
-	WIDEN_BF16_8H_AVX2(SI, Y1)
+	BF16_LOAD_8H(SI, Y1)
 	VMULPS Y1, Y0, Y0
 
 	ADDQ $16, SI
@@ -46,13 +30,7 @@ prod_bf16_avx2_w4:
 	CMPQ CX, $4
 	JL    prod_bf16_avx2_tail
 
-	VMOVDQU X1, (SI)
-	VPXOR X3, X3, X3
-	VPUNPCKLWD X3, X1, X4
-	VPUNPCKHWD X3, X1, X5
-	VPSLLD $16, X4, X4
-	VPSLLD $16, X5, X5
-	VINSERTF128 $1, X5, Y4, Y1
+	BF16_LOAD_4H(SI, Y1)
 	VMULPS Y1, Y0, Y0
 
 	ADDQ $8, SI
@@ -88,13 +66,6 @@ prod_bf16_avx2_zero:
 	MOVSS X0, ret+16(FP)
 	RET
 
-#define WIDEN_FP16_8H_AVX2(baseReg, dstY) \
-	VMOVDQU X1, (baseReg); \
-	VCVTPH2PS X1, dstY; \
-	VPSRLDQ $8, X1, X2; \
-	VCVTPH2PS X2, X5; \
-	VINSERTF128 $1, X5, dstY, dstY
-
 // func ProdFloat16AVX2Asm(src *uint16, count int) float32
 TEXT ·ProdFloat16AVX2Asm(SB), NOSPLIT, $0-20
 	MOVQ src+0(FP), SI
@@ -109,7 +80,7 @@ prod_fp16_avx2_w8:
 	CMPQ CX, $8
 	JL    prod_fp16_avx2_w4
 
-	WIDEN_FP16_8H_AVX2(SI, Y1)
+	FP16_WIDEN_AVX2_8H(SI, Y1)
 	VMULPS Y1, Y0, Y0
 
 	ADDQ $16, SI
@@ -120,8 +91,7 @@ prod_fp16_avx2_w4:
 	CMPQ CX, $4
 	JL    prod_fp16_avx2_tail
 
-	VMOVDQU X1, (SI)
-	VCVTPH2PS X1, Y1
+	FP16_WIDEN_AVX2_4H(SI, Y1)
 	VMULPS Y1, Y0, Y0
 
 	ADDQ $8, SI

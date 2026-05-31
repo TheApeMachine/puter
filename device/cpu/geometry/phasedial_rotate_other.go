@@ -13,3 +13,7 @@ func dialRotate128FromTrig(out, in PhaseDial, cosine, sine float64) {
 		out[dimIndex] = in[dimIndex] * factor
 	}
 }
+
+func dialRotate128FromTrigNative(out, in PhaseDial, cosine, sine float64) {
+	dialRotate128FromTrig(out, in, cosine, sine)
+}

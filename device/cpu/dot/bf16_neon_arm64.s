@@ -7,6 +7,7 @@
 // horizontal reduce produces a single f32, narrowed to bf16.
 
 #include "textflag.h"
+#include "../neon_bf16_macros.inc"
 
 // FMLA vector .4S: 0x4E20CC00 base. Vd += Vn * Vm
 #define VFMLA_S4(m, n, d) WORD $(0x4E20CC00 | ((m) << 16) | ((n) << 5) | (d))
@@ -14,9 +15,6 @@
 #define VFADD_S4(m, n, d) WORD $(0x4E20D400 | ((m) << 16) | ((n) << 5) | (d))
 // FADDP scalar Sd, Vn.2S: 0x7E30D800 base
 #define FADDP_S(n, d) WORD $(0x7E30D800 | ((n) << 5) | (d))
-
-#define WIDEN_H8_TO_S4_LOW(src_h8, dst_h8)  VZIP1 src_h8, V31.H8, dst_h8
-#define WIDEN_H8_TO_S4_HIGH(src_h8, dst_h8) VZIP2 src_h8, V31.H8, dst_h8
 
 // func DotBFloat16NEONAsm(a, b *uint16, n int) uint16
 TEXT ·DotBFloat16NEONAsm(SB), NOSPLIT, $0-26
@@ -36,14 +34,14 @@ dot_bf16_loop16:
     BLT  dot_bf16_loop8
     VLD1.P 32(R0), [V0.H8, V1.H8]
     VLD1.P 32(R1), [V2.H8, V3.H8]
-    WIDEN_H8_TO_S4_LOW(V0.H8, V4.H8)
-    WIDEN_H8_TO_S4_HIGH(V0.H8, V5.H8)
-    WIDEN_H8_TO_S4_LOW(V1.H8, V6.H8)
-    WIDEN_H8_TO_S4_HIGH(V1.H8, V7.H8)
-    WIDEN_H8_TO_S4_LOW(V2.H8, V8.H8)
-    WIDEN_H8_TO_S4_HIGH(V2.H8, V9.H8)
-    WIDEN_H8_TO_S4_LOW(V3.H8, V10.H8)
-    WIDEN_H8_TO_S4_HIGH(V3.H8, V11.H8)
+    BF16_BITS_TO_F32_LOW(V0.H8, V4.H8)
+    BF16_BITS_TO_F32_HIGH(V0.H8, V5.H8)
+    BF16_BITS_TO_F32_LOW(V1.H8, V6.H8)
+    BF16_BITS_TO_F32_HIGH(V1.H8, V7.H8)
+    BF16_BITS_TO_F32_LOW(V2.H8, V8.H8)
+    BF16_BITS_TO_F32_HIGH(V2.H8, V9.H8)
+    BF16_BITS_TO_F32_LOW(V3.H8, V10.H8)
+    BF16_BITS_TO_F32_HIGH(V3.H8, V11.H8)
     VFMLA_S4(8, 4, 16)
     VFMLA_S4(9, 5, 17)
     VFMLA_S4(10, 6, 18)
@@ -56,10 +54,10 @@ dot_bf16_loop8:
     BLT  dot_bf16_reduce
     VLD1.P 16(R0), [V0.H8]
     VLD1.P 16(R1), [V2.H8]
-    WIDEN_H8_TO_S4_LOW(V0.H8, V4.H8)
-    WIDEN_H8_TO_S4_HIGH(V0.H8, V5.H8)
-    WIDEN_H8_TO_S4_LOW(V2.H8, V8.H8)
-    WIDEN_H8_TO_S4_HIGH(V2.H8, V9.H8)
+    BF16_BITS_TO_F32_LOW(V0.H8, V4.H8)
+    BF16_BITS_TO_F32_HIGH(V0.H8, V5.H8)
+    BF16_BITS_TO_F32_LOW(V2.H8, V8.H8)
+    BF16_BITS_TO_F32_HIGH(V2.H8, V9.H8)
     VFMLA_S4(8, 4, 16)
     VFMLA_S4(9, 5, 17)
     SUB  $8, R2
@@ -89,7 +87,6 @@ dot_bf16_scalar_loop:
     CBNZ R2, dot_bf16_scalar_loop
 
 dot_bf16_finalize:
-    FMOVS F0, R3
-    LSR  $16, R3, R3
+    BF16_RNE_SCALAR_F0_TO(R3)
     MOVH R3, ret+24(FP)
     RET

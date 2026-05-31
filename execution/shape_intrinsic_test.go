@@ -101,7 +101,7 @@ type recordingLastTokenDevice struct {
 	call lastTokenCall
 }
 
-func (recorder *recordingLastTokenDevice) LastToken(
+func (recorder *recordingLastTokenDevice) IntrinsicLastToken(
 	input, output unsafe.Pointer,
 	seq, hiddenBytes, outBytes int,
 	format dtype.DType,
@@ -229,7 +229,7 @@ type recordingConcatDevice struct {
 	lastDimCalls    []concatCall
 }
 
-func (recorder *recordingConcatDevice) Concat(
+func (recorder *recordingConcatDevice) IntrinsicConcat(
 	left, right, output unsafe.Pointer,
 	leftBytes, rightBytes int,
 	format dtype.DType,
@@ -244,7 +244,7 @@ func (recorder *recordingConcatDevice) Concat(
 	})
 }
 
-func (recorder *recordingConcatDevice) ConcatLastDim(
+func (recorder *recordingConcatDevice) IntrinsicConcatLastDim(
 	left, right, output unsafe.Pointer,
 	leftRowBytes, rightRowBytes, rowBytes, totalBytes int,
 	format dtype.DType,

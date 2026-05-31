@@ -10,6 +10,5 @@ package causal
 #include "native/adjustment.m"
 #include "native/dag.m"
 #include "native/intervention.m"
-#include "native/matrix.m"
 */
 import "C"

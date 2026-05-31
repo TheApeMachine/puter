@@ -3,6 +3,7 @@
 package parity
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math/rand"
 	"runtime"
@@ -15,11 +16,13 @@ import (
 )
 
 /*
-#cgo CFLAGS: -x objective-c -fobjc-arc -I${SRCDIR}/../bridge
+#cgo CFLAGS: -x objective-c -fobjc-arc -I${SRCDIR}/../bridge -I${SRCDIR}/../runtime
 #cgo LDFLAGS: -framework Metal -framework Foundation -framework CoreFoundation
 
 #include "core.h"
 #include "../bridge/core_darwin.m"
+#include "../runtime/bridge_transformer_darwin.m"
+#include "../runtime/bridge_utility_darwin.m"
 #include <stdlib.h>
 #include <string.h>
 */
@@ -92,6 +95,30 @@ func (harness *Harness) UploadVector(values []float32, format dtype.DType) *Buff
 		panic(err)
 	}
 
+	return harness.uploadBytes(bytesIn)
+}
+
+/*
+UploadInt32 copies host int32 values into a shared Metal buffer.
+*/
+func (harness *Harness) UploadInt32(values []int32) *Buffer {
+	if len(values) == 0 {
+		return &Buffer{device: harness.device}
+	}
+
+	bytesIn := make([]byte, len(values)*4)
+
+	for index, value := range values {
+		binary.LittleEndian.PutUint32(bytesIn[index*4:], uint32(value))
+	}
+
+	return harness.uploadBytes(bytesIn)
+}
+
+/*
+UploadBytes copies raw host bytes into a shared Metal buffer.
+*/
+func (harness *Harness) UploadBytes(bytesIn []byte) *Buffer {
 	return harness.uploadBytes(bytesIn)
 }
 

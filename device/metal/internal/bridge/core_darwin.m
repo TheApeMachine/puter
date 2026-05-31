@@ -110,6 +110,7 @@ void metal_end_encoder(MetalContext* context, id<MTLComputeCommandEncoder> encod
     if (!context->isBatching) {
         [encoder endEncoding];
         [commandBuffer commit];
+        [commandBuffer waitUntilCompleted];
     }
 }
 

@@ -52,7 +52,8 @@ sum64_avx512_done:
 	RET
 
 sum64_avx512_zero:
-	MOVSD $0.0, ret+16(FP)
+	XORPS X0, X0
+	MOVSD X0, ret+16(FP)
 	RET
 
 // func SumOfSquaresFloat64AVX512Asm(src *float64, count int) float64
@@ -110,7 +111,8 @@ sumsq64_avx512_done:
 	RET
 
 sumsq64_avx512_zero:
-	MOVSD $0.0, ret+16(FP)
+	XORPS X0, X0
+	MOVSD X0, ret+16(FP)
 	RET
 
 // func DotFloat64AVX512Asm(left, right *float64, count int) float64
@@ -174,7 +176,8 @@ dot64_avx512_done:
 	RET
 
 dot64_avx512_zero:
-	MOVSD $0.0, ret+24(FP)
+	XORPS X0, X0
+	MOVSD X0, ret+24(FP)
 	RET
 
 // func ScaleFloat64AVX512Asm(dst, src *float64, scale float64, count int)
@@ -463,5 +466,6 @@ max64_avx512_done:
 	RET
 
 max64_avx512_zero:
-	MOVSD $0.0, ret+16(FP)
+	XORPS X0, X0
+	MOVSD X0, ret+16(FP)
 	RET

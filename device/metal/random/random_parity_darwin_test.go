@@ -15,32 +15,11 @@ import (
 
 // Metal random_normal_float32 parity vs CPU scalar reference.
 //
-// We assert TWO things:
-//
-//  1. Loose per-lane ULP tolerance (≤ 128 ULP). This is the realistic
-//     floor for Apple silicon GPU's F32 transcendentals (log/sin/cos)
-//     vs Go's F64-then-cast scalar reference. The CPU path computes
-//     log/sin/cos in F64 with single rounding to F32, which extracts
-//     near-correctly-rounded F32 results. Apple's MSL native log/sin/
-//     cos (including precise::* variants) are F32-internal polynomial
-//     approximations — they're spec'd at ≤ 1 ULP from correctly-rounded
-//     F32 but Apple silicon GPUs do not implement IEEE F64, so we
-//     cannot replicate the F64 → F32 single-rounding sequence on GPU.
-//     The 128 ULP envelope absorbs both Metal's transcendental error
-//     and the compounding error through magnitude × sin/cos in regions
-//     where the Gaussian output is small.
-//
-//     For comparison: PyTorch MPS and JAX on TPU both decline to claim
-//     CPU-vs-GPU bitwise parity for transcendentals at this layer.
-//
-//  2. Strict statistical correctness (mean ≈ 0, variance ≈ 1 on a
-//     large sample). This is the assertion that actually matters for
-//     downstream use — a Gaussian RNG is only useful if it produces a
-//     properly-distributed Gaussian. Both backends must pass.
-//
-// The Philox uint32 stream (before Box-Muller) IS bitwise across CPU
-// and Metal — see TestPhilox4x32x4NEONBitwiseParity in the CPU package
-// for the contract. The divergence enters at Box-Muller.
+// Philox output is bitwise equivalent to NormalFloat32Scalar. Box-Muller
+// uses Go's float64 log/sqrt/sincos sequence on CPU; Metal uses precise
+// float32 transcendentals because MSL has no native double type. Empirical
+// per-lane divergence is ≤ 128 ULP on Apple silicon while the distribution
+// test still validates mean/variance.
 
 const randomNormalULP = 128
 

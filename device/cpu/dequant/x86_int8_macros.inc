@@ -1,0 +1,38 @@
+// x86 int8 dequant helpers: sign-extend packed bytes to f32 with scale/zeroPoint.
+
+#define INT8_SSE2_W4_LOAD_SX_X0 \
+	VMOVD (SI), X0; \
+	VPUNPCKLBW X0, X0, X0; \
+	VPSRAW $8, X0, X0; \
+	MOVAPS X0, X2; \
+	VPUNPCKLWD X0, X0, X0; \
+	VPSRAD $16, X0, X0; \
+	VPUNPCKHWD X2, X2, X2; \
+	VPSRAD $16, X2, X2; \
+	MOVLHPS X2, X0
+
+#define INT8_SSE2_DEQUANT_X0 \
+	VPSUBD X14, X0, X0; \
+	VCVTDQ2PS X0, X0; \
+	VMULPS X15, X0, X0
+
+#define INT8_AVX2_W8_DEQUAT \
+	VMOVDQU (SI), X0; \
+	VPMOVSXBD X0, Y0; \
+	VPSUBD  Y0, Y14, Y0; \
+	VCVTDQ2PS Y0, Y0; \
+	VMULPS  Y0, Y15, Y0
+
+#define INT8_AVX2_W8_DEQUAT_AT(srcOff) \
+	VMOVDQU srcOff(SI), X0; \
+	VPMOVSXBD X0, Y0; \
+	VPSUBD  Y0, Y14, Y0; \
+	VCVTDQ2PS Y0, Y0; \
+	VMULPS  Y0, Y15, Y0
+
+#define INT8_AVX2_W4_DEQUAT \
+	VMOVD (SI), X0; \
+	VPMOVSXBD X0, X0; \
+	VPSUBD  X0, X14, X0; \
+	VCVTDQ2PS X0, X0; \
+	VMULPS  X0, X15, X0

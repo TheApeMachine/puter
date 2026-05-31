@@ -8,21 +8,7 @@
 // 16 lanes × 4 bytes per f32 = 64 bytes written per iteration.
 
 #include "textflag.h"
-
-// SXTL Vd.H8, Vn.B8 (sign-extend, low half)
-#define VSXTL_H8(n, d)   WORD $(0x0F08A400 | ((n) << 5) | (d))
-// SXTL2 Vd.H8, Vn.B16 (sign-extend, high half)
-#define VSXTL2_H8(n, d)  WORD $(0x4F08A400 | ((n) << 5) | (d))
-// SXTL Vd.S4, Vn.H4
-#define VSXTL_S4(n, d)   WORD $(0x0F10A400 | ((n) << 5) | (d))
-// SXTL2 Vd.S4, Vn.H8
-#define VSXTL2_S4(n, d)  WORD $(0x4F10A400 | ((n) << 5) | (d))
-// SCVTF Vd.4S, Vn.4S (signed int32 → f32)
-#define VSCVTF_S4(n, d)  WORD $(0x4E21D800 | ((n) << 5) | (d))
-// SUB vector .H8 (signed/unsigned identical for narrow-add semantics)
-#define VSUB_H8(m, n, d) WORD $(0x6E608400 | ((m) << 16) | ((n) << 5) | (d))
-// FMUL vector .4S
-#define VFMUL_S4(m, n, d) WORD $(0x6E20DC00 | ((m) << 16) | ((n) << 5) | (d))
+#include "neon_dequant_macros.inc"
 
 // func DequantInt8NEONAsm(dst *float32, src *int8, n int, scale float32, zeroPoint int16)
 // Args: dst 8B at 0, src 8B at 8, n 8B at 16, scale 4B at 24, zp 2B at 28

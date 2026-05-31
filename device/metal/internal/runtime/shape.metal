@@ -544,6 +544,45 @@ static inline void upsample_nearest2d_kernel(
     out[index] = input[inputElement];
 }
 
+template <typename Storage>
+static inline void merge_heads_kernel(
+    device const Storage* input,
+    device Storage* out,
+    constant uint& batch,
+    constant uint& seq,
+    constant uint& heads,
+    constant uint& headDim,
+    uint index
+) {
+    uint headSpan = heads * headDim;
+
+    if (index >= batch * seq * headSpan) {
+        return;
+    }
+
+    uint headDimIndex = index % headDim;
+    uint remainder = index / headDim;
+    uint headIndex = remainder % heads;
+    remainder /= heads;
+    uint seqIndex = remainder % seq;
+    uint batchIndex = remainder / seq;
+    uint inIndex = ((batchIndex * seq + seqIndex) * heads + headIndex) * headDim + headDimIndex;
+    out[index] = input[inIndex];
+}
+
+#define MERGE_HEADS_KERNEL(name, storage) \
+kernel void name( \
+    device const storage* input [[buffer(0)]], \
+    device storage* out [[buffer(1)]], \
+    constant uint& batch [[buffer(2)]], \
+    constant uint& seq [[buffer(3)]], \
+    constant uint& heads [[buffer(4)]], \
+    constant uint& headDim [[buffer(5)]], \
+    uint index [[thread_position_in_grid]] \
+) { \
+    merge_heads_kernel<storage>(input, out, batch, seq, heads, headDim, index); \
+}
+
 #define COPY_KERNEL(name) \
 kernel void name( \
     device const uint4* inputVector [[buffer(0)]], \
@@ -821,3 +860,7 @@ TRANSPOSE2D_KERNEL(transpose2d_bfloat16, ushort)
 UPSAMPLE_NEAREST2D_KERNEL(upsample_nearest2d_float32, uint)
 UPSAMPLE_NEAREST2D_KERNEL(upsample_nearest2d_float16, ushort)
 UPSAMPLE_NEAREST2D_KERNEL(upsample_nearest2d_bfloat16, ushort)
+
+MERGE_HEADS_KERNEL(merge_heads_float32, uint)
+MERGE_HEADS_KERNEL(merge_heads_float16, ushort)
+MERGE_HEADS_KERNEL(merge_heads_bfloat16, ushort)

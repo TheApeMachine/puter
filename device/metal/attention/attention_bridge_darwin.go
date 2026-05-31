@@ -8,7 +8,6 @@ package attention
 
 #include "native/attention.m"
 #include "native/flash.m"
-#include "native/masking.m"
 #include "native/multihead.m"
 #include "native/scaled_dot_product.m"
 */

@@ -1,11 +1,5 @@
 #include "textflag.h"
-
-#define VCVTPS2PH_X0_X2 WORD $0xC4E3; WORD $0x7D1D; BYTE $0xD0; BYTE $0x00
-
-#define NARROW_FP16_X1_TO_4H(dstPtr) \
-	MOVAPS X1, X0; \
-	VCVTPS2PH_X0_X2; \
-	VMOVDQU X2, (dstPtr)
+#include "../f16c_fp16_macros.inc"
 
 // func Conv2dStride1RowFP16SSE2Asm(
 //     outRow, input, weight *uint16,
@@ -94,7 +88,7 @@ kh_done:
 	JMP  c_loop
 
 c_done:
-	NARROW_FP16_X1_TO_4H(DI)
+	FP16_NARROW_X1_TO_4H(DI)
 
 	ADDQ $8, DI
 	ADDQ $8, SI

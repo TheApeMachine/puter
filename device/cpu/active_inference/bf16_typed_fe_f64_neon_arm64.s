@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // bfloat16 typed FreeEnergy / ExpectedFreeEnergy: load bf16 → f64, log via aiNeonLogF64, f64 accumulate, bf16 store.
 #include "textflag.h"
+#include "../neon_bf16_macros.inc"
 
 #define AI_BF16_LOAD_F64(ptr, fd) \
 	MOVHU (ptr), R6 ;\
@@ -15,22 +16,12 @@
 
 #define AI_BF16_STORE_FE_SUM(fd) \
 	FCVTDS fd, F0 ;\
-	FMOVS F0, R6 ;\
-	LSR  $16, R6, R7 ;\
-	AND  $1, R7, R7 ;\
-	ADD  $0x7fff, R6, R6 ;\
-	ADD  R7, R6, R6 ;\
-	LSR  $16, R6, R6 ;\
+	BF16_RNE_SCALAR_F0_TO(R6) ;\
 	MOVH R6, ret+32(FP)
 
 #define AI_BF16_STORE_EFE_SUM(fd) \
 	FCVTDS fd, F0 ;\
-	FMOVS F0, R6 ;\
-	LSR  $16, R6, R7 ;\
-	AND  $1, R7, R7 ;\
-	ADD  $0x7fff, R6, R6 ;\
-	ADD  R7, R6, R6 ;\
-	LSR  $16, R6, R6 ;\
+	BF16_RNE_SCALAR_F0_TO(R6) ;\
 	MOVH R6, ret+40(FP)
 
 #define AI_F64_ADD_TO_CE(term) \

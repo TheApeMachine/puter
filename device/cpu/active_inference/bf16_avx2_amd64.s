@@ -1,54 +1,5 @@
 #include "textflag.h"
-
-#define WIDEN_BF16_8H(baseReg, dstY) \
-	VMOVDQU X1, (baseReg); \
-	VPXOR X3, X3, X3; \
-	VPUNPCKLWD X3, X1, X4; \
-	VPUNPCKHWD X3, X1, X5; \
-	VPSLLD $16, X4, X4; \
-	VPSLLD $16, X5, X5; \
-	VINSERTF128 $1, X5, Y4, dstY
-
-#define WIDEN_BF16_4(src, xLo, xHi) \
-	VMOVDQU X2, (src); \
-	VPXOR  X3, X3, X3; \
-	VPUNPCKLWD X3, X2, xLo; \
-	VPUNPCKHWD X3, X2, xHi; \
-	VPSLLD $16, xLo, xLo; \
-	VPSLLD $16, xHi, xHi
-
-#define NARROW_BF16_Y8(dstReg) \
-	VPSRLD $16, Y0, Y0; \
-	VEXTRACTI128 $0, Y0, X2; \
-	MOVL  X2, AX; \
-	MOVW  AX, (dstReg); \
-	PEXTRD $1, X2, AX; \
-	MOVW  AX, 2(dstReg); \
-	PEXTRD $2, X2, AX; \
-	MOVW  AX, 4(dstReg); \
-	PEXTRD $3, X2, AX; \
-	MOVW  AX, 6(dstReg); \
-	VEXTRACTI128 $1, Y0, X2; \
-	MOVL  X2, AX; \
-	MOVW  AX, 8(dstReg); \
-	PEXTRD $1, X2, AX; \
-	MOVW  AX, 10(dstReg); \
-	PEXTRD $2, X2, AX; \
-	MOVW  AX, 12(dstReg); \
-	PEXTRD $3, X2, AX; \
-	MOVW  AX, 14(dstReg)
-
-#define NARROW_BF16_4(xLo, xHi, dst) \
-	VPSRLD $16, xLo, xLo; \
-	VPSRLD $16, xHi, xHi; \
-	MOVL  xLo, AX; \
-	MOVW  AX, (dst); \
-	PEXTRD $1, xLo, AX; \
-	MOVW  AX, 2(dst); \
-	MOVL  xHi, AX; \
-	MOVW  AX, 4(dst); \
-	PEXTRD $1, xHi, AX; \
-	MOVW  AX, 6(dst)
+#include "../avx512_bf16_macros.inc"
 
 #define AI_BF16_ACCUM_F64_Y(prodY, accumY) \
 	VEXTRACTF128 $0, prodY, X8; \
@@ -86,10 +37,10 @@ ai_bf16_avx2_pw_w8:
 	CMPQ CX, $8
 	JL   ai_bf16_avx2_pw_w4
 
-	WIDEN_BF16_8H(SI, Y0)
-	WIDEN_BF16_8H(DX, Y1)
+	BF16_LOAD_8H(SI, Y0)
+	BF16_LOAD_8H(DX, Y1)
 	VMULPS Y1, Y0, Y0
-	NARROW_BF16_Y8(DI)
+	PACK_BF16_8H(DI)
 
 	ADDQ $16, SI
 	ADDQ $16, DX
@@ -101,11 +52,10 @@ ai_bf16_avx2_pw_w4:
 	CMPQ CX, $4
 	JL   ai_bf16_avx2_pw_tail
 
-	WIDEN_BF16_4(SI, X4, X5)
-	WIDEN_BF16_4(DX, X6, X7)
-	VMULPS X6, X4, X4
-	VMULPS X7, X5, X5
-	NARROW_BF16_4(X4, X5, DI)
+	BF16_LOAD_4H(SI, Y0)
+	BF16_LOAD_4H(DX, Y1)
+	VMULPS Y1, Y0, Y0
+	PACK_BF16_4H(DI)
 
 	ADDQ $8, SI
 	ADDQ $8, DX
@@ -125,9 +75,7 @@ ai_bf16_avx2_pw_scalar:
 	SHLQ  $16, AX
 	VMOVD X3, AX
 	VMULSS X3, X2, X2
-	VPSRLD $16, X2, X2
-	MOVL  X2, AX
-	MOVW  AX, (DI)
+	PACK_BF16_SCALAR_X2(DI)
 	ADDQ $2, SI
 	ADDQ $2, DX
 	ADDQ $2, DI
@@ -153,12 +101,12 @@ ai_bf16_avx2_bu_mul_w8:
 	CMPQ CX, $8
 	JL   ai_bf16_avx2_bu_mul_w4
 
-	WIDEN_BF16_8H(SI, Y1)
-	WIDEN_BF16_8H(DX, Y2)
+	BF16_LOAD_8H(SI, Y1)
+	BF16_LOAD_8H(DX, Y2)
 	VMULPS Y2, Y1, Y3
 	AI_BF16_ACCUM_F64_Y(Y3, Y7)
 	VMOVAPS Y3, Y0
-	NARROW_BF16_Y8(DI)
+	PACK_BF16_8H(DI)
 
 	ADDQ $16, SI
 	ADDQ $16, DX
@@ -170,12 +118,12 @@ ai_bf16_avx2_bu_mul_w4:
 	CMPQ CX, $4
 	JL   ai_bf16_avx2_bu_mul_tail
 
-	WIDEN_BF16_4(SI, X4, X5)
-	WIDEN_BF16_4(DX, X6, X7)
-	VMULPS X6, X4, X4
-	VMULPS X7, X5, X5
-	AI_BF16_ACCUM_F64_X(X4, X5, X7)
-	NARROW_BF16_4(X4, X5, DI)
+	BF16_LOAD_4H(SI, Y1)
+	BF16_LOAD_4H(DX, Y2)
+	VMULPS Y2, Y1, Y3
+	AI_BF16_ACCUM_F64_Y(Y3, Y7)
+	VMOVAPS Y3, Y0
+	PACK_BF16_4H(DI)
 
 	ADDQ $8, SI
 	ADDQ $8, DX
@@ -198,9 +146,7 @@ ai_bf16_avx2_bu_mul_scalar:
 	MOVSS X2, X1
 	CVTSS2SD X1, X1
 	ADDSD X1, X7
-	VPSRLD $16, X2, X2
-	MOVL  X2, AX
-	MOVW  AX, (DI)
+	PACK_BF16_SCALAR_X2(DI)
 	ADDQ $2, SI
 	ADDQ $2, DX
 	ADDQ $2, DI
@@ -228,9 +174,9 @@ ai_bf16_avx2_bu_scale_w8:
 	CMPQ CX, $8
 	JL   ai_bf16_avx2_bu_scale_w4
 
-	WIDEN_BF16_8H(DI, Y0)
+	BF16_LOAD_8H(DI, Y0)
 	VMULPS Y4, Y0, Y0
-	NARROW_BF16_Y8(DI)
+	PACK_BF16_8H(DI)
 
 	ADDQ $16, DI
 	SUBQ $8, CX
@@ -240,10 +186,9 @@ ai_bf16_avx2_bu_scale_w4:
 	CMPQ CX, $4
 	JL   ai_bf16_avx2_bu_scale_tail
 
-	WIDEN_BF16_4(DI, X4, X5)
-	VMULPS X3, X4, X4
-	VMULPS X3, X5, X5
-	NARROW_BF16_4(X4, X5, DI)
+	BF16_LOAD_4H(DI, Y0)
+	VMULPS Y4, Y0, Y0
+	PACK_BF16_4H(DI)
 
 	ADDQ $8, DI
 	SUBQ $4, CX
@@ -258,9 +203,7 @@ ai_bf16_avx2_bu_scale_scalar:
 	SHLQ  $16, AX
 	VMOVD X2, AX
 	VMULSS X3, X2, X2
-	VPSRLD $16, X2, X2
-	MOVL  X2, AX
-	MOVW  AX, (DI)
+	PACK_BF16_SCALAR_X2(DI)
 	ADDQ $2, DI
 	DECQ CX
 	JNZ  ai_bf16_avx2_bu_scale_scalar
@@ -290,18 +233,14 @@ ai_bf16_avx2_bu_done:
 	VHADDPD Y1, Y0, Y0; \
 	VEXTRACTF128 $0, Y0, X0; \
 	CVTSD2SS X0, X0; \
-	VPSRLD $16, X0, X0; \
-	MOVL X0, AX; \
-	MOVW AX, ret+32(FP)
+	PACK_BF16_SCALAR_F32_X0_TO(ret+32(FP))
 
 #define AI_BF16_AVX2_STORE_EFE_RESULT \
 	VADDPD Y0, Y1, Y0; \
 	VHADDPD Y1, Y0, Y0; \
 	VEXTRACTF128 $0, Y0, X0; \
 	CVTSD2SS X0, X0; \
-	VPSRLD $16, X0, X0; \
-	MOVL X0, AX; \
-	MOVW AX, ret+40(FP)
+	PACK_BF16_SCALAR_F32_X0_TO(ret+40(FP))
 
 // func FreeEnergyBFloat16AVX2Asm(likelihood, posterior, prior *uint16, count int) uint16
 TEXT ·FreeEnergyBFloat16AVX2Asm(SB), NOSPLIT, $96-34
@@ -332,9 +271,9 @@ ai_bf16_avx2_fe_w8:
 	CMPQ CX, $8
 	JL   ai_bf16_avx2_fe_w4
 
-	WIDEN_BF16_8H(SI, Y3)
-	WIDEN_BF16_8H(DX, Y4)
-	WIDEN_BF16_8H(R8, Y5)
+	BF16_LOAD_8H(SI, Y3)
+	BF16_LOAD_8H(DX, Y4)
+	BF16_LOAD_8H(R8, Y5)
 	VMAXPS Y2, Y3, Y3
 	VMAXPS Y2, Y4, Y4
 	VMAXPS Y2, Y5, Y5
@@ -376,25 +315,25 @@ ai_bf16_avx2_fe_w4:
 	CMPQ CX, $4
 	JL   ai_bf16_avx2_fe_tail
 
-	WIDEN_BF16_4(SI, X3, X10)
-	WIDEN_BF16_4(DX, X4, X11)
-	WIDEN_BF16_4(R8, X5, X12)
-	VMAXPS X2, X3, X3
-	VMAXPS X2, X4, X4
-	VMAXPS X2, X5, X5
+	BF16_LOAD_4H(SI, Y3)
+	BF16_LOAD_4H(DX, Y4)
+	BF16_LOAD_4H(R8, Y5)
+	VMAXPS Y2, Y3, Y3
+	VMAXPS Y2, Y4, Y4
+	VMAXPS Y2, Y5, Y5
 
 	AI_BF16_AVX2_LOAD_LOG_POLY
-	VMOVAPS X3, X0
+	VEXTRACTF128 $0, Y3, X0
 	CALL ai_avx2_log4(SB)
 	VMOVAPS X7, 48(SP)
 
 	AI_BF16_AVX2_LOAD_LOG_POLY
-	VMOVAPS X4, X0
+	VEXTRACTF128 $0, Y4, X0
 	CALL ai_avx2_log4(SB)
 	VMOVAPS X7, 64(SP)
 
 	AI_BF16_AVX2_LOAD_LOG_POLY
-	VMOVAPS X5, X0
+	VEXTRACTF128 $0, Y5, X0
 	CALL ai_avx2_log4(SB)
 	VMOVAPS X7, 80(SP)
 
@@ -513,8 +452,8 @@ ai_bf16_avx2_efe_obs_w8:
 	CMPQ CX, $8
 	JL   ai_bf16_avx2_efe_obs_w4
 
-	WIDEN_BF16_8H(SI, Y3)
-	WIDEN_BF16_8H(DX, Y4)
+	BF16_LOAD_8H(SI, Y3)
+	BF16_LOAD_8H(DX, Y4)
 	VMAXPS Y2, Y3, Y3
 	VMAXPS Y2, Y4, Y4
 
@@ -541,18 +480,18 @@ ai_bf16_avx2_efe_obs_w4:
 	CMPQ CX, $4
 	JL   ai_bf16_avx2_efe_obs_tail
 
-	WIDEN_BF16_4(SI, X3, X10)
-	WIDEN_BF16_4(DX, X4, X11)
-	VMAXPS X2, X3, X3
-	VMAXPS X2, X4, X4
+	BF16_LOAD_4H(SI, Y3)
+	BF16_LOAD_4H(DX, Y4)
+	VMAXPS Y2, Y3, Y3
+	VMAXPS Y2, Y4, Y4
 
 	AI_BF16_AVX2_LOAD_LOG_POLY
-	VMOVAPS X3, X0
+	VEXTRACTF128 $0, Y3, X0
 	CALL ai_avx2_log4(SB)
 	VMOVAPS X7, 48(SP)
 
 	AI_BF16_AVX2_LOAD_LOG_POLY
-	VMOVAPS X4, X0
+	VEXTRACTF128 $0, Y4, X0
 	CALL ai_avx2_log4(SB)
 
 	VMOVAPS 48(SP), X6
@@ -612,7 +551,7 @@ ai_bf16_avx2_efe_state_w8:
 	CMPQ CX, $8
 	JL   ai_bf16_avx2_efe_state_w4
 
-	WIDEN_BF16_8H(R8, Y3)
+	BF16_LOAD_8H(R8, Y3)
 	VMAXPS Y2, Y3, Y3
 
 	AI_BF16_AVX2_LOAD_LOG_POLY
@@ -632,11 +571,11 @@ ai_bf16_avx2_efe_state_w4:
 	CMPQ CX, $4
 	JL   ai_bf16_avx2_efe_state_tail
 
-	WIDEN_BF16_4(R8, X3, X10)
-	VMAXPS X2, X3, X3
+	BF16_LOAD_4H(R8, Y3)
+	VMAXPS Y2, Y3, Y3
 
 	AI_BF16_AVX2_LOAD_LOG_POLY
-	VMOVAPS X3, X0
+	VEXTRACTF128 $0, Y3, X0
 	CALL ai_avx2_log4(SB)
 
 	VXORPS X4, X4, X4

@@ -2,14 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "textflag.h"
+#include "../neon_bf16_macros.inc"
 
 #define VFMLA_S4(m, n, d) WORD $(0x4E20CC00 | ((m) << 16) | ((n) << 5) | (d))
-#define VMOV_VREG(src, dst) WORD $(0x4EA01C00 | ((src) << 16) | ((src) << 5) | (dst))
-#define NARROW_BF16_S4_TO_H4(src) \
-    VMOV_VREG(src, 8) \
-    VMOV_VREG(src, 9) \
-    VUZP2 V9.H8, V8.H8, V12.H8
-
 // func ConvTranspose2dTapBF16NEONAsm(outRow *uint16, weightVal float32, inputCol *uint16, outCols int)
 TEXT ·ConvTranspose2dTapBF16NEONAsm(SB), NOSPLIT, $0-32
     MOVD outRow+0(FP), R0
@@ -27,7 +22,7 @@ TEXT ·ConvTranspose2dTapBF16NEONAsm(SB), NOSPLIT, $0-32
     VLD1 (R1), [V1.H4]
     VZIP1 V1.H8, V30.H8, V20.H8
     VFMLA_S4(20, 31, 0)
-    NARROW_BF16_S4_TO_H4(0)
+    F32_BITS_TO_BF16_H4(0)
     VST1 [V12.H4], (R0)
 
 ct_bf16_tap_done:

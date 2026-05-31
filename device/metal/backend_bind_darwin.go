@@ -3,10 +3,12 @@
 package metal
 
 import (
+	"github.com/theapemachine/puter/device"
 	"github.com/theapemachine/puter/device/metal/activation"
 	"github.com/theapemachine/puter/device/metal/active_inference"
 	"github.com/theapemachine/puter/device/metal/attention"
 	"github.com/theapemachine/puter/device/metal/causal"
+	"github.com/theapemachine/puter/device/metal/checkpoint"
 	"github.com/theapemachine/puter/device/metal/convolution"
 	"github.com/theapemachine/puter/device/metal/dequant"
 	"github.com/theapemachine/puter/device/metal/dot"
@@ -18,8 +20,13 @@ import (
 	"github.com/theapemachine/puter/device/metal/interpretability"
 	"github.com/theapemachine/puter/device/metal/layernorm"
 	"github.com/theapemachine/puter/device/metal/losses"
+	"github.com/theapemachine/puter/device/metal/masking"
+	"github.com/theapemachine/puter/device/metal/math"
 	"github.com/theapemachine/puter/device/metal/matmul"
+	"github.com/theapemachine/puter/device/metal/model_editing"
 	"github.com/theapemachine/puter/device/metal/normalization"
+	"github.com/theapemachine/puter/device/metal/optimizer"
+	"github.com/theapemachine/puter/device/metal/peel"
 	"github.com/theapemachine/puter/device/metal/physics"
 	"github.com/theapemachine/puter/device/metal/pool"
 	"github.com/theapemachine/puter/device/metal/predictive_coding"
@@ -27,6 +34,7 @@ import (
 	"github.com/theapemachine/puter/device/metal/reduction"
 	"github.com/theapemachine/puter/device/metal/rope"
 	"github.com/theapemachine/puter/device/metal/sampling"
+	"github.com/theapemachine/puter/device/metal/shape"
 	"github.com/theapemachine/puter/device/metal/vsa"
 )
 
@@ -50,10 +58,19 @@ func (backend *Backend) bindFamilies(computeHost *ComputeHost) {
 	backend.Interpretability = interpretability.New(computeHost)
 	backend.Physics = physics.New(computeHost)
 	backend.Causal = causal.New(computeHost)
+	backend.Masking = masking.New(computeHost)
+	backend.Math = math.New(computeHost)
 	backend.Attention = attention.New(computeHost)
+	backend.Checkpoint = checkpoint.New(computeHost)
+	backend.ModelEditing = model_editing.New(computeHost)
+	backend.Optimizer = optimizer.New(computeHost)
+	backend.Peel = peel.New()
+	backend.Shape = shape.New(computeHost)
 	backend.VSA = vsa.New(computeHost)
 	backend.ActiveInference = active_inference.New(computeHost)
 	backend.PredictiveCoding = predictive_coding.New(computeHost)
 	backend.Dequantization = dequant.New(computeHost)
 	backend.Quantization = quant.New(computeHost)
 }
+
+var _ device.Backend = (*Backend)(nil)

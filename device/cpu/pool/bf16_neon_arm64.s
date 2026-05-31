@@ -2,16 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "textflag.h"
+#include "../neon_bf16_macros.inc"
 
 #define VFMAX_S4(m, n, d) WORD $(0x4E20F400 | ((m) << 16) | ((n) << 5) | (d))
 #define VFADD_S4(m, n, d) WORD $(0x4E20D400 | ((m) << 16) | ((n) << 5) | (d))
 #define VFMUL_S4(m, n, d) WORD $(0x6E20DC00 | ((m) << 16) | ((n) << 5) | (d))
-#define VMOV_VREG(src, dst) WORD $(0x4EA01C00 | ((src) << 16) | ((src) << 5) | (dst))
-#define NARROW_BF16_S4_TO_H4(src) \
-    VMOV_VREG(src, 8) \
-    VMOV_VREG(src, 9) \
-    VUZP2 V9.H8, V8.H8, V12.H8
-
 DATA poolNegInf<>+0(SB)/4, $0xFF800000
 GLOBL poolNegInf<>(SB), 8, $4
 
@@ -62,7 +57,7 @@ mp_bf16_kw_done:
     B    mp_bf16_kh_loop
 
 mp_bf16_kh_done:
-    NARROW_BF16_S4_TO_H4(0)
+    F32_BITS_TO_BF16_H4(0)
     VST1 [V12.H4], (R0)
     ADD  $8, R0
     ADD  $8, R1
@@ -124,7 +119,7 @@ ap_bf16_kw_done:
 
 ap_bf16_kh_done:
     VFMUL_S4(29, 0, 0)
-    NARROW_BF16_S4_TO_H4(0)
+    F32_BITS_TO_BF16_H4(0)
     VST1 [V12.H4], (R0)
     ADD  $8, R0
     ADD  $8, R1
@@ -160,7 +155,7 @@ mp22_bf16_col_loop:
     VZIP1 V1.H8, V31.H8, V21.H8
     VFMAX_S4(20, 21, 23)
     VFMAX_S4(23, 22, 24)
-    NARROW_BF16_S4_TO_H4(24)
+    F32_BITS_TO_BF16_H4(24)
     VST1 [V12.H4], (R0)
     ADD  $16, R1
     ADD  $16, R7
@@ -204,7 +199,7 @@ ap22_bf16_col_loop:
     VFADD_S4(22, 4, 4)
     VFADD_S4(23, 4, 4)
     VFMUL_S4(30, 4, 4)
-    NARROW_BF16_S4_TO_H4(4)
+    F32_BITS_TO_BF16_H4(4)
     VST1 [V12.H4], (R0)
     ADD  $16, R1
     ADD  $16, R7

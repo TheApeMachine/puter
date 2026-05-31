@@ -1,15 +1,5 @@
 #include "textflag.h"
-
-#define VCVTPS2PH_X0_X2 WORD $0xC4E3; WORD $0x7D1D; BYTE $0xD0; BYTE $0x00
-
-#define WIDEN_FP16_4(src, dst) \
-	VMOVDQU X2, (src); \
-	VCVTPH2PS X2, dst
-
-#define NARROW_FP16_4(src, dst) \
-	MOVAPS src, X0; \
-	VCVTPS2PH_X0_X2; \
-	VMOVDQU X2, (dst)
+#include "../f16c_fp16_macros.inc"
 
 #define AI_FP16_ACCUM_F64_X(prodX, accumX) \
 	CVTPS2PD prodX, X8; \
@@ -33,10 +23,10 @@ ai_fp16_sse2_pw_w4:
 	CMPQ CX, $4
 	JL   ai_fp16_sse2_pw_tail
 
-	WIDEN_FP16_4(SI, X4)
-	WIDEN_FP16_4(DX, X6)
+	FP16_WIDEN_SSE2_4(SI, X4)
+	FP16_WIDEN_SSE2_4(DX, X6)
 	MULPS X6, X4
-	NARROW_FP16_4(X4, DI)
+	FP16_NARROW_SSE2_4(X4, DI)
 
 	ADDQ $8, SI
 	ADDQ $8, DX
@@ -83,10 +73,10 @@ ai_fp16_sse2_bu_store_w4:
 	CMPQ CX, $4
 	JL   ai_fp16_sse2_bu_store_tail
 
-	WIDEN_FP16_4(SI, X4)
-	WIDEN_FP16_4(DX, X6)
+	FP16_WIDEN_SSE2_4(SI, X4)
+	FP16_WIDEN_SSE2_4(DX, X6)
 	MULPS X6, X4
-	NARROW_FP16_4(X4, DI)
+	FP16_NARROW_SSE2_4(X4, DI)
 
 	ADDQ $8, SI
 	ADDQ $8, DX
@@ -161,9 +151,9 @@ ai_fp16_sse2_bu_scale_w4:
 	CMPQ CX, $4
 	JL   ai_fp16_sse2_bu_scale_tail
 
-	WIDEN_FP16_4(DI, X4)
+	FP16_WIDEN_SSE2_4(DI, X4)
 	MULPS X3, X4
-	NARROW_FP16_4(X4, DI)
+	FP16_NARROW_SSE2_4(X4, DI)
 
 	ADDQ $8, DI
 	SUBQ $4, CX
@@ -212,10 +202,7 @@ ai_fp16_sse2_bu_done:
 	SHUFPD $1, X1, X1; \
 	ADDPD X1, X0; \
 	CVTSD2SS X0, X0; \
-	VMOVAPS X0, X0; \
-	VCVTPS2PH_X0_X2; \
-	MOVL X2, AX; \
-	MOVW AX, ret+32(FP)
+	FP16_NARROW_SCALAR_F32_X0_TO(ret+32(FP))
 
 #define AI_FP16_SSE2_STORE_EFE_RESULT \
 	ADDPD X1, X0; \
@@ -223,10 +210,7 @@ ai_fp16_sse2_bu_done:
 	SHUFPD $1, X1, X1; \
 	ADDPD X1, X0; \
 	CVTSD2SS X0, X0; \
-	VMOVAPS X0, X0; \
-	VCVTPS2PH_X0_X2; \
-	MOVL X2, AX; \
-	MOVW AX, ret+40(FP)
+	FP16_NARROW_SCALAR_F32_X0_TO(ret+40(FP))
 
 // func FreeEnergyFloat16SSE2Asm(likelihood, posterior, prior *uint16, count int) uint16
 TEXT ·FreeEnergyFloat16SSE2Asm(SB), NOSPLIT, $96-34
@@ -261,9 +245,9 @@ ai_fp16_sse2_fe_w4:
 	CMPQ CX, $4
 	JL   ai_fp16_sse2_fe_tail
 
-	WIDEN_FP16_4(SI, X3)
-	WIDEN_FP16_4(DX, X4)
-	WIDEN_FP16_4(R8, X5)
+	FP16_WIDEN_SSE2_4(SI, X3)
+	FP16_WIDEN_SSE2_4(DX, X4)
+	FP16_WIDEN_SSE2_4(R8, X5)
 	MAXPS X2, X3
 	MAXPS X2, X4
 	MAXPS X2, X5
@@ -402,8 +386,8 @@ ai_fp16_sse2_efe_obs_w4:
 	CMPQ CX, $4
 	JL   ai_fp16_sse2_efe_obs_tail
 
-	WIDEN_FP16_4(SI, X3)
-	WIDEN_FP16_4(DX, X4)
+	FP16_WIDEN_SSE2_4(SI, X3)
+	FP16_WIDEN_SSE2_4(DX, X4)
 	MAXPS X2, X3
 	MAXPS X2, X4
 
@@ -473,7 +457,7 @@ ai_fp16_sse2_efe_state_w4:
 	CMPQ CX, $4
 	JL   ai_fp16_sse2_efe_state_tail
 
-	WIDEN_FP16_4(R8, X3)
+	FP16_WIDEN_SSE2_4(R8, X3)
 	MAXPS X2, X3
 
 	AI_FP16_SSE2_LOAD_LOG_POLY

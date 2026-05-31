@@ -1,30 +1,6 @@
 #include "textflag.h"
-
-#define VCVTPS2PH_Y0_X2 WORD $0xC4E3; WORD $0x7D1D; BYTE $0xD8; BYTE $0x00
-#define VCVTPS2PH_X0_X2 WORD $0xC4E3; WORD $0x7D1D; BYTE $0xD0; BYTE $0x00
-
-#define WIDEN_FP16_8H(baseReg, dstY) \
-	VMOVDQU X2, (baseReg); \
-	VCVTPH2PS X2, dstY; \
-	VPSRLDQ $8, X2, X3; \
-	VCVTPH2PS X3, Y4; \
-	VEXTRACTI128 $0, Y4, X4; \
-	VINSERTF128 $1, X4, dstY, dstY
-
-#define WIDEN_FP16_4H(baseReg, dstY) \
-	VMOVDQU X2, (baseReg); \
-	VCVTPH2PS X2, dstY
-
-#define NARROW_FP16_Y8(dstReg) \
-	VCVTPS2PH_Y0_X2; \
-	VMOVDQU X2, (dstReg); \
-	VEXTRACTF128 $1, Y0, X0; \
-	VCVTPS2PH_X0_X2; \
-	VMOVDQU X2, 8(dstReg)
-
-#define NARROW_FP16_Y4(dstReg) \
-	VCVTPS2PH_Y0_X2; \
-	VMOVDQU X2, (dstReg)
+#include "../f16c_fp16_macros.inc"
+#include "../avx512_fp16_macros.inc"
 
 #define AI_FP16_ACCUM_F64_Y(prodY, accumY) \
 	VEXTRACTF128 $0, prodY, X8; \
@@ -56,23 +32,17 @@
 	VHADDPD Y1, Y0, Y0; \
 	VEXTRACTF128 $0, Y0, X0; \
 	CVTSD2SS X0, X0; \
-	VMOVAPS X0, X0; \
-	VCVTPS2PH_X0_X2; \
-	MOVL X2, AX; \
-	MOVW AX, ret+32(FP)
+	FP16_NARROW_SCALAR_F32_X0_TO(ret+32(FP))
 
 #define AI_FP16_AVX512_STORE_EFE_RESULT \
 	VADDPD Y0, Y1, Y0; \
 	VHADDPD Y1, Y0, Y0; \
 	VEXTRACTF128 $0, Y0, X0; \
 	CVTSD2SS X0, X0; \
-	VMOVAPS X0, X0; \
-	VCVTPS2PH_X0_X2; \
-	MOVL X2, AX; \
-	MOVW AX, ret+40(FP)
+	FP16_NARROW_SCALAR_F32_X0_TO(ret+40(FP))
 
 // func PrecisionWeightFloat16AVX512Asm(errors, precision, output *uint16, count int)
-TEXT ·PrecisionWeightFloat16AVX512Asm(SB), NOSPLIT, $0-32
+TEXT ·PrecisionWeightFloat16AVX512Asm(SB), NOSPLIT, $16-32
 	MOVQ errors+0(FP), SI
 	MOVQ precision+8(FP), DX
 	MOVQ output+16(FP), DI
@@ -81,14 +51,38 @@ TEXT ·PrecisionWeightFloat16AVX512Asm(SB), NOSPLIT, $0-32
 	TESTQ CX, CX
 	JZ   ai_fp16_avx512_pw_done
 
+ai_fp16_avx512_pw_w16:
+	CMPQ CX, $16
+	JL   ai_fp16_avx512_pw_w8
+
+	VMOVUPH_Y0_SI
+	VMOVUPH_Y1_DX
+	VMULPH_Y3_Y0_Y1
+	STORE_Y0_16H_DI
+
+	ADDQ $16, SI
+	ADDQ $16, DX
+	ADDQ $16, DI
+
+	VMOVUPH_Y0_SI
+	VMOVUPH_Y1_DX
+	VMULPH_Y3_Y0_Y1
+	STORE_Y0_16H_DI
+
+	ADDQ $16, SI
+	ADDQ $16, DX
+	ADDQ $16, DI
+	SUBQ $16, CX
+	JMP  ai_fp16_avx512_pw_w16
+
 ai_fp16_avx512_pw_w8:
 	CMPQ CX, $8
 	JL   ai_fp16_avx512_pw_w4
 
-	WIDEN_FP16_8H(SI, Y0)
-	WIDEN_FP16_8H(DX, Y1)
-	VMULPS Y1, Y0, Y0
-	NARROW_FP16_Y8(DI)
+	VMOVUPH_Y0_SI
+	VMOVUPH_Y1_DX
+	VMULPH_Y3_Y0_Y1
+	STORE_Y0_16H_DI
 
 	ADDQ $16, SI
 	ADDQ $16, DX
@@ -100,10 +94,10 @@ ai_fp16_avx512_pw_w4:
 	CMPQ CX, $4
 	JL   ai_fp16_avx512_pw_tail
 
-	WIDEN_FP16_4H(SI, Y0)
-	WIDEN_FP16_4H(DX, Y1)
-	VMULPS Y1, Y0, Y0
-	NARROW_FP16_Y4(DI)
+	VMOVUPH_X0_SI
+	VMOVUPH_X1_DX
+	VMULPH_X3_X0_X1
+	STORE_X0_8H_DI
 
 	ADDQ $8, SI
 	ADDQ $8, DX
@@ -117,15 +111,13 @@ ai_fp16_avx512_pw_tail:
 
 ai_fp16_avx512_pw_scalar:
 	MOVWLZX (SI), AX
-	VMOVD X2, AX
-	VCVTPH2PS X2, X2
+	MOVW AX, 0(SP)
+	VPBROADCASTW 0(SP), X0
 	MOVWLZX (DX), AX
+	MOVW AX, 8(SP)
+	VPBROADCASTW 8(SP), X1
+	VMULPH_X3_X0_X1
 	VMOVD X3, AX
-	VCVTPH2PS X3, X3
-	VMULSS X3, X2, X2
-	VMOVAPS X2, X0
-	VCVTPS2PH_X0_X2
-	MOVL X2, AX
 	MOVW AX, (DI)
 	ADDQ $2, SI
 	ADDQ $2, DX
@@ -150,10 +142,10 @@ ai_fp16_avx512_bu_store_w8:
 	CMPQ CX, $8
 	JL   ai_fp16_avx512_bu_store_w4
 
-	WIDEN_FP16_8H(SI, Y1)
-	WIDEN_FP16_8H(DX, Y2)
+	FP16_WIDEN_AVX512_8H(SI, Y1)
+	FP16_WIDEN_AVX512_8H(DX, Y2)
 	VMULPS Y2, Y1, Y0
-	NARROW_FP16_Y8(DI)
+	FP16_NARROW_AVX512_Y8(DI)
 
 	ADDQ $16, SI
 	ADDQ $16, DX
@@ -165,10 +157,10 @@ ai_fp16_avx512_bu_store_w4:
 	CMPQ CX, $4
 	JL   ai_fp16_avx512_bu_store_tail
 
-	WIDEN_FP16_4H(SI, Y0)
-	WIDEN_FP16_4H(DX, Y1)
+	FP16_WIDEN_AVX512_4H(SI, Y0)
+	FP16_WIDEN_AVX512_4H(DX, Y1)
 	VMULPS Y1, Y0, Y0
-	NARROW_FP16_Y4(DI)
+	FP16_NARROW_AVX512_Y4(DI)
 
 	ADDQ $8, SI
 	ADDQ $8, DX
@@ -243,9 +235,9 @@ ai_fp16_avx512_bu_scale_w8:
 	CMPQ CX, $8
 	JL   ai_fp16_avx512_bu_scale_w4
 
-	WIDEN_FP16_8H(DI, Y0)
+	FP16_WIDEN_AVX512_8H(DI, Y0)
 	VMULPS Y4, Y0, Y0
-	NARROW_FP16_Y8(DI)
+	FP16_NARROW_AVX512_Y8(DI)
 
 	ADDQ $16, DI
 	SUBQ $8, CX
@@ -255,9 +247,9 @@ ai_fp16_avx512_bu_scale_w4:
 	CMPQ CX, $4
 	JL   ai_fp16_avx512_bu_scale_tail
 
-	WIDEN_FP16_4H(DI, Y0)
+	FP16_WIDEN_AVX512_4H(DI, Y0)
 	VMULPS Y4, Y0, Y0
-	NARROW_FP16_Y4(DI)
+	FP16_NARROW_AVX512_Y4(DI)
 
 	ADDQ $8, DI
 	SUBQ $4, CX
@@ -312,9 +304,9 @@ ai_fp16_avx512_fe_w8:
 	CMPQ CX, $8
 	JL   ai_fp16_avx512_fe_w4
 
-	WIDEN_FP16_8H(SI, Y3)
-	WIDEN_FP16_8H(DX, Y4)
-	WIDEN_FP16_8H(R8, Y5)
+	FP16_WIDEN_AVX512_8H(SI, Y3)
+	FP16_WIDEN_AVX512_8H(DX, Y4)
+	FP16_WIDEN_AVX512_8H(R8, Y5)
 	VMAXPS Y2, Y3, Y3
 	VMAXPS Y2, Y4, Y4
 	VMAXPS Y2, Y5, Y5
@@ -356,9 +348,9 @@ ai_fp16_avx512_fe_w4:
 	CMPQ CX, $4
 	JL   ai_fp16_avx512_fe_tail
 
-	WIDEN_FP16_4H(SI, Y3)
-	WIDEN_FP16_4H(DX, Y4)
-	WIDEN_FP16_4H(R8, Y5)
+	FP16_WIDEN_AVX512_4H(SI, Y3)
+	FP16_WIDEN_AVX512_4H(DX, Y4)
+	FP16_WIDEN_AVX512_4H(R8, Y5)
 	VMAXPS Y2, Y3, Y3
 	VMAXPS Y2, Y4, Y4
 	VMAXPS Y2, Y5, Y5
@@ -493,8 +485,8 @@ ai_fp16_avx512_efe_obs_w8:
 	CMPQ CX, $8
 	JL   ai_fp16_avx512_efe_obs_w4
 
-	WIDEN_FP16_8H(SI, Y3)
-	WIDEN_FP16_8H(DX, Y4)
+	FP16_WIDEN_AVX512_8H(SI, Y3)
+	FP16_WIDEN_AVX512_8H(DX, Y4)
 	VMAXPS Y2, Y3, Y3
 	VMAXPS Y2, Y4, Y4
 
@@ -521,8 +513,8 @@ ai_fp16_avx512_efe_obs_w4:
 	CMPQ CX, $4
 	JL   ai_fp16_avx512_efe_obs_tail
 
-	WIDEN_FP16_4H(SI, Y3)
-	WIDEN_FP16_4H(DX, Y4)
+	FP16_WIDEN_AVX512_4H(SI, Y3)
+	FP16_WIDEN_AVX512_4H(DX, Y4)
 	VMAXPS Y2, Y3, Y3
 	VMAXPS Y2, Y4, Y4
 
@@ -592,7 +584,7 @@ ai_fp16_avx512_efe_state_w8:
 	CMPQ CX, $8
 	JL   ai_fp16_avx512_efe_state_w4
 
-	WIDEN_FP16_8H(R8, Y3)
+	FP16_WIDEN_AVX512_8H(R8, Y3)
 	VMAXPS Y2, Y3, Y3
 
 	AI_FP16_AVX512_LOAD_LOG_POLY
@@ -612,7 +604,7 @@ ai_fp16_avx512_efe_state_w4:
 	CMPQ CX, $4
 	JL   ai_fp16_avx512_efe_state_tail
 
-	WIDEN_FP16_4H(R8, Y3)
+	FP16_WIDEN_AVX512_4H(R8, Y3)
 	VMAXPS Y2, Y3, Y3
 
 	AI_FP16_AVX512_LOAD_LOG_POLY
