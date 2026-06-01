@@ -5,6 +5,7 @@ import (
 
 	"github.com/theapemachine/manifesto/dtype"
 	"github.com/theapemachine/puter/device"
+	"github.com/theapemachine/puter/device/cpu/dispatch"
 )
 
 func requireResonantDType(format dtype.DType) {
@@ -40,16 +41,16 @@ func (resonant Resonant) ResonantUpdateForward(
 	switch format {
 	case dtype.Float32:
 		ResonantUpdateForwardGeneric(
-			unsafe.Slice((*float32)(x), elementCount),
-			unsafe.Slice((*float32)(y), elementCount),
-			unsafe.Slice((*float32)(vr), elementCount),
-			unsafe.Slice((*float32)(vi), elementCount),
-			unsafe.Slice((*float32)(diag), diagCount),
-			unsafe.Slice((*float32)(xOut), elementCount),
-			unsafe.Slice((*float32)(yOut), elementCount),
-			unsafe.Slice((*float32)(aOut), elementCount),
-			unsafe.Slice((*float32)(bOut), elementCount),
-			unsafe.Slice((*float32)(invROut), elementCount),
+			dispatch.Float32Slice(x, elementCount),
+			dispatch.Float32Slice(y, elementCount),
+			dispatch.Float32Slice(vr, elementCount),
+			dispatch.Float32Slice(vi, elementCount),
+			dispatch.Float32Slice(diag, diagCount),
+			dispatch.Float32Slice(xOut, elementCount),
+			dispatch.Float32Slice(yOut, elementCount),
+			dispatch.Float32Slice(aOut, elementCount),
+			dispatch.Float32Slice(bOut, elementCount),
+			dispatch.Float32Slice(invROut, elementCount),
 			headCount,
 			headDim,
 			config.Scale,
@@ -116,18 +117,18 @@ func (resonant Resonant) ResonantUpdateBackward(
 	switch format {
 	case dtype.Float32:
 		ResonantUpdateBackwardGeneric(
-			unsafe.Slice((*float32)(gradXOut), elementCount),
-			unsafe.Slice((*float32)(gradYOut), elementCount),
-			unsafe.Slice((*float32)(x), elementCount),
-			unsafe.Slice((*float32)(y), elementCount),
-			unsafe.Slice((*float32)(diag), diagCount),
-			unsafe.Slice((*float32)(a), elementCount),
-			unsafe.Slice((*float32)(b), elementCount),
-			unsafe.Slice((*float32)(invR), elementCount),
-			unsafe.Slice((*float32)(gradX), elementCount),
-			unsafe.Slice((*float32)(gradY), elementCount),
-			unsafe.Slice((*float32)(gradVR), elementCount),
-			unsafe.Slice((*float32)(gradVI), elementCount),
+			dispatch.Float32Slice(gradXOut, elementCount),
+			dispatch.Float32Slice(gradYOut, elementCount),
+			dispatch.Float32Slice(x, elementCount),
+			dispatch.Float32Slice(y, elementCount),
+			dispatch.Float32Slice(diag, diagCount),
+			dispatch.Float32Slice(a, elementCount),
+			dispatch.Float32Slice(b, elementCount),
+			dispatch.Float32Slice(invR, elementCount),
+			dispatch.Float32Slice(gradX, elementCount),
+			dispatch.Float32Slice(gradY, elementCount),
+			dispatch.Float32Slice(gradVR, elementCount),
+			dispatch.Float32Slice(gradVI, elementCount),
 			headCount,
 			headDim,
 			config.Scale,
@@ -178,9 +179,5 @@ func (resonant Resonant) ResonantUpdateBackward(
 }
 
 func uint16Slice(pointer unsafe.Pointer, count int) []uint16 {
-	if count == 0 {
-		return nil
-	}
-
-	return unsafe.Slice((*uint16)(pointer), count)
+	return dispatch.Uint16Slice(pointer, count)
 }

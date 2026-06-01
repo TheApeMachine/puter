@@ -12,6 +12,7 @@ import (
 	"github.com/theapemachine/manifesto/runtime"
 	"github.com/theapemachine/manifesto/tensor"
 	"github.com/theapemachine/puter/device"
+	cpudispatch "github.com/theapemachine/puter/device/cpu/dispatch"
 )
 
 /*
@@ -614,7 +615,17 @@ func pointerOf(input tensor.Tensor) (unsafe.Pointer, int, error) {
 	}
 
 	if dispatchable, ok := input.(DispatchPointer); ok {
-		return dispatchable.DispatchPointer(), input.Len(), nil
+		dataPointer := dispatchable.DispatchPointer()
+
+		if input.Location() == tensor.Host && dataPointer != nil {
+			return cpudispatch.WrapPointer(
+				dataPointer,
+				input.Len(),
+				input.Shape().Dims(),
+			), input.Len(), nil
+		}
+
+		return dataPointer, input.Len(), nil
 	}
 
 	storage, err := input.Float32Native()

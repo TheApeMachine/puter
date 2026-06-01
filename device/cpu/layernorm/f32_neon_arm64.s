@@ -14,6 +14,7 @@
 #define VFSUB_S4(m, n, d)  WORD $(0x4EA0D400 | ((m) << 16) | ((n) << 5) | (d))
 #define VFMUL_S4(m, n, d)  WORD $(0x6E20DC00 | ((m) << 16) | ((n) << 5) | (d))
 #define VFMLA_S4(m, n, d)  WORD $(0x4E20CC00 | ((m) << 16) | ((n) << 5) | (d))
+#define VMOV_B16(src, dst) WORD $(0x4EA01C00 | ((src) << 16) | ((src) << 5) | (dst))
 #define VFADDP_S4(m, n, d) WORD $(0x6E30D400 | ((m) << 16) | ((n) << 5) | (d))
 #define FADDP_S(n, d)      WORD $(0x7E30D800 | ((n) << 5) | (d))
 
@@ -24,10 +25,10 @@ TEXT ·LayerNormApplyRowNEONAsm(SB), NOSPLIT, $0-48
     MOVD scale+16(FP), R2
     MOVD bias+24(FP), R3
     MOVD n+32(FP), R4
-    FMOVS mean+40(FP), F16     ; VDUP V16.S[0], V16.S4
-    // NOTE: invStdDev sits at offset 44 but is read separately below.
-
-    FMOVS invStdDev+44(FP), F17 ; VDUP V17.S[0], V17.S4
+    FMOVS mean+40(FP), F16
+    FMOVS invStdDev+44(FP), F17
+    VDUP  V16.S[0], V16.S4
+    VDUP  V17.S[0], V17.S4
 
 ln_loop4:
     CMP  $4, R4
@@ -37,9 +38,9 @@ ln_loop4:
     VLD1.P 16(R3), [V2.S4]      // bias
     VFSUB_S4(16, 0, 0)          // V0 = row - mean
     VFMUL_S4(17, 0, 0)          // V0 *= invStdDev
-    VFMUL_S4(1, 0, 0)           // V0 *= scale
-    VFADD_S4(2, 0, 0)           // V0 += bias
-    VST1.P [V0.S4], 16(R0)
+    VMOV_B16(2, 4)              // V4 = bias
+    VFMLA_S4(1, 0, 4)           // V4 = bias + scale * V0
+    VST1.P [V4.S4], 16(R0)
     SUB  $4, R4
     B    ln_loop4
 

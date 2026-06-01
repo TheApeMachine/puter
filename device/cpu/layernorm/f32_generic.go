@@ -16,6 +16,9 @@ func LayerNormApplyRowGeneric(
 	mean, invStdDev float32,
 ) {
 	for index, value := range row {
-		outRow[index] = (value-mean)*invStdDev*scale[index] + bias[index]
+		delta := value - mean
+		delta *= invStdDev
+		delta *= scale[index]
+		outRow[index] = delta + bias[index]
 	}
 }

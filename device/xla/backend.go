@@ -19,6 +19,7 @@ import (
 	"github.com/theapemachine/puter/device/xla/active_inference"
 	"github.com/theapemachine/puter/device/xla/attention"
 	"github.com/theapemachine/puter/device/xla/causal"
+	"github.com/theapemachine/puter/device/xla/checkpoint"
 	"github.com/theapemachine/puter/device/xla/convolution"
 	"github.com/theapemachine/puter/device/xla/dequant"
 	"github.com/theapemachine/puter/device/xla/dot"
@@ -27,11 +28,16 @@ import (
 	"github.com/theapemachine/puter/device/xla/embedding"
 	"github.com/theapemachine/puter/device/xla/geometry"
 	"github.com/theapemachine/puter/device/xla/hawkes"
+	"github.com/theapemachine/puter/device/xla/interpretability"
 	"github.com/theapemachine/puter/device/xla/layernorm"
 	"github.com/theapemachine/puter/device/xla/losses"
 	"github.com/theapemachine/puter/device/xla/masking"
+	"github.com/theapemachine/puter/device/xla/math"
 	"github.com/theapemachine/puter/device/xla/matmul"
+	"github.com/theapemachine/puter/device/xla/model_editing"
 	"github.com/theapemachine/puter/device/xla/normalization"
+	"github.com/theapemachine/puter/device/xla/optimizer"
+	"github.com/theapemachine/puter/device/xla/peel"
 	"github.com/theapemachine/puter/device/xla/physics"
 	"github.com/theapemachine/puter/device/xla/pool"
 	"github.com/theapemachine/puter/device/xla/predictive_coding"
@@ -40,6 +46,7 @@ import (
 	"github.com/theapemachine/puter/device/xla/resonant"
 	"github.com/theapemachine/puter/device/xla/rope"
 	"github.com/theapemachine/puter/device/xla/sampling"
+	"github.com/theapemachine/puter/device/xla/shape"
 	"github.com/theapemachine/puter/device/xla/vsa"
 )
 
@@ -72,6 +79,13 @@ type Backend struct {
 	causal.Causal
 	masking.Masking
 	attention.Attention
+	math.Math
+	checkpoint.Checkpoint
+	model_editing.ModelEditing
+	optimizer.Optimizer
+	peel.Peel
+	shape.Shape
+	interpretability.Interpretability
 	vsa.VSA
 	active_inference.ActiveInference
 	predictive_coding.PredictiveCoding

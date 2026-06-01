@@ -22,6 +22,7 @@ import (
 	"github.com/theapemachine/puter/device/cuda/active_inference"
 	"github.com/theapemachine/puter/device/cuda/attention"
 	"github.com/theapemachine/puter/device/cuda/causal"
+	"github.com/theapemachine/puter/device/cuda/checkpoint"
 	"github.com/theapemachine/puter/device/cuda/convolution"
 	"github.com/theapemachine/puter/device/cuda/dequant"
 	"github.com/theapemachine/puter/device/cuda/dot"
@@ -30,11 +31,16 @@ import (
 	"github.com/theapemachine/puter/device/cuda/embedding"
 	"github.com/theapemachine/puter/device/cuda/geometry"
 	"github.com/theapemachine/puter/device/cuda/hawkes"
+	"github.com/theapemachine/puter/device/cuda/interpretability"
 	"github.com/theapemachine/puter/device/cuda/layernorm"
 	"github.com/theapemachine/puter/device/cuda/losses"
 	"github.com/theapemachine/puter/device/cuda/masking"
+	"github.com/theapemachine/puter/device/cuda/math"
 	"github.com/theapemachine/puter/device/cuda/matmul"
+	"github.com/theapemachine/puter/device/cuda/model_editing"
 	"github.com/theapemachine/puter/device/cuda/normalization"
+	"github.com/theapemachine/puter/device/cuda/optimizer"
+	"github.com/theapemachine/puter/device/cuda/peel"
 	"github.com/theapemachine/puter/device/cuda/physics"
 	"github.com/theapemachine/puter/device/cuda/pool"
 	"github.com/theapemachine/puter/device/cuda/predictive_coding"
@@ -43,6 +49,7 @@ import (
 	"github.com/theapemachine/puter/device/cuda/resonant"
 	"github.com/theapemachine/puter/device/cuda/rope"
 	"github.com/theapemachine/puter/device/cuda/sampling"
+	"github.com/theapemachine/puter/device/cuda/shape"
 	"github.com/theapemachine/puter/device/cuda/vsa"
 )
 
@@ -73,6 +80,13 @@ type Backend struct {
 	causal.Causal
 	masking.Masking
 	attention.Attention
+	math.Math
+	checkpoint.Checkpoint
+	model_editing.ModelEditing
+	optimizer.Optimizer
+	peel.Peel
+	shape.Shape
+	interpretability.Interpretability
 	vsa.VSA
 	active_inference.ActiveInference
 	predictive_coding.PredictiveCoding

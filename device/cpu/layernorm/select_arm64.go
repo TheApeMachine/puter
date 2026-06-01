@@ -44,6 +44,9 @@ func LayerNormApplyRowNative(
 	}
 
 	for index := blockCount; index < elementCount; index++ {
-		outRow[index] = (row[index]-mean)*invStdDev*scale[index] + bias[index]
+		delta := row[index] - mean
+		delta *= invStdDev
+		delta *= scale[index]
+		outRow[index] = delta + bias[index]
 	}
 }

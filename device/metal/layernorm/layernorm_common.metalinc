@@ -99,13 +99,7 @@ static inline void compute_row_stats(
             sum64 = metal_sf64_add(sum64, metal_sf32_to64(as_type<uint>(value)));
         }
 
-        sf64Reduction[0] = sum64;
-    }
-
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-
-    if (threadIndex == 0) {
-        mean = metal_norm_mean_f32(sf64Reduction[0], cols);
+        mean = metal_norm_mean_f32(sum64, cols);
         reduction[0] = mean;
     }
 
@@ -114,48 +108,20 @@ static inline void compute_row_stats(
 
     if (threadIndex == 0) {
 #pragma METAL fp_contract(off)
-        float lane0 = 0.0f;
-        float lane1 = 0.0f;
-        float lane2 = 0.0f;
-        float lane3 = 0.0f;
+        ulong varianceSum64 = SF64_NORM_ZERO;
 
-        for (uint block = 0; block + 4 <= cols; block += 4) {
-            float delta0 = Storage::load(input, rowOffset + block) - mean;
-            float delta1 = Storage::load(input, rowOffset + block + 1) - mean;
-            float delta2 = Storage::load(input, rowOffset + block + 2) - mean;
-            float delta3 = Storage::load(input, rowOffset + block + 3) - mean;
-            lane0 = fma(delta0, delta0, lane0);
-            lane1 = fma(delta1, delta1, lane1);
-            lane2 = fma(delta2, delta2, lane2);
-            lane3 = fma(delta3, delta3, lane3);
+        for (uint col = 0; col < cols; col++) {
+            float delta = Storage::load(input, rowOffset + col) - mean;
+            float squared = delta * delta;
+            varianceSum64 = metal_sf64_add(
+                varianceSum64,
+                metal_sf32_to64(as_type<uint>(squared))
+            );
         }
 
-        uint tailStart = cols & ~3u;
-        uint tailCount = cols & 3u;
-
-        if (tailCount >= 1) {
-            float delta = Storage::load(input, rowOffset + tailStart) - mean;
-            lane0 = fma(delta, delta, lane0);
-        }
-
-        if (tailCount >= 2) {
-            float delta = Storage::load(input, rowOffset + tailStart + 1) - mean;
-            lane1 = fma(delta, delta, lane1);
-        }
-
-        if (tailCount >= 3) {
-            float delta = Storage::load(input, rowOffset + tailStart + 2) - mean;
-            lane2 = fma(delta, delta, lane2);
-        }
-
-        reduction[0] = (lane0 + lane1) + (lane2 + lane3);
+        float varianceSum = as_type<float>(metal_sf64_to32(varianceSum64));
+        invStdDev = metal_norm_inv_std_dev_f32(varianceSum, cols);
 #pragma METAL fp_contract(on)
-    }
-
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-
-    if (threadIndex == 0) {
-        invStdDev = metal_norm_inv_std_dev_f32(reduction[0], cols);
         reduction[1] = invStdDev;
     }
 

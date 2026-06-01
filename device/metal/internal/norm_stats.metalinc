@@ -124,4 +124,25 @@ static inline float metal_norm_squared_diff_sum_f32(
 #pragma METAL fp_contract(on)
 }
 
+static inline float metal_norm_apply_lane_sf64(
+    float inputValue,
+    float mean,
+    float invStdDev,
+    float scaleValue,
+    float biasValue
+) {
+    ulong value64 = metal_sf64_from_float32(inputValue);
+    ulong mean64 = metal_sf64_from_float32(mean);
+    ulong invStdDev64 = metal_sf64_from_float32(invStdDev);
+    ulong scale64 = metal_sf64_from_float32(scaleValue);
+    ulong bias64 = metal_sf64_from_float32(biasValue);
+    ulong normalized64 = metal_sf64_mul(
+        metal_sf64_add(value64, metal_sf64_neg(mean64)),
+        invStdDev64
+    );
+    ulong scaled64 = metal_sf64_mul(normalized64, scale64);
+
+    return as_type<float>(metal_sf64_to32(metal_sf64_add(scaled64, bias64)));
+}
+
 #endif

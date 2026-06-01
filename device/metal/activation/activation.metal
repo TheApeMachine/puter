@@ -89,10 +89,12 @@ static inline float4 metal_fast_tanh_exp32_float4(float4 value) {
 
 static inline float4 metal_gelu_tanh_neon_float4(float4 value) {
 #pragma METAL fp_contract(off)
-    float4 valueCubed = value * value * value;
-    float4 innerArg = fma(metalGeluTanhBeta, valueCubed, value);
+    float4 valueSquared = value * value;
+    float4 valueCubed = valueSquared * value;
+    float4 innerArg = value + metalGeluTanhBeta * valueCubed;
     float4 inner = metalGeluTanhAlpha * innerArg;
-    float4 tanhValue = metal_fast_tanh_exp32_float4(inner);
+    float4 expTwoValue = metal_exp32_horner_float4(2.0f * inner);
+    float4 tanhValue = (expTwoValue - 1.0f) / (expTwoValue + 1.0f);
     float4 onePlusTanh = 1.0f + tanhValue;
     float4 scaled = value * onePlusTanh;
 
@@ -163,6 +165,25 @@ static inline float metal_fast_tanh_rational(float value) {
     );
 
     return numerator / denominator;
+}
+
+static inline float4 metal_fast_tanh_rational_float4(float4 value) {
+    return float4(
+        metal_fast_tanh_rational(value.x),
+        metal_fast_tanh_rational(value.y),
+        metal_fast_tanh_rational(value.z),
+        metal_fast_tanh_rational(value.w)
+    );
+}
+
+static inline float4 metal_fast_gelu_tanh_float4(float4 value) {
+    float4 valueCubed = value * value * value;
+    float4 inner = metalGeluTanhAlpha * fma(metalGeluTanhBeta, valueCubed, value);
+    float4 tanhValue = metal_fast_tanh_rational_float4(inner);
+
+#pragma METAL fp_contract(off)
+    return 0.5f * value * (float4(1.0f) + tanhValue);
+#pragma METAL fp_contract(on)
 }
 
 // Called from standard.metal's gelu_tanh kernels via `#include

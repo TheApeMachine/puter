@@ -8,6 +8,7 @@ import (
 	"github.com/theapemachine/puter/device/xla/active_inference"
 	"github.com/theapemachine/puter/device/xla/attention"
 	"github.com/theapemachine/puter/device/xla/causal"
+	"github.com/theapemachine/puter/device/xla/checkpoint"
 	"github.com/theapemachine/puter/device/xla/convolution"
 	"github.com/theapemachine/puter/device/xla/dequant"
 	"github.com/theapemachine/puter/device/xla/dot"
@@ -16,11 +17,16 @@ import (
 	"github.com/theapemachine/puter/device/xla/embedding"
 	"github.com/theapemachine/puter/device/xla/geometry"
 	"github.com/theapemachine/puter/device/xla/hawkes"
+	"github.com/theapemachine/puter/device/xla/interpretability"
 	"github.com/theapemachine/puter/device/xla/layernorm"
 	"github.com/theapemachine/puter/device/xla/losses"
 	"github.com/theapemachine/puter/device/xla/masking"
+	"github.com/theapemachine/puter/device/xla/math"
 	"github.com/theapemachine/puter/device/xla/matmul"
+	"github.com/theapemachine/puter/device/xla/model_editing"
 	"github.com/theapemachine/puter/device/xla/normalization"
+	"github.com/theapemachine/puter/device/xla/optimizer"
+	"github.com/theapemachine/puter/device/xla/peel"
 	"github.com/theapemachine/puter/device/xla/physics"
 	"github.com/theapemachine/puter/device/xla/pool"
 	"github.com/theapemachine/puter/device/xla/predictive_coding"
@@ -29,6 +35,7 @@ import (
 	"github.com/theapemachine/puter/device/xla/resonant"
 	"github.com/theapemachine/puter/device/xla/rope"
 	"github.com/theapemachine/puter/device/xla/sampling"
+	"github.com/theapemachine/puter/device/xla/shape"
 	"github.com/theapemachine/puter/device/xla/vsa"
 )
 
@@ -52,8 +59,15 @@ func (backend *Backend) bindFamilies(computeHost *ComputeHost) {
 	backend.Physics = physics.New(computeHost)
 	backend.Causal = causal.New(computeHost)
 	backend.Masking = masking.New(computeHost)
+	backend.Math = math.New()
 	backend.Attention = attention.New(computeHost)
+	backend.Checkpoint = checkpoint.New()
+	backend.ModelEditing = model_editing.New()
+	backend.Optimizer = optimizer.New()
+	backend.Peel = peel.New()
+	backend.Shape = shape.New()
 	backend.VSA = vsa.New(computeHost)
+	backend.Interpretability = interpretability.New()
 	backend.ActiveInference = active_inference.New(computeHost)
 	backend.PredictiveCoding = predictive_coding.New(computeHost)
 	backend.Resonant = resonant.New()

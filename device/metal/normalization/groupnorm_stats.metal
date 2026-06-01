@@ -30,13 +30,7 @@ static inline void groupnorm_stats_rows_f32(
             sum64 = metal_sf64_add(sum64, metal_sf32_to64(as_type<uint>(value)));
         }
 
-        sf64Reduction[0] = sum64;
-    }
-
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-
-    if (threadIndex == 0) {
-        mean = metal_norm_mean_f32(sf64Reduction[0], groupSize);
+        mean = metal_norm_mean_f32(sum64, groupSize);
         reduction[0] = mean;
     }
 
@@ -45,41 +39,19 @@ static inline void groupnorm_stats_rows_f32(
 
     if (threadIndex == 0) {
 #pragma METAL fp_contract(off)
-        float lane0 = 0.0f;
-        float lane1 = 0.0f;
-        float lane2 = 0.0f;
-        float lane3 = 0.0f;
+        ulong varianceSum64 = SF64_NORM_ZERO;
 
-        for (uint block = 0; block + 4 <= groupSize; block += 4) {
-            float delta0 = input[groupOffset + block] - mean;
-            float delta1 = input[groupOffset + block + 1] - mean;
-            float delta2 = input[groupOffset + block + 2] - mean;
-            float delta3 = input[groupOffset + block + 3] - mean;
-            lane0 = fma(delta0, delta0, lane0);
-            lane1 = fma(delta1, delta1, lane1);
-            lane2 = fma(delta2, delta2, lane2);
-            lane3 = fma(delta3, delta3, lane3);
+        for (uint offset = 0; offset < groupSize; offset++) {
+            float delta = input[groupOffset + offset] - mean;
+            float squared = delta * delta;
+            varianceSum64 = metal_sf64_add(
+                varianceSum64,
+                metal_sf32_to64(as_type<uint>(squared))
+            );
         }
 
-        uint tailStart = groupSize & ~3u;
-        uint tailCount = groupSize & 3u;
-
-        if (tailCount >= 1) {
-            float delta = input[groupOffset + tailStart] - mean;
-            lane0 = fma(delta, delta, lane0);
-        }
-
-        if (tailCount >= 2) {
-            float delta = input[groupOffset + tailStart + 1] - mean;
-            lane1 = fma(delta, delta, lane1);
-        }
-
-        if (tailCount >= 3) {
-            float delta = input[groupOffset + tailStart + 2] - mean;
-            lane2 = fma(delta, delta, lane2);
-        }
-
-        reduction[0] = (lane0 + lane1) + (lane2 + lane3);
+        float varianceSum = as_type<float>(metal_sf64_to32(varianceSum64));
+        reduction[0] = varianceSum;
 #pragma METAL fp_contract(on)
     }
 

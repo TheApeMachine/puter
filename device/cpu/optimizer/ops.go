@@ -5,6 +5,7 @@ import (
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/puter/device/cpu/dispatch"
 )
 
 func requireOptimizerFloat32(format dtype.DType) {
@@ -14,11 +15,7 @@ func requireOptimizerFloat32(format dtype.DType) {
 }
 
 func float32SliceAt(pointer unsafe.Pointer, count int) []float32 {
-	if count == 0 {
-		return nil
-	}
-
-	return unsafe.Slice((*float32)(pointer), count)
+	return dispatch.Float32Slice(pointer, count)
 }
 
 func hebbianMatrixDim(weightCount int) int {

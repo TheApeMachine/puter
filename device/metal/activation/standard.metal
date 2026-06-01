@@ -1,6 +1,7 @@
 #include <metal_stdlib>
 #include "activation.metal"
 #include "../elementwise/elementwise_f64_math.metalinc"
+#include "../elementwise/elementwise_f64_soft.metalinc"
 #include "../elementwise/elementwise_f64_transcendental.metalinc"
 #include "activation_ops_f16.metalinc"
 #include "activation_ops_bf16.metalinc"
@@ -11,15 +12,36 @@ using namespace metal;
 
 #pragma METAL fp_contract(off)
 
-static inline float metal_gelu_tanh_softfloat_scalar(float value) {
-    float valueCubed = value * value * value;
-    float innerArg = fma(metalGeluTanhBeta, valueCubed, value);
-    float inner = metalGeluTanhAlpha * innerArg;
-    float tanhValue = metal_fast_tanh_exp32(inner);
-    float onePlusTanh = 1.0f + tanhValue;
-    float scaled = value * onePlusTanh;
+static inline float metal_gelu_tanh_fast32_reference(float value) {
+    ulong value64 = metal_sf64_from_float32(value);
+    ulong valueSquared64 = metal_sf64_mul(value64, value64);
+    ulong valueCubed64 = metal_sf64_mul(valueSquared64, value64);
+    ulong inner64 = metal_sf64_mul(
+        SF64_TRAN_GELU_ALPHA,
+        metal_sf64_add(value64, metal_sf64_mul(SF64_TRAN_GELU_BETA, valueCubed64))
+    );
+    float inner = as_type<float>(metal_sf64_to32(inner64));
+    float tanhValue = metal_fast_tanh_rational(inner);
+    ulong tanh64 = metal_sf64_from_float32(tanhValue);
+    ulong product64 = metal_sf64_mul(
+        SF64_TRAN_HALF,
+        metal_sf64_mul(value64, metal_sf64_add(SF64_TRAN_ONE, tanh64))
+    );
 
-    return 0.5f * scaled;
+    return as_type<float>(metal_sf64_to32(product64));
+}
+
+static inline float4 metal_gelu_tanh_fast32_reference_float4(float4 value) {
+    return float4(
+        metal_gelu_tanh_fast32_reference(value.x),
+        metal_gelu_tanh_fast32_reference(value.y),
+        metal_gelu_tanh_fast32_reference(value.z),
+        metal_gelu_tanh_fast32_reference(value.w)
+    );
+}
+
+static inline float metal_gelu_tanh_softfloat_scalar(float value) {
+    return metal_gelu_tanh_fast32_reference(value);
 }
 
 
@@ -190,11 +212,11 @@ struct LogSigmoidOp {
 
 struct GeluTanhOp {
     float4 operator()(float4 value) const {
-        return metal_gelu_tanh_neon_float4(value);
+        return metal_gelu_tanh_fast32_reference_float4(value);
     }
 
     float operator()(float value) const {
-        return metal_gelu_tanh_softfloat_scalar(value);
+        return metal_gelu_tanh_fast32_reference(value);
     }
 };
 

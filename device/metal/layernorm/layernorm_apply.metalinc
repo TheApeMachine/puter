@@ -14,50 +14,58 @@ static inline void layernorm_apply_row(
     uint threadIndex
 ) {
     uint vectorStride = normalizationThreadCount * 4;
+    float4 meanVec = float4(mean);
+    float4 invStdDevVec = float4(invStdDev);
 
     for (uint col = threadIndex * 4; col < cols; col += vectorStride) {
-        if (col + 3 < cols) {
+        if (col + 4 <= cols) {
 #pragma METAL fp_contract(off)
-            float4 inputValues = float4(
+            float4 inputValue = float4(
                 Storage::load(input, rowOffset + col),
                 Storage::load(input, rowOffset + col + 1),
                 Storage::load(input, rowOffset + col + 2),
                 Storage::load(input, rowOffset + col + 3)
             );
-            float4 scaleValues = float4(
+            float4 scaleValue = float4(
                 Storage::load(scale, col),
                 Storage::load(scale, col + 1),
                 Storage::load(scale, col + 2),
                 Storage::load(scale, col + 3)
             );
-            float4 biasValues = float4(
+            float4 biasValue = float4(
                 Storage::load(bias, col),
                 Storage::load(bias, col + 1),
                 Storage::load(bias, col + 2),
                 Storage::load(bias, col + 3)
             );
-            float4 delta = inputValues - mean;
-            delta = delta * invStdDev;
-            float4 result = fma(delta, scaleValues, biasValues);
+            float4 delta = inputValue - meanVec;
+            delta = delta * invStdDevVec;
+            float4 result = fma(scaleValue, delta, biasValue);
 #pragma METAL fp_contract(on)
-
             Storage::store(out, rowOffset + col, result.x);
             Storage::store(out, rowOffset + col + 1, result.y);
             Storage::store(out, rowOffset + col + 2, result.z);
             Storage::store(out, rowOffset + col + 3, result.w);
+
             continue;
         }
 
-        for (uint tailCol = col; tailCol < cols; tailCol++) {
+        for (uint offset = 0; offset < 4; offset++) {
+            uint colIndex = col + offset;
+
+            if (colIndex >= cols) {
+                break;
+            }
+
 #pragma METAL fp_contract(off)
-            float inputValue = Storage::load(input, rowOffset + tailCol);
-            float scaleValue = Storage::load(scale, tailCol);
-            float biasValue = Storage::load(bias, tailCol);
-            float normalized = inputValue - mean;
-            normalized = normalized * invStdDev;
-            float result = fma(normalized, scaleValue, biasValue);
+            float inputValue = Storage::load(input, rowOffset + colIndex);
+            float scaleValue = Storage::load(scale, colIndex);
+            float biasValue = Storage::load(bias, colIndex);
+            float delta = inputValue - mean;
+            delta = delta * invStdDev;
+            float result = fma(scaleValue, delta, biasValue);
 #pragma METAL fp_contract(on)
-            Storage::store(out, rowOffset + tailCol, result);
+            Storage::store(out, rowOffset + colIndex, result);
         }
     }
 }

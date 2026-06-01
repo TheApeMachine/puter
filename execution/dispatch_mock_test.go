@@ -134,6 +134,27 @@ func (noopDeviceBackend) MultiHeadAttention(config device.MultiHeadAttentionConf
 	panic("noopDeviceBackend.MultiHeadAttention invoked")
 }
 
+func (noopDeviceBackend) ResonantUpdateForward(
+	x, y, vr, vi, diag unsafe.Pointer,
+	xOut, yOut, aOut, bOut, invROut unsafe.Pointer,
+	batchTime, headCount, headDim int,
+	config device.ResonantUpdateConfig,
+	format dtype.DType,
+) {
+	panic("noopDeviceBackend.ResonantUpdateForward invoked")
+}
+
+func (noopDeviceBackend) ResonantUpdateBackward(
+	gradXOut, gradYOut unsafe.Pointer,
+	x, y, diag, a, b, invR unsafe.Pointer,
+	gradX, gradY, gradVR, gradVI unsafe.Pointer,
+	batchTime, headCount, headDim int,
+	config device.ResonantUpdateConfig,
+	format dtype.DType,
+) {
+	panic("noopDeviceBackend.ResonantUpdateBackward invoked")
+}
+
 var _ executionDevice = noopDeviceBackend{}
 
 type batchRecordingDevice struct {

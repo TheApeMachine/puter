@@ -11,6 +11,7 @@ import (
 	"github.com/theapemachine/puter/device/cpu/active_inference"
 	"github.com/theapemachine/puter/device/cpu/attention"
 	"github.com/theapemachine/puter/device/cpu/causal"
+	"github.com/theapemachine/puter/device/cpu/checkpoint"
 	"github.com/theapemachine/puter/device/cpu/convolution"
 	"github.com/theapemachine/puter/device/cpu/dequant"
 	"github.com/theapemachine/puter/device/cpu/dot"
@@ -23,9 +24,12 @@ import (
 	"github.com/theapemachine/puter/device/cpu/layernorm"
 	"github.com/theapemachine/puter/device/cpu/losses"
 	"github.com/theapemachine/puter/device/cpu/masking"
+	"github.com/theapemachine/puter/device/cpu/math"
 	"github.com/theapemachine/puter/device/cpu/matmul"
+	"github.com/theapemachine/puter/device/cpu/model_editing"
 	"github.com/theapemachine/puter/device/cpu/normalization"
 	"github.com/theapemachine/puter/device/cpu/optimizer"
+	"github.com/theapemachine/puter/device/cpu/peel"
 	"github.com/theapemachine/puter/device/cpu/physics"
 	"github.com/theapemachine/puter/device/cpu/pool"
 	"github.com/theapemachine/puter/device/cpu/predictive_coding"
@@ -34,6 +38,7 @@ import (
 	"github.com/theapemachine/puter/device/cpu/resonant"
 	"github.com/theapemachine/puter/device/cpu/rope"
 	"github.com/theapemachine/puter/device/cpu/sampling"
+	"github.com/theapemachine/puter/device/cpu/shape"
 	"github.com/theapemachine/puter/device/cpu/vsa"
 	"github.com/theapemachine/qpool"
 )
@@ -72,6 +77,11 @@ type Backend struct {
 	physics.Physics
 	causal.Causal
 	masking.Masking
+	math.Math
+	checkpoint.Checkpoint
+	model_editing.ModelEditing
+	peel.Peel
+	shape.Shape
 	attention.Attention
 	vsa.VSA
 	active_inference.ActiveInference
