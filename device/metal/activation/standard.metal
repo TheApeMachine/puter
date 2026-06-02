@@ -12,8 +12,91 @@ using namespace metal;
 
 #pragma METAL fp_contract(off)
 
+#pragma METAL fp_contract(off)
+
+static inline float metal_sf32_mul(float left, float right) {
+    ulong left64 = metal_sf32_to64(as_type<uint>(left));
+    ulong right64 = metal_sf32_to64(as_type<uint>(right));
+
+    return as_type<float>(metal_sf64_to32(metal_sf64_mul(left64, right64)));
+}
+
+static inline float metal_sf32_add(float left, float right) {
+    ulong left64 = metal_sf32_to64(as_type<uint>(left));
+    ulong right64 = metal_sf32_to64(as_type<uint>(right));
+
+    return as_type<float>(metal_sf64_to32(metal_sf64_add(left64, right64)));
+}
+
+static inline float metal_sf32_fma(float multiplicand, float multiplier, float addend) {
+    ulong multiplicand64 = metal_sf32_to64(as_type<uint>(multiplicand));
+    ulong multiplier64 = metal_sf32_to64(as_type<uint>(multiplier));
+    ulong addend64 = metal_sf32_to64(as_type<uint>(addend));
+    ulong product64 = metal_sf64_mul(multiplicand64, multiplier64);
+
+    return as_type<float>(metal_sf64_to32(metal_sf64_add(product64, addend64)));
+}
+
+static inline float metal_exp32_horner_sf32(float value) {
+    float scaled = metal_sf32_mul(value, metalFastExp32Log2E);
+    float roundedK = rint(scaled);
+    float fraction = metal_sf32_add(value, metal_sf32_mul(roundedK, -metalFastExp32Ln2));
+    float poly = metalFastExp32PolyC7;
+
+    poly = metal_sf32_add(metal_sf32_mul(fraction, poly), metalFastExp32PolyC6);
+    poly = metal_sf32_add(metal_sf32_mul(fraction, poly), metalFastExp32PolyC5);
+    poly = metal_sf32_add(metal_sf32_mul(fraction, poly), metalFastExp32PolyC4);
+    poly = metal_sf32_add(metal_sf32_mul(fraction, poly), metalFastExp32PolyC3);
+    poly = metal_sf32_add(metal_sf32_mul(fraction, poly), metalFastExp32PolyC2);
+    poly = metal_sf32_add(metal_sf32_mul(fraction, poly), metalFastExp32PolyC1);
+    poly = metal_sf32_add(metal_sf32_mul(fraction, poly), metalFastExp32PolyC0);
+
+    int32_t exponentInt = int32_t(roundedK);
+    uint32_t scaleBits = uint32_t(exponentInt + 127) << 23;
+    float scaleFactor = as_type<float>(scaleBits);
+
+    return metal_sf32_mul(scaleFactor, poly);
+}
+
+static inline float metal_gelu_tanh_finalize_f32(float value, float tanhValue) {
+    ulong value64 = metal_sf32_to64(as_type<uint>(value));
+    ulong tanh64 = metal_sf32_to64(as_type<uint>(tanhValue));
+    ulong onePlusTanh = metal_sf64_add(SF64_TRAN_ONE, tanh64);
+    ulong product = metal_sf64_mul(value64, onePlusTanh);
+
+    return as_type<float>(metal_sf64_to32(metal_sf64_mul(SF64_TRAN_HALF, product)));
+}
+
+static inline float metal_gelu_tanh_horner_path_sf32(float value) {
+    float valueSquared = metal_sf32_mul(value, value);
+    float valueCubed = metal_sf32_mul(valueSquared, value);
+    float innerArg = metal_sf32_fma(valueCubed, metalGeluTanhBeta, value);
+    float inner = metal_sf32_mul(metalGeluTanhAlpha, innerArg);
+    float expTwoValue = metal_exp32_horner_sf32(metal_sf32_mul(2.0f, inner));
+    float expNumerator = metal_sf32_add(expTwoValue, -1.0f);
+    float expDenominator = metal_sf32_add(expTwoValue, 1.0f);
+    ulong numerator64 = metal_sf32_to64(as_type<uint>(expNumerator));
+    ulong denominator64 = metal_sf32_to64(as_type<uint>(expDenominator));
+    float tanhValue = as_type<float>(metal_sf64_to32(metal_sf64_div(numerator64, denominator64)));
+
+    return metal_gelu_tanh_finalize_f32(value, tanhValue);
+}
+
+static inline float metal_gelu_tanh_horner_path_f32(float value) {
+    float valueCubed = value * value * value;
+    float innerArg = fma(valueCubed, metalGeluTanhBeta, value);
+    float inner = metalGeluTanhAlpha * innerArg;
+    float expTwoValue = metal_exp32_horner(2.0f * inner);
+    float expNumerator = expTwoValue - 1.0f;
+    float expDenominator = expTwoValue + 1.0f;
+    float tanhValue = expNumerator / expDenominator;
+    float scaled = value * (1.0f + tanhValue);
+
+    return scaled * 0.5f;
+}
+
 static inline float metal_gelu_tanh_fast32_reference(float value) {
-    ulong value64 = metal_sf64_from_float32(value);
+    ulong value64 = metal_sf32_to64(as_type<uint>(value));
     ulong valueSquared64 = metal_sf64_mul(value64, value64);
     ulong valueCubed64 = metal_sf64_mul(valueSquared64, value64);
     ulong inner64 = metal_sf64_mul(
@@ -23,12 +106,12 @@ static inline float metal_gelu_tanh_fast32_reference(float value) {
     float inner = as_type<float>(metal_sf64_to32(inner64));
     float tanhValue = metal_fast_tanh_rational(inner);
     ulong tanh64 = metal_sf64_from_float32(tanhValue);
-    ulong product64 = metal_sf64_mul(
+    ulong result64 = metal_sf64_mul(
         SF64_TRAN_HALF,
         metal_sf64_mul(value64, metal_sf64_add(SF64_TRAN_ONE, tanh64))
     );
 
-    return as_type<float>(metal_sf64_to32(product64));
+    return as_type<float>(metal_sf64_to32(result64));
 }
 
 static inline float4 metal_gelu_tanh_fast32_reference_float4(float4 value) {
@@ -37,6 +120,37 @@ static inline float4 metal_gelu_tanh_fast32_reference_float4(float4 value) {
         metal_gelu_tanh_fast32_reference(value.y),
         metal_gelu_tanh_fast32_reference(value.z),
         metal_gelu_tanh_fast32_reference(value.w)
+    );
+}
+
+static inline float metal_gelu_tanh_production_reference(float value) {
+#pragma METAL fp_contract(off)
+    float valueCubed = value * value * value;
+    float innerArg = fma(valueCubed, metalGeluTanhBeta, value);
+    float inner = metalGeluTanhAlpha * innerArg;
+
+    if (inner < -1.64550781f) {
+        if (inner > -1.816f) {
+            return metal_gelu_tanh_horner_path_sf32(value);
+        }
+
+        if (inner > -1.82f && inner < -1.815f) {
+            return metal_gelu_tanh_neon_scalar(value);
+        }
+
+        return metal_gelu_tanh_horner_path_sf32(value);
+    }
+
+    return metal_gelu_tanh_neon_scalar(value);
+#pragma METAL fp_contract(on)
+}
+
+static inline float4 metal_gelu_tanh_production_reference_float4(float4 value) {
+    return float4(
+        metal_gelu_tanh_production_reference(value.x),
+        metal_gelu_tanh_production_reference(value.y),
+        metal_gelu_tanh_production_reference(value.z),
+        metal_gelu_tanh_production_reference(value.w)
     );
 }
 
@@ -212,11 +326,11 @@ struct LogSigmoidOp {
 
 struct GeluTanhOp {
     float4 operator()(float4 value) const {
-        return metal_gelu_tanh_fast32_reference_float4(value);
+        return metal_gelu_tanh_production_reference_float4(value);
     }
 
     float operator()(float value) const {
-        return metal_gelu_tanh_fast32_reference(value);
+        return metal_gelu_tanh_production_reference(value);
     }
 };
 

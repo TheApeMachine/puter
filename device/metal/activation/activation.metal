@@ -2,6 +2,8 @@
 #define PUTER_DEVICE_METAL_ACTIVATION_ACTIVATION_METAL
 
 #include <metal_stdlib>
+#include "../elementwise/elementwise_f64_soft.metalinc"
+#include "../elementwise/elementwise_f64_transcendental.metalinc"
 
 using namespace metal;
 
@@ -73,7 +75,7 @@ static inline float4 metal_exp32_horner_float4(float4 value) {
     int4 exponentInt = int4(roundedK);
     uint4 scaleBits = as_type<uint4>(exponentInt + 127) << 23;
 
-    return poly * as_type<float4>(scaleBits);
+    return as_type<float4>(scaleBits) * poly;
 #pragma METAL fp_contract(on)
 }
 
@@ -84,21 +86,6 @@ static inline float4 metal_fast_tanh_exp32_float4(float4 value) {
     float4 denominator = expTwoValue + 1.0f;
 
     return numerator / denominator;
-#pragma METAL fp_contract(on)
-}
-
-static inline float4 metal_gelu_tanh_neon_float4(float4 value) {
-#pragma METAL fp_contract(off)
-    float4 valueSquared = value * value;
-    float4 valueCubed = valueSquared * value;
-    float4 innerArg = value + metalGeluTanhBeta * valueCubed;
-    float4 inner = metalGeluTanhAlpha * innerArg;
-    float4 expTwoValue = metal_exp32_horner_float4(2.0f * inner);
-    float4 tanhValue = (expTwoValue - 1.0f) / (expTwoValue + 1.0f);
-    float4 onePlusTanh = 1.0f + tanhValue;
-    float4 scaled = value * onePlusTanh;
-
-    return 0.5f * scaled;
 #pragma METAL fp_contract(on)
 }
 
@@ -118,10 +105,77 @@ static inline float metal_exp32_horner(float value) {
     poly = fraction * poly + metalFastExp32PolyC0;
 
     int32_t exponentInt = int32_t(roundedK);
-    uint scaleBits = as_type<uint>(exponentInt + 127) << 23;
+    uint32_t scaleBits = uint32_t(exponentInt + 127) << 23;
+    float scaleFactor = as_type<float>(scaleBits);
 
-    return poly * as_type<float>(scaleBits);
+    return scaleFactor * poly;
 #pragma METAL fp_contract(on)
+}
+
+static inline float metal_exp32_horner_gelu(float value) {
+#pragma METAL fp_contract(off)
+    float scaled = value * metalFastExp32Log2E;
+    float roundedK = rint(scaled);
+    float fraction = value - roundedK * metalFastExp32Ln2;
+    float poly = metalFastExp32PolyC7;
+
+    poly = fma(fraction, poly, metalFastExp32PolyC6);
+    poly = fma(fraction, poly, metalFastExp32PolyC5);
+    poly = fma(fraction, poly, metalFastExp32PolyC4);
+    poly = fma(fraction, poly, metalFastExp32PolyC3);
+    poly = fma(fraction, poly, metalFastExp32PolyC2);
+    poly = fma(fraction, poly, metalFastExp32PolyC1);
+    poly = fma(fraction, poly, metalFastExp32PolyC0);
+
+    int32_t exponentInt = int32_t(roundedK);
+    uint32_t scaleBits = uint32_t(exponentInt + 127) << 23;
+
+    return as_type<float>(scaleBits) * poly;
+#pragma METAL fp_contract(on)
+}
+
+static inline float metal_gelu_tanh_finalize_activation_f32(float value, float tanhValue) {
+    ulong value64 = metal_sf32_to64(as_type<uint>(value));
+    ulong tanh64 = metal_sf32_to64(as_type<uint>(tanhValue));
+    ulong onePlusTanh = metal_sf64_add(SF64_TRAN_ONE, tanh64);
+    ulong product = metal_sf64_mul(value64, onePlusTanh);
+
+    return as_type<float>(metal_sf64_to32(metal_sf64_mul(SF64_TRAN_HALF, product)));
+}
+
+static inline float metal_gelu_tanh_neon_scalar(float value) {
+#pragma METAL fp_contract(off)
+    float valueCubed = value * value * value;
+    float innerArg = fma(valueCubed, metalGeluTanhBeta, value);
+    float inner = metalGeluTanhAlpha * innerArg;
+    float expTwoValue = metal_exp32_horner_gelu(2.0f * inner);
+    float tanhValue;
+
+    if (inner < -1.64550781f) {
+        float expNumerator = expTwoValue - 1.0f;
+        float expDenominator = expTwoValue + 1.0f;
+        ulong numerator64 = metal_sf32_to64(as_type<uint>(expNumerator));
+        ulong denominator64 = metal_sf32_to64(as_type<uint>(expDenominator));
+        tanhValue = as_type<float>(metal_sf64_to32(metal_sf64_div(numerator64, denominator64)));
+
+        return metal_gelu_tanh_finalize_activation_f32(value, tanhValue);
+    }
+
+    tanhValue = (expTwoValue - 1.0f) / (expTwoValue + 1.0f);
+
+    float scaled = value * (1.0f + tanhValue);
+
+    return scaled * 0.5f;
+#pragma METAL fp_contract(on)
+}
+
+static inline float4 metal_gelu_tanh_neon_float4(float4 value) {
+    return float4(
+        metal_gelu_tanh_neon_scalar(value.x),
+        metal_gelu_tanh_neon_scalar(value.y),
+        metal_gelu_tanh_neon_scalar(value.z),
+        metal_gelu_tanh_neon_scalar(value.w)
+    );
 }
 
 static inline float metal_fast_exp32(float value) {

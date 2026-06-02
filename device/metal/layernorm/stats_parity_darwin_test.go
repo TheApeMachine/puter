@@ -31,6 +31,7 @@ func TestLayerNormMetalStatsParity(t *testing.T) {
 		harness.ContextRef(),
 		inputTensor.Ref(),
 		statsTensor.Ref(),
+		dtype.Float32,
 		uint32(rows),
 		uint32(cols),
 	); err != nil {
@@ -104,6 +105,7 @@ func TestLayerNormMetalApplyCPUStatsParity(t *testing.T) {
 		biasTensor.Ref(),
 		outputTensor.Ref(),
 		statsTensor.Ref(),
+		dtype.Float32,
 		uint32(rows),
 		uint32(cols),
 	); err != nil {
@@ -143,6 +145,7 @@ func TestLayerNormMetalApplyParity(t *testing.T) {
 		harness.ContextRef(),
 		inputTensor.Ref(),
 		statsTensor.Ref(),
+		dtype.Float32,
 		uint32(rows),
 		uint32(cols),
 	); err != nil {
@@ -156,6 +159,7 @@ func TestLayerNormMetalApplyParity(t *testing.T) {
 		biasTensor.Ref(),
 		outputTensor.Ref(),
 		statsTensor.Ref(),
+		dtype.Float32,
 		uint32(rows),
 		uint32(cols),
 	); err != nil {

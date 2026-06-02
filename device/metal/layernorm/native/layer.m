@@ -108,6 +108,101 @@ static int metal_layernorm_dispatch(
 	}
 }
 
+static int metal_layernorm_dispatch_f16(
+	MetalDeviceRef contextRef,
+	MetalBufferRef inputRef,
+	MetalBufferRef scaleRef,
+	MetalBufferRef biasRef,
+	MetalBufferRef outRef,
+	uint32_t rows,
+	uint32_t cols,
+	uint64_t completionToken,
+	MetalStatus* status
+) {
+	@autoreleasepool {
+		metal_layernorm_status_clear(status);
+
+		MetalContext* context = (MetalContext*)contextRef;
+
+		if (context == NULL || context->queue == NULL) {
+			metal_layernorm_status_set(status, -1, "invalid Metal context");
+			return -1;
+		}
+
+		long long statsBytes = (long long)rows * 2LL * (long long)sizeof(float);
+		MetalBufferRef statsRef = metal_buffer_new_shared(contextRef, statsBytes);
+
+		if (statsRef == NULL) {
+			metal_layernorm_status_set(status, -3, "layernorm stats buffer allocation failed");
+			return -3;
+		}
+
+		id<MTLComputePipelineState> statsPipeline =
+			metal_get_pipeline(context, "layernorm_stats_float16", status);
+		id<MTLComputePipelineState> applyPipeline =
+			metal_get_pipeline(context, "layernorm_apply_float16", status);
+
+		if (statsPipeline == nil || applyPipeline == nil) {
+			metal_buffer_release(statsRef);
+			return status != NULL && status->code != 0 ? status->code : -7;
+		}
+
+		id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)context->queue;
+		id<MTLCommandBuffer> commandBuffer = [queue commandBuffer];
+
+		if (commandBuffer == nil) {
+			metal_buffer_release(statsRef);
+			metal_layernorm_status_set(status, -3, "commandBuffer returned nil");
+			return -3;
+		}
+
+		id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+
+		if (encoder == nil) {
+			metal_buffer_release(statsRef);
+			metal_layernorm_status_set(status, -4, "computeCommandEncoder returned nil");
+			return -4;
+		}
+
+		[encoder setComputePipelineState:statsPipeline];
+		[encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
+		[encoder setBuffer:(__bridge id<MTLBuffer>)statsRef offset:0 atIndex:1];
+		[encoder setBytes:&cols length:sizeof(cols) atIndex:2];
+		[encoder
+			dispatchThreadgroups:MTLSizeMake(rows, 1, 1)
+			threadsPerThreadgroup:MTLSizeMake(LAYERNORM_THREAD_COUNT, 1, 1)
+		];
+		[encoder endEncoding];
+
+		encoder = [commandBuffer computeCommandEncoder];
+
+		if (encoder == nil) {
+			metal_buffer_release(statsRef);
+			metal_layernorm_status_set(status, -4, "computeCommandEncoder returned nil");
+			return -4;
+		}
+
+		[encoder setComputePipelineState:applyPipeline];
+		[encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
+		[encoder setBuffer:(__bridge id<MTLBuffer>)scaleRef offset:0 atIndex:1];
+		[encoder setBuffer:(__bridge id<MTLBuffer>)biasRef offset:0 atIndex:2];
+		[encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:3];
+		[encoder setBuffer:(__bridge id<MTLBuffer>)statsRef offset:0 atIndex:4];
+		[encoder setBytes:&cols length:sizeof(cols) atIndex:5];
+		[encoder
+			dispatchThreadgroups:MTLSizeMake(rows, 1, 1)
+			threadsPerThreadgroup:MTLSizeMake(LAYERNORM_THREAD_COUNT, 1, 1)
+		];
+		[encoder endEncoding];
+
+		metal_track_command_completion(contextRef, commandBuffer, completionToken, NULL);
+		[commandBuffer commit];
+		metal_buffer_release(statsRef);
+
+		return 0;
+	}
+}
+
 static int metal_layernorm_dispatch_f32(
 	MetalDeviceRef contextRef,
 	MetalBufferRef inputRef,
@@ -205,6 +300,7 @@ static int metal_layernorm_dispatch_f32(
 
 int metal_dispatch_layernorm_stats(
 	MetalDeviceRef contextRef,
+	int elementDType,
 	MetalBufferRef inputRef,
 	MetalBufferRef rowStatsRef,
 	uint32_t rows,
@@ -220,9 +316,15 @@ int metal_dispatch_layernorm_stats(
 			return -2;
 		}
 
+		const char* kernelName = "layernorm_stats_float32";
+
+		if (elementDType == MetalElementDTypeFloat16) {
+			kernelName = "layernorm_stats_float16";
+		}
+
 		return metal_layernorm_dispatch(
 			contextRef,
-			"layernorm_stats_float32",
+			kernelName,
 			rows,
 			completionToken,
 			status,
@@ -237,6 +339,7 @@ int metal_dispatch_layernorm_stats(
 
 int metal_dispatch_layernorm_apply(
 	MetalDeviceRef contextRef,
+	int elementDType,
 	MetalBufferRef inputRef,
 	MetalBufferRef scaleRef,
 	MetalBufferRef biasRef,
@@ -256,9 +359,15 @@ int metal_dispatch_layernorm_apply(
 			return -2;
 		}
 
+		const char* kernelName = "layernorm_apply_float32";
+
+		if (elementDType == MetalElementDTypeFloat16) {
+			kernelName = "layernorm_apply_float16";
+		}
+
 		return metal_layernorm_dispatch(
 			contextRef,
-			"layernorm_apply_float32",
+			kernelName,
 			rows,
 			completionToken,
 			status,
@@ -305,6 +414,20 @@ int metal_dispatch_layernorm(
 				[encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:3];
 				[encoder setBytes:&cols length:sizeof(cols) atIndex:4];
 			}
+		);
+	}
+
+	if (elementDType == MetalElementDTypeFloat16) {
+		return metal_layernorm_dispatch_f16(
+			contextRef,
+			inputRef,
+			scaleRef,
+			biasRef,
+			outRef,
+			rows,
+			cols,
+			completionToken,
+			status
 		);
 	}
 

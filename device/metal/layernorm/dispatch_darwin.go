@@ -94,6 +94,7 @@ func DispatchLayerNormStatsRefs(
 	contextRef uintptr,
 	inputBuffer uintptr,
 	statsBuffer uintptr,
+	format dtype.DType,
 	rows uint32,
 	cols uint32,
 ) error {
@@ -101,6 +102,7 @@ func DispatchLayerNormStatsRefs(
 		C.MetalDeviceRef(unsafe.Pointer(contextRef)),
 		C.MetalBufferRef(unsafe.Pointer(inputBuffer)),
 		C.MetalBufferRef(unsafe.Pointer(statsBuffer)),
+		format,
 		rows,
 		cols,
 	)
@@ -110,12 +112,20 @@ func DispatchLayerNormStats(
 	contextRef C.MetalDeviceRef,
 	inputBuffer C.MetalBufferRef,
 	statsBuffer C.MetalBufferRef,
+	format dtype.DType,
 	rows uint32,
 	cols uint32,
 ) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
 	var status C.MetalStatus
 	code := C.metal_dispatch_layernorm_stats(
 		contextRef,
+		elementFormat,
 		inputBuffer,
 		statsBuffer,
 		C.uint32_t(rows),
@@ -138,6 +148,7 @@ func DispatchLayerNormApplyRefs(
 	biasBuffer uintptr,
 	outputBuffer uintptr,
 	statsBuffer uintptr,
+	format dtype.DType,
 	rows uint32,
 	cols uint32,
 ) error {
@@ -148,6 +159,7 @@ func DispatchLayerNormApplyRefs(
 		C.MetalBufferRef(unsafe.Pointer(biasBuffer)),
 		C.MetalBufferRef(unsafe.Pointer(outputBuffer)),
 		C.MetalBufferRef(unsafe.Pointer(statsBuffer)),
+		format,
 		rows,
 		cols,
 	)
@@ -160,12 +172,20 @@ func DispatchLayerNormApply(
 	biasBuffer C.MetalBufferRef,
 	outputBuffer C.MetalBufferRef,
 	statsBuffer C.MetalBufferRef,
+	format dtype.DType,
 	rows uint32,
 	cols uint32,
 ) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
 	var status C.MetalStatus
 	code := C.metal_dispatch_layernorm_apply(
 		contextRef,
+		elementFormat,
 		inputBuffer,
 		scaleBuffer,
 		biasBuffer,

@@ -1,4 +1,5 @@
 #include <metal_stdlib>
+#include "../internal/norm_stats.metalinc"
 
 #pragma METAL fp_contract(off)
 
@@ -26,54 +27,24 @@ kernel void groupnorm_apply_float32(
     uint groupOffset = (batchIndex * channels + channelStart) * spatial;
     float mean = rowStats[row * 2];
     float invStdDev = rowStats[row * 2 + 1];
-    float4 meanVec = float4(mean);
-    float4 invStdDevVec = float4(invStdDev);
-    uint vectorStride = groupnormApplyThreadCount * 4;
 
-    for (uint offset = threadIndex * 4; offset < groupSize; offset += vectorStride) {
-        if (offset + 4 <= groupSize) {
-            float4 inputValue = float4(
-                input[groupOffset + offset],
-                input[groupOffset + offset + 1],
-                input[groupOffset + offset + 2],
-                input[groupOffset + offset + 3]
-            );
-            float4 scaleValue = float4(
-                scale[channelStart + (offset) / spatial],
-                scale[channelStart + (offset + 1) / spatial],
-                scale[channelStart + (offset + 2) / spatial],
-                scale[channelStart + (offset + 3) / spatial]
-            );
-            float4 biasValue = float4(
-                bias[channelStart + (offset) / spatial],
-                bias[channelStart + (offset + 1) / spatial],
-                bias[channelStart + (offset + 2) / spatial],
-                bias[channelStart + (offset + 3) / spatial]
-            );
-            float4 delta = inputValue - meanVec;
-            delta = delta * invStdDevVec;
-            float4 result = fma(scaleValue, delta, biasValue);
+    for (uint elementOffset = threadIndex; elementOffset < groupSize; elementOffset += groupnormApplyThreadCount) {
+        uint channelInGroup = elementOffset / spatial;
+        uint spatialIndex = elementOffset % spatial;
+        uint channel = channelStart + channelInGroup;
+        float inputValue = input[groupOffset + elementOffset];
+        float normalized = (inputValue - mean) * invStdDev;
+        float scaleValue = scale[channel];
+        float biasValue = bias[channel];
+        uint blockStart = spatialIndex & ~3u;
 
-            out[groupOffset + offset] = result.x;
-            out[groupOffset + offset + 1] = result.y;
-            out[groupOffset + offset + 2] = result.z;
-            out[groupOffset + offset + 3] = result.w;
+        if (spatial >= 4 && (spatial - blockStart) >= 4) {
+            out[groupOffset + elementOffset] = fma(scaleValue, normalized, biasValue);
 
             continue;
         }
 
-        for (uint lane = 0; lane < 4; lane++) {
-            uint elementOffset = offset + lane;
-
-            if (elementOffset >= groupSize) {
-                break;
-            }
-
-            uint channel = channelStart + elementOffset / spatial;
-            float inputValue = input[groupOffset + elementOffset];
-            float delta = inputValue - mean;
-            delta = delta * invStdDev;
-            out[groupOffset + elementOffset] = fma(scale[channel], delta, bias[channel]);
-        }
+        float scaled = normalized * scaleValue;
+        out[groupOffset + elementOffset] = scaled + biasValue;
     }
 }

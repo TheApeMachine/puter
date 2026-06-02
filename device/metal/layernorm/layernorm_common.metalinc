@@ -15,7 +15,98 @@ static inline float bf16_to_float_norm(ushort value) {
 }
 
 static inline ushort float_to_bf16_norm(float value) {
-    return ushort(as_type<uint>(value) >> 16);
+    uint bits = as_type<uint>(value);
+
+    if ((bits & 0x7FFFFFFFu) > 0x7F800000u) {
+        return ushort((bits >> 16) | 0x0040u);
+    }
+
+    uint rounded = bits + 0x7FFFu + ((bits >> 16) & 1u);
+
+    return ushort(rounded >> 16);
+}
+
+static inline ushort float_to_f16_norm(float value) {
+    uint bits = as_type<uint>(value);
+    uint sign = bits & 0x80000000u;
+    uint exponent = bits & 0x7F800000u;
+    uint coefficient = bits & 0x007FFFFFu;
+
+    if (exponent == 0x7F800000u) {
+        uint nanBit = 0u;
+
+        if (coefficient != 0u) {
+            nanBit = 0x0200u;
+        }
+
+        return ushort((sign >> 16) | 0x7C00u | nanBit | (coefficient >> 13));
+    }
+
+    uint halfSign = sign >> 16;
+    int unbiasedExponent = int(exponent >> 23) - 127;
+    int halfExponent = unbiasedExponent + 15;
+
+    if (halfExponent >= 0x1F) {
+        return ushort(halfSign | 0x7C00u);
+    }
+
+    if (halfExponent <= 0) {
+        if (14 - halfExponent > 24) {
+            return ushort(halfSign);
+        }
+
+        uint widened = coefficient | 0x00800000u;
+        uint halfCoefficient = widened >> uint(14 - halfExponent);
+        uint roundBit = 1u << uint(13 - halfExponent);
+
+        if ((widened & roundBit) != 0u && (widened & (3u * roundBit - 1u)) != 0u) {
+            halfCoefficient++;
+        }
+
+        return ushort(halfSign | halfCoefficient);
+    }
+
+    uint halfExponentBits = uint(halfExponent) << 10;
+    uint halfCoefficient = coefficient >> 13;
+    uint roundBit = 0x00001000u;
+
+    if ((coefficient & roundBit) != 0u && (coefficient & (3u * roundBit - 1u)) != 0u) {
+        return ushort((halfSign | halfExponentBits | halfCoefficient) + 1u);
+    }
+
+    return ushort(halfSign | halfExponentBits | halfCoefficient);
+}
+
+static inline float f16_to_float_norm(half value) {
+    ushort bits = as_type<ushort>(value);
+    uint sign = uint(bits & 0x8000u) << 16;
+    uint exp = uint(bits & 0x7C00u) >> 10;
+    uint coef = uint(bits & 0x03FFu) << 13;
+
+    if (exp == 0x1Fu) {
+        if (coef == 0u) {
+            return as_type<float>(sign | 0x7F800000u);
+        }
+
+        return as_type<float>(sign | 0x7FC00000u | coef);
+    }
+
+    if (exp == 0u) {
+        if (coef == 0u) {
+            return as_type<float>(sign);
+        }
+
+        exp = 1u;
+
+        while ((coef & 0x7F800000u) == 0u) {
+            coef <<= 1u;
+            exp--;
+        }
+
+        coef &= 0x007FFFFFu;
+    }
+
+    return as_type<float>(sign | ((exp + 112u) << 23) | coef);
 }
 
 struct Float32NormStorage {
@@ -30,11 +121,11 @@ struct Float32NormStorage {
 
 struct Float16NormStorage {
     static float load(device const half* values, uint index) {
-        return float(values[index]);
+        return f16_to_float_norm(values[index]);
     }
 
     static void store(device half* values, uint index, float value) {
-        values[index] = half(value);
+        values[index] = as_type<half>(float_to_f16_norm(value));
     }
 };
 
@@ -81,6 +172,89 @@ static inline float reduce_sum(
 }
 
 template <typename Storage, typename Scalar>
+static inline float compute_variance_sum_f32(
+    device const Scalar* input,
+    uint rowOffset,
+    uint cols,
+    float mean
+) {
+#pragma METAL fp_contract(off)
+    float varianceSum = 0.0f;
+
+    for (uint col = 0; col < cols; col++) {
+        float delta = Storage::load(input, rowOffset + col) - mean;
+        varianceSum += delta * delta;
+    }
+
+    return varianceSum;
+#pragma METAL fp_contract(on)
+}
+
+template <>
+inline float compute_variance_sum_f32<Float16NormStorage, half>(
+    device const half* input,
+    uint rowOffset,
+    uint cols,
+    float mean
+) {
+#pragma METAL fp_contract(off)
+    float varianceSum = 0.0f;
+
+#pragma clang loop vectorize(disable)
+#pragma clang loop interleave(disable)
+    for (uint col = 0; col < cols; col++) {
+        float delta = Float16NormStorage::load(input, rowOffset + col) - mean;
+        varianceSum += delta * delta;
+    }
+
+    return varianceSum;
+#pragma METAL fp_contract(on)
+}
+
+template <>
+inline float compute_variance_sum_f32<Float32NormStorage, float>(
+    device const float* input,
+    uint rowOffset,
+    uint cols,
+    float mean
+) {
+#pragma METAL fp_contract(off)
+    float4 varianceLanes = float4(0.0f);
+
+    for (uint block = 0; block + 4 <= cols; block += 4) {
+        float4 values = float4(
+            input[rowOffset + block],
+            input[rowOffset + block + 1],
+            input[rowOffset + block + 2],
+            input[rowOffset + block + 3]
+        );
+        float4 delta = values - mean;
+        varianceLanes = fma(delta, delta, varianceLanes);
+    }
+
+    uint tailStart = cols & ~3u;
+    uint tailCount = cols & 3u;
+
+    if (tailCount >= 1) {
+        float delta = input[rowOffset + tailStart] - mean;
+        varianceLanes.x = fma(delta, delta, varianceLanes.x);
+    }
+
+    if (tailCount >= 2) {
+        float delta = input[rowOffset + tailStart + 1] - mean;
+        varianceLanes.y = fma(delta, delta, varianceLanes.y);
+    }
+
+    if (tailCount >= 3) {
+        float delta = input[rowOffset + tailStart + 2] - mean;
+        varianceLanes.z = fma(delta, delta, varianceLanes.z);
+    }
+
+    return (varianceLanes.x + varianceLanes.y) + (varianceLanes.z + varianceLanes.w);
+#pragma METAL fp_contract(on)
+}
+
+template <typename Storage, typename Scalar>
 static inline void compute_row_stats(
     device const Scalar* input,
     threadgroup float* reduction,
@@ -91,14 +265,10 @@ static inline void compute_row_stats(
     thread float& mean,
     thread float& invStdDev
 ) {
+    float sumF32 = reduce_sum<Storage, Scalar>(input, reduction, rowOffset, cols, threadIndex);
+
     if (threadIndex == 0) {
-        ulong sum64 = SF64_NORM_ZERO;
-
-        for (uint col = 0; col < cols; col++) {
-            float value = Storage::load(input, rowOffset + col);
-            sum64 = metal_sf64_add(sum64, metal_sf32_to64(as_type<uint>(value)));
-        }
-
+        ulong sum64 = metal_sf32_to64(as_type<uint>(sumF32));
         mean = metal_norm_mean_f32(sum64, cols);
         reduction[0] = mean;
     }
@@ -107,20 +277,145 @@ static inline void compute_row_stats(
     mean = reduction[0];
 
     if (threadIndex == 0) {
-#pragma METAL fp_contract(off)
-        ulong varianceSum64 = SF64_NORM_ZERO;
+        float varianceSum = compute_variance_sum_f32<Storage, Scalar>(
+            input,
+            rowOffset,
+            cols,
+            mean
+        );
+        invStdDev = metal_norm_inv_std_dev_f32(varianceSum, cols);
+        reduction[1] = invStdDev;
+    }
 
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    invStdDev = reduction[1];
+}
+
+template <>
+inline void compute_row_stats<Float32NormStorage, float>(
+    device const float* input,
+    threadgroup float* reduction,
+    threadgroup ulong* sf64Reduction,
+    uint rowOffset,
+    constant uint& cols,
+    uint threadIndex,
+    thread float& mean,
+    thread float& invStdDev
+) {
+    ulong sum64 = metal_norm_reduce_sum_sf64(
+        input,
+        sf64Reduction,
+        rowOffset,
+        cols,
+        threadIndex,
+        normalizationThreadCount
+    );
+
+    if (threadIndex == 0) {
+        mean = metal_norm_mean_f32(sum64, cols);
+        reduction[0] = mean;
+    }
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    mean = reduction[0];
+
+    if (threadIndex == 0) {
+        float varianceSum = compute_variance_sum_f32<Float32NormStorage, float>(
+            input,
+            rowOffset,
+            cols,
+            mean
+        );
+        invStdDev = metal_norm_inv_std_dev_f32(varianceSum, cols);
+        reduction[1] = invStdDev;
+    }
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    invStdDev = reduction[1];
+}
+
+template <>
+inline void compute_row_stats<BFloat16NormStorage, ushort>(
+    device const ushort* input,
+    threadgroup float* reduction,
+    threadgroup ulong* sf64Reduction,
+    uint rowOffset,
+    constant uint& cols,
+    uint threadIndex,
+    thread float& mean,
+    thread float& invStdDev
+) {
+    float sumF32 = reduce_sum<BFloat16NormStorage, ushort>(
+        input,
+        reduction,
+        rowOffset,
+        cols,
+        threadIndex
+    );
+
+    if (threadIndex == 0) {
+        ushort sumBf16 = float_to_bf16_norm(sumF32);
+        mean = bf16_to_float_norm(sumBf16) / float(cols);
+        reduction[0] = mean;
+    }
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    mean = reduction[0];
+
+    if (threadIndex == 0) {
+        float varianceSum = compute_variance_sum_f32<BFloat16NormStorage, ushort>(
+            input,
+            rowOffset,
+            cols,
+            mean
+        );
+        invStdDev = metal_norm_inv_std_dev_f32(varianceSum, cols);
+        reduction[1] = invStdDev;
+    }
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    invStdDev = reduction[1];
+}
+
+template <>
+inline void compute_row_stats<Float16NormStorage, half>(
+    device const half* input,
+    threadgroup float* reduction,
+    threadgroup ulong* sf64Reduction,
+    uint rowOffset,
+    constant uint& cols,
+    uint threadIndex,
+    thread float& mean,
+    thread float& invStdDev
+) {
+    if (threadIndex == 0) {
+        volatile float sumF32 = 0.0f;
+
+#pragma METAL fp_contract(off)
+#pragma clang loop vectorize(disable)
+#pragma clang loop interleave(disable)
         for (uint col = 0; col < cols; col++) {
-            float delta = Storage::load(input, rowOffset + col) - mean;
-            float squared = delta * delta;
-            varianceSum64 = metal_sf64_add(
-                varianceSum64,
-                metal_sf32_to64(as_type<uint>(squared))
-            );
+            sumF32 += Float16NormStorage::load(input, rowOffset + col);
         }
 
-        float varianceSum = as_type<float>(metal_sf64_to32(varianceSum64));
-        invStdDev = metal_norm_inv_std_dev_f32(varianceSum, cols);
+        mean = sumF32 / float(cols);
+#pragma METAL fp_contract(on)
+        reduction[0] = mean;
+    }
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    mean = reduction[0];
+
+    if (threadIndex == 0) {
+#pragma METAL fp_contract(off)
+        float varianceSum = compute_variance_sum_f32<Float16NormStorage, half>(
+            input,
+            rowOffset,
+            cols,
+            mean
+        );
+        float variance = varianceSum / float(cols);
+        invStdDev = metal_norm_inv_std_dev_f32_go(variance + layerNormEpsilonMetal);
 #pragma METAL fp_contract(on)
         reduction[1] = invStdDev;
     }
@@ -158,6 +453,7 @@ static inline void layernorm_rows(
     float mean;
     float invStdDev;
 
+#pragma METAL fp_contract(off)
     compute_row_stats<Storage, Scalar>(
         input,
         reduction,
@@ -168,6 +464,10 @@ static inline void layernorm_rows(
         mean,
         invStdDev
     );
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    mean = reduction[0];
+    invStdDev = reduction[1];
 
     layernorm_apply_row<Storage, Scalar>(
         input,
@@ -180,6 +480,7 @@ static inline void layernorm_rows(
         invStdDev,
         threadIndex
     );
+#pragma METAL fp_contract(on)
 }
 
 #endif

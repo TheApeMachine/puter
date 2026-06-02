@@ -20,46 +20,37 @@ static inline void groupnorm_stats_rows_f32(
     uint channelStart = groupIndex * channelsPerGroup;
     uint groupSize = channelsPerGroup * spatial;
     uint groupOffset = (batchIndex * channels + channelStart) * spatial;
-    float mean;
+
+    ulong sum64 = metal_norm_reduce_sum_sf64(
+        input,
+        sf64Reduction,
+        groupOffset,
+        groupSize,
+        threadIndex,
+        normalizationThreadCount
+    );
 
     if (threadIndex == 0) {
-        ulong sum64 = SF64_NORM_ZERO;
+        float sumF32 = as_type<float>(metal_sf64_to32(sum64));
+        float mean = as_type<float>(
+            metal_sf64_to32(
+                metal_sf64_div(
+                    metal_sf32_to64(as_type<uint>(sumF32)),
+                    metal_sf64_int_to64(int(groupSize))
+                )
+            )
+        );
+        float varianceSum = metal_norm_squared_diff_sum_double_f32(
+            input,
+            groupOffset,
+            groupSize,
+            mean
+        );
 
-        for (uint offset = 0; offset < groupSize; offset++) {
-            float value = input[groupOffset + offset];
-            sum64 = metal_sf64_add(sum64, metal_sf32_to64(as_type<uint>(value)));
-        }
+        float invStdDev = metal_norm_inv_std_dev_f32(varianceSum, groupSize);
 
-        mean = metal_norm_mean_f32(sum64, groupSize);
-        reduction[0] = mean;
-    }
-
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-    mean = reduction[0];
-
-    if (threadIndex == 0) {
-#pragma METAL fp_contract(off)
-        ulong varianceSum64 = SF64_NORM_ZERO;
-
-        for (uint offset = 0; offset < groupSize; offset++) {
-            float delta = input[groupOffset + offset] - mean;
-            float squared = delta * delta;
-            varianceSum64 = metal_sf64_add(
-                varianceSum64,
-                metal_sf32_to64(as_type<uint>(squared))
-            );
-        }
-
-        float varianceSum = as_type<float>(metal_sf64_to32(varianceSum64));
-        reduction[0] = varianceSum;
-#pragma METAL fp_contract(on)
-    }
-
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-
-    if (threadIndex == 0) {
         rowStats[row * 2] = mean;
-        rowStats[row * 2 + 1] = metal_norm_inv_std_dev_f32(reduction[0], groupSize);
+        rowStats[row * 2 + 1] = invStdDev;
     }
 }
 

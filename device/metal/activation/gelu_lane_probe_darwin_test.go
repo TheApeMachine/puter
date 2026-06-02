@@ -3,6 +3,7 @@
 package activation
 
 import (
+	"math"
 	"math/rand"
 	"testing"
 	"unsafe"
@@ -13,6 +14,31 @@ import (
 	cpuparity "github.com/theapemachine/puter/device/cpu/parity"
 	"github.com/theapemachine/puter/device/metal/internal/parity"
 )
+
+func neonStyleExp32(value float32) float32 {
+	scaled := value * float32(1.4426950408889634)
+	roundedK := float32(math.RoundToEven(float64(scaled)))
+	fraction := value - roundedK*float32(0.6931471805599453)
+	poly := float32(0.00019841270)
+	poly = fraction*poly + 0.0013888889
+	poly = fraction*poly + 0.008333334
+	poly = fraction*poly + 0.041666667
+	poly = fraction*poly + 0.16666667
+	poly = fraction*poly + 0.5
+	poly = fraction*poly + 1.0
+	poly = fraction*poly + 1.0
+	exponentInt := int32(roundedK)
+	scaleBits := uint32(exponentInt+127) << 23
+
+	return math.Float32frombits(scaleBits) * poly
+}
+
+func geluInner(value float32) float32 {
+	valueCubed := value * value * value
+	innerArg := valueCubed*cpumath.GeluTanhBeta + value
+
+	return float32(cpumath.GeluTanhAlpha * float64(innerArg))
+}
 
 func TestGeluTanhLane26Probe(t *testing.T) {
 	count := 64
@@ -62,11 +88,19 @@ func TestGeluTanhLane26Probe(t *testing.T) {
 
 	got := harness.DownloadFloat32(destinationTensor, dtype.Float32)
 
-	for _, lane := range []int{24, 25, 26, 27} {
+	for _, lane := range []int{1, 26, 41} {
+		inner := geluInner(source[lane])
+		expTwo := neonStyleExp32(2 * inner)
+		tanhHorner := (expTwo - 1) / (expTwo + 1)
+		tanhPrecise := float32(math.Tanh(float64(inner)))
 		t.Logf(
-			"lane %d source=%.9g cpu=%.9g generic=%.9g fast=%.9g metal=%.9g want=%.9g cpuUlp=%d genericUlp=%d fastUlp=%d metalUlp=%d",
+			"lane %d source=%.9g inner=%.9g exp2=%.9g tanhHorner=%.9g tanhPrecise=%.9g cpu=%.9g generic=%.9g fast=%.9g metal=%.9g want=%.9g cpuUlp=%d genericUlp=%d fastUlp=%d metalUlp=%d",
 			lane,
 			source[lane],
+			inner,
+			expTwo,
+			tanhHorner,
+			tanhPrecise,
 			cpuOut[lane],
 			genericOut[lane],
 			cpumath.FastGeluTanh32(source[lane]),

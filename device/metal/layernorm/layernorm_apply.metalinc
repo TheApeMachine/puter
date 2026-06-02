@@ -70,4 +70,76 @@ static inline void layernorm_apply_row(
     }
 }
 
+template <>
+inline void layernorm_apply_row<Float16NormStorage, half>(
+    device const half* input,
+    device const half* scale,
+    device const half* bias,
+    device half* out,
+    uint rowOffset,
+    constant uint& cols,
+    float mean,
+    float invStdDev,
+    uint threadIndex
+) {
+    uint vectorStride = normalizationThreadCount * 4;
+
+    for (uint col = threadIndex * 4; col < cols; col += vectorStride) {
+        for (uint offset = 0; offset < 4; offset++) {
+            uint colIndex = col + offset;
+
+            if (colIndex >= cols) {
+                break;
+            }
+
+#pragma METAL fp_contract(off)
+            float inputValue = Float16NormStorage::load(input, rowOffset + colIndex);
+            float scaleValue = Float16NormStorage::load(scale, colIndex);
+            float biasValue = Float16NormStorage::load(bias, colIndex);
+            float delta = inputValue - mean;
+            delta = delta * invStdDev;
+            delta = delta * scaleValue;
+            float result = delta + biasValue;
+#pragma METAL fp_contract(on)
+            Float16NormStorage::store(out, rowOffset + colIndex, result);
+        }
+    }
+}
+
+template <>
+inline void layernorm_apply_row<BFloat16NormStorage, ushort>(
+    device const ushort* input,
+    device const ushort* scale,
+    device const ushort* bias,
+    device ushort* out,
+    uint rowOffset,
+    constant uint& cols,
+    float mean,
+    float invStdDev,
+    uint threadIndex
+) {
+    uint vectorStride = normalizationThreadCount * 4;
+
+    for (uint col = threadIndex * 4; col < cols; col += vectorStride) {
+        for (uint offset = 0; offset < 4; offset++) {
+            uint colIndex = col + offset;
+
+            if (colIndex >= cols) {
+                break;
+            }
+
+#pragma METAL fp_contract(off)
+            float inputValue = BFloat16NormStorage::load(input, rowOffset + colIndex);
+            float scaleValue = BFloat16NormStorage::load(scale, colIndex);
+            float biasValue = BFloat16NormStorage::load(bias, colIndex);
+            float delta = inputValue - mean;
+            delta = delta * invStdDev;
+            delta = delta * scaleValue;
+            float result = delta + biasValue;
+#pragma METAL fp_contract(on)
+            BFloat16NormStorage::store(out, rowOffset + colIndex, result);
+        }
+    }
+}
+
 #endif

@@ -101,13 +101,96 @@ struct Float32NormStorage {
     }
 };
 
+static inline ushort float_to_f16_norm(float value) {
+    uint bits = as_type<uint>(value);
+    uint sign = bits & 0x80000000u;
+    uint exponent = bits & 0x7F800000u;
+    uint coefficient = bits & 0x007FFFFFu;
+
+    if (exponent == 0x7F800000u) {
+        uint nanBit = 0u;
+
+        if (coefficient != 0u) {
+            nanBit = 0x0200u;
+        }
+
+        return ushort((sign >> 16) | 0x7C00u | nanBit | (coefficient >> 13));
+    }
+
+    uint halfSign = sign >> 16;
+    int unbiasedExponent = int(exponent >> 23) - 127;
+    int halfExponent = unbiasedExponent + 15;
+
+    if (halfExponent >= 0x1F) {
+        return ushort(halfSign | 0x7C00u);
+    }
+
+    if (halfExponent <= 0) {
+        if (14 - halfExponent > 24) {
+            return ushort(halfSign);
+        }
+
+        uint widened = coefficient | 0x00800000u;
+        uint halfCoefficient = widened >> uint(14 - halfExponent);
+        uint roundBit = 1u << uint(13 - halfExponent);
+
+        if ((widened & roundBit) != 0u && (widened & (3u * roundBit - 1u)) != 0u) {
+            halfCoefficient++;
+        }
+
+        return ushort(halfSign | halfCoefficient);
+    }
+
+    uint halfExponentBits = uint(halfExponent) << 10;
+    uint halfCoefficient = coefficient >> 13;
+    uint roundBit = 0x00001000u;
+
+    if ((coefficient & roundBit) != 0u && (coefficient & (3u * roundBit - 1u)) != 0u) {
+        return ushort((halfSign | halfExponentBits | halfCoefficient) + 1u);
+    }
+
+    return ushort(halfSign | halfExponentBits | halfCoefficient);
+}
+
+static inline float f16_to_float_norm(half value) {
+    ushort bits = as_type<ushort>(value);
+    uint sign = uint(bits & 0x8000u) << 16;
+    uint exp = uint(bits & 0x7C00u) >> 10;
+    uint coef = uint(bits & 0x03FFu) << 13;
+
+    if (exp == 0x1Fu) {
+        if (coef == 0u) {
+            return as_type<float>(sign | 0x7F800000u);
+        }
+
+        return as_type<float>(sign | 0x7FC00000u | coef);
+    }
+
+    if (exp == 0u) {
+        if (coef == 0u) {
+            return as_type<float>(sign);
+        }
+
+        exp = 1u;
+
+        while ((coef & 0x7F800000u) == 0u) {
+            coef <<= 1u;
+            exp--;
+        }
+
+        coef &= 0x007FFFFFu;
+    }
+
+    return as_type<float>(sign | ((exp + 112u) << 23) | coef);
+}
+
 struct Float16NormStorage {
     static float load(device const half* values, uint index) {
-        return float(values[index]);
+        return f16_to_float_norm(values[index]);
     }
 
     static void store(device half* values, uint index, float value) {
-        values[index] = half(value);
+        values[index] = as_type<half>(float_to_f16_norm(value));
     }
 };
 

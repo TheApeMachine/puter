@@ -76,6 +76,34 @@ static inline float metal_norm_inv_std_dev_f32(float varianceSum, uint count) {
     return as_type<float>(metal_sf64_to32(invStdDev64));
 }
 
+static inline float metal_norm_inv_std_dev_from_variance_f32(float variance) {
+    ulong variance64 = metal_sf32_to64(as_type<uint>(variance));
+    ulong varianceWithEpsilon = metal_sf64_add(variance64, SF64_NORM_EPSILON);
+    ulong sqrtVariance = metal_sf64_sqrt(varianceWithEpsilon);
+    ulong invStdDev64 = metal_sf64_div(SF64_TRAN_ONE, sqrtVariance);
+
+    return as_type<float>(metal_sf64_to32(invStdDev64));
+}
+
+static inline float metal_norm_inv_std_dev_f32_go(float varianceWithEpsilonF32) {
+    ulong variance64 = metal_sf32_to64(as_type<uint>(varianceWithEpsilonF32));
+    ulong sqrtVariance = metal_sf64_sqrt(variance64);
+    ulong invStdDev64 = metal_sf64_div(SF64_TRAN_ONE, sqrtVariance);
+    uint invBits = metal_sf64_to32(invStdDev64);
+    ulong roundTrip64 = metal_sf32_to64(invBits);
+
+    if (roundTrip64 > invStdDev64) {
+        ulong gap64 = metal_sf64_sub(roundTrip64, invStdDev64);
+        ulong gapThreshold = metal_sf32_to64(as_type<uint>(1.0e-8f));
+
+        if (gap64 > gapThreshold) {
+            invBits -= 1u;
+        }
+    }
+
+    return as_type<float>(invBits);
+}
+
 static inline float metal_norm_squared_diff_sum_f32(
     device const float* input,
     uint baseOffset,
@@ -117,10 +145,64 @@ static inline float metal_norm_squared_diff_sum_f32(
         lane2 = fma(delta, delta, lane2);
     }
 
-    float pairLeft = lane0 + lane1;
-    float pairRight = lane2 + lane3;
+    return (lane0 + lane1) + (lane2 + lane3);
+#pragma METAL fp_contract(on)
+}
 
-    return pairLeft + pairRight;
+static inline float metal_norm_squared_diff_sum_double_f32(
+    device const float* input,
+    uint baseOffset,
+    uint count,
+    float mean
+) {
+#pragma METAL fp_contract(off)
+    ulong sum64 = SF64_NORM_ZERO;
+
+    for (uint index = 0; index < count; index++) {
+        float deltaF32 = input[baseOffset + index] - mean;
+        ulong delta64 = metal_sf32_to64(as_type<uint>(deltaF32));
+        ulong squared64 = metal_sf64_mul(delta64, delta64);
+        sum64 = metal_sf64_add(sum64, squared64);
+    }
+
+    return as_type<float>(metal_sf64_to32(sum64));
+#pragma METAL fp_contract(on)
+}
+
+static inline float metal_norm_reduce_squared_diff_sum_sf64(
+    device const float* input,
+    threadgroup ulong* reduction,
+    uint baseOffset,
+    uint count,
+    float mean,
+    uint threadIndex,
+    uint threadCount
+) {
+#pragma METAL fp_contract(off)
+    ulong localSum = SF64_NORM_ZERO;
+
+    for (uint index = threadIndex; index < count; index += threadCount) {
+        float deltaF32 = input[baseOffset + index] - mean;
+        ulong delta64 = metal_sf32_to64(as_type<uint>(deltaF32));
+        ulong squared64 = metal_sf64_mul(delta64, delta64);
+        localSum = metal_sf64_add(localSum, squared64);
+    }
+
+    reduction[threadIndex] = localSum;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    for (uint stride = threadCount / 2; stride > 0; stride >>= 1) {
+        if (threadIndex < stride) {
+            reduction[threadIndex] = metal_sf64_add(
+                reduction[threadIndex],
+                reduction[threadIndex + stride]
+            );
+        }
+
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+
+    return as_type<float>(metal_sf64_to32(reduction[0]));
 #pragma METAL fp_contract(on)
 }
 

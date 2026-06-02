@@ -123,8 +123,12 @@ func (generator *Generator) needsStrictFP(source string) bool {
 		return true
 	}
 
+	if strings.HasSuffix(baseName, "_stats.metal") {
+		return true
+	}
+
 	switch baseName {
-	case "optimizer.metal", "model_editing.metal", "standard.metal", "activation.metal", "resonant_update.metal":
+	case "groupnorm.metal", "layernorm_fused.metal", "layernorm.metal", "optimizer.metal", "model_editing.metal", "standard.metal", "activation.metal", "resonant_update.metal":
 		return true
 	default:
 		return false

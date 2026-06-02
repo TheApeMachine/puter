@@ -22,6 +22,7 @@ int metal_dispatch_layernorm(
 
 int metal_dispatch_layernorm_stats(
 	MetalDeviceRef contextRef,
+	int elementDType,
 	MetalBufferRef inputRef,
 	MetalBufferRef rowStatsRef,
 	uint32_t rows,
@@ -32,6 +33,7 @@ int metal_dispatch_layernorm_stats(
 
 int metal_dispatch_layernorm_apply(
 	MetalDeviceRef contextRef,
+	int elementDType,
 	MetalBufferRef inputRef,
 	MetalBufferRef scaleRef,
 	MetalBufferRef biasRef,
