@@ -54,3 +54,30 @@ kernel void layernorm_apply_float16(
         threadIndex
     );
 }
+
+kernel void layernorm_apply_bfloat16(
+    device const ushort* input [[buffer(0)]],
+    device const ushort* scale [[buffer(1)]],
+    device const ushort* bias [[buffer(2)]],
+    device ushort* out [[buffer(3)]],
+    device const float* rowStats [[buffer(4)]],
+    constant uint& cols [[buffer(5)]],
+    uint row [[threadgroup_position_in_grid]],
+    uint threadIndex [[thread_position_in_threadgroup]]
+) {
+    float mean = rowStats[row * 2];
+    float invStdDev = rowStats[row * 2 + 1];
+    uint rowOffset = row * cols;
+
+    layernorm_apply_row<BFloat16NormStorage, ushort>(
+        input,
+        scale,
+        bias,
+        out,
+        rowOffset,
+        cols,
+        mean,
+        invStdDev,
+        threadIndex
+    );
+}

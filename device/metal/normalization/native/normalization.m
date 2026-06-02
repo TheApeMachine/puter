@@ -416,6 +416,108 @@ static int metal_groupnorm_dispatch_f32(
     }
 }
 
+static int metal_groupnorm_dispatch_f16(
+    MetalDeviceRef contextRef,
+    MetalBufferRef inputRef,
+    MetalBufferRef scaleRef,
+    MetalBufferRef biasRef,
+    MetalBufferRef outRef,
+    uint32_t batch,
+    uint32_t channels,
+    uint32_t spatial,
+    uint32_t groups,
+    uint64_t completionToken,
+    MetalStatus* status
+) {
+    @autoreleasepool {
+        metal_norm_status_clear(status);
+
+        MetalContext* context = (MetalContext*)contextRef;
+
+        if (context == NULL || context->queue == NULL) {
+            metal_norm_status_set(status, -1, "invalid Metal context");
+            return -1;
+        }
+
+        uint32_t rowCount = batch * groups;
+        long long statsBytes = (long long)rowCount * 2LL * (long long)sizeof(float);
+        MetalBufferRef statsRef = metal_buffer_new_shared(contextRef, statsBytes);
+
+        if (statsRef == NULL) {
+            metal_norm_status_set(status, -3, "groupnorm stats buffer allocation failed");
+            return -3;
+        }
+
+        id<MTLComputePipelineState> statsPipeline =
+            metal_get_pipeline(context, "groupnorm_stats_float16", status);
+        id<MTLComputePipelineState> applyPipeline =
+            metal_get_pipeline(context, "groupnorm_apply_float16", status);
+
+        if (statsPipeline == nil || applyPipeline == nil) {
+            metal_buffer_release(statsRef);
+            return status != NULL && status->code != 0 ? status->code : -7;
+        }
+
+        id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)context->queue;
+        id<MTLCommandBuffer> commandBuffer = [queue commandBuffer];
+
+        if (commandBuffer == nil) {
+            metal_buffer_release(statsRef);
+            metal_norm_status_set(status, -3, "commandBuffer returned nil");
+            return -3;
+        }
+
+        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+
+        if (encoder == nil) {
+            metal_buffer_release(statsRef);
+            metal_norm_status_set(status, -4, "computeCommandEncoder returned nil");
+            return -4;
+        }
+
+        [encoder setComputePipelineState:statsPipeline];
+        [encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
+        [encoder setBuffer:(__bridge id<MTLBuffer>)statsRef offset:0 atIndex:1];
+        [encoder setBytes:&channels length:sizeof(channels) atIndex:2];
+        [encoder setBytes:&spatial length:sizeof(spatial) atIndex:3];
+        [encoder setBytes:&groups length:sizeof(groups) atIndex:4];
+        [encoder
+            dispatchThreadgroups:MTLSizeMake(rowCount, 1, 1)
+            threadsPerThreadgroup:MTLSizeMake(256, 1, 1)
+        ];
+        [encoder endEncoding];
+
+        encoder = [commandBuffer computeCommandEncoder];
+
+        if (encoder == nil) {
+            metal_buffer_release(statsRef);
+            metal_norm_status_set(status, -4, "computeCommandEncoder returned nil");
+            return -4;
+        }
+
+        [encoder setComputePipelineState:applyPipeline];
+        [encoder setBuffer:(__bridge id<MTLBuffer>)inputRef offset:0 atIndex:0];
+        [encoder setBuffer:(__bridge id<MTLBuffer>)scaleRef offset:0 atIndex:1];
+        [encoder setBuffer:(__bridge id<MTLBuffer>)biasRef offset:0 atIndex:2];
+        [encoder setBuffer:(__bridge id<MTLBuffer>)outRef offset:0 atIndex:3];
+        [encoder setBuffer:(__bridge id<MTLBuffer>)statsRef offset:0 atIndex:4];
+        [encoder setBytes:&channels length:sizeof(channels) atIndex:5];
+        [encoder setBytes:&spatial length:sizeof(spatial) atIndex:6];
+        [encoder setBytes:&groups length:sizeof(groups) atIndex:7];
+        [encoder
+            dispatchThreadgroups:MTLSizeMake(rowCount, 1, 1)
+            threadsPerThreadgroup:MTLSizeMake(256, 1, 1)
+        ];
+        [encoder endEncoding];
+
+        metal_track_command_completion(contextRef, commandBuffer, completionToken, NULL);
+        [commandBuffer commit];
+        metal_buffer_release(statsRef);
+
+        return 0;
+    }
+}
+
 int metal_dispatch_groupnorm(
     MetalDeviceRef contextRef,
     int elementDType,
@@ -437,6 +539,22 @@ int metal_dispatch_groupnorm(
 
     if (elementDType == MetalElementDTypeFloat32) {
         return metal_groupnorm_dispatch_f32(
+            contextRef,
+            inputRef,
+            scaleRef,
+            biasRef,
+            outRef,
+            batch,
+            channels,
+            spatial,
+            groups,
+            completionToken,
+            status
+        );
+    }
+
+    if (elementDType == MetalElementDTypeFloat16) {
+        return metal_groupnorm_dispatch_f16(
             contextRef,
             inputRef,
             scaleRef,

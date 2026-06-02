@@ -109,6 +109,163 @@ static inline float f16_to_float_norm(half value) {
     return as_type<float>(sign | ((exp + 112u) << 23) | coef);
 }
 
+static inline float metal_layernorm_horizontal_sum_float4(float4 value) {
+    float pair0 = value[0] + value[1];
+    float pair1 = value[2] + value[3];
+
+    return pair0 + pair1;
+}
+
+static inline half metal_layernorm_sum_f16_native(
+    device const half* input,
+    uint baseOffset,
+    uint count
+) {
+#pragma METAL fp_contract(off)
+    float4 acc0 = float4(0.0f);
+    float4 acc1 = float4(0.0f);
+    float4 acc2 = float4(0.0f);
+    float4 acc3 = float4(0.0f);
+    uint index = 0;
+
+    while (index + 16 <= count) {
+        half partial[8];
+
+        for (uint lane = 0; lane < 8; lane++) {
+            partial[lane] = input[baseOffset + index + lane];
+        }
+
+        for (uint lane = 0; lane < 8; lane++) {
+            partial[lane] = input[baseOffset + index + 8 + lane] + partial[lane];
+        }
+
+        acc0 += float4(
+            f16_to_float_norm(as_type<ushort>(partial[0])),
+            f16_to_float_norm(as_type<ushort>(partial[1])),
+            f16_to_float_norm(as_type<ushort>(partial[2])),
+            f16_to_float_norm(as_type<ushort>(partial[3]))
+        );
+        acc1 += float4(
+            f16_to_float_norm(as_type<ushort>(partial[4])),
+            f16_to_float_norm(as_type<ushort>(partial[5])),
+            f16_to_float_norm(as_type<ushort>(partial[6])),
+            f16_to_float_norm(as_type<ushort>(partial[7]))
+        );
+        index += 16;
+    }
+
+    while (index + 8 <= count) {
+        half partial[8];
+
+        for (uint lane = 0; lane < 8; lane++) {
+            partial[lane] = input[baseOffset + index + lane];
+        }
+
+        acc0 += float4(
+            f16_to_float_norm(as_type<ushort>(partial[0])),
+            f16_to_float_norm(as_type<ushort>(partial[1])),
+            f16_to_float_norm(as_type<ushort>(partial[2])),
+            f16_to_float_norm(as_type<ushort>(partial[3]))
+        );
+        acc1 += float4(
+            f16_to_float_norm(as_type<ushort>(partial[4])),
+            f16_to_float_norm(as_type<ushort>(partial[5])),
+            f16_to_float_norm(as_type<ushort>(partial[6])),
+            f16_to_float_norm(as_type<ushort>(partial[7]))
+        );
+        index += 8;
+    }
+
+    acc0 += acc1;
+    acc0 += acc2;
+    acc0 += acc3;
+    float sumF32 = metal_layernorm_horizontal_sum_float4(acc0);
+
+    while (index < count) {
+        sumF32 += f16_to_float_norm(as_type<ushort>(input[baseOffset + index]));
+        index++;
+    }
+
+    return as_type<half>(float_to_f16_norm(sumF32));
+#pragma METAL fp_contract(on)
+}
+
+static inline ushort metal_layernorm_sum_bf16_native(
+    device const ushort* input,
+    uint baseOffset,
+    uint count
+) {
+#pragma METAL fp_contract(off)
+    float4 acc0 = float4(0.0f);
+    float4 acc1 = float4(0.0f);
+    float4 acc2 = float4(0.0f);
+    float4 acc3 = float4(0.0f);
+    uint index = 0;
+
+    while (index + 16 <= count) {
+        float4 block0 = float4(
+            bf16_to_float_norm(input[baseOffset + index]),
+            bf16_to_float_norm(input[baseOffset + index + 1]),
+            bf16_to_float_norm(input[baseOffset + index + 2]),
+            bf16_to_float_norm(input[baseOffset + index + 3])
+        );
+        float4 block1 = float4(
+            bf16_to_float_norm(input[baseOffset + index + 4]),
+            bf16_to_float_norm(input[baseOffset + index + 5]),
+            bf16_to_float_norm(input[baseOffset + index + 6]),
+            bf16_to_float_norm(input[baseOffset + index + 7])
+        );
+        float4 block2 = float4(
+            bf16_to_float_norm(input[baseOffset + index + 8]),
+            bf16_to_float_norm(input[baseOffset + index + 9]),
+            bf16_to_float_norm(input[baseOffset + index + 10]),
+            bf16_to_float_norm(input[baseOffset + index + 11])
+        );
+        float4 block3 = float4(
+            bf16_to_float_norm(input[baseOffset + index + 12]),
+            bf16_to_float_norm(input[baseOffset + index + 13]),
+            bf16_to_float_norm(input[baseOffset + index + 14]),
+            bf16_to_float_norm(input[baseOffset + index + 15])
+        );
+        acc0 += block0;
+        acc1 += block1;
+        acc2 += block2;
+        acc3 += block3;
+        index += 16;
+    }
+
+    while (index + 8 <= count) {
+        float4 block0 = float4(
+            bf16_to_float_norm(input[baseOffset + index]),
+            bf16_to_float_norm(input[baseOffset + index + 1]),
+            bf16_to_float_norm(input[baseOffset + index + 2]),
+            bf16_to_float_norm(input[baseOffset + index + 3])
+        );
+        float4 block1 = float4(
+            bf16_to_float_norm(input[baseOffset + index + 4]),
+            bf16_to_float_norm(input[baseOffset + index + 5]),
+            bf16_to_float_norm(input[baseOffset + index + 6]),
+            bf16_to_float_norm(input[baseOffset + index + 7])
+        );
+        acc0 += block0;
+        acc1 += block1;
+        index += 8;
+    }
+
+    acc0 += acc1;
+    acc0 += acc2;
+    acc0 += acc3;
+    float sumF32 = metal_layernorm_horizontal_sum_float4(acc0);
+
+    while (index < count) {
+        sumF32 += bf16_to_float_norm(input[baseOffset + index]);
+        index++;
+    }
+
+    return float_to_bf16_norm(sumF32);
+#pragma METAL fp_contract(on)
+}
+
 struct Float32NormStorage {
     static float load(device const float* values, uint index) {
         return values[index];
@@ -345,17 +502,18 @@ inline void compute_row_stats<BFloat16NormStorage, ushort>(
     thread float& mean,
     thread float& invStdDev
 ) {
-    float sumF32 = reduce_sum<BFloat16NormStorage, ushort>(
-        input,
-        reduction,
-        rowOffset,
-        cols,
-        threadIndex
-    );
-
     if (threadIndex == 0) {
+#pragma METAL fp_contract(off)
+        float sumF32 = reduce_sum<BFloat16NormStorage, ushort>(
+            input,
+            reduction,
+            rowOffset,
+            cols,
+            threadIndex
+        );
         ushort sumBf16 = float_to_bf16_norm(sumF32);
         mean = bf16_to_float_norm(sumBf16) / float(cols);
+#pragma METAL fp_contract(on)
         reduction[0] = mean;
     }
 
@@ -363,13 +521,16 @@ inline void compute_row_stats<BFloat16NormStorage, ushort>(
     mean = reduction[0];
 
     if (threadIndex == 0) {
+#pragma METAL fp_contract(off)
         float varianceSum = compute_variance_sum_f32<BFloat16NormStorage, ushort>(
             input,
             rowOffset,
             cols,
             mean
         );
-        invStdDev = metal_norm_inv_std_dev_f32(varianceSum, cols);
+        float variance = varianceSum / float(cols);
+        invStdDev = metal_norm_inv_std_dev_f32_go(variance + layerNormEpsilonMetal);
+#pragma METAL fp_contract(on)
         reduction[1] = invStdDev;
     }
 

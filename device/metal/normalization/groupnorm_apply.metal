@@ -1,5 +1,6 @@
 #include <metal_stdlib>
 #include "../internal/norm_stats.metalinc"
+#include "../layernorm/layernorm_common.metalinc"
 
 #pragma METAL fp_contract(off)
 
@@ -46,5 +47,42 @@ kernel void groupnorm_apply_float32(
 
         float scaled = normalized * scaleValue;
         out[groupOffset + elementOffset] = scaled + biasValue;
+    }
+}
+
+kernel void groupnorm_apply_float16(
+    device const half* input [[buffer(0)]],
+    device const half* scale [[buffer(1)]],
+    device const half* bias [[buffer(2)]],
+    device half* out [[buffer(3)]],
+    device const float* rowStats [[buffer(4)]],
+    constant uint& channels [[buffer(5)]],
+    constant uint& spatial [[buffer(6)]],
+    constant uint& groups [[buffer(7)]],
+    uint row [[threadgroup_position_in_grid]],
+    uint threadIndex [[thread_position_in_threadgroup]]
+) {
+    uint groupIndex = row % groups;
+    uint batchIndex = row / groups;
+    uint channelsPerGroup = channels / groups;
+    uint channelStart = groupIndex * channelsPerGroup;
+    uint groupSize = channelsPerGroup * spatial;
+    uint groupOffset = (batchIndex * channels + channelStart) * spatial;
+    float mean = rowStats[row * 2];
+    float invStdDev = rowStats[row * 2 + 1];
+
+    for (uint elementOffset = threadIndex; elementOffset < groupSize; elementOffset += groupnormApplyThreadCount) {
+        uint channelInGroup = elementOffset / spatial;
+        uint channel = channelStart + channelInGroup;
+        float inputValue = Float16NormStorage::load(input, groupOffset + elementOffset);
+        float scaleValue = Float16NormStorage::load(scale, channel);
+        float biasValue = Float16NormStorage::load(bias, channel);
+
+#pragma METAL fp_contract(off)
+        float normalized = (inputValue - mean) * invStdDev;
+        normalized = normalized * scaleValue;
+        float result = normalized + biasValue;
+#pragma METAL fp_contract(on)
+        Float16NormStorage::store(out, groupOffset + elementOffset, result);
     }
 }
