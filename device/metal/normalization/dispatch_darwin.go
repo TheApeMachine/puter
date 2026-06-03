@@ -98,6 +98,136 @@ func DispatchGroupNormRefs(
 	)
 }
 
+func DispatchGroupNormStatsRefs(
+	contextRef uintptr,
+	inputBuffer uintptr,
+	statsBuffer uintptr,
+	format dtype.DType,
+	batch uint32,
+	channels uint32,
+	spatial uint32,
+	groups uint32,
+) error {
+	return DispatchGroupNormStats(
+		C.MetalDeviceRef(unsafe.Pointer(contextRef)),
+		C.MetalBufferRef(unsafe.Pointer(inputBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(statsBuffer)),
+		format,
+		batch,
+		channels,
+		spatial,
+		groups,
+	)
+}
+
+func DispatchGroupNormStats(
+	contextRef C.MetalDeviceRef,
+	inputBuffer C.MetalBufferRef,
+	statsBuffer C.MetalBufferRef,
+	format dtype.DType,
+	batch uint32,
+	channels uint32,
+	spatial uint32,
+	groups uint32,
+) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
+	var status C.MetalStatus
+	code := C.metal_dispatch_groupnorm_stats(
+		contextRef,
+		elementFormat,
+		inputBuffer,
+		statsBuffer,
+		C.uint32_t(batch),
+		C.uint32_t(channels),
+		C.uint32_t(spatial),
+		C.uint32_t(groups),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		return metalStatusError(status)
+	}
+
+	return nil
+}
+
+func DispatchGroupNormApplyRefs(
+	contextRef uintptr,
+	inputBuffer uintptr,
+	scaleBuffer uintptr,
+	biasBuffer uintptr,
+	outputBuffer uintptr,
+	statsBuffer uintptr,
+	format dtype.DType,
+	batch uint32,
+	channels uint32,
+	spatial uint32,
+	groups uint32,
+) error {
+	return DispatchGroupNormApply(
+		C.MetalDeviceRef(unsafe.Pointer(contextRef)),
+		C.MetalBufferRef(unsafe.Pointer(inputBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(scaleBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(biasBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(outputBuffer)),
+		C.MetalBufferRef(unsafe.Pointer(statsBuffer)),
+		format,
+		batch,
+		channels,
+		spatial,
+		groups,
+	)
+}
+
+func DispatchGroupNormApply(
+	contextRef C.MetalDeviceRef,
+	inputBuffer C.MetalBufferRef,
+	scaleBuffer C.MetalBufferRef,
+	biasBuffer C.MetalBufferRef,
+	outputBuffer C.MetalBufferRef,
+	statsBuffer C.MetalBufferRef,
+	format dtype.DType,
+	batch uint32,
+	channels uint32,
+	spatial uint32,
+	groups uint32,
+) error {
+	elementFormat := elementDType(format)
+
+	if elementFormat < 0 {
+		return errUnsupportedDType
+	}
+
+	var status C.MetalStatus
+	code := C.metal_dispatch_groupnorm_apply(
+		contextRef,
+		elementFormat,
+		inputBuffer,
+		scaleBuffer,
+		biasBuffer,
+		outputBuffer,
+		statsBuffer,
+		C.uint32_t(batch),
+		C.uint32_t(channels),
+		C.uint32_t(spatial),
+		C.uint32_t(groups),
+		0,
+		&status,
+	)
+
+	if code != 0 {
+		return metalStatusError(status)
+	}
+
+	return nil
+}
+
 func DispatchBatchNormDenorm(
 	contextRef C.MetalDeviceRef,
 	inputBuffer C.MetalBufferRef,

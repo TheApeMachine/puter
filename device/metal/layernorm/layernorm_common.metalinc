@@ -77,6 +77,10 @@ static inline ushort float_to_f16_norm(float value) {
     return ushort(halfSign | halfExponentBits | halfCoefficient);
 }
 
+static inline float f16_to_float_norm(ushort valueBits) {
+    return f16_to_float_norm(as_type<half>(valueBits));
+}
+
 static inline float f16_to_float_norm(half value) {
     ushort bits = as_type<ushort>(value);
     uint sign = uint(bits & 0x8000u) << 16;
@@ -109,11 +113,35 @@ static inline float f16_to_float_norm(half value) {
     return as_type<float>(sign | ((exp + 112u) << 23) | coef);
 }
 
+static inline half metal_f32_to_f16_sum_finalize(float value) {
+    return (half)value;
+}
+
+static inline float metal_f16_sum_scalar_lane_f32(float sumF32, ushort valueBits) {
+    uint sumBits = as_type<uint>(sumF32);
+    sumBits = (sumBits & 0xFFFF0000u) | uint(valueBits);
+    sumF32 = as_type<float>(sumBits);
+
+    return sumF32 + float(as_type<half>(valueBits));
+}
+
 static inline float metal_layernorm_horizontal_sum_float4(float4 value) {
     float pair0 = value[0] + value[1];
     float pair1 = value[2] + value[3];
 
     return pair0 + pair1;
+}
+
+static inline half metal_f16_add_norm(half left, half right) {
+    return as_type<half>(float_to_f16_norm(float(left) + float(right)));
+}
+
+static inline float metal_f16_block_widen(half value, uint useSoftwareWiden) {
+    if (useSoftwareWiden != 0u) {
+        return f16_to_float_norm(as_type<ushort>(value));
+    }
+
+    return float(value);
 }
 
 static inline half metal_layernorm_sum_f16_native(
@@ -122,6 +150,7 @@ static inline half metal_layernorm_sum_f16_native(
     uint count
 ) {
 #pragma METAL fp_contract(off)
+    uint useSoftwareBlockWiden = 0u;
     float4 acc0 = float4(0.0f);
     float4 acc1 = float4(0.0f);
     float4 acc2 = float4(0.0f);
@@ -140,16 +169,16 @@ static inline half metal_layernorm_sum_f16_native(
         }
 
         acc0 += float4(
-            f16_to_float_norm(as_type<ushort>(partial[0])),
-            f16_to_float_norm(as_type<ushort>(partial[1])),
-            f16_to_float_norm(as_type<ushort>(partial[2])),
-            f16_to_float_norm(as_type<ushort>(partial[3]))
+            metal_f16_block_widen(partial[0], useSoftwareBlockWiden),
+            metal_f16_block_widen(partial[1], useSoftwareBlockWiden),
+            metal_f16_block_widen(partial[2], useSoftwareBlockWiden),
+            metal_f16_block_widen(partial[3], useSoftwareBlockWiden)
         );
         acc1 += float4(
-            f16_to_float_norm(as_type<ushort>(partial[4])),
-            f16_to_float_norm(as_type<ushort>(partial[5])),
-            f16_to_float_norm(as_type<ushort>(partial[6])),
-            f16_to_float_norm(as_type<ushort>(partial[7]))
+            metal_f16_block_widen(partial[4], useSoftwareBlockWiden),
+            metal_f16_block_widen(partial[5], useSoftwareBlockWiden),
+            metal_f16_block_widen(partial[6], useSoftwareBlockWiden),
+            metal_f16_block_widen(partial[7], useSoftwareBlockWiden)
         );
         index += 16;
     }
@@ -162,16 +191,16 @@ static inline half metal_layernorm_sum_f16_native(
         }
 
         acc0 += float4(
-            f16_to_float_norm(as_type<ushort>(partial[0])),
-            f16_to_float_norm(as_type<ushort>(partial[1])),
-            f16_to_float_norm(as_type<ushort>(partial[2])),
-            f16_to_float_norm(as_type<ushort>(partial[3]))
+            metal_f16_block_widen(partial[0], useSoftwareBlockWiden),
+            metal_f16_block_widen(partial[1], useSoftwareBlockWiden),
+            metal_f16_block_widen(partial[2], useSoftwareBlockWiden),
+            metal_f16_block_widen(partial[3], useSoftwareBlockWiden)
         );
         acc1 += float4(
-            f16_to_float_norm(as_type<ushort>(partial[4])),
-            f16_to_float_norm(as_type<ushort>(partial[5])),
-            f16_to_float_norm(as_type<ushort>(partial[6])),
-            f16_to_float_norm(as_type<ushort>(partial[7]))
+            metal_f16_block_widen(partial[4], useSoftwareBlockWiden),
+            metal_f16_block_widen(partial[5], useSoftwareBlockWiden),
+            metal_f16_block_widen(partial[6], useSoftwareBlockWiden),
+            metal_f16_block_widen(partial[7], useSoftwareBlockWiden)
         );
         index += 8;
     }
@@ -179,14 +208,19 @@ static inline half metal_layernorm_sum_f16_native(
     acc0 += acc1;
     acc0 += acc2;
     acc0 += acc3;
-    float sumF32 = metal_layernorm_horizontal_sum_float4(acc0);
+    volatile float sumF32 = metal_layernorm_horizontal_sum_float4(acc0);
 
+#pragma clang loop vectorize(disable)
+#pragma clang loop interleave(disable)
     while (index < count) {
-        sumF32 += f16_to_float_norm(as_type<ushort>(input[baseOffset + index]));
+        sumF32 = metal_f16_sum_scalar_lane_f32(
+            sumF32,
+            as_type<ushort>(input[baseOffset + index])
+        );
         index++;
     }
 
-    return as_type<half>(float_to_f16_norm(sumF32));
+    return metal_f32_to_f16_sum_finalize(sumF32);
 #pragma METAL fp_contract(on)
 }
 
@@ -504,14 +538,7 @@ inline void compute_row_stats<BFloat16NormStorage, ushort>(
 ) {
     if (threadIndex == 0) {
 #pragma METAL fp_contract(off)
-        float sumF32 = reduce_sum<BFloat16NormStorage, ushort>(
-            input,
-            reduction,
-            rowOffset,
-            cols,
-            threadIndex
-        );
-        ushort sumBf16 = float_to_bf16_norm(sumF32);
+        ushort sumBf16 = metal_layernorm_sum_bf16_native(input, rowOffset, cols);
         mean = bf16_to_float_norm(sumBf16) / float(cols);
 #pragma METAL fp_contract(on)
         reduction[0] = mean;
@@ -528,8 +555,7 @@ inline void compute_row_stats<BFloat16NormStorage, ushort>(
             cols,
             mean
         );
-        float variance = varianceSum / float(cols);
-        invStdDev = metal_norm_inv_std_dev_f32_go(variance + layerNormEpsilonMetal);
+        invStdDev = metal_norm_inv_std_dev_f32(varianceSum, cols);
 #pragma METAL fp_contract(on)
         reduction[1] = invStdDev;
     }

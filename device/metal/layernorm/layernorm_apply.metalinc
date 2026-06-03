@@ -132,10 +132,8 @@ inline void layernorm_apply_row<BFloat16NormStorage, ushort>(
             float inputValue = BFloat16NormStorage::load(input, rowOffset + colIndex);
             float scaleValue = BFloat16NormStorage::load(scale, colIndex);
             float biasValue = BFloat16NormStorage::load(bias, colIndex);
-            float delta = inputValue - mean;
-            delta = delta * invStdDev;
-            delta = delta * scaleValue;
-            float result = delta + biasValue;
+            float normalized = (inputValue - mean) * invStdDev;
+            float result = normalized * scaleValue + biasValue;
 #pragma METAL fp_contract(on)
             BFloat16NormStorage::store(out, rowOffset + colIndex, result);
         }

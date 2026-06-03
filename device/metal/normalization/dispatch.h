@@ -68,6 +68,35 @@ int metal_dispatch_gated_residual(
     MetalStatus* status
 );
 
+int metal_dispatch_groupnorm_stats(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef inputRef,
+    MetalBufferRef rowStatsRef,
+    uint32_t batch,
+    uint32_t channels,
+    uint32_t spatial,
+    uint32_t groups,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+
+int metal_dispatch_groupnorm_apply(
+    MetalDeviceRef contextRef,
+    int elementDType,
+    MetalBufferRef inputRef,
+    MetalBufferRef scaleRef,
+    MetalBufferRef biasRef,
+    MetalBufferRef outRef,
+    MetalBufferRef rowStatsRef,
+    uint32_t batch,
+    uint32_t channels,
+    uint32_t spatial,
+    uint32_t groups,
+    uint64_t completionToken,
+    MetalStatus* status
+);
+
 #ifdef __cplusplus
 }
 #endif
