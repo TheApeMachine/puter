@@ -16,5 +16,6 @@ package metal
 #include "internal/runtime/bridge_shape_darwin.m"
 #include "internal/runtime/bridge_shape_common_darwin.m"
 #include "internal/runtime/bridge_shape_index_darwin.m"
+#include "internal/runtime/bridge_optimizer_darwin.m"
 */
 import "C"

@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/theapemachine/manifesto/ast"
+	"github.com/theapemachine/manifesto/dtype"
 )
 
 func configInt(node *ast.GraphNode, key string, defaultValue int) int {
@@ -188,4 +189,25 @@ func configString(node *ast.GraphNode, key string, defaultValue string) string {
 	}
 
 	return asString
+}
+
+func configDType(node *ast.GraphNode, key string) (dtype.DType, error) {
+	if node == nil || node.Attributes == nil {
+		return dtype.Invalid, fmt.Errorf("config %q is not set", key)
+	}
+
+	raw, ok := node.Attributes[key]
+
+	if !ok {
+		return dtype.Invalid, fmt.Errorf("config %q is not set", key)
+	}
+
+	switch typed := raw.(type) {
+	case dtype.DType:
+		return typed, nil
+	case string:
+		return dtype.Parse(typed)
+	default:
+		return dtype.Invalid, fmt.Errorf("config %q is %T, expected dtype", key, raw)
+	}
 }

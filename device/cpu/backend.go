@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	"github.com/theapemachine/manifesto/dtype"
+	"github.com/theapemachine/puter/device"
 	"github.com/theapemachine/puter/device/cpu/activation"
 	"github.com/theapemachine/puter/device/cpu/active_inference"
 	"github.com/theapemachine/puter/device/cpu/attention"
@@ -92,6 +93,8 @@ type Backend struct {
 	quant.Quantization
 }
 
+var _ device.Backend = (*Backend)(nil)
+
 /*
 NewBackend constructs a CPU backend and wires embedded family receivers.
 */
@@ -131,4 +134,40 @@ func (backend *Backend) Close() error {
 	backend.releaseWorkspace()
 
 	return nil
+}
+
+func (backend *Backend) bindFamilies() {
+	backend.Activation = activation.New()
+	backend.Elementwise = elementwise.New()
+	backend.Reduction = reduction.New()
+	backend.Product = dot.New()
+	backend.Gemm = matmul.New()
+	backend.Pool = pool.New()
+	backend.Convolution = convolution.New()
+	backend.DropoutLayer = dropout.New()
+	backend.Losses = losses.New()
+	backend.Sampling = sampling.New()
+	backend.Embedding = embedding.New()
+	backend.Geometry = geometry.New()
+	backend.Normalization = normalization.New()
+	backend.Norm = layernorm.New()
+	backend.RotaryEmbedding = rope.New()
+	backend.Hawkes = hawkes.New()
+	backend.Interpretability = interpretability.New()
+	backend.Physics = physics.New()
+	backend.Causal = causal.New()
+	backend.Masking = masking.New()
+	backend.Math = math.New()
+	backend.Checkpoint = checkpoint.New()
+	backend.ModelEditing = model_editing.New()
+	backend.Peel = peel.New()
+	backend.Shape = shape.New()
+	backend.Attention = attention.New()
+	backend.VSA = vsa.New()
+	backend.ActiveInference = active_inference.New()
+	backend.PredictiveCoding = predictive_coding.New()
+	backend.Resonant = resonant.New()
+	backend.Stepper = optimizer.NewStepper()
+	backend.Dequantization = dequant.New()
+	backend.Quantization = quant.New()
 }

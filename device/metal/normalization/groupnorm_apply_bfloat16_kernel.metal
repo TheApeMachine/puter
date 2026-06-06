@@ -6,11 +6,11 @@ using namespace metal;
 
 constant uint groupnormApplyThreadCount = 256;
 
-kernel void groupnorm_apply_float16(
-    device const half* input [[buffer(0)]],
-    device const half* scale [[buffer(1)]],
-    device const half* bias [[buffer(2)]],
-    device half* out [[buffer(3)]],
+kernel void groupnorm_apply_bfloat16(
+    device const ushort* input [[buffer(0)]],
+    device const ushort* scale [[buffer(1)]],
+    device const ushort* bias [[buffer(2)]],
+    device ushort* out [[buffer(3)]],
     device const float* rowStats [[buffer(4)]],
     constant uint& channels [[buffer(5)]],
     constant uint& spatial [[buffer(6)]],
@@ -30,8 +30,8 @@ kernel void groupnorm_apply_float16(
     for (uint channelInGroup = 0; channelInGroup < channelsPerGroup; channelInGroup++) {
         uint channel = channelStart + channelInGroup;
         uint rowOffset = groupOffset + channelInGroup * spatial;
-        float scaleValue = Float16NormStorage::load(scale, channel);
-        float biasValue = Float16NormStorage::load(bias, channel);
+        float scaleValue = BFloat16NormStorage::load(scale, channel);
+        float biasValue = BFloat16NormStorage::load(bias, channel);
 
         for (uint col = threadIndex * 4; col < spatial; col += vectorStride) {
             for (uint offset = 0; offset < 4; offset++) {
@@ -41,7 +41,7 @@ kernel void groupnorm_apply_float16(
                     break;
                 }
 
-                float inputValue = Float16NormStorage::load(input, rowOffset + colIndex);
+                float inputValue = BFloat16NormStorage::load(input, rowOffset + colIndex);
                 float result = metal_norm_apply_lane_f32_go(
                     inputValue,
                     mean,
@@ -49,7 +49,7 @@ kernel void groupnorm_apply_float16(
                     scaleValue,
                     biasValue
                 );
-                Float16NormStorage::store(out, rowOffset + colIndex, result);
+                BFloat16NormStorage::store(out, rowOffset + colIndex, result);
             }
         }
     }

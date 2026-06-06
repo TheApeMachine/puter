@@ -57,6 +57,11 @@ func runBoundNodeWithSlots(
 	resolver.outputShape = outputShape
 	resolver.outputDType = outputDType
 
+	if planned := resolver.dispatcher.workspaceOutput(node.ID); planned != nil {
+		resolver.outputShape = planned.Shape()
+		resolver.outputDType = planned.DType()
+	}
+
 	if isIntrinsicMethod(bind.Method) {
 		output, err := runIntrinsic(resolver)
 
@@ -232,6 +237,12 @@ func (resolver *bindResolver) resolveOutputShape() (tensor.Shape, error) {
 func (resolver *bindResolver) resolveOutputDType() (dtype.DType, error) {
 	if resolver.bind.Output.DType == "" {
 		return dtype.Float32, nil
+	}
+
+	if strings.HasPrefix(resolver.bind.Output.DType, "config.") {
+		configKey := strings.TrimPrefix(resolver.bind.Output.DType, "config.")
+
+		return configDType(resolver.node, configKey)
 	}
 
 	if strings.Contains(resolver.bind.Output.DType, ".") {

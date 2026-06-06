@@ -4,15 +4,16 @@ go 1.26.1
 
 replace github.com/theapemachine/manifesto => ../manifesto
 
+replace github.com/theapemachine/hf => ../hf
+
+replace github.com/theapemachine/qpool => ../qpool
+
 // replace github.com/theapemachine/errnie => ../errnie
-
-// replace github.com/theapemachine/qpool => ../qpool
-
-// replace github.com/theapemachine/hf => ../hf
 
 require (
 	github.com/smartystreets/goconvey v1.8.1
 	github.com/theapemachine/errnie v1.2.3
+	github.com/theapemachine/hf v1.2.3
 	github.com/theapemachine/manifesto v1.2.3
 	github.com/theapemachine/qpool v1.2.3
 	golang.org/x/sys v0.43.0
@@ -43,9 +44,8 @@ require (
 	github.com/mewmew/float v0.0.0-20201204173432-505706aa38fa // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/smarty/assertions v1.16.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
-	golang.org/x/mod v0.25.0 // indirect
-	golang.org/x/tools v0.33.0 // indirect
+	golang.org/x/mod v0.34.0 // indirect
+	golang.org/x/tools v0.43.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	tinygo.org/x/go-llvm v0.0.0-20260422095634-06c6725fe5e6 // indirect
 )

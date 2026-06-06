@@ -104,6 +104,14 @@ static inline float metal_norm_inv_std_dev_f32_go(float varianceWithEpsilonF32) 
     return as_type<float>(invBits);
 }
 
+static inline float metal_norm_inv_std_dev_f32_go_plain(float varianceWithEpsilonF32) {
+    ulong variance64 = metal_sf32_to64(as_type<uint>(varianceWithEpsilonF32));
+    ulong sqrtVariance = metal_sf64_sqrt(variance64);
+    ulong invStdDev64 = metal_sf64_div(SF64_TRAN_ONE, sqrtVariance);
+
+    return as_type<float>(metal_sf64_to32(invStdDev64));
+}
+
 static inline float metal_norm_squared_diff_sum_f32(
     device const float* input,
     uint baseOffset,
@@ -225,6 +233,34 @@ static inline float metal_norm_apply_lane_sf64(
     ulong scaled64 = metal_sf64_mul(normalized64, scale64);
 
     return as_type<float>(metal_sf64_to32(metal_sf64_add(scaled64, bias64)));
+}
+
+static inline float metal_norm_apply_lane_f32_go(
+    float inputValue,
+    float mean,
+    float invStdDev,
+    float scaleValue,
+    float biasValue
+) {
+    ulong input64 = metal_sf32_to64(as_type<uint>(inputValue));
+    ulong mean64 = metal_sf32_to64(as_type<uint>(mean));
+    ulong inv64 = metal_sf32_to64(as_type<uint>(invStdDev));
+    ulong scale64 = metal_sf32_to64(as_type<uint>(scaleValue));
+    ulong bias64 = metal_sf32_to64(as_type<uint>(biasValue));
+    uint normalizedBits = metal_sf64_to32(
+        metal_sf64_mul(
+            metal_sf64_add(input64, metal_sf64_neg(mean64)),
+            inv64
+        )
+    );
+    uint combinedBits = metal_sf64_to32(
+        metal_sf64_add(
+            metal_sf64_mul(metal_sf32_to64(normalizedBits), scale64),
+            bias64
+        )
+    );
+
+    return as_type<float>(combinedBits);
 }
 
 #endif
