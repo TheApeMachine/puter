@@ -625,7 +625,21 @@ func pointerOf(input tensor.Tensor) (unsafe.Pointer, int, error) {
 			), input.Len(), nil
 		}
 
+		if dataPointer == nil {
+			return nil, 0, fmt.Errorf(
+				"execution: %s tensor has no dispatch pointer",
+				input.Location(),
+			)
+		}
+
 		return dataPointer, input.Len(), nil
+	}
+
+	if input.Location() != tensor.Host {
+		return nil, 0, fmt.Errorf(
+			"execution: %s tensor does not implement DispatchPointer",
+			input.Location(),
+		)
 	}
 
 	storage, err := input.Float32Native()

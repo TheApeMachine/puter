@@ -182,7 +182,15 @@ func (backend *Backend) CallGraph(
 		request.LaunchBindings,
 	)
 
-	for name, value := range request.Inputs {
+	seededInputs, err := seedGraphInputs(backend, request.GraphName, request.Inputs, memory)
+
+	if err != nil {
+		return runtime.GraphCallResult{}, fmt.Errorf(
+			"execution: graph %q inputs: %w", request.GraphName, err,
+		)
+	}
+
+	for name, value := range seededInputs {
 		dispatcher.values.set(name, value)
 	}
 

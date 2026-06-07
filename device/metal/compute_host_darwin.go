@@ -785,6 +785,33 @@ func (host *ComputeHost) LaunchModulatedLayerNorm(
 		host.dispatchError(errInvalidModulatedLayerNormShape)
 	}
 
+	inputTensor := resolveDeviceTensor(input)
+	modulationTensor := resolveDeviceTensor(modulation)
+
+	if inputTensor != nil && modulationTensor != nil &&
+		inputTensor.DType() != modulationTensor.DType() {
+		host.dispatchError(fmt.Errorf(
+			"metal modulated layernorm: input dtype %s does not match modulation dtype %s",
+			inputTensor.DType(),
+			modulationTensor.DType(),
+		))
+
+		return
+	}
+
+	if inputTensor != nil {
+		format = inputTensor.DType()
+	}
+
+	host.dispatchError(validateDispatchPointer("modulated layernorm input", input, rows*lastDim, format))
+	host.dispatchError(validateDispatchPointer(
+		"modulated layernorm modulation",
+		modulation,
+		(rows/rowsPerBatch)*modulationCols,
+		format,
+	))
+	host.dispatchError(validateDispatchPointer("modulated layernorm output", output, rows*lastDim, format))
+
 	if err := normalization.DispatchModulatedLayerNormRefs(
 		host.contextRef(),
 		uintptr(unsafe.Pointer(resolveBufferRef(input))),
@@ -809,6 +836,7 @@ func (host *ComputeHost) MatmulLaunch(out, left, right unsafe.Pointer, rows, inn
 
 	if err := host.validateMatmulLaunch(out, left, right, rows, inner, cols, format); err != nil {
 		host.dispatchError(err)
+		return
 	}
 
 	if err := matmul.DispatchMatmulRefs(

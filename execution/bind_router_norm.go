@@ -27,6 +27,10 @@ func callModulatedLayerNorm(
 		return err
 	}
 
+	if err := requireDispatchPointers("ModulatedLayerNorm", input, modulation, output); err != nil {
+		return err
+	}
+
 	rows, lastDim, rowsPerBatch, err := castThreeInts(args[3:6], "ModulatedLayerNorm")
 
 	if err != nil {

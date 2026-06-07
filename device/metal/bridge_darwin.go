@@ -209,6 +209,32 @@ func (bridge *metalBridge) download(input tensor.Tensor) (dtype.DType, []byte, e
 	return deviceTensor.elementFormat, bytesOut, nil
 }
 
+func (bridge *metalBridge) writeDeviceTensorBytes(deviceTensor *DeviceTensor, bytesIn []byte) error {
+	if deviceTensor == nil {
+		return tensor.ErrShapeMismatch
+	}
+
+	if len(bytesIn) != deviceTensor.byteCount {
+		return tensor.ErrShapeMismatch
+	}
+
+	if deviceTensor.byteCount == 0 {
+		return nil
+	}
+
+	bridge.waitIdle()
+
+	contents := C.metal_buffer_contents(deviceTensor.buffer)
+
+	if contents == nil {
+		return tensor.ErrNeedsPlatformSetup
+	}
+
+	C.memcpy(contents, unsafe.Pointer(&bytesIn[0]), C.size_t(deviceTensor.byteCount))
+
+	return nil
+}
+
 func bridgeStatusMessage(status C.MetalStatus) string {
 	if status.code == 0 {
 		return "metal bridge ok"
@@ -278,7 +304,7 @@ func resolveDeviceTensor(pointer unsafe.Pointer) *DeviceTensor {
 
 	deviceTensor := (*DeviceTensor)(pointer)
 
-	if deviceTensor.buffer == nil {
+	if deviceTensor.backend == nil || deviceTensor.buffer == nil {
 		return nil
 	}
 
@@ -292,7 +318,52 @@ func resolveBufferRef(pointer unsafe.Pointer) C.MetalBufferRef {
 		return deviceTensor.buffer
 	}
 
-	return C.MetalBufferRef(pointer)
+	return nil
+}
+
+func validateDispatchPointer(
+	name string,
+	pointer unsafe.Pointer,
+	elementCount int,
+	format dtype.DType,
+) error {
+	if pointer == nil {
+		return fmt.Errorf("metal %s: dispatch pointer is nil", name)
+	}
+
+	address := uintptr(pointer)
+
+	if address < 0x1000 {
+		return fmt.Errorf("metal %s: dispatch pointer %p is not a resident tensor handle", name, pointer)
+	}
+
+	deviceTensor := resolveDeviceTensor(pointer)
+
+	if deviceTensor == nil {
+		return fmt.Errorf("metal %s: dispatch pointer %p does not resolve to a resident tensor", name, pointer)
+	}
+
+	if format != dtype.Invalid && deviceTensor.DType() != format {
+		return fmt.Errorf(
+			"metal %s: tensor dtype %s does not match launch dtype %s",
+			name, deviceTensor.DType(), format,
+		)
+	}
+
+	requiredBytes, err := deviceTensor.DType().BytesFor(elementCount)
+
+	if err != nil {
+		return fmt.Errorf("metal %s: byte count: %w", name, err)
+	}
+
+	if deviceTensor.Bytes() < requiredBytes {
+		return fmt.Errorf(
+			"metal %s: buffer has %d bytes, need %d bytes for %d %s elements",
+			name, deviceTensor.Bytes(), requiredBytes, elementCount, deviceTensor.DType(),
+		)
+	}
+
+	return nil
 }
 
 func (deviceTensor *DeviceTensor) Shape() tensor.Shape       { return deviceTensor.shape }
@@ -394,6 +465,24 @@ func (deviceTensor *DeviceTensor) DispatchPointer() unsafe.Pointer {
 	}
 
 	return unsafe.Pointer(deviceTensor)
+}
+
+/*
+ValidDispatchPointer reports whether this tensor can be handed to Metal
+kernels. Corrupted or sliced views that lost their buffer fail here.
+*/
+func (deviceTensor *DeviceTensor) ValidDispatchPointer() bool {
+	if deviceTensor == nil || deviceTensor.closed.Load() {
+		return false
+	}
+
+	if deviceTensor.backend == nil || deviceTensor.buffer == nil {
+		return false
+	}
+
+	_, err := deviceTensor.elementFormat.BytesFor(1)
+
+	return err == nil
 }
 
 func (deviceTensor *DeviceTensor) Slice(start, length int) (tensor.Tensor, error) {

@@ -220,6 +220,34 @@ func (resolver *bindResolver) resolveConcatOutputShape() (tensor.Shape, error) {
 	return tensor.NewShape(outputDimensions)
 }
 
+func (resolver *bindResolver) resolveMergeHeadsOutputShape() (tensor.Shape, error) {
+	inputRaw, err := resolver.resolveInputTensor("0")
+
+	if err != nil {
+		return tensor.Shape{}, err
+	}
+
+	input, err := resolver.liveInputTensor("0", inputRaw)
+
+	if err != nil {
+		return tensor.Shape{}, err
+	}
+
+	dimensions := input.Shape().Dims()
+
+	if len(dimensions) < 2 {
+		return tensor.Shape{}, fmt.Errorf(
+			"shape.merge_heads input must have rank >= 2, got %d",
+			len(dimensions),
+		)
+	}
+
+	prefix := append([]int(nil), dimensions[:len(dimensions)-2]...)
+	merged := productInts(dimensions[len(dimensions)-2:])
+
+	return tensor.NewShape(append(prefix, merged))
+}
+
 func (resolver *bindResolver) resolveConcatInputs() (tensor.Tensor, tensor.Tensor, int, error) {
 	leftRaw, err := resolver.resolveInputTensor("0")
 

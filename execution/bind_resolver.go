@@ -198,6 +198,10 @@ func (resolver *bindResolver) resolveOutputShape() (tensor.Shape, error) {
 		return resolver.resolveConcatOutputShape()
 	}
 
+	if resolver.bind.Method == "shape.merge_heads" {
+		return resolver.resolveMergeHeadsOutputShape()
+	}
+
 	if resolver.bind.Method == "shape.last_token" {
 		return resolver.resolveLastTokenOutputShape()
 	}
@@ -496,7 +500,7 @@ func (resolver *bindResolver) resolveInputDimensions(
 					resolver.dispatcher.launchBindings,
 				)
 
-				if len(runtimeDimensions) != len(plannedDimensions) {
+				if len(runtimeDimensions) != len(plannedDimensions) && validDispatchTensor(inputTensor) {
 					return runtimeDimensions, nil
 				}
 			}

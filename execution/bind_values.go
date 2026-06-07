@@ -152,11 +152,29 @@ func (resolver *bindResolver) resolveInputTensor(source string) (tensor.Tensor, 
 	inputName := resolver.node.Inputs[inputIndex]
 	inputSlot := resolver.inputSlot(inputIndex)
 
+	if resolver.dispatcher.workspaces != nil && resolver.dispatcher.graphName == "transformer" {
+		if workspaceTensor, ok := resolver.resolveProducerWorkspaceTensor(inputName); ok {
+			if _, materialized := resolver.dispatcher.values.getSlot(inputSlot); materialized {
+				return workspaceTensor, nil
+			}
+
+			if _, materialized := resolver.dispatcher.values.get(inputName); materialized {
+				return workspaceTensor, nil
+			}
+		}
+	}
+
 	if raw, ok := resolver.dispatcher.values.getSlot(inputSlot); ok {
 		inputTensor, err := resolver.tensorFromValue(raw)
 
 		if err != nil {
 			return nil, fmt.Errorf("input %q: %w", inputName, err)
+		}
+
+		if !validDispatchTensor(inputTensor) {
+			if workspaceTensor, ok := resolver.resolveProducerWorkspaceTensor(inputName); ok {
+				return workspaceTensor, nil
+			}
 		}
 
 		resolver.dispatcher.values.setSlot(inputSlot, inputTensor)
@@ -173,12 +191,25 @@ func (resolver *bindResolver) resolveInputTensor(source string) (tensor.Tensor, 
 			return nil, fmt.Errorf("input %q: %w", inputName, err)
 		}
 
+		if !validDispatchTensor(inputTensor) {
+			if workspaceTensor, ok := resolver.resolveProducerWorkspaceTensor(inputName); ok {
+				return workspaceTensor, nil
+			}
+		}
+
 		resolver.dispatcher.values.set(inputName, inputTensor)
 
 		return inputTensor, nil
 	}
 
 	if resolver.dispatcher.workspaces != nil {
+		if outputTensor, ok := resolver.dispatcher.workspaces.OutputFor(
+			resolver.dispatcher.graphName,
+			inputName,
+		); ok && outputTensor != nil {
+			return outputTensor, nil
+		}
+
 		inputs, ok := resolver.dispatcher.workspaces.InputsFor(
 			resolver.dispatcher.graphName,
 			resolver.node.ID,
@@ -190,6 +221,55 @@ func (resolver *bindResolver) resolveInputTensor(source string) (tensor.Tensor, 
 	}
 
 	return nil, fmt.Errorf("execution: value %q not found", inputName)
+}
+
+type dispatchValidatable interface {
+	ValidDispatchPointer() bool
+}
+
+func (resolver *bindResolver) resolveProducerWorkspaceTensor(inputName string) (tensor.Tensor, bool) {
+	if resolver.dispatcher.workspaces == nil {
+		return nil, false
+	}
+
+	outputTensor, ok := resolver.dispatcher.workspaces.OutputFor(
+		resolver.dispatcher.graphName,
+		inputName,
+	)
+
+	if !ok || outputTensor == nil {
+		return nil, false
+	}
+
+	return outputTensor, true
+}
+
+func validDispatchTensor(input tensor.Tensor) bool {
+	if input == nil {
+		return false
+	}
+
+	if validatable, ok := input.(dispatchValidatable); ok {
+		return validatable.ValidDispatchPointer()
+	}
+
+	dispatchable, ok := input.(DispatchPointer)
+
+	if !ok {
+		return input.Location() == tensor.Host
+	}
+
+	pointer := dispatchable.DispatchPointer()
+
+	if pointer == nil {
+		return false
+	}
+
+	if input.Location() == tensor.Metal && uintptr(pointer) < 0x1000 {
+		return false
+	}
+
+	return true
 }
 
 func (resolver *bindResolver) inputSlot(inputIndex int) int {

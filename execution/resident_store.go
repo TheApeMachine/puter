@@ -165,6 +165,29 @@ func (store *ResidentStore) lookupSlice(
 }
 
 /*
+Absorb moves every tensor registration from other into store and clears other so
+Close on the donor does not release tensors now owned by store.
+*/
+func (store *ResidentStore) Absorb(other *ResidentStore) {
+	if store == nil || other == nil {
+		return
+	}
+
+	for name, token := range other.tokens {
+		store.tokens[name] = token
+	}
+
+	for name, resident := range other.tensors {
+		store.tensors[name] = resident
+	}
+
+	other.tokens = nil
+	other.tensors = nil
+	other.transposed = nil
+	other.sliced = nil
+}
+
+/*
 Close releases every registered resident tensor.
 */
 func (store *ResidentStore) Close() error {
@@ -193,10 +216,10 @@ func (store *ResidentStore) Close() error {
 }
 
 var (
-	_ WeightStore            = (*ResidentStore)(nil)
-	_ TransposedLookup       = (*ResidentStore)(nil)
-	_ SliceLookup            = (*ResidentStore)(nil)
-	_ TransposedSliceLookup  = (*ResidentStore)(nil)
+	_ WeightStore           = (*ResidentStore)(nil)
+	_ TransposedLookup      = (*ResidentStore)(nil)
+	_ SliceLookup           = (*ResidentStore)(nil)
+	_ TransposedSliceLookup = (*ResidentStore)(nil)
 )
 
 func transposeMatrix(memory tensor.Backend, input tensor.Tensor) (tensor.Tensor, error) {

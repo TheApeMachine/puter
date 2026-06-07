@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"iter"
 	"os"
+	"strings"
 
 	"github.com/theapemachine/hf/safetensors"
 	"github.com/theapemachine/manifesto/resolve"
@@ -111,31 +113,90 @@ func DownloadSafetensorsBundle(
 	}
 
 	resolver := resolve.NewResolver(hubClient)
-	weightFile, err := resolver.PrimaryWeightFile(ctx, location, subfolder, cacheDir)
+	weightFiles, err := resolver.WeightFiles(ctx, location, subfolder, cacheDir)
 
 	if err != nil {
 		return nil, "", fmt.Errorf("execution: resolve weight file: %w", err)
 	}
 
-	reader, file, err := hubClient.Open(ctx, location, weightFile, cacheDir)
+	store := NewResidentStore(memory)
+	parsers := make([]types.Parser, 0, len(weightFiles))
+	loadedPaths := make([]string, 0, len(weightFiles))
 
-	if err != nil {
-		return nil, "", fmt.Errorf("execution: open weight file %q: %w", weightFile, err)
+	for _, weightFile := range weightFiles {
+		reader, file, err := hubClient.Open(ctx, location, weightFile, cacheDir)
+
+		if err != nil {
+			return nil, "", fmt.Errorf("execution: open weight file %q: %w", weightFile, err)
+		}
+
+		rawBytes, readErr := os.ReadFile(file.Path)
+		reader.Close()
+
+		if readErr != nil {
+			return nil, "", fmt.Errorf("execution: read weight file %q: %w", file.Path, readErr)
+		}
+
+		bundle, loadErr := LoadSafetensorsArchive(rawBytes, memory)
+
+		if loadErr != nil {
+			return nil, "", loadErr
+		}
+
+		store.Absorb(bundle.Store)
+		parsers = append(parsers, bundle.Parser)
+		loadedPaths = append(loadedPaths, file.Path)
 	}
 
-	defer reader.Close()
+	return &CheckpointBundle{
+		Parser: NewMergedParser(parsers...),
+		Store:  store,
+	}, strings.Join(loadedPaths, ","), nil
+}
 
-	rawBytes, err := os.ReadFile(file.Path)
+/*
+MergedParser concatenates token streams from multiple safetensors parsers.
+Duplicate names keep the last occurrence.
+*/
+type MergedParser struct {
+	parsers []types.Parser
+}
 
-	if err != nil {
-		return nil, "", fmt.Errorf("execution: read weight file %q: %w", file.Path, err)
+/*
+NewMergedParser constructs one parser view over multiple archives.
+*/
+func NewMergedParser(parsers ...types.Parser) types.Parser {
+	filtered := make([]types.Parser, 0, len(parsers))
+
+	for _, parser := range parsers {
+		if parser != nil {
+			filtered = append(filtered, parser)
+		}
 	}
 
-	bundle, err := LoadSafetensorsArchive(rawBytes, memory)
-
-	if err != nil {
-		return nil, "", err
+	if len(filtered) == 0 {
+		return nil
 	}
 
-	return bundle, file.Path, nil
+	if len(filtered) == 1 {
+		return filtered[0]
+	}
+
+	return &MergedParser{parsers: filtered}
+}
+
+func (mergedParser *MergedParser) Generate() iter.Seq[types.Token] {
+	return func(yield func(types.Token) bool) {
+		if mergedParser == nil {
+			return
+		}
+
+		for _, parser := range mergedParser.parsers {
+			for token := range parser.Generate() {
+				if !yield(token) {
+					return
+				}
+			}
+		}
+	}
 }
