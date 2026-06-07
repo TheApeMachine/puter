@@ -130,7 +130,7 @@ func (bridge *metalBridge) download(input tensor.Tensor) (dtype.DType, []byte, e
 /*
 NewBackend constructs a Metal backend on non-darwin builds.
 */
-func NewBackend(ctx context.Context, workerPool *qpool.Q) (*Backend, error) {
+func NewBackend(ctx context.Context, workerPool *qpool.Q[any]) (*Backend, error) {
 	backend := &Backend{
 		pool: workerPool,
 	}

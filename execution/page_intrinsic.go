@@ -157,8 +157,18 @@ func runPageWriteDeviceIntrinsic(
 		return err
 	}
 
-	if pageIDs.Len() != offsets.Len() || pageIDs.Len() > config.valueRows {
-		return tensor.ErrShapeMismatch
+	if pageIDs.Len() != offsets.Len() {
+		return fmt.Errorf(
+			"state.page_write: page_ids len %d != offsets len %d: %w",
+			pageIDs.Len(), offsets.Len(), tensor.ErrShapeMismatch,
+		)
+	}
+
+	if pageIDs.Len() > config.valueRows {
+		return fmt.Errorf(
+			"state.page_write: page_ids len %d exceeds value rows %d (values shape %v): %w",
+			pageIDs.Len(), config.valueRows, values.Shape().Dims(), tensor.ErrShapeMismatch,
+		)
 	}
 
 	storagePointer, _, err := pointerOf(storage)
@@ -210,6 +220,8 @@ func runPageGatherIntrinsic(resolver *bindResolver) error {
 	if err != nil {
 		return err
 	}
+
+	resolver.outputDType = storage.DType()
 
 	pageTable, err := resolver.resolveInputTensor("1")
 
@@ -358,7 +370,10 @@ func pageDeviceConfig(
 
 	if len(storageDims) == 5 {
 		if layerIndex < 0 || layerIndex >= storageDims[0] {
-			return pageDeviceKernelConfig{}, tensor.ErrShapeMismatch
+			return pageDeviceKernelConfig{}, fmt.Errorf(
+				"page write layer_index %d out of range for storage %v: %w",
+				layerIndex, storageDims, tensor.ErrShapeMismatch,
+			)
 		}
 
 		layerElements := productInts(storageDims[1:])
@@ -366,24 +381,58 @@ func pageDeviceConfig(
 		storageDims = storageDims[1:]
 	}
 
-	if len(storageDims) < 2 || len(valueDims) != len(storageDims)-1 {
-		return pageDeviceKernelConfig{}, tensor.ErrShapeMismatch
+	if len(storageDims) < 2 {
+		return pageDeviceKernelConfig{}, fmt.Errorf(
+			"page write storage rank too low %v: %w",
+			storageDims, tensor.ErrShapeMismatch,
+		)
 	}
 
-	if storageDims[1] != pageSize || storage.DType() != values.DType() {
-		return pageDeviceKernelConfig{}, tensor.ErrShapeMismatch
+	if storageDims[1] != pageSize {
+		return pageDeviceKernelConfig{}, fmt.Errorf(
+			"page write page_size %d does not match storage %v: %w",
+			pageSize, storageDims, tensor.ErrShapeMismatch,
+		)
 	}
 
-	inner, err := trailingElementCount(valueDims[1:], storageDims[2:])
+	if storage.DType() != values.DType() {
+		return pageDeviceKernelConfig{}, fmt.Errorf(
+			"page write dtype mismatch storage=%s values=%s: %w",
+			storage.DType(), values.DType(), tensor.ErrShapeMismatch,
+		)
+	}
+
+	tailRank := len(storageDims) - 2
+
+	if tailRank < 1 || len(valueDims) < tailRank+1 {
+		return pageDeviceKernelConfig{}, fmt.Errorf(
+			"page write value rank mismatch storage=%v values=%v: %w",
+			storageDims, valueDims, tensor.ErrShapeMismatch,
+		)
+	}
+
+	valueTail := valueDims[len(valueDims)-tailRank:]
+	storageTail := storageDims[2:]
+
+	inner, err := trailingElementCount(valueTail, storageTail)
 
 	if err != nil {
-		return pageDeviceKernelConfig{}, err
+		return pageDeviceKernelConfig{}, fmt.Errorf(
+			"page write tail mismatch storage=%v values=%v: %w",
+			storageTail, valueTail, err,
+		)
+	}
+
+	valueRows := 1
+
+	for _, dimension := range valueDims[:len(valueDims)-tailRank] {
+		valueRows *= dimension
 	}
 
 	return pageDeviceKernelConfig{
 		pageCount:     storageDims[0],
 		inner:         inner,
-		valueRows:     valueDims[0],
+		valueRows:     valueRows,
 		storageOffset: storageOffset,
 	}, nil
 }

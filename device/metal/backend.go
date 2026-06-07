@@ -49,7 +49,7 @@ Backend is the Metal backend implementation.
 type Backend struct {
 	ctx    context.Context
 	cancel context.CancelFunc
-	pool   *qpool.Q
+	pool   *qpool.Q[any]
 	closed atomic.Bool
 	bridge *metalBridge
 

@@ -16,7 +16,7 @@ import (
 
 func TestAttachWorkspaceUsesMetalResidentWorkspace(testingObject *testing.T) {
 	convey.Convey("Given an execution backend pinned to Metal", testingObject, func() {
-		workerPool := qpool.NewQ(context.Background(), 1, 1, nil)
+		workerPool := qpool.NewQ[any](context.Background(), 1, 1, nil)
 		defer workerPool.Close()
 
 		devicePool, err := pool.New(context.Background(), workerPool)

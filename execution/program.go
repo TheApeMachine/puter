@@ -186,11 +186,13 @@ func (program *executionProgram) runLayer(
 	layerIndex int,
 	layer []*compiledNode,
 ) error {
-	if len(layer) == 1 {
-		return program.runStep(dispatcher, layerIndex, layer[0])
+	for _, step := range layer {
+		if err := program.runStep(dispatcher, layerIndex, step); err != nil {
+			return err
+		}
 	}
 
-	return program.runConcurrentLayer(dispatcher, layerIndex, layer)
+	return nil
 }
 
 func (program *executionProgram) runConcurrentLayer(

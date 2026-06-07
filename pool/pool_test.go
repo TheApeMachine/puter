@@ -55,7 +55,7 @@ func TestNew(test *testing.T) {
 
 func TestNew_Heterogeneous(test *testing.T) {
 	Convey("Given discovery on a host with optional accelerators", test, func() {
-		devicePool, err := New(context.Background(), qpool.NewQ(context.Background(), 1, 1, nil))
+		devicePool, err := New(context.Background(), qpool.NewQ[any](context.Background(), 1, 1, nil))
 		So(err, ShouldBeNil)
 
 		defer func() {

@@ -52,7 +52,7 @@ type Backend struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	err    error
-	pool   *qpool.Q
+	pool   *qpool.Q[any]
 	closed atomic.Bool
 
 	workspaceMu     sync.Mutex
@@ -98,7 +98,7 @@ var _ device.Backend = (*Backend)(nil)
 /*
 NewBackend constructs a CPU backend and wires embedded family receivers.
 */
-func NewBackend(ctx context.Context, workerPool *qpool.Q) (*Backend, error) {
+func NewBackend(ctx context.Context, workerPool *qpool.Q[any]) (*Backend, error) {
 	ctx, cancel := context.WithCancel(ctx)
 
 	backend := &Backend{

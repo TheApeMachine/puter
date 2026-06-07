@@ -24,14 +24,14 @@ type Pool struct {
 	cancel      context.CancelFunc
 	devices     map[DeviceID]device.Backend
 	hostBackend device.HostBackend
-	workerPool  *qpool.Q
+	workerPool  *qpool.Q[any]
 	closeOnce   sync.Once
 }
 
 /*
 New discovers resident device backends.
 */
-func New(ctx context.Context, workerPool *qpool.Q) (*Pool, error) {
+func New(ctx context.Context, workerPool *qpool.Q[any]) (*Pool, error) {
 	ctx, cancel := context.WithCancel(ctx)
 
 	cpuBackend, err := cpu.NewBackend(ctx, workerPool)
@@ -179,7 +179,7 @@ func (devicePool *Pool) PinTo(location tensor.Location) error {
 /*
 WorkerPool returns the shared goroutine pool used by discovered devices.
 */
-func (devicePool *Pool) WorkerPool() *qpool.Q {
+func (devicePool *Pool) WorkerPool() *qpool.Q[any] {
 	if devicePool == nil {
 		return nil
 	}

@@ -506,7 +506,7 @@ func (deviceTensor *DeviceTensor) Int4Native() (tensor.Int4Vector, error) {
 /*
 NewBackend constructs a Metal backend on darwin+cgo builds.
 */
-func NewBackend(ctx context.Context, workerPool *qpool.Q) (*Backend, error) {
+func NewBackend(ctx context.Context, workerPool *qpool.Q[any]) (*Backend, error) {
 	ctx, cancel := context.WithCancel(ctx)
 
 	backend := &Backend{

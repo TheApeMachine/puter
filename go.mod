@@ -44,6 +44,7 @@ require (
 	github.com/mewmew/float v0.0.0-20201204173432-505706aa38fa // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/smarty/assertions v1.16.0 // indirect
+	github.com/smarty/go-disruptor v0.5.0 // indirect
 	golang.org/x/mod v0.34.0 // indirect
 	golang.org/x/tools v0.43.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

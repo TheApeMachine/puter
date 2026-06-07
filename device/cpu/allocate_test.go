@@ -10,7 +10,7 @@ import (
 
 func TestBackendAllocateAligned(t *testing.T) {
 	Convey("Given a CPU backend", t, func() {
-		workerPool := qpool.NewQ(context.Background(), 1, 1, qpool.NewConfig())
+		workerPool := qpool.NewQ[any](context.Background(), 1, 1, qpool.NewConfig())
 		defer workerPool.Close()
 
 		backend, err := NewBackend(context.Background(), workerPool)

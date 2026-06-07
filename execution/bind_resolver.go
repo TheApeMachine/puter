@@ -58,8 +58,10 @@ func runBoundNodeWithSlots(
 	resolver.outputDType = outputDType
 
 	if planned := resolver.dispatcher.workspaceOutput(node.ID); planned != nil {
-		resolver.outputShape = planned.Shape()
-		resolver.outputDType = planned.DType()
+		if !isIntrinsicMethod(bind.Method) && !isPageIntrinsicMethod(bind.Method) {
+			resolver.outputShape = planned.Shape()
+			resolver.outputDType = planned.DType()
+		}
 	}
 
 	if isIntrinsicMethod(bind.Method) {
@@ -231,6 +233,12 @@ func (resolver *bindResolver) resolveOutputShape() (tensor.Shape, error) {
 		}
 	}
 
+	dimensions = substituteLaunchDimensions(
+		dimensions,
+		resolver.dispatcher.maxBindings,
+		resolver.dispatcher.launchBindings,
+	)
+
 	return tensor.NewShape(dimensions)
 }
 
@@ -269,6 +277,16 @@ func (resolver *bindResolver) allocateOutput() (tensor.Tensor, error) {
 
 	if err != nil {
 		return nil, err
+	}
+
+	if planned := resolver.dispatcher.workspaceOutput(resolver.node.ID); planned != nil {
+		if planned.DType() != resolver.outputDType && isPageIntrinsicMethod(resolver.bind.Method) {
+			return resolver.dispatcher.memory.Upload(
+				resolver.outputShape,
+				resolver.outputDType,
+				make([]byte, byteCount),
+			)
+		}
 	}
 
 	output, err := resolver.dispatcher.allocateOutput(
@@ -452,21 +470,13 @@ func (resolver *bindResolver) resolveInputDimensions(
 	}
 
 	if resolver.dispatcher.workspaces != nil {
-		inputName := resolver.node.Inputs[inputIndex]
-
-		if !isBoundaryInput(resolver.dispatcher.graph, inputName) {
-			if _, ok := resolver.dispatcher.values.get(inputName); ok {
-				return inputTensor.Shape().Dims(), nil
-			}
-		}
-
 		inputTypes, ok := resolver.dispatcher.workspaces.InputTypesFor(
 			resolver.dispatcher.graphName,
 			resolver.node.ID,
 		)
 
 		if ok && inputIndex < len(inputTypes) && len(inputTypes[inputIndex].ShapeSchema.Dimensions) > 0 {
-			shape, err := resolveLiveShape(
+			plannedShape, err := resolveLiveShape(
 				inputTypes[inputIndex].ShapeSchema,
 				inputTypes[inputIndex].DType,
 				resolver.dispatcher.maxBindings,
@@ -477,7 +487,21 @@ func (resolver *bindResolver) resolveInputDimensions(
 				return nil, err
 			}
 
-			return shape.Dims(), nil
+			plannedDimensions := plannedShape.Dims()
+
+			if resolver.inputTensorMaterialized(inputIndex) {
+				runtimeDimensions := substituteLaunchDimensions(
+					inputTensor.Shape().Dims(),
+					resolver.dispatcher.maxBindings,
+					resolver.dispatcher.launchBindings,
+				)
+
+				if len(runtimeDimensions) != len(plannedDimensions) {
+					return runtimeDimensions, nil
+				}
+			}
+
+			return plannedDimensions, nil
 		}
 	}
 
@@ -486,6 +510,26 @@ func (resolver *bindResolver) resolveInputDimensions(
 		resolver.dispatcher.maxBindings,
 		resolver.dispatcher.launchBindings,
 	), nil
+}
+
+func (resolver *bindResolver) inputTensorMaterialized(inputIndex int) bool {
+	if inputIndex < 0 || inputIndex >= len(resolver.node.Inputs) {
+		return false
+	}
+
+	inputName := resolver.node.Inputs[inputIndex]
+
+	if _, ok := resolver.dispatcher.values.get(inputName); ok {
+		return true
+	}
+
+	inputSlot := resolver.inputSlot(inputIndex)
+
+	if _, ok := resolver.dispatcher.values.getSlot(inputSlot); ok {
+		return true
+	}
+
+	return false
 }
 
 func (resolver *bindResolver) resolveOutputRef(parts []string) (any, error) {
