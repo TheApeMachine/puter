@@ -193,10 +193,10 @@ func copyGatedResidualHost(
 	}
 
 	copyGatedResidualFloat32(
-		unsafe.Slice((*float32)(outputPointer), output.Len()),
-		unsafe.Slice((*float32)(residualPointer), residual.Len()),
-		unsafe.Slice((*float32)(branchPointer), branch.Len()),
-		unsafe.Slice((*float32)(modulationPointer), modulation.Len()),
+		hostFloat32Slice(outputPointer, output.Len()),
+		hostFloat32Slice(residualPointer, residual.Len()),
+		hostFloat32Slice(branchPointer, branch.Len()),
+		hostFloat32Slice(modulationPointer, modulation.Len()),
 		layout,
 	)
 

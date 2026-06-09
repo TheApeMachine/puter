@@ -15,7 +15,7 @@ require (
 	github.com/theapemachine/errnie v1.2.3
 	github.com/theapemachine/hf v1.2.3
 	github.com/theapemachine/manifesto v1.2.3
-	github.com/theapemachine/qpool v1.2.3
+	github.com/theapemachine/qpool v1.2.4
 	golang.org/x/sys v0.43.0
 )
 

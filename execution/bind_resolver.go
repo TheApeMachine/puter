@@ -59,7 +59,6 @@ func runBoundNodeWithSlots(
 
 	if planned := resolver.dispatcher.workspaceOutput(node.ID); planned != nil {
 		if !isIntrinsicMethod(bind.Method) && !isPageIntrinsicMethod(bind.Method) {
-			resolver.outputShape = planned.Shape()
 			resolver.outputDType = planned.DType()
 		}
 	}
@@ -218,7 +217,12 @@ func (resolver *bindResolver) resolveOutputShape() (tensor.Shape, error) {
 		return resolver.resolveUpsampleNearest2DOutputShape()
 	}
 
+	if shape, ok, err := resolver.resolvePlannedOutputShape(); ok || err != nil {
+		return shape, err
+	}
+
 	dimensions := make([]int, 0, len(resolver.bind.Output.Shape))
+	substitutable := make([]bool, 0, len(resolver.bind.Output.Shape))
 
 	for index, spec := range resolver.bind.Output.Shape {
 		value, err := resolver.resolveArg(spec)
@@ -227,23 +231,76 @@ func (resolver *bindResolver) resolveOutputShape() (tensor.Shape, error) {
 			return tensor.Shape{}, fmt.Errorf("dim %d: %w", index, err)
 		}
 
+		useLaunchSubstitution := bindArgUsesLaunchSubstitution(spec)
+
 		switch typed := value.(type) {
 		case int:
 			dimensions = append(dimensions, typed)
+			substitutable = append(substitutable, useLaunchSubstitution)
 		case []int:
 			dimensions = append(dimensions, typed...)
+
+			for range typed {
+				substitutable = append(substitutable, useLaunchSubstitution)
+			}
 		default:
 			return tensor.Shape{}, fmt.Errorf("dim %d resolved to %T, expected int or []int", index, value)
 		}
 	}
 
-	dimensions = substituteLaunchDimensions(
+	dimensions = substituteMarkedLaunchDimensions(
 		dimensions,
+		substitutable,
 		resolver.dispatcher.maxBindings,
 		resolver.dispatcher.launchBindings,
 	)
 
 	return tensor.NewShape(dimensions)
+}
+
+func (resolver *bindResolver) resolvePlannedOutputShape() (tensor.Shape, bool, error) {
+	if resolver.dispatcher.workspaces == nil {
+		return tensor.Shape{}, false, nil
+	}
+
+	outputType, ok := resolver.dispatcher.workspaces.OutputTypeFor(
+		resolver.dispatcher.graphName,
+		resolver.node.ID,
+	)
+
+	if !ok || len(outputType.ShapeSchema.Dimensions) == 0 {
+		return tensor.Shape{}, false, nil
+	}
+
+	shape, err := resolveLiveShape(
+		outputType.ShapeSchema,
+		outputType.DType,
+		resolver.dispatcher.maxBindings,
+		resolver.dispatcher.launchBindings,
+	)
+
+	if err != nil {
+		return tensor.Shape{}, true, err
+	}
+
+	return shape, true, nil
+}
+
+func bindArgUsesLaunchSubstitution(spec asset.BindArg) bool {
+	if spec.Ref == "" {
+		return false
+	}
+
+	parts := strings.Split(spec.Ref, ".")
+
+	switch parts[0] {
+	case "launch":
+		return true
+	case "input":
+		return len(parts) >= 3 && parts[2] == "shape"
+	default:
+		return false
+	}
 }
 
 func (resolver *bindResolver) resolveOutputDType() (dtype.DType, error) {

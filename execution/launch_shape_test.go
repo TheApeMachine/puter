@@ -21,5 +21,15 @@ func TestSubstituteLaunchDimensions(test *testing.T) {
 			dims := substituteLaunchDimensions([]int{32, 64}, maxBindings, launchBindings)
 			convey.So(dims, convey.ShouldResemble, []int{32, 64})
 		})
+
+		convey.Convey("It should not rewrite unmarked static dimensions", func() {
+			dims := substituteMarkedLaunchDimensions(
+				[]int{1, 4096, 4096},
+				[]bool{false, true, false},
+				maxBindings,
+				launchBindings,
+			)
+			convey.So(dims, convey.ShouldResemble, []int{1, 42, 4096})
+		})
 	})
 }

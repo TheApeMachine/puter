@@ -2,7 +2,6 @@ package execution
 
 import (
 	"fmt"
-	"unsafe"
 
 	"github.com/theapemachine/manifesto/tensor"
 )
@@ -136,8 +135,8 @@ func copyUpsampleNearest2DHost(
 		return err
 	}
 
-	inputBytes := unsafe.Slice((*byte)(inputPointer), input.Bytes())
-	outputBytes := unsafe.Slice((*byte)(outputPointer), output.Bytes())
+	inputBytes := hostByteSlice(inputPointer, input.Bytes())
+	outputBytes := hostByteSlice(outputPointer, output.Bytes())
 
 	for outputIndex := range layout.outElements {
 		inputIndex := upsampleNearest2DInputIndex(layout, outputIndex)

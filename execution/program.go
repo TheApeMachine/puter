@@ -173,7 +173,9 @@ func (program *executionProgram) slotFor(name string) int {
 
 func (program *executionProgram) run(dispatcher *dispatcher) error {
 	for layerIndex, layer := range program.layers {
-		if err := program.runLayer(dispatcher, layerIndex, layer); err != nil {
+		if err := dispatcher.runBatchedLayer(func() error {
+			return program.runLayer(dispatcher, layerIndex, layer)
+		}); err != nil {
 			return err
 		}
 	}

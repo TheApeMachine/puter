@@ -475,6 +475,32 @@ func (host *ComputeHost) DispatchMultiHeadAttention(config device.MultiHeadAtten
 		return
 	}
 
+	kvHeads := config.KVHeadCount
+
+	if kvHeads <= 0 {
+		kvHeads = config.NumHeads
+	}
+
+	if err := validateMetalTensorBytes(query, "query", config.NumHeads*seqQ, config.HeadDim, format); err != nil {
+		host.dispatchError(err)
+		return
+	}
+
+	if err := validateMetalTensorBytes(key, "key", kvHeads*seqK, config.HeadDim, format); err != nil {
+		host.dispatchError(err)
+		return
+	}
+
+	if err := validateMetalTensorBytes(value, "value", kvHeads*seqK, config.HeadDim, format); err != nil {
+		host.dispatchError(err)
+		return
+	}
+
+	if err := validateMetalTensorBytes(output, "output", config.NumHeads*seqQ, config.HeadDim, format); err != nil {
+		host.dispatchError(err)
+		return
+	}
+
 	if err := attention.DispatchMultiHeadAttentionRefs(
 		host.contextRef(),
 		uintptr(unsafe.Pointer(resolveBufferRef(query))),
@@ -516,6 +542,18 @@ func (host *ComputeHost) DispatchQuantumPotential(density, output unsafe.Pointer
 
 func (host *ComputeHost) DispatchRoPE(config device.RoPEConfig, input, output unsafe.Pointer, seqLen, numHeads, headDim int, format dtype.DType) {
 	if seqLen == 0 || numHeads == 0 || headDim == 0 {
+		return
+	}
+
+	elementCount := seqLen * numHeads * headDim
+
+	if err := validateDispatchPointer("rope input", input, elementCount, format); err != nil {
+		host.dispatchError(err)
+		return
+	}
+
+	if err := validateDispatchPointer("rope output", output, elementCount, format); err != nil {
+		host.dispatchError(err)
 		return
 	}
 
@@ -651,6 +689,21 @@ func (host *ComputeHost) LaunchLookup(table, indices, output unsafe.Pointer, voc
 		return
 	}
 
+	if err := validateMetalTensorBytes(table, "table", vocab, hidden, format); err != nil {
+		host.dispatchError(err)
+		return
+	}
+
+	if err := validateMetalTensorBytes(indices, "indices", indexCount, 1, dtype.Int32); err != nil {
+		host.dispatchError(err)
+		return
+	}
+
+	if err := validateMetalTensorBytes(output, "output", indexCount, hidden, format); err != nil {
+		host.dispatchError(err)
+		return
+	}
+
 	if err := embedding.DispatchLookupRefs(
 		host.contextRef(),
 		uintptr(unsafe.Pointer(resolveBufferRef(table))),
@@ -714,6 +767,21 @@ func (host *ComputeHost) LaunchRMSNorm(
 	}
 
 	host.dispatchError(config.Validate())
+
+	if err := validateMetalTensorBytes(input, "input", rows, lastDim, format); err != nil {
+		host.dispatchError(err)
+		return
+	}
+
+	if err := validateMetalTensorBytes(scale, "scale", 1, lastDim, format); err != nil {
+		host.dispatchError(err)
+		return
+	}
+
+	if err := validateMetalTensorBytes(output, "output", rows, lastDim, format); err != nil {
+		host.dispatchError(err)
+		return
+	}
 
 	if err := layernorm.DispatchRMSNormRefs(
 		host.contextRef(),

@@ -237,7 +237,11 @@ is sequential today; layer parallelism lands once the async DAG executor
 is in place (ARCHITECTURE.md §5.2). The contract is preserved: nodes
 within one layer are independent and could run concurrently.
 */
-func (dispatcher *dispatcher) run() (err error) {
+func (dispatcher *dispatcher) run() error {
+	return dispatcher.runLayers()
+}
+
+func (dispatcher *dispatcher) runBatchedLayer(body func() error) (err error) {
 	batcher, batching, err := dispatcher.beginBatch()
 
 	if err != nil {
@@ -254,7 +258,7 @@ func (dispatcher *dispatcher) run() (err error) {
 		}()
 	}
 
-	return dispatcher.runLayers()
+	return body()
 }
 
 func (dispatcher *dispatcher) beginBatch() (batchExecutionDevice, bool, error) {
@@ -653,4 +657,22 @@ func pointerOf(input tensor.Tensor) (unsafe.Pointer, int, error) {
 	}
 
 	return unsafe.Pointer(&storage[0]), len(storage), nil
+}
+
+func hostStoragePointer(pointer unsafe.Pointer) unsafe.Pointer {
+	data, _, _, _ := cpudispatch.ResolvePointer(pointer)
+
+	if data != nil {
+		return data
+	}
+
+	return pointer
+}
+
+func hostByteSlice(pointer unsafe.Pointer, byteCount int) []byte {
+	return unsafe.Slice((*byte)(hostStoragePointer(pointer)), byteCount)
+}
+
+func hostFloat32Slice(pointer unsafe.Pointer, elementCount int) []float32 {
+	return unsafe.Slice((*float32)(hostStoragePointer(pointer)), elementCount)
 }

@@ -189,8 +189,8 @@ func copyTransposeHost(output tensor.Tensor, input tensor.Tensor, layout transpo
 		return err
 	}
 
-	inputBytes := unsafe.Slice((*byte)(inputPointer), input.Bytes())
-	outputBytes := unsafe.Slice((*byte)(outputPointer), output.Bytes())
+	inputBytes := hostByteSlice(inputPointer, input.Bytes())
+	outputBytes := hostByteSlice(outputPointer, output.Bytes())
 	inputCoordinates := make([]int, len(layout.inputDimensions))
 	outputCoordinates := make([]int, len(layout.outputDimensions))
 

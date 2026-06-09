@@ -193,8 +193,8 @@ func copySliceHost(output tensor.Tensor, input tensor.Tensor, layout sliceLayout
 		return err
 	}
 
-	inputBytes := unsafe.Slice((*byte)(inputPointer), input.Bytes())
-	outputBytes := unsafe.Slice((*byte)(outputPointer), output.Bytes())
+	inputBytes := hostByteSlice(inputPointer, input.Bytes())
+	outputBytes := hostByteSlice(outputPointer, output.Bytes())
 	blockBytes := layout.blockElements() * elementSize
 	inputStrideBytes := layout.inputStrideElements() * elementSize
 	startBytes := layout.start * layout.inner * elementSize

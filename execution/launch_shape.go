@@ -18,6 +18,21 @@ func substituteLaunchDimensions(
 	maxBindings ir.SymbolMap,
 	launchBindings ir.SymbolMap,
 ) []int {
+	substitutable := make([]bool, len(physical))
+
+	for index := range substitutable {
+		substitutable[index] = true
+	}
+
+	return substituteMarkedLaunchDimensions(physical, substitutable, maxBindings, launchBindings)
+}
+
+func substituteMarkedLaunchDimensions(
+	physical []int,
+	substitutable []bool,
+	maxBindings ir.SymbolMap,
+	launchBindings ir.SymbolMap,
+) []int {
 	if len(physical) == 0 || len(launchBindings) == 0 {
 		return physical
 	}
@@ -25,6 +40,10 @@ func substituteLaunchDimensions(
 	result := append([]int(nil), physical...)
 
 	for index, dimension := range result {
+		if index >= len(substitutable) || !substitutable[index] {
+			continue
+		}
+
 		for symbol, maxValue := range maxBindings {
 			liveValue, hasLive := launchBindings[symbol]
 

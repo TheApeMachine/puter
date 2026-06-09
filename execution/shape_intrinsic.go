@@ -353,9 +353,9 @@ func copyConcatHost(output tensor.Tensor, left tensor.Tensor, right tensor.Tenso
 	}
 
 	return copyConcatBytes(
-		unsafe.Slice((*byte)(outputPointer), output.Bytes()),
-		unsafe.Slice((*byte)(leftPointer), left.Bytes()),
-		unsafe.Slice((*byte)(rightPointer), right.Bytes()),
+		hostByteSlice(outputPointer, output.Bytes()),
+		hostByteSlice(leftPointer, left.Bytes()),
+		hostByteSlice(rightPointer, right.Bytes()),
 		left.Shape().Dims(),
 		right.Shape().Dims(),
 		axis,
@@ -571,8 +571,8 @@ func copyTensorStorage(destination tensor.Tensor, source tensor.Tensor, elements
 	}
 
 	copy(
-		unsafe.Slice((*byte)(destinationPointer), byteCount),
-		unsafe.Slice((*byte)(sourcePointer), byteCount),
+		hostByteSlice(destinationPointer, byteCount),
+		hostByteSlice(sourcePointer, byteCount),
 	)
 
 	return nil

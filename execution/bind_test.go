@@ -939,7 +939,7 @@ func TestRunBoundNodeResolvesRoPEConfig(t *testing.T) {
 		memory := tensor.NewHostBackend()
 		defer memory.Close()
 
-		input := uploadFloatSliceWithShape(t, memory, make([]float32, 2*2*4), []int{2, 2, 4})
+		input := uploadFloatSliceWithShape(t, memory, make([]float32, 1*2*2*4), []int{1, 2, 2, 4})
 		position := uploadInt32Slice(t, memory, []int32{7})
 		recorder := &recordingDevice{}
 		dispatcher := newTestDispatcher(recorder, memory)
